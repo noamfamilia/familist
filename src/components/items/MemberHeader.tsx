@@ -120,7 +120,7 @@ export function MemberHeader({
   return (
     <div className="mb-3 min-w-full w-max">
       {/* Header row */}
-      <div className="flex items-start gap-0.5 px-3 py-3 bg-orange-50 rounded-lg whitespace-nowrap">
+      <div className="flex items-start gap-0.5 px-3 py-3 rounded-lg whitespace-nowrap" style={{ backgroundColor: '#f5f3e8' }}>
         <span className="text-lg tracking-tighter invisible flex-shrink-0">⋮⋮</span>
         <div className="w-20 flex-shrink-0 flex flex-col">
           <div className="h-6"></div>
