@@ -211,7 +211,7 @@ export default function ListPage() {
               aria-label="New item name"
             />
           </div>
-          <Button type="submit" loading={adding}>
+          <Button type="submit" loading={adding} className="bg-red-500 hover:bg-red-600">
             Add
           </Button>
         </form>

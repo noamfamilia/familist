@@ -223,7 +223,7 @@ export function MemberHeader({
               />
               <button
                 onMouseDown={handleAddMember}
-                className="mt-1.5 w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-coral text-white hover:bg-coral-dark"
+                className="mt-1.5 w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-red-500 text-white hover:bg-red-600"
               >
                 Add
               </button>
