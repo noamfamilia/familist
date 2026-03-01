@@ -28,6 +28,8 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [editingQuantityMember, setEditingQuantityMember] = useState<string | null>(null)
+  const [editQuantityValue, setEditQuantityValue] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close menu when clicking outside
@@ -76,8 +78,23 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
     await onUpdateMemberState(item.id, memberId, { done: newDone })
   }
 
-  const handleQuantityChange = async (memberId: string, delta: number) => {
-    await onChangeQuantity(item.id, memberId, delta)
+  const handleStartEditQuantity = (memberId: string, currentQuantity: number) => {
+    setEditingQuantityMember(memberId)
+    setEditQuantityValue(currentQuantity.toString())
+  }
+
+  const handleSaveQuantity = async (memberId: string) => {
+    const newQuantity = parseInt(editQuantityValue, 10)
+    if (!isNaN(newQuantity) && newQuantity >= 0) {
+      const currentState = item.memberStates[memberId]
+      const currentQuantity = currentState?.quantity || 0
+      const delta = newQuantity - currentQuantity
+      if (delta !== 0) {
+        await onChangeQuantity(item.id, memberId, delta)
+      }
+    }
+    setEditingQuantityMember(null)
+    setEditQuantityValue('')
   }
 
   const handleArchive = async () => {
@@ -146,32 +163,45 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
             const quantity = state?.quantity || 0
             const done = state?.done || false
             const isCreator = member.created_by === user?.id
+            const isEditingThis = editingQuantityMember === member.id
 
             return (
-              <div key={member.id} className={`w-16 flex-shrink-0 flex items-center justify-start ${!isCreator ? 'opacity-50' : ''}`}>
-                {/* Quantity control */}
-                <button
-                  onClick={() => isCreator && handleQuantityChange(member.id, -1)}
-                  className={`text-gray-400 text-sm ${isCreator ? 'hover:text-gray-600 cursor-pointer' : 'cursor-not-allowed'}`}
-                  disabled={!isCreator || quantity <= 0}
-                >
-                  −
-                </button>
-                <span className={`w-3 text-center text-sm ${quantity === 0 ? 'text-gray-300' : ''}`}>
-                  {quantity}
-                </span>
-                <button
-                  onClick={() => isCreator && handleQuantityChange(member.id, 1)}
-                  className={`text-gray-400 text-sm ${isCreator ? 'hover:text-gray-600 cursor-pointer' : 'cursor-not-allowed'}`}
-                  disabled={!isCreator}
-                >
-                  +
-                </button>
+              <div key={member.id} className={`w-16 flex-shrink-0 flex items-center justify-start gap-1 ${!isCreator ? 'opacity-50' : ''}`}>
+                {/* Quantity - editable text */}
+                {isEditingThis ? (
+                  <input
+                    type="number"
+                    value={editQuantityValue}
+                    onChange={(e) => setEditQuantityValue(e.target.value)}
+                    onBlur={() => handleSaveQuantity(member.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveQuantity(member.id)
+                      if (e.key === 'Escape') {
+                        setEditingQuantityMember(null)
+                        setEditQuantityValue('')
+                      }
+                    }}
+                    className="w-8 text-center text-lg font-semibold border border-primary rounded px-1"
+                    autoFocus
+                    min="0"
+                  />
+                ) : (
+                  <span
+                    onClick={() => isCreator && handleStartEditQuantity(member.id, quantity)}
+                    className={`w-8 text-center text-lg font-semibold ${quantity === 0 ? 'text-gray-300' : 'text-gray-700'} ${isCreator ? 'cursor-pointer hover:text-primary' : 'cursor-not-allowed'}`}
+                  >
+                    {quantity}
+                  </span>
+                )}
 
-                {/* Done toggle */}
+                {/* Done toggle - larger with background */}
                 <button
                   onClick={() => isCreator && handleToggleDone(member.id)}
-                  className={`${done ? 'text-green-500' : 'text-gray-300'} ${!isCreator ? 'cursor-not-allowed' : ''}`}
+                  className={`w-7 h-7 rounded-md flex items-center justify-center text-lg font-bold transition-colors ${
+                    done 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-gray-200 text-gray-400'
+                  } ${isCreator ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
                   disabled={!isCreator}
                 >
                   ✓
