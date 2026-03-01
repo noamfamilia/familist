@@ -156,7 +156,7 @@ export default function ListPage() {
       </header>
 
       {/* View toggles */}
-      <div className="flex justify-center gap-4 mb-4 sm:mb-6 flex-wrap">
+      <div className="flex flex-col items-center gap-2 mb-4 sm:mb-6">
         <Toggle
           options={[
             { value: 'active', label: 'Active' },
