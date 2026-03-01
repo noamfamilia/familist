@@ -157,7 +157,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         )}
 
         {/* Per-member controls - aligned under header */}
-        <div className="flex items-center ml-2 flex-shrink-0">
+        <div className="flex items-center ml-2 flex-shrink-0 gap-3">
           {members.map(member => {
             const state = item.memberStates[member.id]
             const quantity = state?.quantity || 0
@@ -166,7 +166,10 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
             const isEditingThis = editingQuantityMember === member.id
 
             return (
-              <div key={member.id} className={`w-16 flex-shrink-0 flex items-center justify-start gap-1 ${!isCreator ? 'opacity-50' : ''}`}>
+              <div 
+                key={member.id} 
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white ${!isCreator ? 'opacity-50' : ''}`}
+              >
                 {/* Quantity - editable text */}
                 {isEditingThis ? (
                   <input
@@ -181,14 +184,14 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
                         setEditQuantityValue('')
                       }
                     }}
-                    className="w-8 text-center text-lg font-semibold border border-primary rounded px-1"
+                    className="w-10 text-center text-xl font-semibold border border-primary rounded px-1"
                     autoFocus
                     min="0"
                   />
                 ) : (
                   <span
                     onClick={() => isCreator && handleStartEditQuantity(member.id, quantity)}
-                    className={`w-8 text-center text-lg font-semibold ${quantity === 0 ? 'text-gray-300' : 'text-gray-700'} ${isCreator ? 'cursor-pointer hover:text-primary' : 'cursor-not-allowed'}`}
+                    className={`w-8 text-center text-xl font-semibold ${quantity === 0 ? 'text-gray-300' : 'text-gray-700'} ${isCreator ? 'cursor-pointer hover:text-primary' : 'cursor-not-allowed'}`}
                   >
                     {quantity}
                   </span>
@@ -197,10 +200,10 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
                 {/* Done toggle - larger with background */}
                 <button
                   onClick={() => isCreator && handleToggleDone(member.id)}
-                  className={`w-7 h-7 rounded-md flex items-center justify-center text-lg font-bold transition-colors ${
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center text-xl font-bold transition-colors ${
                     done 
                       ? 'bg-green-500 text-white' 
-                      : 'bg-gray-200 text-gray-400'
+                      : 'bg-gray-100 text-gray-400'
                   } ${isCreator ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
                   disabled={!isCreator}
                 >

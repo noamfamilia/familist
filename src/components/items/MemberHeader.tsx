@@ -101,19 +101,19 @@ export function MemberHeader({
   }
 
   return (
-    <div className="mb-2">
+    <div className="mb-3">
       {/* Header row */}
-      <div className="inline-flex items-start gap-0.5 px-3 py-1.5 bg-primary/10 rounded-lg min-w-full">
+      <div className="inline-flex items-start gap-0.5 px-3 py-3 bg-primary/10 rounded-lg min-w-full">
         <span className="text-sm tracking-tighter invisible flex-shrink-0">⋮⋮</span>
         <div className="w-36 flex-shrink-0 flex flex-col">
-          <div className="h-4"></div>
-          <span className="text-[10px] text-gray-500 mt-0.5">Hide done</span>
+          <div className="h-6"></div>
+          <span className="text-xs text-gray-500 mt-1">Hide done</span>
         </div>
         
         {/* Members section - toggle below name */}
-        <div className="flex items-start ml-2 flex-shrink-0">
+        <div className="flex items-start ml-2 flex-shrink-0 gap-3">
           {members.map(member => (
-            <div key={member.id} className="w-16 flex-shrink-0 flex flex-col items-start group">
+            <div key={member.id} className="flex flex-col items-center group min-w-[70px]">
               {editingMemberId === member.id ? (
                 <input
                   type="text"
@@ -127,7 +127,7 @@ export function MemberHeader({
                       setEditName('')
                     }
                   }}
-                  className="w-14 px-1 py-0.5 text-xs border border-primary rounded"
+                  className="w-16 px-2 py-1 text-sm border border-primary rounded"
                   autoFocus
                 />
               ) : (
@@ -135,7 +135,7 @@ export function MemberHeader({
                   <div className="flex items-center">
                     <span
                       onClick={() => member.created_by === user?.id && handleStartEdit(member)}
-                      className={`text-xs font-semibold text-primary truncate max-w-[50px] ${member.created_by === user?.id ? 'cursor-pointer hover:text-primary-dark' : ''}`}
+                      className={`text-sm font-semibold text-primary truncate max-w-[60px] ${member.created_by === user?.id ? 'cursor-pointer hover:text-primary-dark' : ''}`}
                       title={member.creator?.nickname ? `${member.name} (${member.creator.nickname})` : member.name}
                     >
                       {member.name}
@@ -143,20 +143,20 @@ export function MemberHeader({
                     {member.created_by === user?.id && (
                       <button
                         onClick={() => handleDeleteClick(member)}
-                        className="text-red-500 text-[10px] opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity ml-0.5"
+                        className="text-red-500 text-xs opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity ml-1"
                         title="Delete member"
                       >
                         ×
                       </button>
                     )}
                   </div>
-                  {/* Toggle switch below name - matches item controls width */}
+                  {/* Toggle switch below name - larger size */}
                   <button
                     onClick={() => onToggleHideDone(member.id)}
-                    className={`mt-0.5 w-10 h-3 rounded-full transition-colors relative ${hideDone[member.id] ? 'bg-primary' : 'bg-gray-300'}`}
+                    className={`mt-1.5 w-12 h-6 rounded-full transition-colors relative ${hideDone[member.id] ? 'bg-primary' : 'bg-gray-300'}`}
                     title={hideDone[member.id] ? 'Show done items' : 'Hide done items'}
                   >
-                    <span className={`absolute top-0.5 w-2 h-2 bg-white rounded-full transition-transform ${hideDone[member.id] ? 'right-0.5' : 'left-0.5'}`} />
+                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${hideDone[member.id] ? 'right-1' : 'left-1'}`} />
                   </button>
                 </>
               )}
@@ -181,13 +181,13 @@ export function MemberHeader({
                 }
               }}
               placeholder={profile?.nickname || 'Name'}
-              className="w-20 px-1 py-0.5 text-xs border border-primary rounded"
+              className="w-24 px-2 py-1 text-sm border border-primary rounded"
               autoFocus
             />
           ) : (
             <button
               onClick={() => setIsAdding(true)}
-              className="text-xs text-primary hover:bg-primary/20 px-1.5 py-0.5 rounded whitespace-nowrap"
+              className="text-sm text-primary hover:bg-primary/20 px-2 py-1 rounded whitespace-nowrap"
             >
               + Add member
             </button>
