@@ -29,16 +29,14 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-lg p-8 min-w-[300px]">
-        <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
-        </div>
+      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg w-full sm:w-[450px] max-w-4xl p-4 sm:p-8 relative">
+    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 p-4 sm:p-8 relative">
       {/* Auth bar */}
       <div className="absolute top-3 right-3 z-10">
         {user ? (

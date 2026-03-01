@@ -90,6 +90,24 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   // Use profile data, or fall back to user metadata if profile not loaded
   const displayUsername = profile?.username || user?.user_metadata?.username || '-'
   const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
+  
+  const [isEditingNickname, setIsEditingNickname] = useState(false)
+  const [editNickname, setEditNickname] = useState(displayNickname)
+  const [savingNickname, setSavingNickname] = useState(false)
+
+  const handleSaveNickname = async () => {
+    if (!editNickname.trim() || editNickname === displayNickname) {
+      setIsEditingNickname(false)
+      return
+    }
+    setSavingNickname(true)
+    const { error } = await updateProfile({ nickname: editNickname.trim() })
+    if (error) {
+      setError(error.message)
+    }
+    setSavingNickname(false)
+    setIsEditingNickname(false)
+  }
 
   if (user && !loading) {
     return (
@@ -106,9 +124,51 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nickname</label>
-              <p className="text-gray-800">{displayNickname}</p>
+              {isEditingNickname ? (
+                <div className="flex gap-2 mt-1">
+                  <input
+                    type="text"
+                    value={editNickname}
+                    onChange={(e) => setEditNickname(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveNickname()
+                      if (e.key === 'Escape') {
+                        setEditNickname(displayNickname)
+                        setIsEditingNickname(false)
+                      }
+                    }}
+                    className="flex-1 px-3 py-1.5 border border-teal rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal/20"
+                    autoFocus
+                    disabled={savingNickname}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveNickname}
+                    loading={savingNickname}
+                  >
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <p 
+                  className="text-gray-800 cursor-pointer hover:text-teal"
+                  onClick={() => {
+                    setEditNickname(displayNickname)
+                    setIsEditingNickname(true)
+                  }}
+                  title="Click to edit"
+                >
+                  {displayNickname} <span className="text-gray-400 text-sm">✎</span>
+                </p>
+              )}
             </div>
           </div>
+
+          {error && (
+            <div className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
 
           <Button
             variant="secondary"

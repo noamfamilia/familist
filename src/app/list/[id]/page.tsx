@@ -90,7 +90,7 @@ export default function ListPage() {
 
   if (!user) {
     return (
-      <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto">
+      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <p className="text-center text-gray-500">Please sign in to view this list</p>
       </div>
     )
@@ -98,17 +98,15 @@ export default function ListPage() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto">
-        <div className="flex items-center justify-center py-8">
-          <Spinner />
-        </div>
+      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
+        <Spinner />
       </div>
     )
   }
 
   if (!list) {
     return (
-      <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto">
+      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
         <p className="text-center text-gray-500">List not found or deleted</p>
         <button
           onClick={() => router.push('/')}
@@ -166,7 +164,7 @@ export default function ListPage() {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg w-full sm:min-w-[400px] max-w-6xl p-4 sm:p-8">
+    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-6xl min-h-screen sm:min-h-0 p-4 sm:p-8">
       {/* Back button */}
       <button
         onClick={() => router.push('/')}
