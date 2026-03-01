@@ -127,7 +127,7 @@ export function ListsView({ viewMode }: ListsViewProps) {
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="List name or @token to join..."
+            placeholder="List name or @token"
             disabled={submitting}
           />
         </div>
