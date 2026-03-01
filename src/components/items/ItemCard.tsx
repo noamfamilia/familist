@@ -268,7 +268,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         </div>
 
         {/* Trailing section - fixed width to match header */}
-        <div className="w-28 flex-shrink-0 flex justify-end items-center gap-1 ml-2 relative" ref={menuRef}>
+        <div className="w-28 flex-shrink-0 flex justify-end items-center gap-1 ml-2" ref={menuRef}>
           {/* Comment indicator */}
           {hasComment && (
             <span className="text-primary text-sm opacity-80" title="Has comment">💬</span>
@@ -280,46 +280,46 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
             className="text-gray-400 hover:text-gray-600 px-1 py-0.5 rounded hover:bg-gray-200"
             title="More options"
           >
-            <span className="text-lg">⋮</span>
+            <span className="text-lg">{showMenu ? '✕' : '⋮'}</span>
           </button>
+        </div>
+        </div>
 
-          {/* Dropdown menu - opens upward to avoid overflow-hidden clipping */}
-          {showMenu && (
-            <div className="absolute right-0 bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[140px] py-1">
-              <button
-                onClick={() => {
-                  setShowComment(!showComment)
-                  setShowMenu(false)
-                }}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
-              >
-                <span>💬</span>
-                <span>{hasComment ? 'Edit comment' : 'Add comment'}</span>
-              </button>
-              <button
-                onClick={() => {
-                  handleArchive()
-                  setShowMenu(false)
-                }}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
-              >
-                <span>{item.archived ? '↩' : '📥'}</span>
-                <span>{item.archived ? 'Restore' : 'Archive'}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowDeleteConfirm(true)
-                  setShowMenu(false)
-                }}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 text-red-600 flex items-center gap-2"
-              >
-                <span>🗑️</span>
-                <span>Delete</span>
-              </button>
-            </div>
-          )}
-        </div>
-        </div>
+        {/* Inline action buttons - shown when menu is open */}
+        {showMenu && (
+          <div className="flex items-center justify-end gap-2 px-3 py-2 bg-gray-100 border-t border-gray-200">
+            <button
+              onClick={() => {
+                setShowComment(!showComment)
+                setShowMenu(false)
+              }}
+              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+            >
+              <span>💬</span>
+              <span>{hasComment ? 'Edit' : 'Comment'}</span>
+            </button>
+            <button
+              onClick={() => {
+                handleArchive()
+                setShowMenu(false)
+              }}
+              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+            >
+              <span>{item.archived ? '↩' : '📥'}</span>
+              <span>{item.archived ? 'Restore' : 'Archive'}</span>
+            </button>
+            <button
+              onClick={() => {
+                setShowDeleteConfirm(true)
+                setShowMenu(false)
+              }}
+              className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+            >
+              <span>🗑️</span>
+              <span>Delete</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Comment section */}
