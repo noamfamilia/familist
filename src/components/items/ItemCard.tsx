@@ -161,7 +161,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
           className={`bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors ${item.archived ? 'opacity-60' : ''}`}
         >
         {/* Card row */}
-        <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap">
+        <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap" data-tour="item-row">
         {/* Drag handle */}
         <div 
           className={`text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${item.archived ? 'opacity-50 cursor-not-allowed' : 'cursor-grab'}`}
@@ -267,6 +267,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
             onClick={() => setShowMenu(!showMenu)}
             className="text-gray-400 hover:text-gray-600 px-1 py-0.5 rounded hover:bg-gray-200"
             title="More options"
+            data-tour="item-kebab"
           >
             <span className="text-lg">{showMenu ? '✕' : '⋮'}</span>
           </button>

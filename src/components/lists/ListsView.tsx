@@ -122,7 +122,7 @@ export function ListsView() {
   return (
     <div className="space-y-6">
       {/* Create new list */}
-      <form onSubmit={handleCreateList} className="flex gap-3">
+      <form onSubmit={handleCreateList} className="flex gap-3" data-tour="create-list">
         <div className="flex-1">
           <Input
             value={newListName}
@@ -137,7 +137,7 @@ export function ListsView() {
       </form>
 
       {/* Join with token */}
-      <form onSubmit={handleJoinList} className="flex gap-3">
+      <form onSubmit={handleJoinList} className="flex gap-3" data-tour="join-list">
         <div className="flex-1">
           <Input
             value={joinToken}

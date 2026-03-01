@@ -3,7 +3,25 @@
 import { useAuth } from '@/providers/AuthProvider'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { ListsView } from '@/components/lists/ListsView'
+import { TutorialTour } from '@/components/ui/TutorialTour'
 import { useState } from 'react'
+import type { Step } from 'react-joyride'
+
+const homeTourSteps: Step[] = [
+  {
+    target: '[data-tour="create-list"]',
+    content: 'Create a new shopping list here. Give it a name and click Create.',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="join-list"]',
+    content: 'Have a token from someone? Enter it here to join their shared list.',
+  },
+  {
+    target: '[data-tour="list-card"]',
+    content: 'Click on a list to open it. Use the menu (⋮) to rename, share, archive, or delete.',
+  },
+]
 
 export default function Home() {
   const { user, profile, loading } = useAuth()
@@ -50,7 +68,10 @@ export default function Home() {
 
       {/* Main content */}
       {user ? (
-        <ListsView />
+        <>
+          <ListsView />
+          <TutorialTour tourId="home" steps={homeTourSteps} />
+        </>
       ) : (
         <div className="text-center py-12 text-gray-500">
           <p>Sign in to view and manage your lists</p>

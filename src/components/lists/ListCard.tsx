@@ -211,7 +211,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         className="bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
       >
       {/* Card row */}
-      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3" data-tour="list-card">
       {/* Drag handle */}
       <div 
         className="text-gray-400 cursor-grab select-none text-sm tracking-tighter touch-none"

@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/providers/AuthProvider'
+import { resetTutorial } from '@/components/ui/TutorialTour'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -110,8 +111,21 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </div>
 
           <Button
-            variant="danger"
+            variant="secondary"
             className="w-full mt-6"
+            onClick={() => {
+              resetTutorial('home')
+              resetTutorial('list')
+              handleClose()
+              window.location.reload()
+            }}
+          >
+            Replay Tutorial
+          </Button>
+
+          <Button
+            variant="danger"
+            className="w-full"
             onClick={handleSignOut}
           >
             Sign Out

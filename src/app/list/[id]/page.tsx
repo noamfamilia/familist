@@ -13,6 +13,32 @@ import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
+import { TutorialTour } from '@/components/ui/TutorialTour'
+import type { Step } from 'react-joyride'
+
+const listTourSteps: Step[] = [
+  {
+    target: '[data-tour="add-item"]',
+    content: 'Add items to your shopping list here.',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="view-toggle"]',
+    content: 'Switch between Active and Archived items, or filter to show only your members.',
+  },
+  {
+    target: '[data-tour="members-header"]',
+    content: 'Each column represents a family member. Click "+Member" to add someone.',
+  },
+  {
+    target: '[data-tour="item-row"]',
+    content: 'Each item shows quantity and done status per member. Click the number to edit quantity, or the circle to mark done.',
+  },
+  {
+    target: '[data-tour="item-kebab"]',
+    content: 'Use this menu to add comments, archive, or delete items.',
+  },
+]
 
 export default function ListPage() {
   const params = useParams()
@@ -156,7 +182,7 @@ export default function ListPage() {
       </header>
 
       {/* View toggles */}
-      <div className="flex flex-col items-center gap-2 mb-4 sm:mb-6">
+      <div className="flex flex-col items-center gap-2 mb-4 sm:mb-6" data-tour="view-toggle">
         <Toggle
           options={[
             { value: 'active', label: 'Active' },
@@ -177,7 +203,7 @@ export default function ListPage() {
 
       {/* Add item form */}
       {viewMode === 'active' && (
-        <form onSubmit={handleAddItem} className="flex gap-2 sm:gap-3 mb-4 sm:mb-6">
+        <form onSubmit={handleAddItem} className="flex gap-2 sm:gap-3 mb-4 sm:mb-6" data-tour="add-item">
           <div className="flex-1">
             <Input
               value={newItemText}
@@ -198,7 +224,7 @@ export default function ListPage() {
         {/* Inner container that sizes based on content */}
         <div className="inline-block min-w-full">
           {/* Members header with hide done toggles */}
-          <div className="sticky top-0 z-10 bg-white">
+          <div className="sticky top-0 z-10 bg-white" data-tour="members-header">
             <MemberHeader
               members={filteredMembers}
               hideDone={hideDone}
@@ -244,6 +270,9 @@ export default function ListPage() {
         </div>
       </div>
       </div>
+      
+      {/* Tutorial Tour */}
+      <TutorialTour tourId="list" steps={listTourSteps} />
     </div>
   )
 }
