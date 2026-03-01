@@ -138,6 +138,7 @@ export interface Database {
           text: string
           comment: string | null
           archived: boolean
+          archived_at: string | null
           sort_order: number | null
           created_at: string
           updated_at: string
@@ -148,6 +149,7 @@ export interface Database {
           text: string
           comment?: string | null
           archived?: boolean
+          archived_at?: string | null
           sort_order?: number | null
           created_at?: string
           updated_at?: string
@@ -158,6 +160,7 @@ export interface Database {
           text?: string
           comment?: string | null
           archived?: boolean
+          archived_at?: string | null
           sort_order?: number | null
           created_at?: string
           updated_at?: string

@@ -17,9 +17,10 @@ interface ItemCardProps {
   onChangeQuantity: (itemId: string, memberId: string, delta: number) => Promise<any>
   onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<any>
   dragHandleProps?: Record<string, unknown>
+  isDraggable?: boolean
 }
 
-export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -37,20 +38,16 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
 
   const swipeHandlers = useSwipeable({
     onSwiping: (e) => {
-      // Only allow swipe right (positive deltaX) - require 40px before starting
-      if (e.deltaX > 40) {
+      // Only allow swipe for archived items (to delete)
+      if (item.archived && e.deltaX > 40) {
         setIsSwiping(true)
         setSwipeOffset(e.deltaX - 30)
       }
     },
     onSwipedRight: () => {
-      if (swipeOffset > getSwipeThreshold()) {
-        // Active items → Archive, Archived items → Delete
-        if (item.archived) {
-          setShowDeleteConfirm(true)
-        } else {
-          handleArchive()
-        }
+      // Only archived items can be swiped to delete
+      if (item.archived && swipeOffset > getSwipeThreshold()) {
+        setShowDeleteConfirm(true)
       }
       setSwipeOffset(0)
       setIsSwiping(false)
@@ -118,12 +115,15 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   }
 
   const handleArchive = async () => {
-    await onUpdateItem(item.id, { archived: !item.archived })
+    if (item.archived) {
+      await onUpdateItem(item.id, { archived: false, archived_at: null })
+    } else {
+      await onUpdateItem(item.id, { archived: true, archived_at: new Date().toISOString() })
+    }
   }
 
   const handleSaveComment = async () => {
     await onUpdateItem(item.id, { comment: comment.trim() || null })
-    setShowComment(false)
   }
 
   const handleDeleteConfirm = async () => {
@@ -142,16 +142,16 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
     <div className="min-w-full">
       {/* Swipe container */}
       <div className="relative overflow-hidden rounded-lg">
-        {/* Background action revealed on swipe right */}
-        <div className="absolute inset-0 flex pointer-events-none">
-          {/* Active → Archive (amber), Archived → Delete (red) */}
-          <div 
-            className={`w-full flex items-center justify-start pl-4 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'} ${item.archived ? 'bg-red-500' : 'bg-amber-500'}`}
-          >
-            {item.archived ? '🗑️ Delete' : '📥 Archive'}
+        {/* Background action revealed on swipe right (only for archived items) */}
+        {item.archived && (
+          <div className="absolute inset-0 flex pointer-events-none">
+            <div 
+              className={`w-full flex items-center justify-start pl-4 text-white font-semibold transition-opacity bg-red-500 ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'}`}
+            >
+              🗑️ Delete
+            </div>
           </div>
-          <div className="flex-1" />
-        </div>
+        )}
 
         {/* Main card content - wrapper for swipe transform */}
         <div 
@@ -161,15 +161,19 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         >
         {/* Card row */}
         <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap" data-tour="item-row">
-        {/* Drag handle */}
-        <div 
-          className={`text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${item.archived ? 'opacity-50 cursor-not-allowed' : 'cursor-grab'}`}
-          {...(item.archived ? {} : dragHandleProps)}
-        >
-          ⋮⋮
-        </div>
+        {/* Drag handle - only shown for draggable (active) items */}
+        {isDraggable ? (
+          <div 
+            className="text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 cursor-grab"
+            {...dragHandleProps}
+          >
+            ⋮⋮
+          </div>
+        ) : (
+          <div className="w-4 flex-shrink-0" />
+        )}
 
-        {/* Item name */}
+        {/* Item name - click to toggle archive */}
         {isEditing ? (
           <input
             type="text"
@@ -188,9 +192,9 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
           />
         ) : (
           <span
-            onClick={() => !item.archived && setIsEditing(true)}
-            className={`w-20 flex-shrink-0 truncate text-lg ${item.archived ? 'text-gray-500 cursor-default' : 'cursor-pointer hover:text-teal'}`}
-            title={item.text}
+            onClick={handleArchive}
+            className={`w-20 flex-shrink-0 truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500' : ''}`}
+            title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
           >
             {item.text}
           </span>
@@ -293,18 +297,20 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
             </div>
             {/* Action buttons */}
             <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleArchive()
-                  setShowMenu(false)
-                }}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
-              >
-                <span>{item.archived ? '↩' : '📥'}</span>
-                <span>{item.archived ? 'Restore' : 'Archive'}</span>
-              </button>
+              {!item.archived && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsEditing(true)
+                    setShowMenu(false)
+                  }}
+                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+                >
+                  <span>✏️</span>
+                  <span>Rename</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={(e) => {

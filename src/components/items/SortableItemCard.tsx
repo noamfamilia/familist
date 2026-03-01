@@ -24,7 +24,7 @@ export function SortableItemCard({ item, members, hideDone, onUpdateItem, onDele
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id, disabled: item.archived })
+  } = useSortable({ id: item.id })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -43,6 +43,7 @@ export function SortableItemCard({ item, members, hideDone, onUpdateItem, onDele
         onChangeQuantity={onChangeQuantity}
         onUpdateMemberState={onUpdateMemberState}
         dragHandleProps={{ ...attributes, ...listeners }}
+        isDraggable={true}
       />
     </div>
   )

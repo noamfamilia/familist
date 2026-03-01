@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
+import { ItemCard } from '@/components/items/ItemCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import { TutorialTour } from '@/components/ui/TutorialTour'
 import type { Step } from 'react-joyride'
@@ -24,7 +25,7 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="view-toggle"]',
-    content: 'Switch between Active and Archived items, or filter to show only your members.',
+    content: 'Filter to show all members or just yours.',
   },
   {
     target: '[data-tour="members-header"]',
@@ -32,11 +33,11 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="item-row"]',
-    content: 'Each item shows quantity and done status per member. Click the number to edit quantity, or the circle to mark done.',
+    content: 'Each item shows quantity and done status per member. Click the item name to archive/restore it.',
   },
   {
     target: '[data-tour="item-kebab"]',
-    content: 'Use this menu to add comments, archive, or delete items.',
+    content: 'Use this menu to add comments or delete items.',
   },
 ]
 
@@ -82,7 +83,6 @@ export default function ListPage() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
-  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
   const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>('all')
   const [newItemText, setNewItemText] = useState('')
   const [adding, setAdding] = useState(false)
@@ -132,9 +132,17 @@ export default function ListPage() {
     setAdding(false)
   }
 
-  const filteredItems = items.filter(item => {
-    return viewMode === 'active' ? !item.archived : item.archived
-  })
+  const activeItems = items
+    .filter(item => !item.archived)
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  
+  const archivedItems = items
+    .filter(item => item.archived)
+    .sort((a, b) => {
+      const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
+      const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
+      return bTime - aTime
+    })
 
   const filteredMembers = memberFilter === 'all' 
     ? members 
@@ -151,14 +159,14 @@ export default function ListPage() {
     const { active, over } = event
     
     if (over && active.id !== over.id) {
-      const oldIndex = items.findIndex(i => i.id === active.id)
-      const newIndex = items.findIndex(i => i.id === over.id)
+      const oldIndex = activeItems.findIndex(i => i.id === active.id)
+      const newIndex = activeItems.findIndex(i => i.id === over.id)
       
       if (oldIndex !== -1 && newIndex !== -1) {
-        const reordered = [...items]
+        const reordered = [...activeItems]
         const [removed] = reordered.splice(oldIndex, 1)
         reordered.splice(newIndex, 0, removed)
-        reorderItems(reordered)
+        reorderItems([...reordered, ...archivedItems])
       }
     }
   }
@@ -179,16 +187,8 @@ export default function ListPage() {
         <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">{list.name}</h1>
       </header>
 
-      {/* View toggles */}
-      <div className="flex flex-col items-center gap-2 mb-4 sm:mb-6" data-tour="view-toggle">
-        <Toggle
-          options={[
-            { value: 'active', label: 'Active' },
-            { value: 'archived', label: 'Archived' },
-          ]}
-          value={viewMode}
-          onChange={(v) => setViewMode(v as 'active' | 'archived')}
-        />
+      {/* View toggle */}
+      <div className="flex justify-center mb-4 sm:mb-6" data-tour="view-toggle">
         <Toggle
           options={[
             { value: 'all', label: 'All' },
@@ -200,8 +200,7 @@ export default function ListPage() {
       </div>
 
       {/* Add item form */}
-      {viewMode === 'active' && (
-        <form onSubmit={handleAddItem} className="flex gap-2 sm:gap-3 mb-4 sm:mb-6" data-tour="add-item">
+      <form onSubmit={handleAddItem} className="flex gap-2 sm:gap-3 mb-4 sm:mb-6" data-tour="add-item">
           <div className="flex-1">
             <Input
               value={newItemText}
@@ -215,7 +214,6 @@ export default function ListPage() {
             Add
           </Button>
         </form>
-      )}
 
       {/* Scrollable container for header + items */}
       <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
@@ -235,38 +233,64 @@ export default function ListPage() {
             />
           </div>
 
-          {/* Items list */}
+          {/* Active items list */}
           <div className="space-y-2">
-        {filteredItems.length > 0 ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={filteredItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
-              {filteredItems.map(item => (
-                <SortableItemCard
-                  key={item.id}
-                  item={item}
-                  members={filteredMembers}
-                  hideDone={hideDone}
-                  onUpdateItem={updateItem}
-                  onDeleteItem={deleteItem}
-                  onChangeQuantity={changeQuantity}
-                  onUpdateMemberState={updateMemberState}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        ) : (
-          <div className="text-center py-12 text-gray-500 italic">
-            {viewMode === 'active'
-              ? 'No items yet. Add one above!'
-              : 'No archived items.'}
+            {activeItems.length > 0 ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext items={activeItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                  {activeItems.map(item => (
+                    <SortableItemCard
+                      key={item.id}
+                      item={item}
+                      members={filteredMembers}
+                      hideDone={hideDone}
+                      onUpdateItem={updateItem}
+                      onDeleteItem={deleteItem}
+                      onChangeQuantity={changeQuantity}
+                      onUpdateMemberState={updateMemberState}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            ) : (
+              <div className="text-center py-8 text-gray-500 italic">
+                No items yet. Add one above!
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Archived section separator */}
+          {archivedItems.length > 0 && (
+            <>
+              <div className="flex items-center gap-3 my-6">
+                <div className="flex-1 h-px bg-gray-300" />
+                <span className="text-sm text-gray-500 font-medium">Archived</span>
+                <div className="flex-1 h-px bg-gray-300" />
+              </div>
+
+              {/* Archived items list (no drag) */}
+              <div className="space-y-2">
+                {archivedItems.map(item => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                    members={filteredMembers}
+                    hideDone={hideDone}
+                    onUpdateItem={updateItem}
+                    onDeleteItem={deleteItem}
+                    onChangeQuantity={changeQuantity}
+                    onUpdateMemberState={updateMemberState}
+                    isDraggable={false}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
-      </div>
       </div>
       
       {/* Tutorial Tour */}
