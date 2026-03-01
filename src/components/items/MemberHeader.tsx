@@ -14,6 +14,7 @@ interface MemberHeaderProps {
   onUpdateMember: (memberId: string, updates: Partial<MemberWithCreator>) => Promise<{ error?: { message: string } | null }>
   onDeleteMember: (memberId: string) => Promise<{ error?: { message: string } | null }>
   listId: string
+  showAddMember?: boolean
 }
 
 export function MemberHeader({
@@ -24,6 +25,7 @@ export function MemberHeader({
   onUpdateMember,
   onDeleteMember,
   listId,
+  showAddMember = true,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
@@ -195,6 +197,7 @@ export function MemberHeader({
         </div>
 
         {/* Add member section - same pitch as member columns */}
+        {showAddMember && (
         <div className="flex flex-col items-center min-w-[70px]">
           {isAdding ? (
             <input
@@ -228,6 +231,7 @@ export function MemberHeader({
             Add
           </button>
         </div>
+        )}
       </div>
 
       <ConfirmModal

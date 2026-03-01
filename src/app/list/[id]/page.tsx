@@ -57,6 +57,7 @@ export default function ListPage() {
     })
   )
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
+  const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>('all')
   const [newItemText, setNewItemText] = useState('')
   const [adding, setAdding] = useState(false)
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
@@ -111,6 +112,10 @@ export default function ListPage() {
     return viewMode === 'active' ? !item.archived : item.archived
   })
 
+  const filteredMembers = memberFilter === 'all' 
+    ? members 
+    : members.filter(m => m.created_by === user?.id)
+
   const toggleHideDone = (memberId: string) => {
     setHideDone(prev => ({
       ...prev,
@@ -150,8 +155,8 @@ export default function ListPage() {
         <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">{list.name}</h1>
       </header>
 
-      {/* View toggle */}
-      <div className="flex justify-center mb-4 sm:mb-6">
+      {/* View toggles */}
+      <div className="flex justify-center gap-4 mb-4 sm:mb-6 flex-wrap">
         <Toggle
           options={[
             { value: 'active', label: 'Active' },
@@ -159,6 +164,14 @@ export default function ListPage() {
           ]}
           value={viewMode}
           onChange={(v) => setViewMode(v as 'active' | 'archived')}
+        />
+        <Toggle
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'mine', label: 'Mine' },
+          ]}
+          value={memberFilter}
+          onChange={(v) => setMemberFilter(v as 'all' | 'mine')}
         />
       </div>
 
@@ -185,13 +198,14 @@ export default function ListPage() {
         {/* Members header with hide done toggles */}
         <div className="sticky top-0 z-10 bg-white">
           <MemberHeader
-            members={members}
+            members={filteredMembers}
             hideDone={hideDone}
             onToggleHideDone={toggleHideDone}
             onAddMember={addMember}
             onUpdateMember={updateMember}
             onDeleteMember={deleteMember}
             listId={listId}
+            showAddMember={memberFilter === 'all'}
           />
         </div>
 
@@ -208,7 +222,7 @@ export default function ListPage() {
                 <SortableItemCard
                   key={item.id}
                   item={item}
-                  members={members}
+                  members={filteredMembers}
                   hideDone={hideDone}
                   onUpdateItem={updateItem}
                   onDeleteItem={deleteItem}

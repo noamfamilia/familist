@@ -283,9 +283,9 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
             <span className="text-lg">⋮</span>
           </button>
 
-          {/* Dropdown menu */}
+          {/* Dropdown menu - opens upward to avoid overflow-hidden clipping */}
           {showMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[140px] py-1">
+            <div className="absolute right-0 bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[140px] py-1">
               <button
                 onClick={() => {
                   setShowComment(!showComment)
