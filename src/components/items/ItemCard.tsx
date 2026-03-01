@@ -243,7 +243,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
                   onClick={() => isCreator && handleToggleDone(member.id)}
                   className={`w-8 h-8 rounded-lg flex items-center justify-center text-xl font-bold transition-colors ${
                     done 
-                      ? 'bg-teal text-white' 
+                      ? 'bg-coral text-white' 
                       : 'bg-gray-100 text-gray-400'
                   } ${isCreator ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
                   disabled={!isCreator}
