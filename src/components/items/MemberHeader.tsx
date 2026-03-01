@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -37,6 +37,21 @@ export function MemberHeader({
     memberName: '',
   })
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [showCreatorInfo, setShowCreatorInfo] = useState<string | null>(null)
+  const creatorInfoRef = useRef<HTMLDivElement>(null)
+
+  // Close creator info popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (creatorInfoRef.current && !creatorInfoRef.current.contains(event.target as Node)) {
+        setShowCreatorInfo(null)
+      }
+    }
+    if (showCreatorInfo) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showCreatorInfo])
 
   const handleAddMember = async () => {
     const nameToAdd = newMemberName.trim() || profile?.nickname || 'Me'
@@ -107,7 +122,7 @@ export function MemberHeader({
         <span className="text-sm tracking-tighter invisible flex-shrink-0">⋮⋮</span>
         <div className="w-36 flex-shrink-0 flex flex-col">
           <div className="h-6"></div>
-          <div className="h-8 mt-1.5"></div>
+          <div className="h-10 mt-1.5"></div>
         </div>
         
         {/* Members section - toggle below name */}
@@ -135,32 +150,42 @@ export function MemberHeader({
                   <span
                     onClick={() => member.created_by === user?.id && handleStartEdit(member)}
                     className={`text-lg font-semibold text-primary truncate max-w-[70px] ${member.created_by === user?.id ? 'cursor-pointer hover:text-primary-dark' : ''}`}
-                    title={member.creator?.nickname ? `${member.name} (${member.creator.nickname})` : member.name}
                   >
                     {member.name}
                   </span>
-                  {/* Delete and Hide done buttons below name */}
-                  <div className="flex items-center gap-1 mt-1.5">
-                    {member.created_by === user?.id && (
+                  {/* Info/Delete and Hide done buttons in container */}
+                  <div ref={showCreatorInfo === member.id ? creatorInfoRef : null} className="flex items-center gap-1 mt-1.5 px-2 py-1 rounded-lg border border-gray-200 bg-white relative">
+                    {member.created_by === user?.id ? (
                       <button
                         onClick={() => handleDeleteClick(member)}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold transition-colors bg-red-100 text-red-500 hover:bg-red-200"
-                        title="Delete member"
                       >
                         ×
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowCreatorInfo(showCreatorInfo === member.id ? null : member.id)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-xl transition-colors bg-blue-100 text-blue-500 hover:bg-blue-200"
+                      >
+                        ℹ
                       </button>
                     )}
                     <button
                       onClick={() => onToggleHideDone(member.id)}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-xl transition-colors ${
                         hideDone[member.id] 
                           ? 'bg-primary text-white' 
                           : 'bg-gray-100 text-gray-400'
                       } hover:opacity-80`}
-                      title={hideDone[member.id] ? 'Show done items' : 'Hide done items'}
                     >
                       👁
                     </button>
+                    {/* Creator info popup */}
+                    {showCreatorInfo === member.id && member.creator?.nickname && (
+                      <div className="absolute top-full left-0 mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-lg z-20 whitespace-nowrap text-sm">
+                        Created by: <span className="font-semibold">{member.creator.nickname}</span>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
