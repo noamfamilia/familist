@@ -7,7 +7,7 @@ import { ToastProvider } from '@/components/ui/Toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Familist',
+  title: 'MyFamiList',
   description: 'A collaborative shared lists application for families',
   manifest: '/manifest.json',
   icons: {
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Familist',
+    title: 'MyFamiList',
   },
   other: {
     'mobile-web-app-capable': 'yes',

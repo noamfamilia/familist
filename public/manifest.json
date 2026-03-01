@@ -1,6 +1,6 @@
 {
-  "name": "Familist",
-  "short_name": "Familist",
+  "name": "MyFamiList",
+  "short_name": "MyFamiList",
   "description": "A collaborative shared lists application for families",
   "start_url": "/",
   "display": "standalone",

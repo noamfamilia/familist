@@ -63,7 +63,11 @@ export default function Home() {
 
       {/* Header */}
       <header className="text-center mb-6 sm:mb-8 pt-6 sm:pt-0">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-gray-800">Familist</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold">
+          <span style={{ color: '#1e3a5f' }}>My</span>
+          <span style={{ color: '#e07050' }}>Fami</span>
+          <span style={{ color: '#2aa198' }}>List</span>
+        </h1>
       </header>
 
       {/* Main content */}
