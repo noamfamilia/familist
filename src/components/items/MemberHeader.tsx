@@ -174,13 +174,14 @@ export function MemberHeader({
                     )}
                     <button
                       onClick={() => onToggleHideDone(member.id)}
-                      className={`w-8 h-8 flex items-center justify-center text-xl transition-colors ${
+                      className={`w-8 h-8 flex items-center justify-center text-lg transition-colors ${
                         hideDone[member.id] 
                           ? 'text-primary' 
                           : 'text-gray-400'
                       } hover:opacity-80`}
+                      title={hideDone[member.id] ? 'Show done items' : 'Hide done items'}
                     >
-                      👁
+                      ⧩
                     </button>
                     {/* Creator info popup */}
                     {showCreatorInfo === member.id && member.creator?.nickname && (
