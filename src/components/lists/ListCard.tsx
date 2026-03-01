@@ -11,7 +11,7 @@ import type { ListWithRole } from '@/lib/supabase/types'
 interface ListCardProps {
   list: ListWithRole
   existingListNames: string[]
-  onUpdate: (listId: string, updates: { name?: string; archived?: boolean }) => Promise<{ error: Error | null }>
+  onUpdate: (listId: string, updates: { name?: string; archived?: boolean; comment?: string }) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
   onArchive: (listId: string, updates: { archived?: boolean }) => Promise<{ error: Error | null }>
   onDuplicate: (listId: string, newName: string) => Promise<{ error: Error | null }>
@@ -32,11 +32,23 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [deleting, setDeleting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const [comment, setComment] = useState((list as any).comment || '')
   const inputRef = useRef<HTMLInputElement>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [isSwiping, setIsSwiping] = useState(false)
 
   const isOwner = list.role === 'owner'
+
+  const handleSaveComment = async () => {
+    const trimmed = comment.trim()
+    if (trimmed !== ((list as any).comment || '')) {
+      const { error } = await onUpdate(list.id, { comment: trimmed })
+      if (error) {
+        showError('Failed to save comment')
+        setComment((list as any).comment || '')
+      }
+    }
+  }
   const SWIPE_THRESHOLD = 80
 
   const swipeHandlers = useSwipeable({
@@ -267,74 +279,92 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       </button>
       </div>
 
-      {/* Inline action buttons - inside transform div so they move with card */}
+      {/* Expanded menu with comment field and action buttons */}
       {menuOpen && (
-        <div className="flex items-center justify-end gap-2 px-3 py-2 bg-gray-100 border-t border-gray-200">
-          {isOwner && (
+        <div className="px-3 py-2 bg-gray-100 border-t border-gray-200 space-y-2">
+          {/* Comment field */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onBlur={handleSaveComment}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveComment()
+              }}
+              placeholder="Add a comment..."
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          {/* Action buttons */}
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            {isOwner && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsRenaming(true)
+                  setMenuOpen(false)
+                }}
+                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-primary"
+              >
+                <span>✏️</span>
+                <span>Rename</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                setIsRenaming(true)
+                handleDuplicate()
                 setMenuOpen(false)
               }}
-              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-primary"
+              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-cyan-600"
             >
-              <span>✏️</span>
-              <span>Rename</span>
+              <span>📋</span>
+              <span>Duplicate</span>
             </button>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleDuplicate()
-              setMenuOpen(false)
-            }}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-cyan-600"
-          >
-            <span>📋</span>
-            <span>Duplicate</span>
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleArchive()
-              setMenuOpen(false)
-            }}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
-          >
-            <span>{list.userArchived ? '↩' : '📥'}</span>
-            <span>{list.userArchived ? 'Restore' : 'Archive'}</span>
-          </button>
-          {isOwner ? (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                handleDeleteClick()
+                handleArchive()
                 setMenuOpen(false)
               }}
-              className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
             >
-              <span>🗑️</span>
-              <span>Delete</span>
+              <span>{list.userArchived ? '↩' : '📥'}</span>
+              <span>{list.userArchived ? 'Restore' : 'Archive'}</span>
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleLeaveClick()
-                setMenuOpen(false)
-              }}
-              className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
-            >
-              <span>🚪</span>
-              <span>Leave</span>
-            </button>
-          )}
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeleteClick()
+                  setMenuOpen(false)
+                }}
+                className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+              >
+                <span>🗑️</span>
+                <span>Delete</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleLeaveClick()
+                  setMenuOpen(false)
+                }}
+                className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+              >
+                <span>🚪</span>
+                <span>Leave</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
       </div>

@@ -24,7 +24,6 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(item.text)
-  const [showComment, setShowComment] = useState(false)
   const [comment, setComment] = useState(item.comment || '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -274,78 +273,55 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         </div>
         </div>
 
-        {/* Inline action buttons - inside transform div so they move with card */}
+        {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
-          <div className="flex items-center justify-end gap-2 px-3 py-2 bg-gray-100 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowComment(!showComment)
-                setShowMenu(false)
-              }}
-              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
-            >
-              <span>💬</span>
-              <span>{hasComment ? 'Edit' : 'Comment'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleArchive()
-                setShowMenu(false)
-              }}
-              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
-            >
-              <span>{item.archived ? '↩' : '📥'}</span>
-              <span>{item.archived ? 'Restore' : 'Archive'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowDeleteConfirm(true)
-                setShowMenu(false)
-              }}
-              className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
-            >
-              <span>🗑️</span>
-              <span>Delete</span>
-            </button>
+          <div className="px-3 py-2 bg-gray-100 border-t border-gray-200 space-y-2">
+            {/* Comment field */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                onBlur={handleSaveComment}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveComment()
+                }}
+                placeholder="Add a comment..."
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            {/* Action buttons */}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleArchive()
+                  setShowMenu(false)
+                }}
+                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+              >
+                <span>{item.archived ? '↩' : '📥'}</span>
+                <span>{item.archived ? 'Restore' : 'Archive'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowDeleteConfirm(true)
+                  setShowMenu(false)
+                }}
+                className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+              >
+                <span>🗑️</span>
+                <span>Delete</span>
+              </button>
+            </div>
           </div>
         )}
         </div>
       </div>
-
-      {/* Comment section */}
-      {showComment && (
-        <div className="ml-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Add a comment..."
-            className="w-full min-h-[60px] p-2 border border-gray-200 rounded text-sm resize-y focus:outline-none focus:border-primary"
-          />
-          <div className="flex justify-end gap-2 mt-2">
-            <button
-              onClick={() => {
-                setComment(item.comment || '')
-                setShowComment(false)
-              }}
-              className="px-3 py-1 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveComment}
-              className="px-3 py-1 text-sm text-white bg-primary rounded hover:bg-primary-dark"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      )}
 
       <ConfirmModal
         isOpen={showDeleteConfirm}
