@@ -1,0 +1,10 @@
+Your code is now on GitHub at github.com/noamfamilia/familist.
+Now for Vercel deployment:
+Go to vercel.com and sign in with GitHub
+Click "Add New Project"
+Import familist from your GitHub repositories
+Vercel will auto-detect Next.js settings
+Important: Add your environment variables (from .env.local) in the "Environment Variables" section before deploying
+Click Deploy
+Your app will be live in about a minute with a URL like familist.vercel.app.
+Would you like help with anything else, like setting up the environment variables?
