@@ -160,24 +160,24 @@ export function MemberHeader({
                     {member.created_by === user?.id ? (
                       <button
                         onClick={() => handleDeleteClick(member)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold transition-colors bg-red-100 text-red-500 hover:bg-red-200"
+                        className="w-8 h-8 flex items-center justify-center text-lg font-bold transition-colors text-red-500 hover:text-red-700"
                       >
-                        ×
+                        ✕
                       </button>
                     ) : (
                       <button
                         onClick={() => setShowCreatorInfo(showCreatorInfo === member.id ? null : member.id)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-xl transition-colors bg-blue-100 text-blue-500 hover:bg-blue-200"
+                        className="w-8 h-8 flex items-center justify-center text-xl transition-colors text-blue-500 hover:text-blue-700"
                       >
                         ℹ
                       </button>
                     )}
                     <button
                       onClick={() => onToggleHideDone(member.id)}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-xl transition-colors ${
+                      className={`w-8 h-8 flex items-center justify-center text-xl transition-colors ${
                         hideDone[member.id] 
-                          ? 'bg-primary text-white' 
-                          : 'bg-gray-100 text-gray-400'
+                          ? 'text-primary' 
+                          : 'text-gray-400'
                       } hover:opacity-80`}
                     >
                       👁
