@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A collaborative shopping list application">
+    <meta name="theme-color" content="#667eea">
+    <title>FamiList</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Preconnect for performance -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+</head>
+<body>
+    <!-- LIST MANAGER VIEW (Homepage) -->
+    <div id="listManagerView" class="container view">
+        <div class="auth-bar">
+            <span id="authBarText" class="auth-bar-text">Sign in</span>
+        </div>
+        <header class="header-with-menu">
+            <div class="menu-container">
+                <button id="menuButton" class="menu-button" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋮</button>
+                <ul id="menuDropdown" class="menu-dropdown" role="menu" aria-label="Main menu">
+                    <li role="menuitem" id="menuImport">Import list</li>
+                </ul>
+            </div>
+            <h1>FamiList</h1>
+            <div class="header-spacer"></div>
+        </header>
+        
+        <div id="listManagerInputSection" class="input-section">
+            <div class="autocomplete-wrapper">
+                <input 
+                    type="text" 
+                    id="newListInput" 
+                    placeholder="New list name..."
+                    autocomplete="off"
+                    aria-label="New list name"
+                    aria-autocomplete="list"
+                    aria-controls="listAutocompleteList"
+                >
+                <ul id="listAutocompleteList" class="autocomplete-list" role="listbox" aria-label="List name suggestions"></ul>
+            </div>
+            <button id="createListButton">Create</button>
+        </div>
+
+        <div id="joinListSection" class="input-section" style="display: none;">
+            <input 
+                type="text" 
+                id="joinListInput" 
+                placeholder="token"
+                autocomplete="off"
+                aria-label="Join token"
+            >
+            <button id="joinListButton" class="secondary-button">Join</button>
+        </div>
+
+        <div id="listManagerViewToggle" class="view-toggle" role="tablist" aria-label="List view filter">
+            <button id="showActiveBtn" class="view-toggle-btn active" role="tab" aria-selected="true" tabindex="0">Active</button>
+            <button id="showArchivedBtn" class="view-toggle-btn" role="tab" aria-selected="false" tabindex="-1">Archived</button>
+        </div>
+
+        <ul id="listsContainer" class="lists-container" role="list" aria-label="Lists"></ul>
+    </div>
+
+    <!-- LIST EDITOR VIEW -->
+    <div id="listEditorView" class="container view" style="display: none;">
+        <header>
+            <button id="backToListsBtn" class="back-button" aria-label="Go back to all lists">← Back to lists</button>
+            <h1 id="listTitle">List Name</h1>
+            <div class="header-actions">
+                <div class="item-view-toggle" role="tablist" aria-label="Item view filter">
+                    <button id="showActiveItemsBtn" class="view-toggle-btn active" role="tab" aria-selected="true" tabindex="0">Active</button>
+                    <button id="showArchivedItemsBtn" class="view-toggle-btn" role="tab" aria-selected="false" tabindex="-1">Archived</button>
+                </div>
+            </div>
+        </header>
+        
+        <div class="input-section">
+            <div class="autocomplete-wrapper">
+                <input 
+                    type="text" 
+                    id="itemInput" 
+                    placeholder="Add an item..."
+                    autocomplete="off"
+                    aria-label="Add an item"
+                    aria-autocomplete="list"
+                    aria-controls="autocompleteList"
+                >
+                <ul id="autocompleteList" class="autocomplete-list" role="listbox" aria-label="Suggestions"></ul>
+            </div>
+            <button id="addButton">Add</button>
+        </div>
+
+        <div class="hide-controls">
+            <div id="footerRow" class="footer-grid">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+        <div id="headerRow" class="list-header" aria-hidden="true">
+            <!-- Dynamically populated -->
+        </div>
+        
+        <ul id="itemList" class="item-list" role="list" aria-label="List items"></ul>
+        
+        <div class="save-section">
+            <button id="saveListButton" class="save-button">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- UNSAVED CHANGES MODAL -->
+    <div id="unsavedChangesModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-content-compact">
+            <h2>Unsaved Changes</h2>
+            <p>You have unsaved changes. What would you like to do?</p>
+            <div id="unsavedErrorMsg" style="display: none; color: #dc3545; background: #f8d7da; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px;"></div>
+            <div class="unsaved-changes-actions">
+                <button id="unsavedSaveBtn" class="btn-save">Save</button>
+                <button id="unsavedDiscardBtn" class="btn-discard">Discard</button>
+                <button id="unsavedCancelBtn" class="btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RETRIEVING DATA OVERLAY -->
+    <div id="retrievingDataOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="text-align: center;">
+            <div id="retrievingSpinner" style="font-size: 24px; margin-bottom: 10px;">⏳</div>
+            <div id="retrievingText" style="font-size: 16px; color: #666;">Retrieving data...</div>
+        </div>
+    </div>
+
+    <!-- SYNC CONFLICT MODAL -->
+    <div id="syncConflictModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-content-compact">
+            <h2>Data Changed</h2>
+            <p>The list has been updated on the server. What would you like to do?</p>
+            <div class="unsaved-changes-actions">
+                <button id="syncUpdateBtn" class="btn-save">Load Server Data</button>
+                <button id="syncKeepBtn" class="btn-cancel">Keep Local Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DATA CORRUPTION MODAL -->
+    <div id="dataCorruptionModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-content-compact">
+            <h2>Server Data Issue</h2>
+            <p>Some member data is missing on the server. This may cause display issues.</p>
+            <div id="corruptionDetails" style="max-height: 150px; overflow-y: auto; margin: 10px 0; padding: 10px; background: #fff3cd; border-radius: 4px; font-size: 0.9em;"></div>
+            <div class="unsaved-changes-actions">
+                <button id="corruptionFixBtn" class="btn-save">Fix by Saving Local Data</button>
+                <button id="corruptionIgnoreBtn" class="btn-cancel">Ignore</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- AUTH MODAL -->
+    <div id="authModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button id="authModalClose" class="modal-close" aria-label="Close">&times;</button>
+            <h2 id="authModalTitle">Sign In</h2>
+            
+            <form id="authForm" class="auth-form">
+                <div class="form-group">
+                    <label for="authEmail">Email</label>
+                    <input type="email" id="authEmail" name="email" required autocomplete="username" inputmode="email" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label for="authPassword">Password</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="authPassword" name="password" required autocomplete="current-password" placeholder="Your password" minlength="6">
+                        <button type="button" class="password-toggle" data-target="authPassword" aria-label="Show password">👁</button>
+                    </div>
+                    <button type="button" id="authForgotPassword" class="auth-forgot-password">Forgot password?</button>
+                </div>
+                <div class="form-group auth-extra-fields">
+                    <label for="authConfirmPassword">Confirm password</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="authConfirmPassword" autocomplete="new-password" placeholder="Confirm your password" minlength="6">
+                        <button type="button" class="password-toggle" data-target="authConfirmPassword" aria-label="Show password">👁</button>
+                    </div>
+                </div>
+                <div class="form-group auth-extra-fields">
+                    <label for="authUserName">User name</label>
+                    <input type="text" id="authUserName" maxlength="100" placeholder="e.g. John Smith" autocomplete="name">
+                </div>
+                <div class="form-group auth-extra-fields">
+                    <label for="authNickName">Nick name</label>
+                    <input type="text" id="authNickName" maxlength="50" placeholder="e.g. John" autocomplete="nickname">
+                </div>
+                <div id="authError" class="auth-error" style="display: none;"></div>
+                <button type="submit" id="authSubmit" class="auth-submit">Sign In</button>
+            </form>
+            
+            <div class="auth-switch">
+                <span id="authSwitchText">Don't have an account?</span>
+                <button type="button" id="authSwitchBtn" class="auth-switch-btn">Sign Up</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ACCOUNT MODAL -->
+    <div id="accountModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button id="accountModalClose" class="modal-close" aria-label="Close">&times;</button>
+            <h2>Account</h2>
+            
+            <div class="account-info">
+                <div class="account-field account-field-editable">
+                    <label>User name</label>
+                    <div class="account-field-value">
+                        <span id="accountUserName">-</span>
+                        <input type="text" id="accountUserNameInput" class="account-edit-input" style="display: none;" maxlength="100">
+                        <button type="button" id="accountUserNameEdit" class="account-edit-btn" aria-label="Edit user name">✎</button>
+                    </div>
+                </div>
+                <div class="account-field account-field-editable">
+                    <label>Nick name</label>
+                    <div class="account-field-value">
+                        <span id="accountNickName">-</span>
+                        <input type="text" id="accountNickNameInput" class="account-edit-input" style="display: none;" maxlength="50">
+                        <button type="button" id="accountNickNameEdit" class="account-edit-btn" aria-label="Edit nick name">✎</button>
+                    </div>
+                </div>
+                <div class="account-field">
+                    <label>Email</label>
+                    <span id="accountEmail">-</span>
+                </div>
+                <div class="account-field account-field-editable">
+                    <label>Password</label>
+                    <div class="account-field-value">
+                        <span id="accountPassword">••••••••</span>
+                        <div id="accountPasswordInputs" class="account-password-inputs" style="display: none;">
+                            <div class="password-input-wrapper">
+                                <input type="password" id="accountNewPassword" class="account-edit-input" placeholder="New password" minlength="6">
+                                <button type="button" class="password-toggle" data-target="accountNewPassword" aria-label="Show password">👁</button>
+                            </div>
+                            <div class="password-input-wrapper">
+                                <input type="password" id="accountConfirmPassword" class="account-edit-input" placeholder="Confirm password" minlength="6">
+                                <button type="button" class="password-toggle" data-target="accountConfirmPassword" aria-label="Show password">👁</button>
+                            </div>
+                        </div>
+                        <button type="button" id="accountPasswordEdit" class="account-edit-btn" aria-label="Edit password">✎</button>
+                    </div>
+                </div>
+                <div class="account-field">
+                    <label>Sync Status</label>
+                    <span id="accountSyncStatus">-</span>
+                </div>
+            </div>
+            
+            <div class="account-actions">
+                <button type="button" id="accountSaveProfile" class="auth-submit" style="display: none;">Save Changes</button>
+                <button type="button" id="accountSignOut" class="auth-submit auth-submit-danger">Sign Out</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MEMBER PROFILE MODAL -->
+    <div id="memberProfileModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-content-compact">
+            <button id="memberProfileModalClose" class="modal-close" aria-label="Close">&times;</button>
+            <h2>Added by</h2>
+            
+            <div class="member-profile-info">
+                <div class="member-profile-row">
+                    <span class="member-profile-label">User name</span>
+                    <span id="memberProfileCreatorUserName" class="member-profile-value">-</span>
+                </div>
+                <div class="member-profile-row">
+                    <span class="member-profile-label">Nick name</span>
+                    <span id="memberProfileCreatorNickName" class="member-profile-value">-</span>
+                </div>
+                <div class="member-profile-row">
+                    <span class="member-profile-label">Permissions</span>
+                    <span id="memberProfileRole" class="member-profile-value">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PASSWORD RESET MODAL -->
+    <div id="resetPasswordModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button id="resetPasswordModalClose" class="modal-close" aria-label="Close">&times;</button>
+            <h2>Set New Password</h2>
+            
+            <form id="resetPasswordForm" class="auth-form">
+                <div class="form-group">
+                    <label for="resetNewPassword">New password</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="resetNewPassword" required autocomplete="new-password" placeholder="Enter new password" minlength="6">
+                        <button type="button" class="password-toggle" data-target="resetNewPassword" aria-label="Show password">👁</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="resetConfirmPassword">Confirm password</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="resetConfirmPassword" required autocomplete="new-password" placeholder="Confirm new password" minlength="6">
+                        <button type="button" class="password-toggle" data-target="resetConfirmPassword" aria-label="Show password">👁</button>
+                    </div>
+                </div>
+                <div id="resetPasswordError" class="auth-error" style="display: none;"></div>
+                <button type="submit" id="resetPasswordSubmit" class="auth-submit">Update Password</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- SHARE LIST MODAL -->
+    <div id="shareModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content share-modal-content">
+            <button id="shareModalClose" class="modal-close" aria-label="Close">&times;</button>
+            <h2>Share Settings</h2>
+            <p id="shareModalListName" class="share-list-name"></p>
+            
+            <div class="share-options">
+                <label class="share-option">
+                    <input type="radio" name="shareVisibility" value="private" checked>
+                    <span class="share-option-label">
+                        <span class="share-option-icon">🔒</span>
+                        <span class="share-option-text">
+                            <strong>Private</strong>
+                            <small>Only you can access this list</small>
+                        </span>
+                    </span>
+                </label>
+                <label class="share-option">
+                    <input type="radio" name="shareVisibility" value="link">
+                    <span class="share-option-label">
+                        <span class="share-option-icon">🔗</span>
+                        <span class="share-option-text">
+                            <strong>Link-enabled</strong>
+                            <small>Anyone with the token can join</small>
+                        </span>
+                    </span>
+                </label>
+            </div>
+            
+            <div id="shareTokenSection" class="share-token-section" style="display: none;">
+                <label>Share token:</label>
+                <div class="share-token-row">
+                    <input type="text" id="shareTokenInput" readonly>
+                    <button type="button" id="copyTokenBtn" class="secondary-button">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 
+        For development: Use the legacy script.js
+        For production with a build tool: Use src/main.js with type="module"
+        
+        Uncomment the following line to use ES modules (requires a local server):
+        <script type="module" src="src/main.js"></script>
+        
+        Or use the bundled version after running the build script.
+    -->
+    <script src="script.js"></script>
+</body>
+</html>

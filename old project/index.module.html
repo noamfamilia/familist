@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A collaborative shopping list application">
+    <meta name="theme-color" content="#667eea">
+    <title>FamiList</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- LOADING OVERLAY -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Loading...</p>
+    </div>
+
+    <!-- LIST MANAGER VIEW (Homepage) -->
+    <div id="listManagerView" class="container view">
+        <header>
+            <h1>FamiList</h1>
+        </header>
+        
+        <div class="input-section">
+            <input 
+                type="text" 
+                id="newListInput" 
+                placeholder="New list name..."
+                autocomplete="off"
+                aria-label="New list name"
+            >
+            <button id="createListButton">Create</button>
+            <button id="importListButton" class="secondary-button" aria-label="Import list from file">Import</button>
+        </div>
+
+        <div class="view-toggle" role="tablist" aria-label="List view filter">
+            <button id="showActiveBtn" class="view-toggle-btn active" role="tab" aria-selected="true" tabindex="0">Active</button>
+            <button id="showArchivedBtn" class="view-toggle-btn" role="tab" aria-selected="false" tabindex="-1">Archived</button>
+        </div>
+
+        <ul id="listsContainer" class="lists-container" role="list" aria-label="Lists"></ul>
+    </div>
+
+    <!-- LIST EDITOR VIEW -->
+    <div id="listEditorView" class="container view" style="display: none;">
+        <header>
+            <button id="backToListsBtn" class="back-button" aria-label="Go back to all lists">← Back to lists</button>
+            <h1 id="listTitle">List Name</h1>
+            <div class="header-actions">
+                <div class="item-view-toggle" role="tablist" aria-label="Item view filter">
+                    <button id="showActiveItemsBtn" class="view-toggle-btn active" role="tab" aria-selected="true" tabindex="0">Active</button>
+                    <button id="showArchivedItemsBtn" class="view-toggle-btn" role="tab" aria-selected="false" tabindex="-1">Archived</button>
+                </div>
+            </div>
+        </header>
+        
+        <div class="input-section">
+            <input 
+                type="text" 
+                id="itemInput" 
+                placeholder="Add an item..."
+                autocomplete="off"
+                aria-label="Add an item"
+            >
+            <button id="addButton">Add</button>
+        </div>
+
+        <div class="hide-controls">
+            <div id="footerRow" class="footer-grid">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+        <div id="headerRow" class="list-header" aria-hidden="true">
+            <!-- Dynamically populated -->
+        </div>
+        
+        <ul id="itemList" class="item-list" role="list" aria-label="List items"></ul>
+    </div>
+    
+    <!-- ES Module Version -->
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>

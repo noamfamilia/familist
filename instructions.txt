@@ -1,0 +1,39 @@
+I have basic experience with programming. i'd like to develop an app for shared lists. The name of the project is "Familist". Currently I want to start with local frontend files and later move the project to Vercel  and use Next.js. unless you recommend of other workframe. This is my 2nd attemp. the first attempt ended up with a mess...
+
+Main page:
+A user opens the URL and sees the app window with nothing much in it because he's not signed-in yet. there's only sign-in text at the top-right corner. He clicks it and a window opens asking him to sign-in with email and password. at option for sign-up is also availabe. when choosing to sign-up, he's asked for to enter email, username, nickname and password. email and username must be unique.
+once he signs in, the main page window shows him an option to add a new list or join an existing one (of another user) with a token. Below that he can see his existing lists, arranged in cards with handle to arrange them. The lists are in 2 groups: "My lists" and "Shared lists" (other users' lists he joined). above the lists there's an option to toggle between Active and Archived (lists) view.
+
+list card:
+Each list card shows (left to right) the visibility icon (private or shared by link), name of the list, meta data of number of members in the list and number of active items, kebab icon for menu. The menu shows the following options: 
+for my lists: rename, share settings, duplicate, export, archive, delete. 
+for shared lists: dulicate, export and archive.
+When clicking the card, the user sees a window of that list. 
+Note that archive settings are specific for this user.
+
+List window:
+The window looks like this: Title with name of the list, a text to return back to main page, Active/Archived switch, "add an item" with button, and the list itself. 
+
+The list itself:
+At the top of the list, a list of active members with option to add a new member. just above it a toggle button to "hide done" items. a member is ascossiated with a user. when clicking a member, a window appears showing info about the user who created this member. member names are unique for this list and are scoped only for this specific list. a user can edit or delete its member. below the member lines, the card list of items is shown.
+
+Item:
+a card with handle to drag and move. each card consists of: Item's name, per member info (quantity text with up/down, done icon to toggle), comment icon that opens a text window below the card and archive button. All users will see the same list of items in both active and archived mode.
+
+sync with database:
+unlike previous version which required pressing a save button, I'd like thing to update on every action with LWW. When entering a list or exiting a list back to main page i want to sync and show a message is local and remote data isn't matched. Similarly, when a user deletes his list that was shared with others, others window should be updated automatically. for a fast response, i want the data store and retreive to happen in a single fetch/save action.
+ 
+deleting a list would delete the members of this list. deleting a member would delete its state (quantities and done) of all items. deleting an item would also remove from database all member's state of this item. deleting a user would remove all the lists he owns. and so on. 
+
+In this folder you'll find a file called "sql queries" which i worked on with chatgpt. 
+
+here are the URL and public code of the supabase project. . 
+
+URL:
+https://knnjugkbpxoluwsznhhm.supabase.co
+Publishable key:
+Sb_publishable_DiTzomZDrLOKksMEGeJRQQ_TGu6UOeq
+
+i'm placing in this folder the old files, under folder "old project". use it only as reference.
+
+most important, i'd like to get your feedback about my plan. suggest improvements if you find such. let me know of anything else you need.

@@ -1,0 +1,706 @@
+-- ===== Extentions =====
+
+create extension if not exists pgcrypto;
+create extension if not exists citext;
+
+
+-- ===== Tables =====
+
+-- PROFILES
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  username citext,
+  nickname text,
+  created_at timestamptz not null default now()
+);
+
+-- LISTS
+create table if not exists public.lists (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  owner_id uuid not null references auth.users(id),
+
+  visibility text not null default 'private'
+    check (visibility in ('private','link')),
+
+  archived boolean not null default false,
+
+  -- single join link per list (store hash, not raw)
+  join_token_hash text unique,
+  join_role_granted text not null default 'editor'
+    check (join_role_granted in ('viewer','editor')),
+  join_expires_at timestamptz,
+  join_revoked_at timestamptz,
+  join_use_count integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- LIST_USERS (access + per-user state)
+create table if not exists public.list_users (
+  list_id uuid not null references public.lists(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+
+  role text not null default 'editor'
+    check (role in ('owner','editor','viewer')),
+
+  archived boolean not null default false,
+  created_at timestamptz not null default now(),
+
+  primary key (list_id, user_id)
+);
+
+-- MEMBERS (list-scoped household personas)
+create table if not exists public.members (
+  id uuid primary key default gen_random_uuid(),
+  list_id uuid not null references public.lists(id) on delete cascade,
+  name text not null,
+  created_by uuid references auth.users(id),
+  sort_order integer,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ITEMS
+create table if not exists public.items (
+  id uuid primary key default gen_random_uuid(),
+  list_id uuid not null references public.lists(id) on delete cascade,
+  text text not null,
+  comment text,
+  archived boolean not null default false,
+  sort_order integer,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ITEM_MEMBER_STATE (per member per item)
+create table if not exists public.item_member_state (
+  item_id uuid not null references public.items(id) on delete cascade,
+  member_id uuid not null references public.members(id) on delete cascade,
+  quantity integer not null default 0,
+  done boolean not null default false,
+  updated_at timestamptz not null default now(),
+  primary key (item_id, member_id)
+);
+
+
+-- ===== Functions & Triggers =====
+
+-- Generic updated_at "touch"
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+-- LISTS updated_at
+drop trigger if exists trg_lists_touch on public.lists;
+create trigger trg_lists_touch
+before update on public.lists
+for each row execute function public.touch_updated_at();
+
+-- MEMBERS updated_at
+drop trigger if exists trg_members_touch on public.members;
+create trigger trg_members_touch
+before update on public.members
+for each row execute function public.touch_updated_at();
+
+-- ITEMS updated_at
+drop trigger if exists trg_items_touch on public.items;
+create trigger trg_items_touch
+before update on public.items
+for each row execute function public.touch_updated_at();
+
+-- ITEM_MEMBER_STATE updated_at
+drop trigger if exists trg_ims_touch on public.item_member_state;
+create trigger trg_ims_touch
+before update on public.item_member_state
+for each row execute function public.touch_updated_at();
+
+-- Auto add owner to list_users
+create or replace function public.add_list_owner_membership()
+returns trigger language plpgsql as $$
+begin
+  insert into public.list_users(list_id, user_id, role)
+  values (new.id, new.owner_id, 'owner')
+  on conflict (list_id, user_id) do update
+    set role = 'owner';
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_add_list_owner on public.lists;
+create trigger trg_add_list_owner
+after insert on public.lists
+for each row execute function public.add_list_owner_membership();
+
+-- Auto create profile on signup
+create or replace function public.handle_new_user()
+returns trigger language plpgsql
+security definer as $$
+begin
+  insert into public.profiles (id, email)
+  values (new.id, new.email)
+  on conflict (id) do update set email = excluded.email;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_user();
+
+
+-- ===== RLS Enablement =====
+alter table public.profiles enable row level security;
+alter table public.lists enable row level security;
+alter table public.list_users enable row level security;
+alter table public.members enable row level security;
+alter table public.items enable row level security;
+alter table public.item_member_state enable row level security;
+
+-- ===== PROFILES policies =====
+drop policy if exists profiles_select_own on public.profiles;
+create policy profiles_select_own
+on public.profiles for select
+to authenticated
+using (id = auth.uid());
+
+drop policy if exists profiles_update_own on public.profiles;
+create policy profiles_update_own
+on public.profiles for update
+to authenticated
+using (id = auth.uid())
+with check (id = auth.uid());
+
+drop policy if exists profiles_insert_own on public.profiles;
+create policy profiles_insert_own
+on public.profiles for insert
+to authenticated
+with check (id = auth.uid());
+
+-- ===== LISTS policies =====
+drop policy if exists lists_select_member on public.lists;
+create policy lists_select_member
+on public.lists for select
+to authenticated
+using (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = lists.id and lu.user_id = auth.uid()
+  )
+);
+
+drop policy if exists lists_insert_owner on public.lists;
+create policy lists_insert_owner
+on public.lists for insert
+to authenticated
+with check (owner_id = auth.uid());
+
+drop policy if exists lists_update_owner on public.lists;
+create policy lists_update_owner
+on public.lists for update
+to authenticated
+using (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = lists.id and lu.user_id = auth.uid() and lu.role = 'owner'
+  )
+)
+with check (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = lists.id and lu.user_id = auth.uid() and lu.role = 'owner'
+  )
+);
+
+drop policy if exists lists_delete_owner on public.lists;
+create policy lists_delete_owner
+on public.lists for delete
+to authenticated
+using (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = lists.id and lu.user_id = auth.uid() and lu.role = 'owner'
+  )
+);
+
+-- ===== LIST_USERS policies =====
+drop policy if exists list_users_select on public.list_users;
+create policy list_users_select
+on public.list_users for select
+to authenticated
+using (
+  user_id = auth.uid()
+  or exists (
+    select 1 from public.list_users lu2
+    where lu2.list_id = list_users.list_id
+      and lu2.user_id = auth.uid()
+      and lu2.role = 'owner'
+  )
+);
+
+drop policy if exists list_users_owner_manage on public.list_users;
+create policy list_users_owner_manage
+on public.list_users for all
+to authenticated
+using (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = list_users.list_id and lu.user_id = auth.uid() and lu.role = 'owner'
+  )
+)
+with check (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = list_users.list_id and lu.user_id = auth.uid() and lu.role = 'owner'
+  )
+);
+
+-- ===== MEMBERS policies =====
+drop policy if exists members_access on public.members;
+create policy members_access
+on public.members for all
+to authenticated
+using (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = members.list_id and lu.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = members.list_id and lu.user_id = auth.uid()
+  )
+);
+
+-- ===== ITEMS policies =====
+drop policy if exists items_access on public.items;
+create policy items_access
+on public.items for all
+to authenticated
+using (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = items.list_id and lu.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1 from public.list_users lu
+    where lu.list_id = items.list_id and lu.user_id = auth.uid()
+  )
+);
+
+-- ===== ITEM_MEMBER_STATE policies =====
+drop policy if exists ims_access on public.item_member_state;
+create policy ims_access
+on public.item_member_state for all
+to authenticated
+using (
+  exists (
+    select 1
+    from public.items i
+    join public.list_users lu on lu.list_id = i.list_id
+    where i.id = item_member_state.item_id
+      and lu.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.items i
+    join public.list_users lu on lu.list_id = i.list_id
+    where i.id = item_member_state.item_id
+      and lu.user_id = auth.uid()
+  )
+);
+
+
+-- ===== Indexes =====
+
+-- profiles username uniqueness when set (case-insensitive via citext)
+create unique index if not exists profiles_username_unique
+  on public.profiles (username)
+  where username is not null;
+
+-- lists
+create index if not exists lists_owner_id_idx on public.lists(owner_id);
+create index if not exists lists_visibility_idx on public.lists(visibility);
+create index if not exists lists_owner_archived_idx on public.lists(owner_id, archived);
+
+-- list_users
+-- PK(list_id,user_id) already exists; add reverse index for "my lists"
+create index if not exists list_users_user_id_idx on public.list_users(user_id);
+create index if not exists list_users_user_archived_idx on public.list_users(user_id, archived);
+
+-- members
+create index if not exists members_list_id_idx on public.members(list_id);
+
+-- items
+create index if not exists items_list_id_idx on public.items(list_id);
+create index if not exists items_list_archived_idx on public.items(list_id, archived);
+create index if not exists items_list_sort_order_idx on public.items(list_id, sort_order);
+
+-- Item name must be unique within a list
+alter table public.items add constraint items_list_text_unique unique (list_id, text);
+
+-- item_member_state
+-- PK(item_id,member_id) exists; add member lookup index
+create index if not exists item_member_state_member_id_idx
+  on public.item_member_state(member_id);
+
+
+-- ===== RPC 1: Join list by token =====
+create or replace function public.join_list_by_token(p_token text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_list_id uuid;
+  v_role text;
+  v_owner_id uuid;
+begin
+  if p_token is null or length(trim(p_token)) = 0 then
+    raise exception 'Token is required';
+  end if;
+
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select l.id, l.join_role_granted, l.owner_id
+    into v_list_id, v_role, v_owner_id
+  from public.lists l
+  where l.join_token_hash is not null
+    and l.join_revoked_at is null
+    and (l.join_expires_at is null or l.join_expires_at > now())
+    and l.join_token_hash = extensions.crypt(p_token, l.join_token_hash)
+  limit 1;
+
+  if v_list_id is null then
+    raise exception 'Invalid, expired, or revoked token';
+  end if;
+
+  -- Prevent owner from joining their own list
+  if v_owner_id = auth.uid() then
+    raise exception 'You cannot join your own list';
+  end if;
+
+  insert into public.list_users(list_id, user_id, role)
+  values (v_list_id, auth.uid(), v_role)
+  on conflict (list_id, user_id) do update
+    set role = excluded.role;
+
+  update public.lists
+  set join_use_count = join_use_count + 1
+  where id = v_list_id;
+
+  return v_list_id;
+end;
+$$;
+
+revoke all on function public.join_list_by_token(text) from public;
+grant execute on function public.join_list_by_token(text) to authenticated;
+
+
+-- ===== RPC 2: Atomic quantity change (prevents lost updates) =====
+-- delta can be positive or negative. Quantity is clamped to >= 0.
+create or replace function public.change_quantity(
+  p_item_id uuid,
+  p_member_id uuid,
+  p_delta integer
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  -- Authorization: caller must belong to the item's list
+  if not exists (
+    select 1
+    from public.items i
+    join public.list_users lu on lu.list_id = i.list_id
+    where i.id = p_item_id
+      and lu.user_id = auth.uid()
+  ) then
+    raise exception 'Not authorized';
+  end if;
+
+  -- Upsert + atomic update, clamp to >= 0
+  insert into public.item_member_state(item_id, member_id, quantity, done)
+  values (p_item_id, p_member_id, greatest(p_delta, 0), false)
+  on conflict (item_id, member_id) do update
+    set quantity = greatest(public.item_member_state.quantity + excluded.quantity - public.item_member_state.quantity + p_delta, 0),
+        updated_at = now();
+
+  -- The expression above looks odd because excluded.quantity is set by insert; simpler:
+  -- but plpgsql can't directly reference both excluded and current easily with clamp in one expression.
+  -- We'll rewrite it cleanly with a separate update:
+
+  update public.item_member_state
+  set quantity = greatest(quantity + p_delta, 0),
+      updated_at = now()
+  where item_id = p_item_id and member_id = p_member_id;
+
+end;
+$$;
+
+revoke all on function public.change_quantity(uuid, uuid, integer) from public;
+grant execute on function public.change_quantity(uuid, uuid, integer) to authenticated;
+
+
+-- ===== RPC 3: Generate share token =====
+create or replace function public.generate_share_token(p_list_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_token text;
+begin
+  -- Verify ownership
+  if not exists (
+    select 1 from public.lists
+    where id = p_list_id and owner_id = auth.uid()
+  ) then
+    raise exception 'Not authorized';
+  end if;
+
+  -- Generate a short random token (8 hex chars)
+  v_token := encode(extensions.gen_random_bytes(4), 'hex');
+
+  -- Store the hashed token
+  update public.lists
+  set visibility = 'link',
+      join_token_hash = extensions.crypt(v_token, extensions.gen_salt('bf')),
+      join_revoked_at = null
+  where id = p_list_id;
+
+  return v_token;
+end;
+$$;
+
+revoke all on function public.generate_share_token(uuid) from public;
+grant execute on function public.generate_share_token(uuid) to authenticated;
+
+
+-- ===== RPC 4: Revoke share token (and remove all non-owner members) =====
+create or replace function public.revoke_share_token(p_list_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Verify ownership
+  if not exists (
+    select 1 from public.lists 
+    where id = p_list_id and owner_id = auth.uid()
+  ) then
+    raise exception 'Not authorized';
+  end if;
+
+  -- Remove all non-owner members
+  delete from public.list_users
+  where list_id = p_list_id and role != 'owner';
+
+  -- Revoke the token and set to private
+  update public.lists
+  set visibility = 'private',
+      join_token_hash = null,
+      join_revoked_at = now()
+  where id = p_list_id;
+end;
+$$;
+
+revoke all on function public.revoke_share_token(uuid) from public;
+grant execute on function public.revoke_share_token(uuid) to authenticated;
+
+
+-- ===== RPC 5: Update member (only creator can update) =====
+create or replace function public.update_member(
+  p_member_id uuid,
+  p_name text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  -- Check if user is the creator of the member
+  if not exists (
+    select 1 from public.members
+    where id = p_member_id and created_by = auth.uid()
+  ) then
+    raise exception 'Only the creator can edit this member';
+  end if;
+
+  -- Update the member
+  update public.members
+  set name = coalesce(p_name, name),
+      updated_at = now()
+  where id = p_member_id;
+end;
+$$;
+
+revoke all on function public.update_member(uuid, text) from public;
+grant execute on function public.update_member(uuid, text) to authenticated;
+
+
+-- ===== RPC 6: Delete member (only creator can delete) =====
+create or replace function public.delete_member(p_member_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  -- Check if user is the creator of the member
+  if not exists (
+    select 1 from public.members
+    where id = p_member_id and created_by = auth.uid()
+  ) then
+    raise exception 'Only the creator can delete this member';
+  end if;
+
+  -- Delete the member
+  delete from public.members where id = p_member_id;
+end;
+$$;
+
+revoke all on function public.delete_member(uuid) from public;
+grant execute on function public.delete_member(uuid) to authenticated;
+
+
+-- ===== RPC 7: Get list data (single query for all list data) =====
+create or replace function public.get_list_data(p_list_id uuid)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_result json;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  -- Check access
+  if not exists (
+    select 1 from public.list_users
+    where list_id = p_list_id and user_id = auth.uid()
+  ) then
+    raise exception 'Access denied';
+  end if;
+
+  select json_build_object(
+    'list', (select row_to_json(l.*) from public.lists l where l.id = p_list_id),
+    'members', (
+      select coalesce(json_agg(
+        json_build_object(
+          'id', m.id,
+          'list_id', m.list_id,
+          'name', m.name,
+          'created_by', m.created_by,
+          'sort_order', m.sort_order,
+          'created_at', m.created_at,
+          'updated_at', m.updated_at,
+          'creator', (select json_build_object('nickname', p.nickname) from public.profiles p where p.id = m.created_by)
+        ) order by m.sort_order nulls last, m.created_at
+      ), '[]'::json)
+      from public.members m where m.list_id = p_list_id
+    ),
+    'items', (
+      select coalesce(json_agg(
+        json_build_object(
+          'id', i.id,
+          'list_id', i.list_id,
+          'text', i.text,
+          'comment', i.comment,
+          'archived', i.archived,
+          'sort_order', i.sort_order,
+          'created_at', i.created_at,
+          'updated_at', i.updated_at,
+          'memberStates', (
+            select coalesce(json_object_agg(ims.member_id, row_to_json(ims.*)), '{}'::json)
+            from public.item_member_state ims where ims.item_id = i.id
+          )
+        ) order by i.sort_order nulls last, i.created_at
+      ), '[]'::json)
+      from public.items i where i.list_id = p_list_id
+    )
+  ) into v_result;
+
+  return v_result;
+end;
+$$;
+
+revoke all on function public.get_list_data(uuid) from public;
+grant execute on function public.get_list_data(uuid) to authenticated;
+
+
+-- ===== RPC 8: Get user lists with counts (single query) =====
+create or replace function public.get_user_lists()
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  return (
+    select coalesce(json_agg(
+      json_build_object(
+        'id', l.id,
+        'name', l.name,
+        'owner_id', l.owner_id,
+        'visibility', l.visibility,
+        'archived', l.archived,
+        'created_at', l.created_at,
+        'updated_at', l.updated_at,
+        'role', lu.role,
+        'userArchived', lu.archived,
+        'sort_order', lu.sort_order,
+        'memberCount', (select count(*) from public.members m where m.list_id = l.id),
+        'activeItemCount', (select count(*) from public.items i where i.list_id = l.id and i.archived = false),
+        'ownerNickname', case when lu.role != 'owner' then (select p.nickname from public.profiles p where p.id = l.owner_id) else null end
+      ) order by l.created_at desc
+    ), '[]'::json)
+    from public.list_users lu
+    join public.lists l on l.id = lu.list_id
+    where lu.user_id = auth.uid()
+  );
+end;
+$$;
+
+revoke all on function public.get_user_lists() from public;
+grant execute on function public.get_user_lists() to authenticated;
+
