@@ -214,25 +214,19 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle */}
       <div 
-        className="text-gray-400 cursor-grab select-none text-sm tracking-tighter hidden sm:block touch-none"
+        className="text-gray-400 cursor-grab select-none text-sm tracking-tighter touch-none"
         {...dragHandleProps}
       >
         ⋮⋮
       </div>
 
-      {/* Visibility icon - clickable for owners */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          if (isOwner) {
-            setShowShareModal(true)
-          }
-        }}
-        className={`text-sm flex-shrink-0 ${isOwner ? 'hover:opacity-100 cursor-pointer' : 'cursor-default'} opacity-60`}
-        title={isOwner ? 'Share settings' : (list.visibility === 'private' ? 'Private' : 'Shared by link')}
+      {/* Visibility icon - display only */}
+      <span
+        className="text-sm flex-shrink-0 opacity-60"
+        title={list.visibility === 'private' ? 'Private' : 'Shared by link'}
       >
         {list.visibility === 'private' ? '🔒' : '🔗'}
-      </button>
+      </span>
 
       {/* List name */}
       {isRenaming ? (
@@ -299,6 +293,21 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           </div>
           {/* Action buttons */}
           <div className="flex items-center justify-end gap-2 flex-wrap">
+            {/* Share - only for active lists, owner only */}
+            {isOwner && !list.userArchived && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowShareModal(true)
+                  setMenuOpen(false)
+                }}
+                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-green-600"
+              >
+                <span>🔗</span>
+                <span>Share</span>
+              </button>
+            )}
             {/* Rename - only for active lists, owner only */}
             {isOwner && !list.userArchived && (
               <button
