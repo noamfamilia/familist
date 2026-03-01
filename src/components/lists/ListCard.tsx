@@ -192,12 +192,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         <div className="flex-1" />
       </div>
 
-      {/* Main card content */}
+      {/* Main card content - wrapper for swipe transform */}
       <div 
         {...swipeHandlers}
         style={{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
-        className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+        className="bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
       >
+      {/* Card row */}
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle */}
       <div 
         className="text-gray-400 cursor-grab select-none text-sm tracking-tighter hidden sm:block touch-none"
@@ -265,7 +267,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       </button>
       </div>
 
-      {/* Inline action buttons - shown when menu is open */}
+      {/* Inline action buttons - inside transform div so they move with card */}
       {menuOpen && (
         <div className="flex items-center justify-end gap-2 px-3 py-2 bg-gray-100 border-t border-gray-200">
           {isOwner && (
@@ -335,6 +337,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           )}
         </div>
       )}
+      </div>
     </div>
 
     <ConfirmModal

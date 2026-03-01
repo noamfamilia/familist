@@ -155,12 +155,14 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
           <div className="flex-1" />
         </div>
 
-        {/* Main card content */}
+        {/* Main card content - wrapper for swipe transform */}
         <div 
           {...swipeHandlers}
           style={{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
-          className={`flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap ${item.archived ? 'opacity-60' : ''}`}
+          className={`bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors ${item.archived ? 'opacity-60' : ''}`}
         >
+        {/* Card row */}
+        <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap">
         {/* Drag handle */}
         <div 
           className={`text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${item.archived ? 'opacity-50 cursor-not-allowed' : 'cursor-grab'}`}
@@ -272,7 +274,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         </div>
         </div>
 
-        {/* Inline action buttons - shown when menu is open */}
+        {/* Inline action buttons - inside transform div so they move with card */}
         {showMenu && (
           <div className="flex items-center justify-end gap-2 px-3 py-2 bg-gray-100 border-t border-gray-200">
             <button
@@ -313,6 +315,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Comment section */}
