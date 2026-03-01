@@ -119,8 +119,8 @@ export function MemberHeader({
     <div className="mb-3">
       {/* Header row */}
       <div className="inline-flex items-start gap-0.5 px-3 py-3 bg-primary/10 rounded-lg min-w-full">
-        <span className="text-sm tracking-tighter invisible flex-shrink-0">⋮⋮</span>
-        <div className="w-36 flex-shrink-0 flex flex-col">
+        <span className="text-lg tracking-tighter invisible flex-shrink-0">⋮⋮</span>
+        <div className="w-20 flex-shrink-0 flex flex-col">
           <div className="h-6"></div>
           <div className="h-10 mt-1.5"></div>
         </div>

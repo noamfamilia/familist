@@ -123,7 +123,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
       <div className={`inline-flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors min-w-full ${item.archived ? 'opacity-60' : ''}`}>
         {/* Drag handle */}
         <div 
-          className={`text-gray-400 select-none text-sm tracking-tighter touch-none flex-shrink-0 ${item.archived ? 'opacity-50 cursor-not-allowed' : 'cursor-grab'}`}
+          className={`text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${item.archived ? 'opacity-50 cursor-not-allowed' : 'cursor-grab'}`}
           {...(item.archived ? {} : dragHandleProps)}
         >
           ⋮⋮
@@ -143,13 +143,13 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
                 setIsEditing(false)
               }
             }}
-            className="w-36 flex-shrink-0 px-2 py-0.5 border border-primary rounded text-lg"
+            className="w-20 flex-shrink-0 px-2 py-0.5 border border-primary rounded text-lg"
             autoFocus
           />
         ) : (
           <span
             onClick={() => !item.archived && setIsEditing(true)}
-            className={`w-36 flex-shrink-0 truncate text-lg ${item.archived ? 'text-gray-500 cursor-default' : 'cursor-pointer hover:text-primary'}`}
+            className={`w-20 flex-shrink-0 truncate text-lg ${item.archived ? 'text-gray-500 cursor-default' : 'cursor-pointer hover:text-primary'}`}
             title={item.text}
           >
             {item.text}
@@ -227,7 +227,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
             className="text-gray-400 hover:text-gray-600 px-1 py-0.5 rounded hover:bg-gray-200"
             title="More options"
           >
-            <span className="text-sm">⋮</span>
+            <span className="text-lg">⋮</span>
           </button>
 
           {/* Dropdown menu */}
