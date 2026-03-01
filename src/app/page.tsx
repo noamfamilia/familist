@@ -26,11 +26,11 @@ export default function Home() {
         {user ? (
           <button
             onClick={() => setShowAuthModal(true)}
-            className="text-sm text-primary hover:bg-primary-light px-2 py-1 rounded truncate max-w-[150px] sm:max-w-none"
+            className="text-2xl hover:opacity-80 transition-opacity"
             aria-label="Account settings"
+            title={profile?.nickname || profile?.username || user.email}
           >
-            <span className="hidden sm:inline">{profile?.username || user.user_metadata?.username || user.email}</span>
-            <span className="sm:hidden">Account</span>
+            👤
           </button>
         ) : (
           <button
