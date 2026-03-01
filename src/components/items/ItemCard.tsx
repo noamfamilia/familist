@@ -140,9 +140,9 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const hasComment = item.comment && item.comment.trim().length > 0
 
   return (
-    <div className="w-full">
+    <div className="min-w-full w-max">
       {/* Swipe container */}
-      <div className="relative overflow-hidden rounded-lg w-full">
+      <div className="relative overflow-hidden rounded-lg">
         {/* Background action revealed on swipe right */}
         <div className="absolute inset-0 flex pointer-events-none">
           {/* Active → Archive (amber), Archived → Delete (red) */}
@@ -159,7 +159,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         <div 
           {...swipeHandlers}
           style={{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
-          className={`flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap w-full ${item.archived ? 'opacity-60' : ''}`}
+          className={`flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap ${item.archived ? 'opacity-60' : ''}`}
         >
         {/* Drag handle */}
         <div 
@@ -254,8 +254,11 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
           })}
         </div>
 
-        {/* Trailing section - fixed width to match header */}
-        <div className="w-28 flex-shrink-0 flex justify-end items-center gap-1 ml-2">
+        {/* Spacer to push trailing section to right */}
+        <div className="flex-1"></div>
+
+        {/* Trailing section */}
+        <div className="flex-shrink-0 flex justify-end items-center gap-1 ml-2">
           {/* Comment indicator */}
           {hasComment && (
             <span className="text-primary text-sm opacity-80" title="Has comment">💬</span>
