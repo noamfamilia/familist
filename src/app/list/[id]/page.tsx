@@ -195,22 +195,24 @@ export default function ListPage() {
 
       {/* Scrollable container for header + items */}
       <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
-        {/* Members header with hide done toggles */}
-        <div className="sticky top-0 z-10 bg-white">
-          <MemberHeader
-            members={filteredMembers}
-            hideDone={hideDone}
-            onToggleHideDone={toggleHideDone}
-            onAddMember={addMember}
-            onUpdateMember={updateMember}
-            onDeleteMember={deleteMember}
-            listId={listId}
-            showAddMember={memberFilter === 'all'}
-          />
-        </div>
+        {/* Inner container that sizes based on content */}
+        <div className="inline-block min-w-full">
+          {/* Members header with hide done toggles */}
+          <div className="sticky top-0 z-10 bg-white">
+            <MemberHeader
+              members={filteredMembers}
+              hideDone={hideDone}
+              onToggleHideDone={toggleHideDone}
+              onAddMember={addMember}
+              onUpdateMember={updateMember}
+              onDeleteMember={deleteMember}
+              listId={listId}
+              showAddMember={memberFilter === 'all'}
+            />
+          </div>
 
-        {/* Items list */}
-        <div className="space-y-2">
+          {/* Items list */}
+          <div className="space-y-2">
         {filteredItems.length > 0 ? (
           <DndContext
             sensors={sensors}
@@ -239,6 +241,7 @@ export default function ListPage() {
               : 'No archived items.'}
           </div>
         )}
+        </div>
       </div>
       </div>
     </div>

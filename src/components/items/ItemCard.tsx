@@ -140,7 +140,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const hasComment = item.comment && item.comment.trim().length > 0
 
   return (
-    <div className="min-w-full w-max">
+    <div className="min-w-full">
       {/* Swipe container */}
       <div className="relative overflow-hidden rounded-lg">
         {/* Background action revealed on swipe right */}
