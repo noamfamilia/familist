@@ -33,7 +33,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [isSwiping, setIsSwiping] = useState(false)
 
-  const getSwipeThreshold = () => typeof window !== 'undefined' ? window.innerWidth * 0.7 : 200
+  const getSwipeThreshold = () => typeof window !== 'undefined' ? window.innerWidth * 0.5 : 200
 
   const swipeHandlers = useSwipeable({
     onSwiping: (e) => {
@@ -146,8 +146,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         <div className="absolute inset-0 flex pointer-events-none">
           {/* Active → Archive (amber), Archived → Delete (red) */}
           <div 
-            className={`flex items-center justify-start pl-4 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'} ${item.archived ? 'bg-red-500' : 'bg-amber-500'}`} 
-            style={{ width: '120px' }}
+            className={`w-full flex items-center justify-start pl-4 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'} ${item.archived ? 'bg-red-500' : 'bg-amber-500'}`}
           >
             {item.archived ? '🗑️ Delete' : '📥 Archive'}
           </div>

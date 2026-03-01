@@ -50,7 +50,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     }
   }
 
-  const getSwipeThreshold = () => typeof window !== 'undefined' ? window.innerWidth * 0.7 : 200
+  const getSwipeThreshold = () => typeof window !== 'undefined' ? window.innerWidth * 0.5 : 200
 
   const swipeHandlers = useSwipeable({
     onSwiping: (e) => {
@@ -197,8 +197,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       <div className="absolute inset-0 flex pointer-events-none">
         {/* Active → Archive (amber), Archived → Delete/Leave (red) */}
         <div 
-          className={`flex items-center justify-start pl-4 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'} ${list.userArchived ? 'bg-red-500' : 'bg-amber-500'}`} 
-          style={{ width: '120px' }}
+          className={`w-full flex items-center justify-start pl-4 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'} ${list.userArchived ? 'bg-red-500' : 'bg-amber-500'}`}
         >
           {list.userArchived ? `🗑️ ${isOwner ? 'Delete' : 'Leave'}` : '📥 Archive'}
         </div>
