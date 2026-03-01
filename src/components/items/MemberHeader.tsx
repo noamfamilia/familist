@@ -107,7 +107,7 @@ export function MemberHeader({
         <span className="text-sm tracking-tighter invisible flex-shrink-0">⋮⋮</span>
         <div className="w-36 flex-shrink-0 flex flex-col">
           <div className="h-6"></div>
-          <span className="text-xs text-gray-500 mt-1">Hide done</span>
+          <div className="h-8 mt-1.5"></div>
         </div>
         
         {/* Members section - toggle below name */}
@@ -132,32 +132,36 @@ export function MemberHeader({
                 />
               ) : (
                 <>
-                  <div className="flex items-center">
-                    <span
-                      onClick={() => member.created_by === user?.id && handleStartEdit(member)}
-                      className={`text-lg font-semibold text-primary truncate max-w-[70px] ${member.created_by === user?.id ? 'cursor-pointer hover:text-primary-dark' : ''}`}
-                      title={member.creator?.nickname ? `${member.name} (${member.creator.nickname})` : member.name}
-                    >
-                      {member.name}
-                    </span>
+                  <span
+                    onClick={() => member.created_by === user?.id && handleStartEdit(member)}
+                    className={`text-lg font-semibold text-primary truncate max-w-[70px] ${member.created_by === user?.id ? 'cursor-pointer hover:text-primary-dark' : ''}`}
+                    title={member.creator?.nickname ? `${member.name} (${member.creator.nickname})` : member.name}
+                  >
+                    {member.name}
+                  </span>
+                  {/* Delete and Hide done buttons below name */}
+                  <div className="flex items-center gap-1 mt-1.5">
                     {member.created_by === user?.id && (
                       <button
                         onClick={() => handleDeleteClick(member)}
-                        className="text-red-500 text-base opacity-60 hover:opacity-100 transition-opacity ml-1"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold transition-colors bg-red-100 text-red-500 hover:bg-red-200"
                         title="Delete member"
                       >
                         ×
                       </button>
                     )}
+                    <button
+                      onClick={() => onToggleHideDone(member.id)}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${
+                        hideDone[member.id] 
+                          ? 'bg-primary text-white' 
+                          : 'bg-gray-100 text-gray-400'
+                      } hover:opacity-80`}
+                      title={hideDone[member.id] ? 'Show done items' : 'Hide done items'}
+                    >
+                      👁
+                    </button>
                   </div>
-                  {/* Toggle switch below name - larger size */}
-                  <button
-                    onClick={() => onToggleHideDone(member.id)}
-                    className={`mt-1.5 w-12 h-6 rounded-full transition-colors relative ${hideDone[member.id] ? 'bg-primary' : 'bg-gray-300'}`}
-                    title={hideDone[member.id] ? 'Show done items' : 'Hide done items'}
-                  >
-                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${hideDone[member.id] ? 'right-1' : 'left-1'}`} />
-                  </button>
                 </>
               )}
             </div>
