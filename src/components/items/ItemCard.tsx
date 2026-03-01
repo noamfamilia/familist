@@ -144,7 +144,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
       {/* Swipe container */}
       <div className="relative overflow-hidden rounded-lg w-full">
         {/* Background action revealed on swipe right */}
-        <div className="absolute inset-0 flex">
+        <div className="absolute inset-0 flex pointer-events-none">
           {/* Active → Archive (amber), Archived → Delete (red) */}
           <div 
             className={`flex items-center justify-start pl-4 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'} ${item.archived ? 'bg-red-500' : 'bg-amber-500'}`} 

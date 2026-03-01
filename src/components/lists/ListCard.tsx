@@ -181,7 +181,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     <>
     <div className="relative overflow-hidden rounded-lg">
       {/* Background action revealed on swipe right */}
-      <div className="absolute inset-0 flex">
+      <div className="absolute inset-0 flex pointer-events-none">
         {/* Active → Archive (amber), Archived → Delete/Leave (red) */}
         <div 
           className={`flex items-center justify-start pl-4 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'} ${list.userArchived ? 'bg-red-500' : 'bg-amber-500'}`} 
