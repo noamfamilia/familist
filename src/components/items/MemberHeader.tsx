@@ -160,14 +160,14 @@ export function MemberHeader({
                     {member.created_by === user?.id ? (
                       <button
                         onClick={() => handleDeleteClick(member)}
-                        className="w-8 h-8 flex items-center justify-center text-lg font-bold transition-colors text-red-500 hover:text-red-700"
+                        className="w-8 h-8 flex items-center justify-center text-sm font-bold transition-colors bg-red-500 text-white rounded-lg hover:bg-red-600"
                       >
                         ✕
                       </button>
                     ) : (
                       <button
                         onClick={() => setShowCreatorInfo(showCreatorInfo === member.id ? null : member.id)}
-                        className="w-8 h-8 flex items-center justify-center text-xl transition-colors text-blue-500 hover:text-blue-700"
+                        className="w-8 h-8 flex items-center justify-center text-xl transition-colors text-teal hover:text-teal-dark"
                       >
                         ℹ
                       </button>
