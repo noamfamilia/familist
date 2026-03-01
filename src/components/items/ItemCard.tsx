@@ -143,13 +143,13 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
                 setIsEditing(false)
               }
             }}
-            className="w-36 flex-shrink-0 px-2 py-0.5 border border-primary rounded text-sm"
+            className="w-36 flex-shrink-0 px-2 py-0.5 border border-primary rounded text-lg"
             autoFocus
           />
         ) : (
           <span
             onClick={() => !item.archived && setIsEditing(true)}
-            className={`w-36 flex-shrink-0 truncate text-sm ${item.archived ? 'text-gray-500 cursor-default' : 'cursor-pointer hover:text-primary'}`}
+            className={`w-36 flex-shrink-0 truncate text-lg ${item.archived ? 'text-gray-500 cursor-default' : 'cursor-pointer hover:text-primary'}`}
             title={item.text}
           >
             {item.text}

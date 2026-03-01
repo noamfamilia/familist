@@ -210,15 +210,15 @@ export function MemberHeader({
                 }
               }}
               placeholder={profile?.nickname || 'Name'}
-              className="w-24 px-2 py-1 text-sm border border-primary rounded"
+              className="w-24 px-2 py-1 text-lg border border-primary rounded"
               autoFocus
             />
           ) : (
             <button
               onClick={() => setIsAdding(true)}
-              className="text-sm text-primary hover:bg-primary/20 px-2 py-1 rounded whitespace-nowrap"
+              className="text-lg font-semibold text-primary hover:bg-primary/20 px-3 py-1 rounded whitespace-nowrap"
             >
-              + Add member
+              +Member
             </button>
           )}
         </div>
