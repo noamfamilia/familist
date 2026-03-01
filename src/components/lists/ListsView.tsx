@@ -146,7 +146,7 @@ export function ListsView() {
             disabled={joining}
           />
         </div>
-        <Button type="submit" variant="secondary" loading={joining}>
+        <Button type="submit" variant="primary" loading={joining}>
           Join
         </Button>
       </form>

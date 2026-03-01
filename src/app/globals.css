@@ -12,7 +12,13 @@
 
 body {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--color-cyan) 0%, var(--color-teal) 100%);
+  background: #ffffff;
+}
+
+@media (min-width: 640px) {
+  body {
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+  }
 }
 
 @layer utilities {

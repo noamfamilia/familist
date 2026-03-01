@@ -120,7 +120,7 @@ export function MemberHeader({
   return (
     <div className="mb-3 min-w-full w-max">
       {/* Header row */}
-      <div className="flex items-start gap-0.5 px-3 py-3 bg-cyan-light rounded-lg whitespace-nowrap">
+      <div className="flex items-start gap-0.5 px-3 py-3 bg-orange-50 rounded-lg whitespace-nowrap">
         <span className="text-lg tracking-tighter invisible flex-shrink-0">⋮⋮</span>
         <div className="w-20 flex-shrink-0 flex flex-col">
           <div className="h-6"></div>
@@ -223,7 +223,7 @@ export function MemberHeader({
               />
               <button
                 onMouseDown={handleAddMember}
-                className="mt-1.5 w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-teal text-white hover:bg-teal-dark"
+                className="mt-1.5 w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-coral text-white hover:bg-coral-dark"
               >
                 Add
               </button>
@@ -231,7 +231,7 @@ export function MemberHeader({
           ) : (
             <span
               onClick={() => setIsAdding(true)}
-              className="text-lg font-semibold text-teal cursor-pointer hover:text-teal-dark"
+              className="text-lg font-semibold text-coral cursor-pointer hover:text-coral-dark"
             >
               +Member
             </span>
