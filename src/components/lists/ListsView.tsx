@@ -28,11 +28,11 @@ export function ListsView() {
   )
   const { success, error: showError } = useToast()
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
-  const [newListName, setNewListName] = useState('')
-  const [joinToken, setJoinToken] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [joining, setJoining] = useState(false)
+  const [inputValue, setInputValue] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  
+  const isJoinMode = inputValue.startsWith('@')
 
   // Filter lists based on view mode and ownership
   const filteredLists = lists.filter(list => {
@@ -46,44 +46,42 @@ export function ListsView() {
   // Get all owned list names (including archived) for duplicate name checking
   const ownedListNames = lists.filter(l => l.role === 'owner').map(l => l.name)
 
-  const handleCreateList = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newListName.trim()) return
+    if (!inputValue.trim()) return
 
-    setCreating(true)
+    setSubmitting(true)
     setError('')
 
-    const { error } = await createList(newListName.trim())
-    
-    if (error) {
-      setError(error.message)
-      showError('Failed to create list')
+    if (isJoinMode) {
+      const token = inputValue.slice(1).trim()
+      if (!token) {
+        setSubmitting(false)
+        return
+      }
+      
+      const { error } = await joinListByToken(token)
+      
+      if (error) {
+        setError(error.message)
+        showError('Invalid or expired token')
+      } else {
+        setInputValue('')
+        success('Joined list successfully!')
+      }
     } else {
-      setNewListName('')
-      success('List created!')
+      const { error } = await createList(inputValue.trim())
+      
+      if (error) {
+        setError(error.message)
+        showError('Failed to create list')
+      } else {
+        setInputValue('')
+        success('List created!')
+      }
     }
     
-    setCreating(false)
-  }
-
-  const handleJoinList = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!joinToken.trim()) return
-
-    setJoining(true)
-    setError('')
-
-    const { error } = await joinListByToken(joinToken.trim())
-    
-    if (error) {
-      setError(error.message)
-      showError('Invalid or expired token')
-    } else {
-      setJoinToken('')
-      success('Joined list successfully!')
-    }
-    
-    setJoining(false)
+    setSubmitting(false)
   }
 
   const handleDragEnd = (event: DragEndEvent, listsToReorder: ListWithRole[], isMyLists: boolean) => {
@@ -121,33 +119,18 @@ export function ListsView() {
 
   return (
     <div className="space-y-6">
-      {/* Create new list */}
-      <form onSubmit={handleCreateList} className="flex gap-3" data-tour="create-list">
+      {/* Create or Join */}
+      <form onSubmit={handleSubmit} className="flex gap-3" data-tour="create-list">
         <div className="flex-1">
           <Input
-            value={newListName}
-            onChange={(e) => setNewListName(e.target.value)}
-            placeholder="New list name..."
-            disabled={creating}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="List name or @token to join..."
+            disabled={submitting}
           />
         </div>
-        <Button type="submit" loading={creating} className="bg-red-500 hover:bg-red-600">
-          Create
-        </Button>
-      </form>
-
-      {/* Join with token */}
-      <form onSubmit={handleJoinList} className="flex gap-3" data-tour="join-list">
-        <div className="flex-1">
-          <Input
-            value={joinToken}
-            onChange={(e) => setJoinToken(e.target.value)}
-            placeholder="Enter join token..."
-            disabled={joining}
-          />
-        </div>
-        <Button type="submit" loading={joining} className="bg-red-500 hover:bg-red-600">
-          Join
+        <Button type="submit" loading={submitting} className="bg-red-500 hover:bg-red-600">
+          {isJoinMode ? 'Join' : 'Create'}
         </Button>
       </form>
 

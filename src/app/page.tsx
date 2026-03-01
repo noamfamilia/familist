@@ -10,12 +10,8 @@ import type { Step } from 'react-joyride'
 const homeTourSteps: Step[] = [
   {
     target: '[data-tour="create-list"]',
-    content: 'Create a new shopping list here. Give it a name and click Create.',
+    content: 'Type a name to create a new list, or type @token to join a shared list.',
     disableBeacon: true,
-  },
-  {
-    target: '[data-tour="join-list"]',
-    content: 'Have a token from someone? Enter it here to join their shared list.',
   },
   {
     target: '[data-tour="list-card"]',
