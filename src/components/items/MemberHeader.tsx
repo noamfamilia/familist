@@ -135,7 +135,7 @@ export function MemberHeader({
                   <div className="flex items-center">
                     <span
                       onClick={() => member.created_by === user?.id && handleStartEdit(member)}
-                      className={`text-sm font-semibold text-primary truncate max-w-[60px] ${member.created_by === user?.id ? 'cursor-pointer hover:text-primary-dark' : ''}`}
+                      className={`text-lg font-semibold text-primary truncate max-w-[70px] ${member.created_by === user?.id ? 'cursor-pointer hover:text-primary-dark' : ''}`}
                       title={member.creator?.nickname ? `${member.name} (${member.creator.nickname})` : member.name}
                     >
                       {member.name}
@@ -143,7 +143,7 @@ export function MemberHeader({
                     {member.created_by === user?.id && (
                       <button
                         onClick={() => handleDeleteClick(member)}
-                        className="text-red-500 text-xs opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity ml-1"
+                        className="text-red-500 text-base opacity-60 hover:opacity-100 transition-opacity ml-1"
                         title="Delete member"
                       >
                         ×
