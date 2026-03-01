@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useSwipeable } from 'react-swipeable'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/Toast'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -33,8 +34,45 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [leaving, setLeaving] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const [isSwiping, setIsSwiping] = useState(false)
 
   const isOwner = list.role === 'owner'
+  const SWIPE_THRESHOLD = 80
+
+  const swipeHandlers = useSwipeable({
+    onSwiping: (e) => {
+      if (Math.abs(e.deltaX) > 10) {
+        setIsSwiping(true)
+        setSwipeOffset(Math.max(-120, Math.min(120, e.deltaX)))
+      }
+    },
+    onSwipedLeft: () => {
+      if (swipeOffset < -SWIPE_THRESHOLD) {
+        handleArchive()
+      }
+      setSwipeOffset(0)
+      setIsSwiping(false)
+    },
+    onSwipedRight: () => {
+      if (swipeOffset > SWIPE_THRESHOLD) {
+        if (isOwner) {
+          setShowDeleteConfirm(true)
+        } else {
+          setShowLeaveConfirm(true)
+        }
+      }
+      setSwipeOffset(0)
+      setIsSwiping(false)
+    },
+    onSwiped: () => {
+      setSwipeOffset(0)
+      setIsSwiping(false)
+    },
+    trackMouse: false,
+    trackTouch: true,
+    preventScrollOnSwipe: true,
+  })
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -158,7 +196,27 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+    <>
+    <div className="relative overflow-hidden rounded-lg">
+      {/* Background actions revealed on swipe */}
+      <div className="absolute inset-0 flex">
+        {/* Delete/Leave action (swipe right) */}
+        <div className={`flex items-center justify-start pl-4 bg-red-500 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'}`} style={{ width: '120px' }}>
+          🗑️ {isOwner ? 'Delete' : 'Leave'}
+        </div>
+        <div className="flex-1" />
+        {/* Archive action (swipe left) */}
+        <div className={`flex items-center justify-end pr-4 bg-amber-500 text-white font-semibold transition-opacity ${swipeOffset < -20 ? 'opacity-100' : 'opacity-0'}`} style={{ width: '120px' }}>
+          {list.userArchived ? 'Restore ↩' : 'Archive 📥'}
+        </div>
+      </div>
+
+      {/* Main card content */}
+      <div 
+        {...swipeHandlers}
+        style={{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
+        className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+      >
       {/* Drag handle */}
       <div 
         className="text-gray-400 cursor-grab select-none text-sm tracking-tighter hidden sm:block touch-none"
@@ -270,39 +328,41 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           </ul>
         )}
       </div>
-
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete List"
-        message="Are you sure you want to delete this list? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="danger"
-        loading={deleting}
-      />
-
-      <ConfirmModal
-        isOpen={showLeaveConfirm}
-        onClose={() => setShowLeaveConfirm(false)}
-        onConfirm={handleLeaveConfirm}
-        title="Leave List"
-        message="Are you sure you want to leave this list? Your members and their data will be removed."
-        confirmText="Leave"
-        cancelText="Cancel"
-        variant="danger"
-        loading={leaving}
-      />
-
-      {isOwner && (
-        <ShareModal
-          isOpen={showShareModal}
-          onClose={() => setShowShareModal(false)}
-          list={list}
-          onUpdate={() => onRefresh?.()}
-        />
-      )}
+      </div>
     </div>
+
+    <ConfirmModal
+      isOpen={showDeleteConfirm}
+      onClose={() => setShowDeleteConfirm(false)}
+      onConfirm={handleDeleteConfirm}
+      title="Delete List"
+      message="Are you sure you want to delete this list? This action cannot be undone."
+      confirmText="Delete"
+      cancelText="Cancel"
+      variant="danger"
+      loading={deleting}
+    />
+
+    <ConfirmModal
+      isOpen={showLeaveConfirm}
+      onClose={() => setShowLeaveConfirm(false)}
+      onConfirm={handleLeaveConfirm}
+      title="Leave List"
+      message="Are you sure you want to leave this list? Your members and their data will be removed."
+      confirmText="Leave"
+      cancelText="Cancel"
+      variant="danger"
+      loading={leaving}
+    />
+
+    {isOwner && (
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        list={list}
+        onUpdate={() => onRefresh?.()}
+      />
+    )}
+  </>
   )
 }

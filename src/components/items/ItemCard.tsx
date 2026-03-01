@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useSwipeable } from 'react-swipeable'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -30,7 +31,41 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const [showMenu, setShowMenu] = useState(false)
   const [editingQuantityMember, setEditingQuantityMember] = useState<string | null>(null)
   const [editQuantityValue, setEditQuantityValue] = useState('')
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const [isSwiping, setIsSwiping] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const SWIPE_THRESHOLD = 80
+
+  const swipeHandlers = useSwipeable({
+    onSwiping: (e) => {
+      if (Math.abs(e.deltaX) > 10) {
+        setIsSwiping(true)
+        setSwipeOffset(Math.max(-120, Math.min(120, e.deltaX)))
+      }
+    },
+    onSwipedLeft: () => {
+      if (swipeOffset < -SWIPE_THRESHOLD) {
+        handleArchive()
+      }
+      setSwipeOffset(0)
+      setIsSwiping(false)
+    },
+    onSwipedRight: () => {
+      if (swipeOffset > SWIPE_THRESHOLD) {
+        setShowDeleteConfirm(true)
+      }
+      setSwipeOffset(0)
+      setIsSwiping(false)
+    },
+    onSwiped: () => {
+      setSwipeOffset(0)
+      setIsSwiping(false)
+    },
+    trackMouse: false,
+    trackTouch: true,
+    preventScrollOnSwipe: true,
+  })
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -120,7 +155,27 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
 
   return (
     <div className="space-y-1">
-      <div className={`inline-flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors min-w-full ${item.archived ? 'opacity-60' : ''}`}>
+      {/* Swipe container */}
+      <div className="relative overflow-hidden rounded-lg">
+        {/* Background actions revealed on swipe */}
+        <div className="absolute inset-0 flex">
+          {/* Delete action (swipe right) */}
+          <div className={`flex items-center justify-start pl-4 bg-red-500 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'}`} style={{ width: '120px' }}>
+            🗑️ Delete
+          </div>
+          <div className="flex-1" />
+          {/* Archive action (swipe left) */}
+          <div className={`flex items-center justify-end pr-4 bg-amber-500 text-white font-semibold transition-opacity ${swipeOffset < -20 ? 'opacity-100' : 'opacity-0'}`} style={{ width: '120px' }}>
+            {item.archived ? 'Restore ↩' : 'Archive 📥'}
+          </div>
+        </div>
+
+        {/* Main card content */}
+        <div 
+          {...swipeHandlers}
+          style={{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
+          className={`inline-flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors min-w-full ${item.archived ? 'opacity-60' : ''}`}
+        >
         {/* Drag handle */}
         <div 
           className={`text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${item.archived ? 'opacity-50 cursor-not-allowed' : 'cursor-grab'}`}
@@ -265,6 +320,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
               </button>
             </div>
           )}
+        </div>
         </div>
       </div>
 
