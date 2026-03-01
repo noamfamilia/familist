@@ -38,10 +38,10 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
 
   const swipeHandlers = useSwipeable({
     onSwiping: (e) => {
-      // Only allow swipe right (positive deltaX)
-      if (e.deltaX > 10) {
+      // Only allow swipe right (positive deltaX) - require 40px before starting
+      if (e.deltaX > 40) {
         setIsSwiping(true)
-        setSwipeOffset(Math.min(120, e.deltaX))
+        setSwipeOffset(Math.min(120, e.deltaX - 30))
       }
     },
     onSwipedRight: () => {
@@ -254,11 +254,8 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
           })}
         </div>
 
-        {/* Spacer to push trailing section to right */}
-        <div className="flex-1"></div>
-
-        {/* Trailing section */}
-        <div className="flex-shrink-0 flex justify-end items-center gap-1 ml-2">
+        {/* Trailing section - pushed to right with ml-auto */}
+        <div className="flex-shrink-0 flex justify-end items-center gap-1 ml-auto pl-4">
           {/* Comment indicator */}
           {hasComment && (
             <span className="text-primary text-sm opacity-80" title="Has comment">💬</span>

@@ -233,8 +233,6 @@ export function MemberHeader({
         </div>
         )}
 
-        {/* Spacer to push content to match item card layout */}
-        <div className="flex-1"></div>
       </div>
 
       <ConfirmModal

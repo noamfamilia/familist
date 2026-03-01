@@ -41,10 +41,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
   const swipeHandlers = useSwipeable({
     onSwiping: (e) => {
-      // Only allow swipe right (positive deltaX)
-      if (e.deltaX > 10) {
+      // Only allow swipe right (positive deltaX) - require 40px before starting
+      if (e.deltaX > 40) {
         setIsSwiping(true)
-        setSwipeOffset(Math.min(120, e.deltaX))
+        setSwipeOffset(Math.min(120, e.deltaX - 30))
       }
     },
     onSwipedRight: () => {
