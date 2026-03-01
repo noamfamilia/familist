@@ -173,31 +173,31 @@ export default function ListPage() {
 
   return (
     <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-6xl min-h-screen sm:min-h-0 p-4 sm:p-8">
-      {/* Back button */}
-      <button
-        onClick={() => router.push('/')}
-        className="text-primary hover:underline mb-4 block text-sm sm:text-base"
-        aria-label="Go back to all lists"
-      >
-        ← Back to lists
-      </button>
+      {/* Top bar with back button and member filter */}
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => router.push('/')}
+          className="text-primary hover:underline text-sm sm:text-base"
+          aria-label="Go back to all lists"
+        >
+          ← Back to lists
+        </button>
+        <div data-tour="view-toggle">
+          <Toggle
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'mine', label: 'Mine' },
+            ]}
+            value={memberFilter}
+            onChange={(v) => setMemberFilter(v as 'all' | 'mine')}
+          />
+        </div>
+      </div>
 
       {/* Header */}
       <header className="text-center mb-4 sm:mb-6">
         <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">{list.name}</h1>
       </header>
-
-      {/* View toggle */}
-      <div className="flex justify-center mb-4 sm:mb-6" data-tour="view-toggle">
-        <Toggle
-          options={[
-            { value: 'all', label: 'All' },
-            { value: 'mine', label: 'Mine' },
-          ]}
-          value={memberFilter}
-          onChange={(v) => setMemberFilter(v as 'all' | 'mine')}
-        />
-      </div>
 
       {/* Add item form */}
       <form onSubmit={handleAddItem} className="flex gap-2 sm:gap-3 mb-4 sm:mb-6" data-tour="add-item">
