@@ -15,7 +15,7 @@ export function Toggle({ options, value, onChange, className = '' }: ToggleProps
           key={option.value}
           type="button"
           onClick={() => onChange(option.value)}
-          className={`px-4 py-2 text-sm transition-all duration-200 ${
+          className={`px-3 py-0.5 text-xs transition-all duration-200 ${
             index === 0 ? 'rounded-l-md' : ''
           } ${
             index === options.length - 1 ? 'rounded-r-md' : ''

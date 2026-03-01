@@ -33,18 +33,18 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [isSwiping, setIsSwiping] = useState(false)
 
-  const SWIPE_THRESHOLD = 80
+  const getSwipeThreshold = () => typeof window !== 'undefined' ? window.innerWidth * 0.7 : 200
 
   const swipeHandlers = useSwipeable({
     onSwiping: (e) => {
       // Only allow swipe right (positive deltaX) - require 40px before starting
       if (e.deltaX > 40) {
         setIsSwiping(true)
-        setSwipeOffset(Math.min(120, e.deltaX - 30))
+        setSwipeOffset(e.deltaX - 30)
       }
     },
     onSwipedRight: () => {
-      if (swipeOffset > SWIPE_THRESHOLD) {
+      if (swipeOffset > getSwipeThreshold()) {
         // Active items → Archive, Archived items → Delete
         if (item.archived) {
           setShowDeleteConfirm(true)
