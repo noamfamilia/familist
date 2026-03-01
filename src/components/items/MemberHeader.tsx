@@ -231,7 +231,7 @@ export function MemberHeader({
           ) : (
             <span
               onClick={() => setIsAdding(true)}
-              className="text-lg font-semibold text-coral cursor-pointer hover:text-coral-dark"
+              className="text-lg font-semibold text-primary cursor-pointer hover:text-primary-dark"
             >
               +Member
             </span>
