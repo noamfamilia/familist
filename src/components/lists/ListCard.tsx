@@ -32,7 +32,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [deleting, setDeleting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [leaving, setLeaving] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [isSwiping, setIsSwiping] = useState(false)
@@ -73,22 +72,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     preventScrollOnSwipe: true,
   })
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-
-    if (menuOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [menuOpen])
 
   // Focus input when renaming
   useEffect(() => {
@@ -274,14 +257,12 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       </span>
 
       {/* Kebab menu button */}
-      <div ref={menuRef}>
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="text-gray-400 hover:text-gray-600 px-2 py-1 text-xl leading-none"
-        >
-          {menuOpen ? '✕' : '⋮'}
-        </button>
-      </div>
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className="text-gray-400 hover:text-gray-600 px-2 py-1 text-xl leading-none"
+      >
+        {menuOpen ? '✕' : '⋮'}
+      </button>
       </div>
 
       {/* Inline action buttons - shown when menu is open */}

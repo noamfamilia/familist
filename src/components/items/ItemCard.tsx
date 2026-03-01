@@ -33,7 +33,6 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const [editQuantityValue, setEditQuantityValue] = useState('')
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [isSwiping, setIsSwiping] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
 
   const SWIPE_THRESHOLD = 80
 
@@ -66,18 +65,6 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
     preventScrollOnSwipe: true,
   })
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowMenu(false)
-      }
-    }
-    if (showMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showMenu])
 
   // Sync editText with item.text when not editing (handles server updates/reverts)
   useEffect(() => {
@@ -268,7 +255,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         </div>
 
         {/* Trailing section - fixed width to match header */}
-        <div className="w-28 flex-shrink-0 flex justify-end items-center gap-1 ml-2" ref={menuRef}>
+        <div className="w-28 flex-shrink-0 flex justify-end items-center gap-1 ml-2">
           {/* Comment indicator */}
           {hasComment && (
             <span className="text-primary text-sm opacity-80" title="Has comment">💬</span>
