@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -27,6 +27,21 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const [comment, setComment] = useState(item.comment || '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false)
+      }
+    }
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMenu])
 
   // Sync editText with item.text when not editing (handles server updates/reverts)
   useEffect(() => {
@@ -167,33 +182,56 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         </div>
 
         {/* Trailing section - fixed width to match header */}
-        <div className="w-28 flex-shrink-0 flex justify-end items-center gap-1 ml-2">
-          {/* Comment button */}
+        <div className="w-28 flex-shrink-0 flex justify-end items-center gap-1 ml-2 relative" ref={menuRef}>
+          {/* Comment indicator */}
+          {hasComment && (
+            <span className="text-primary text-sm opacity-80" title="Has comment">💬</span>
+          )}
+
+          {/* Kebab menu button */}
           <button
-            onClick={() => setShowComment(!showComment)}
-            className={`text-gray-400 hover:text-primary text-sm ${hasComment ? 'text-primary opacity-80' : 'opacity-50'}`}
-            title="Comment"
+            onClick={() => setShowMenu(!showMenu)}
+            className="text-gray-400 hover:text-gray-600 px-1 py-0.5 rounded hover:bg-gray-200"
+            title="More options"
           >
-            💬
+            <span className="text-sm">⋮</span>
           </button>
 
-          {/* Archive/Restore button */}
-          <button
-            onClick={handleArchive}
-            className={`text-gray-400 hover:text-gray-600 opacity-60 text-sm ${item.archived ? 'text-green-500' : ''}`}
-            title={item.archived ? 'Restore' : 'Archive'}
-          >
-            {item.archived ? '↩' : '📥'}
-          </button>
-
-          {/* Delete button */}
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="text-gray-400 hover:text-red-500 opacity-60 text-sm"
-            title="Delete item"
-          >
-            🗑️
-          </button>
+          {/* Dropdown menu */}
+          {showMenu && (
+            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[140px] py-1">
+              <button
+                onClick={() => {
+                  setShowComment(!showComment)
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+              >
+                <span>💬</span>
+                <span>{hasComment ? 'Edit comment' : 'Add comment'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  handleArchive()
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+              >
+                <span>{item.archived ? '↩' : '📥'}</span>
+                <span>{item.archived ? 'Restore' : 'Archive'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(true)
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 text-red-600 flex items-center gap-2"
+              >
+                <span>🗑️</span>
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
