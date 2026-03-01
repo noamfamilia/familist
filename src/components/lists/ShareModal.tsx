@@ -79,14 +79,16 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   const handleCopyToken = async () => {
     if (!token) return
     
+    const tokenWithPrefix = '@' + token
+    
     try {
-      await navigator.clipboard.writeText(token)
+      await navigator.clipboard.writeText(tokenWithPrefix)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
       // Fallback for older browsers
       const textArea = document.createElement('textarea')
-      textArea.value = token
+      textArea.value = tokenWithPrefix
       document.body.appendChild(textArea)
       textArea.select()
       document.execCommand('copy')
@@ -157,7 +159,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           <div className="flex items-center gap-2">
             <input
               type="text"
-              value={token}
+              value={'@' + token}
               readOnly
               className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg font-mono bg-gray-50 text-sm truncate"
             />

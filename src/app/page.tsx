@@ -4,6 +4,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { ListsView } from '@/components/lists/ListsView'
 import { TutorialTour } from '@/components/ui/TutorialTour'
+import { Toggle } from '@/components/ui/Toggle'
 import { useState } from 'react'
 import type { Step } from 'react-joyride'
 
@@ -22,6 +23,7 @@ const homeTourSteps: Step[] = [
 export default function Home() {
   const { user, profile, loading } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
 
   if (loading) {
     return (
@@ -33,8 +35,23 @@ export default function Home() {
 
   return (
     <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 p-4 sm:p-8 relative">
-      {/* Auth bar */}
-      <div className="absolute top-3 right-3 z-10">
+      {/* Top bar */}
+      <div className="flex items-center justify-between mb-4">
+        {/* View toggle - top left */}
+        {user && (
+          <Toggle
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'archived', label: 'Archived' },
+            ]}
+            value={viewMode}
+            onChange={(v) => setViewMode(v as 'active' | 'archived')}
+            className="text-xs"
+          />
+        )}
+        {!user && <div />}
+        
+        {/* Auth button - top right */}
         {user ? (
           <button
             onClick={() => setShowAuthModal(true)}
@@ -56,7 +73,7 @@ export default function Home() {
       </div>
 
       {/* Header */}
-      <header className="text-center mb-6 sm:mb-8 pt-6 sm:pt-0">
+      <header className="text-center mb-6 sm:mb-8">
         <img 
           src="/logo.png" 
           alt="MyFamiList" 
@@ -67,7 +84,7 @@ export default function Home() {
       {/* Main content */}
       {user ? (
         <>
-          <ListsView />
+          <ListsView viewMode={viewMode} />
           <TutorialTour tourId="home" steps={homeTourSteps} />
         </>
       ) : (

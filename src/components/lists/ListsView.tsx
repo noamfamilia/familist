@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useLists } from '@/hooks/useLists'
-import { Toggle } from '@/components/ui/Toggle'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
@@ -13,7 +12,11 @@ import { SortableListCard } from './SortableListCard'
 import { ListCard } from './ListCard'
 import type { ListWithRole } from '@/lib/supabase/types'
 
-export function ListsView() {
+interface ListsViewProps {
+  viewMode: 'active' | 'archived'
+}
+
+export function ListsView({ viewMode }: ListsViewProps) {
   const { lists, loading, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
   
   const sensors = useSensors(
@@ -27,7 +30,6 @@ export function ListsView() {
     })
   )
   const { success, error: showError } = useToast()
-  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
   const [inputValue, setInputValue] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -139,16 +141,6 @@ export function ListsView() {
           {error}
         </div>
       )}
-
-      {/* View toggle */}
-      <Toggle
-        options={[
-          { value: 'active', label: 'Active' },
-          { value: 'archived', label: 'Archived' },
-        ]}
-        value={viewMode}
-        onChange={(v) => setViewMode(v as 'active' | 'archived')}
-      />
 
       {/* Lists */}
       <div className="space-y-6 min-h-[120px]">
