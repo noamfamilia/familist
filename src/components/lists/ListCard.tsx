@@ -273,60 +273,77 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         {list.memberCount || 0} members · {list.activeItemCount || 0} items
       </span>
 
-      {/* Menu */}
-      <div className="relative" ref={menuRef}>
+      {/* Kebab menu button */}
+      <div ref={menuRef}>
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="text-gray-400 hover:text-gray-600 px-2 py-1 text-xl leading-none"
         >
-          ⋮
+          {menuOpen ? '✕' : '⋮'}
         </button>
+      </div>
+      </div>
 
-        {menuOpen && (
-          <ul className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[160px] py-1.5 z-50">
-            {isOwner && (
-              <li
-                onClick={() => {
-                  setIsRenaming(true)
-                  setMenuOpen(false)
-                }}
-                className="px-4 py-2.5 cursor-pointer hover:bg-gray-50 text-primary"
-              >
-                Rename
-              </li>
-            )}
-            <li
-              onClick={handleDuplicate}
-              className="px-4 py-2.5 cursor-pointer hover:bg-gray-50 text-cyan-600"
+      {/* Inline action buttons - shown when menu is open */}
+      {menuOpen && (
+        <div className="flex items-center justify-end gap-2 px-3 py-2 bg-gray-100 border-t border-gray-200">
+          {isOwner && (
+            <button
+              onClick={() => {
+                setIsRenaming(true)
+                setMenuOpen(false)
+              }}
+              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-primary"
             >
-              Duplicate
-            </li>
-            <li
-              onClick={handleArchive}
-              className="px-4 py-2.5 cursor-pointer hover:bg-gray-50 text-gray-500"
+              <span>✏️</span>
+              <span>Rename</span>
+            </button>
+          )}
+          <button
+            onClick={() => {
+              handleDuplicate()
+              setMenuOpen(false)
+            }}
+            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-cyan-600"
+          >
+            <span>📋</span>
+            <span>Duplicate</span>
+          </button>
+          <button
+            onClick={() => {
+              handleArchive()
+              setMenuOpen(false)
+            }}
+            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+          >
+            <span>{list.userArchived ? '↩' : '📥'}</span>
+            <span>{list.userArchived ? 'Restore' : 'Archive'}</span>
+          </button>
+          {isOwner ? (
+            <button
+              onClick={() => {
+                handleDeleteClick()
+                setMenuOpen(false)
+              }}
+              className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
             >
-              {list.userArchived ? 'Restore' : 'Archive'}
-            </li>
-            {isOwner && (
-              <li
-                onClick={handleDeleteClick}
-                className="px-4 py-2.5 cursor-pointer hover:bg-gray-50 text-red-500"
-              >
-                Delete
-              </li>
-            )}
-            {!isOwner && (
-              <li
-                onClick={handleLeaveClick}
-                className="px-4 py-2.5 cursor-pointer hover:bg-gray-50 text-red-500"
-              >
-                Leave
-              </li>
-            )}
-          </ul>
-        )}
-      </div>
-      </div>
+              <span>🗑️</span>
+              <span>Delete</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                handleLeaveClick()
+                setMenuOpen(false)
+              }}
+              className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+            >
+              <span>🚪</span>
+              <span>Leave</span>
+            </button>
+          )}
+        </div>
+      )}
     </div>
 
     <ConfirmModal

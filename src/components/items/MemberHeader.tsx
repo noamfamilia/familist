@@ -118,9 +118,9 @@ export function MemberHeader({
   }
 
   return (
-    <div className="mb-3 inline-block min-w-full">
+    <div className="mb-3 w-full">
       {/* Header row */}
-      <div className="inline-flex items-start gap-0.5 px-3 py-3 bg-primary/10 rounded-lg whitespace-nowrap">
+      <div className="flex items-start gap-0.5 px-3 py-3 bg-primary/10 rounded-lg whitespace-nowrap w-full">
         <span className="text-lg tracking-tighter invisible flex-shrink-0">⋮⋮</span>
         <div className="w-20 flex-shrink-0 flex flex-col">
           <div className="h-6"></div>
@@ -232,6 +232,9 @@ export function MemberHeader({
           </button>
         </div>
         )}
+
+        {/* Trailing spacer to match item card trailing section */}
+        <div className="w-28 flex-shrink-0 ml-2"></div>
       </div>
 
       <ConfirmModal

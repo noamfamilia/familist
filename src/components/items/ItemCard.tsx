@@ -153,9 +153,9 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
   const hasComment = item.comment && item.comment.trim().length > 0
 
   return (
-    <div className="space-y-1 inline-block min-w-full">
+    <div className="w-full">
       {/* Swipe container */}
-      <div className="relative overflow-hidden rounded-lg inline-block min-w-full">
+      <div className="relative overflow-hidden rounded-lg w-full">
         {/* Background action revealed on swipe right */}
         <div className="absolute inset-0 flex">
           {/* Active → Archive (amber), Archived → Delete (red) */}
@@ -172,7 +172,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         <div 
           {...swipeHandlers}
           style={{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
-          className={`inline-flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap ${item.archived ? 'opacity-60' : ''}`}
+          className={`flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap w-full ${item.archived ? 'opacity-60' : ''}`}
         >
         {/* Drag handle */}
         <div 
