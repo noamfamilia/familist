@@ -44,11 +44,11 @@ export default function Home() {
         {user ? (
           <button
             onClick={() => setShowAuthModal(true)}
-            className="text-2xl hover:opacity-80 transition-opacity"
+            className="hover:opacity-80 transition-opacity"
             aria-label="Account settings"
             title={profile?.nickname || profile?.username || user.email}
           >
-            👤
+            <img src="/profile-icon.png" alt="Profile settings" className="w-8 h-8" />
           </button>
         ) : (
           <button
