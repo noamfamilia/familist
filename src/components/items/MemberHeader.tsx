@@ -196,37 +196,37 @@ export function MemberHeader({
 
         {/* Add member section - same pitch as member columns */}
         <div className="flex flex-col items-center min-w-[70px]">
-          <span className="text-lg font-semibold text-gray-400">
-            member
-          </span>
-          {/* Add button or input - same container as hide+delete */}
-          <div className="flex items-center gap-1 mt-1.5 px-2 py-1 rounded-lg border border-gray-200 bg-white">
-            {isAdding ? (
-              <input
-                type="text"
-                value={newMemberName}
-                onChange={(e) => setNewMemberName(e.target.value)}
-                onBlur={handleAddMember}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddMember()
-                  if (e.key === 'Escape') {
-                    setIsAdding(false)
-                    setNewMemberName('')
-                  }
-                }}
-                placeholder={profile?.nickname || 'Name'}
-                className="w-16 h-8 text-center text-sm border border-primary rounded"
-                autoFocus
-              />
-            ) : (
-              <button
-                onClick={() => setIsAdding(true)}
-                className="w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-primary text-white hover:bg-primary-dark"
-              >
-                Add
-              </button>
-            )}
-          </div>
+          {isAdding ? (
+            <input
+              type="text"
+              value={newMemberName}
+              onChange={(e) => setNewMemberName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddMember()
+                if (e.key === 'Escape') {
+                  setIsAdding(false)
+                  setNewMemberName('')
+                }
+              }}
+              placeholder={profile?.nickname || 'Name'}
+              className="w-16 px-2 py-1 text-lg text-center border border-primary rounded"
+              autoFocus
+            />
+          ) : (
+            <span
+              onClick={() => setIsAdding(true)}
+              className="text-lg font-semibold text-gray-400 cursor-pointer hover:text-primary"
+            >
+              member
+            </span>
+          )}
+          {/* Add button below */}
+          <button
+            onClick={handleAddMember}
+            className="mt-1.5 w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-primary text-white hover:bg-primary-dark"
+          >
+            Add
+          </button>
         </div>
       </div>
 

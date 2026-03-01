@@ -42,24 +42,23 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
   const swipeHandlers = useSwipeable({
     onSwiping: (e) => {
-      if (Math.abs(e.deltaX) > 10) {
+      // Only allow swipe right (positive deltaX)
+      if (e.deltaX > 10) {
         setIsSwiping(true)
-        setSwipeOffset(Math.max(-120, Math.min(120, e.deltaX)))
+        setSwipeOffset(Math.min(120, e.deltaX))
       }
-    },
-    onSwipedLeft: () => {
-      if (swipeOffset < -SWIPE_THRESHOLD) {
-        handleArchive()
-      }
-      setSwipeOffset(0)
-      setIsSwiping(false)
     },
     onSwipedRight: () => {
       if (swipeOffset > SWIPE_THRESHOLD) {
-        if (isOwner) {
-          setShowDeleteConfirm(true)
+        // Active lists → Archive, Archived lists → Delete/Leave
+        if (list.userArchived) {
+          if (isOwner) {
+            setShowDeleteConfirm(true)
+          } else {
+            setShowLeaveConfirm(true)
+          }
         } else {
-          setShowLeaveConfirm(true)
+          handleArchive()
         }
       }
       setSwipeOffset(0)
@@ -198,17 +197,16 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   return (
     <>
     <div className="relative overflow-hidden rounded-lg">
-      {/* Background actions revealed on swipe */}
+      {/* Background action revealed on swipe right */}
       <div className="absolute inset-0 flex">
-        {/* Delete/Leave action (swipe right) */}
-        <div className={`flex items-center justify-start pl-4 bg-red-500 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'}`} style={{ width: '120px' }}>
-          🗑️ {isOwner ? 'Delete' : 'Leave'}
+        {/* Active → Archive (amber), Archived → Delete/Leave (red) */}
+        <div 
+          className={`flex items-center justify-start pl-4 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'} ${list.userArchived ? 'bg-red-500' : 'bg-amber-500'}`} 
+          style={{ width: '120px' }}
+        >
+          {list.userArchived ? `🗑️ ${isOwner ? 'Delete' : 'Leave'}` : '📥 Archive'}
         </div>
         <div className="flex-1" />
-        {/* Archive action (swipe left) */}
-        <div className={`flex items-center justify-end pr-4 bg-amber-500 text-white font-semibold transition-opacity ${swipeOffset < -20 ? 'opacity-100' : 'opacity-0'}`} style={{ width: '120px' }}>
-          {list.userArchived ? 'Restore ↩' : 'Archive 📥'}
-        </div>
       </div>
 
       {/* Main card content */}
