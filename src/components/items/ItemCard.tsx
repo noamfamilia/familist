@@ -162,16 +162,12 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         {/* Card row */}
         <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap" data-tour="item-row">
         {/* Drag handle - only shown for draggable (active) items */}
-        {isDraggable ? (
-          <div 
-            className="text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 cursor-grab"
-            {...dragHandleProps}
-          >
-            ⋮⋮
-          </div>
-        ) : (
-          <div className="w-4 flex-shrink-0" />
-        )}
+        <div 
+          className={`w-5 text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${isDraggable ? 'cursor-grab' : ''}`}
+          {...(isDraggable ? dragHandleProps : {})}
+        >
+          {isDraggable ? '⋮⋮' : ''}
+        </div>
 
         {/* Item name - click to toggle archive */}
         {isEditing ? (
