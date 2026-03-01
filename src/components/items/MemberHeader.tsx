@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
-import type { MemberWithCreator } from '@/lib/supabase/types'
+import type { Member, MemberWithCreator } from '@/lib/supabase/types'
 
 interface MemberHeaderProps {
   members: MemberWithCreator[]
