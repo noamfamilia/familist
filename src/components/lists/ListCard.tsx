@@ -243,13 +243,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               setIsRenaming(false)
             }
           }}
-          className="flex-1 min-w-0 px-2 py-1 border border-primary rounded text-base font-medium"
+          className="flex-1 min-w-0 px-2 py-1 border border-teal rounded text-base font-medium"
           aria-label="List name"
         />
       ) : (
         <span
           onClick={handleCardClick}
-          className="flex-1 min-w-0 font-medium text-gray-800 hover:text-primary cursor-pointer truncate"
+          className="flex-1 min-w-0 font-medium text-primary hover:text-teal cursor-pointer truncate"
         >
           {list.name}
         </span>
@@ -258,7 +258,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {/* Metadata - hidden on mobile */}
       <span className="text-sm text-gray-500 hidden sm:inline flex-shrink-0">
         {!isOwner && list.ownerNickname && (
-          <span className="text-primary">{list.ownerNickname}</span>
+          <span className="text-teal">{list.ownerNickname}</span>
         )}
         {!isOwner && list.ownerNickname && ' · '}
         {list.memberCount || 0} members · {list.activeItemCount || 0} items
@@ -287,7 +287,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 if (e.key === 'Enter') handleSaveComment()
               }}
               placeholder="Add a comment..."
-              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
               onClick={(e) => e.stopPropagation()}
             />
           </div>
@@ -317,7 +317,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   setIsRenaming(true)
                   setMenuOpen(false)
                 }}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-primary"
+                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-teal"
               >
                 <span>✏️</span>
                 <span>Rename</span>

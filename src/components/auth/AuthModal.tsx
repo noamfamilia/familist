@@ -223,7 +223,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             setIsSignUp(!isSignUp)
             setError('')
           }}
-          className="ml-2 text-primary font-semibold hover:underline"
+          className="ml-2 text-teal font-semibold hover:underline"
         >
           {isSignUp ? 'Sign In' : 'Sign Up'}
         </button>

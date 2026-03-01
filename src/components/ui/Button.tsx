@@ -13,10 +13,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles = 'font-medium rounded-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed'
     
     const variantStyles = {
-      primary: 'bg-gradient-to-r from-primary to-secondary text-white hover:shadow-md hover:-translate-y-0.5',
-      secondary: 'bg-gray-500 text-white hover:bg-gray-600',
+      primary: 'bg-coral text-white hover:bg-coral-dark hover:shadow-md hover:-translate-y-0.5',
+      secondary: 'bg-teal text-white hover:bg-teal-dark',
       danger: 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:shadow-md',
-      ghost: 'bg-transparent text-gray-600 hover:bg-gray-100',
+      ghost: 'bg-transparent text-primary hover:bg-primary-light',
     }
 
     const sizeStyles = {

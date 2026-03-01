@@ -3,19 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --color-primary: #667eea;
-  --color-primary-dark: #5568d3;
-  --color-secondary: #764ba2;
+  --color-primary: #1e3a5f;
+  --color-primary-dark: #152a45;
+  --color-coral: #e07050;
+  --color-teal: #2aa198;
+  --color-cyan: #7ec8e3;
 }
 
 body {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(135deg, var(--color-cyan) 0%, var(--color-teal) 100%);
 }
 
 @layer utilities {
   .gradient-primary {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(135deg, var(--color-cyan) 0%, var(--color-teal) 100%);
   }
 }
 

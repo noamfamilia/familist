@@ -21,8 +21,8 @@ export function Toggle({ options, value, onChange, className = '' }: ToggleProps
             index === options.length - 1 ? 'rounded-r-md' : ''
           } ${
             value === option.value
-              ? 'bg-primary text-white border-primary'
-              : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+              ? 'bg-teal text-white border-teal'
+              : 'bg-gray-50 text-primary border-gray-200 hover:bg-cyan-light'
           } border`}
         >
           {option.label}

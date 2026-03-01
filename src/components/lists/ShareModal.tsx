@@ -114,7 +114,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           />
           <div className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
             visibility === 'private' 
-              ? 'border-primary bg-primary-light' 
+              ? 'border-teal bg-teal-light' 
               : 'border-gray-200 hover:bg-gray-50'
           }`}>
             <span className="text-2xl">🔒</span>
@@ -138,7 +138,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           />
           <div className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
             visibility === 'link' 
-              ? 'border-primary bg-primary-light' 
+              ? 'border-teal bg-teal-light' 
               : 'border-gray-200 hover:bg-gray-50'
           }`}>
             <span className="text-2xl">🔗</span>
@@ -177,7 +177,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
       {loading && (
         <div className="flex items-center justify-center py-4">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal"></div>
         </div>
       )}
     </Modal>

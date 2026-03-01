@@ -120,7 +120,7 @@ export function MemberHeader({
   return (
     <div className="mb-3 min-w-full w-max">
       {/* Header row */}
-      <div className="flex items-start gap-0.5 px-3 py-3 bg-primary/10 rounded-lg whitespace-nowrap">
+      <div className="flex items-start gap-0.5 px-3 py-3 bg-cyan-light rounded-lg whitespace-nowrap">
         <span className="text-lg tracking-tighter invisible flex-shrink-0">⋮⋮</span>
         <div className="w-20 flex-shrink-0 flex flex-col">
           <div className="h-6"></div>
@@ -144,7 +144,7 @@ export function MemberHeader({
                       setEditName('')
                     }
                   }}
-                  className="w-16 px-2 py-1 text-sm border border-primary rounded"
+                  className="w-16 px-2 py-1 text-sm border border-teal rounded"
                   autoFocus
                 />
               ) : (
@@ -176,7 +176,7 @@ export function MemberHeader({
                       onClick={() => onToggleHideDone(member.id)}
                       className={`w-8 h-8 flex items-center justify-center text-2xl transition-colors ${
                         hideDone[member.id] 
-                          ? 'text-primary' 
+                          ? 'text-teal' 
                           : 'text-gray-400'
                       } hover:opacity-80`}
                       title={hideDone[member.id] ? 'Show done items' : 'Hide done items'}
@@ -218,12 +218,12 @@ export function MemberHeader({
                   }
                 }}
                 placeholder={profile?.nickname || 'Name'}
-                className="w-16 px-2 py-1 text-lg text-center border border-primary rounded"
+                className="w-16 px-2 py-1 text-lg text-center border border-teal rounded"
                 autoFocus
               />
               <button
                 onMouseDown={handleAddMember}
-                className="mt-1.5 w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-primary text-white hover:bg-primary-dark"
+                className="mt-1.5 w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-teal text-white hover:bg-teal-dark"
               >
                 Add
               </button>
@@ -231,7 +231,7 @@ export function MemberHeader({
           ) : (
             <span
               onClick={() => setIsAdding(true)}
-              className="text-lg font-semibold text-primary cursor-pointer hover:text-primary-dark"
+              className="text-lg font-semibold text-teal cursor-pointer hover:text-teal-dark"
             >
               +Member
             </span>

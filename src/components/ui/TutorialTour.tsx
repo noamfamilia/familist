@@ -45,7 +45,7 @@ export function TutorialTour({ tourId, steps, run: runProp }: TutorialTourProps)
       callback={handleCallback}
       styles={{
         options: {
-          primaryColor: '#7c3aed',
+          primaryColor: '#2aa198',
           zIndex: 10000,
         },
         tooltip: {

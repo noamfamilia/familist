@@ -184,13 +184,13 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
                 setIsEditing(false)
               }
             }}
-            className="w-20 flex-shrink-0 px-2 py-0.5 border border-primary rounded text-lg"
+            className="w-20 flex-shrink-0 px-2 py-0.5 border border-teal rounded text-lg"
             autoFocus
           />
         ) : (
           <span
             onClick={() => !item.archived && setIsEditing(true)}
-            className={`w-20 flex-shrink-0 truncate text-lg ${item.archived ? 'text-gray-500 cursor-default' : 'cursor-pointer hover:text-primary'}`}
+            className={`w-20 flex-shrink-0 truncate text-lg ${item.archived ? 'text-gray-500 cursor-default' : 'cursor-pointer hover:text-teal'}`}
             title={item.text}
           >
             {item.text}
@@ -225,14 +225,14 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
                         setEditQuantityValue('')
                       }
                     }}
-                    className="w-10 text-center text-xl font-semibold border border-primary rounded px-1"
+                    className="w-10 text-center text-xl font-semibold border border-teal rounded px-1"
                     autoFocus
                     min="0"
                   />
                 ) : (
                   <span
                     onClick={() => isCreator && handleStartEditQuantity(member.id, quantity)}
-                    className={`w-8 text-center text-xl font-semibold ${quantity === 0 ? 'text-gray-300' : 'text-gray-700'} ${isCreator ? 'cursor-pointer hover:text-primary' : 'cursor-not-allowed'}`}
+                    className={`w-8 text-center text-xl font-semibold ${quantity === 0 ? 'text-gray-300' : 'text-primary'} ${isCreator ? 'cursor-pointer hover:text-teal' : 'cursor-not-allowed'}`}
                   >
                     {quantity}
                   </span>
@@ -243,7 +243,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
                   onClick={() => isCreator && handleToggleDone(member.id)}
                   className={`w-8 h-8 rounded-lg flex items-center justify-center text-xl font-bold transition-colors ${
                     done 
-                      ? 'bg-green-500 text-white' 
+                      ? 'bg-teal text-white' 
                       : 'bg-gray-100 text-gray-400'
                   } ${isCreator ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
                   disabled={!isCreator}
@@ -259,7 +259,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         <div className="flex-shrink-0 flex justify-end items-center gap-1 ml-auto pl-4">
           {/* Comment indicator */}
           {hasComment && (
-            <span className="text-primary text-sm opacity-80" title="Has comment">💬</span>
+            <span className="text-teal text-sm opacity-80" title="Has comment">💬</span>
           )}
 
           {/* Kebab menu button */}
@@ -288,7 +288,7 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
                   if (e.key === 'Enter') handleSaveComment()
                 }}
                 placeholder="Add a comment..."
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
                 onClick={(e) => e.stopPropagation()}
               />
             </div>

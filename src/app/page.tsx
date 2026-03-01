@@ -31,7 +31,7 @@ export default function Home() {
     return (
       <div className="bg-white rounded-xl shadow-lg p-8 min-w-[300px]">
         <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
         </div>
       </div>
     )
@@ -53,7 +53,7 @@ export default function Home() {
         ) : (
           <button
             onClick={() => setShowAuthModal(true)}
-            className="text-sm text-primary hover:bg-primary-light px-2 py-1 rounded"
+            className="text-sm text-teal font-medium hover:bg-teal-light px-2 py-1 rounded"
             aria-label="Sign in"
           >
             Sign in
