@@ -206,6 +206,10 @@ export function MemberHeader({
                 type="text"
                 value={newMemberName}
                 onChange={(e) => setNewMemberName(e.target.value)}
+                onBlur={() => {
+                  setIsAdding(false)
+                  setNewMemberName('')
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleAddMember()
                   if (e.key === 'Escape') {
@@ -218,7 +222,7 @@ export function MemberHeader({
                 autoFocus
               />
               <button
-                onClick={handleAddMember}
+                onMouseDown={handleAddMember}
                 className="mt-1.5 w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-primary text-white hover:bg-primary-dark"
               >
                 Add
