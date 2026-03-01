@@ -270,7 +270,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         <div className="flex items-center justify-end gap-2 px-3 py-2 bg-gray-100 border-t border-gray-200">
           {isOwner && (
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
                 setIsRenaming(true)
                 setMenuOpen(false)
               }}
@@ -281,7 +283,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             </button>
           )}
           <button
-            onClick={() => {
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
               handleDuplicate()
               setMenuOpen(false)
             }}
@@ -291,7 +295,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             <span>Duplicate</span>
           </button>
           <button
-            onClick={() => {
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
               handleArchive()
               setMenuOpen(false)
             }}
@@ -302,7 +308,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           </button>
           {isOwner ? (
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
                 handleDeleteClick()
                 setMenuOpen(false)
               }}
@@ -313,7 +321,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             </button>
           ) : (
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
                 handleLeaveClick()
                 setMenuOpen(false)
               }}

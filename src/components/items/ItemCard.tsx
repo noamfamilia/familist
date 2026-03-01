@@ -276,7 +276,9 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
         {showMenu && (
           <div className="flex items-center justify-end gap-2 px-3 py-2 bg-gray-100 border-t border-gray-200">
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
                 setShowComment(!showComment)
                 setShowMenu(false)
               }}
@@ -286,7 +288,9 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
               <span>{hasComment ? 'Edit' : 'Comment'}</span>
             </button>
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
                 handleArchive()
                 setShowMenu(false)
               }}
@@ -296,7 +300,9 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
               <span>{item.archived ? 'Restore' : 'Archive'}</span>
             </button>
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
                 setShowDeleteConfirm(true)
                 setShowMenu(false)
               }}
