@@ -299,7 +299,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           </div>
           {/* Action buttons */}
           <div className="flex items-center justify-end gap-2 flex-wrap">
-            {isOwner && (
+            {/* Rename - only for active lists, owner only */}
+            {isOwner && !list.userArchived && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -313,18 +314,22 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <span>Rename</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleDuplicate()
-                setMenuOpen(false)
-              }}
-              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-cyan-600"
-            >
-              <span>📋</span>
-              <span>Duplicate</span>
-            </button>
+            {/* Duplicate - only for active lists */}
+            {!list.userArchived && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDuplicate()
+                  setMenuOpen(false)
+                }}
+                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-cyan-600"
+              >
+                <span>📋</span>
+                <span>Duplicate</span>
+              </button>
+            )}
+            {/* Archive/Restore - always show */}
             <button
               type="button"
               onClick={(e) => {
@@ -337,7 +342,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               <span>{list.userArchived ? '↩' : '📥'}</span>
               <span>{list.userArchived ? 'Restore' : 'Archive'}</span>
             </button>
-            {isOwner ? (
+            {/* Delete/Leave - only for archived lists */}
+            {list.userArchived && (isOwner ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -363,7 +369,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <span>🚪</span>
                 <span>Leave</span>
               </button>
-            )}
+            ))}
           </div>
         </div>
       )}
