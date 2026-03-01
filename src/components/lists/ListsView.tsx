@@ -146,7 +146,7 @@ export function ListsView() {
             disabled={joining}
           />
         </div>
-        <Button type="submit" variant="primary" loading={joining}>
+        <Button type="submit" loading={joining} className="bg-red-500 hover:bg-red-600">
           Join
         </Button>
       </form>
