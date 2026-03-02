@@ -5,16 +5,16 @@ interface ToggleProps {
   value: string
   onChange: (value: string) => void
   className?: string
-  variant?: 'default' | 'gold'
+  variant?: 'default' | 'menu'
 }
 
 export function Toggle({ options, value, onChange, className = '', variant = 'default' }: ToggleProps) {
-  const activeStyles = variant === 'gold' 
-    ? 'text-gray-800 border-yellow-600' 
+  const activeStyles = variant === 'menu' 
+    ? 'bg-teal text-white' 
     : 'bg-teal text-white border-teal'
   
-  const inactiveStyles = variant === 'gold'
-    ? 'bg-gray-50 text-primary border-gray-200 hover:opacity-80'
+  const inactiveStyles = variant === 'menu'
+    ? 'bg-gray-200 text-primary hover:opacity-80'
     : 'bg-gray-50 text-primary border-gray-200 hover:bg-cyan-light'
 
   return (
@@ -30,8 +30,7 @@ export function Toggle({ options, value, onChange, className = '', variant = 'de
             index === options.length - 1 ? 'rounded-r-lg' : ''
           } ${
             value === option.value ? activeStyles : inactiveStyles
-          } border`}
-          style={value === option.value && variant === 'gold' ? { backgroundColor: '#FFD700' } : undefined}
+          } ${variant === 'default' ? 'border' : ''}`}
         >
           {option.label}
         </button>

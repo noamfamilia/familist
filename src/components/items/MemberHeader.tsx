@@ -228,7 +228,7 @@ export function MemberHeader({
                   if (showTodo !== hideDone[openMember.id]) onToggleHideDone(openMember.id)
                   if (showTodo !== hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
                 }}
-                variant="gold"
+                variant="menu"
               />
               
               {/* Public/Private toggle - only for owner */}
@@ -240,7 +240,7 @@ export function MemberHeader({
                   ]}
                   value={openMember.is_public ? 'public' : 'private'}
                   onChange={() => handleTogglePublic(openMember)}
-                  variant="gold"
+                  variant="menu"
                 />
               )}
               
@@ -251,7 +251,7 @@ export function MemberHeader({
                     e.stopPropagation()
                     handleStartEdit(openMember)
                   }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal border border-teal-dark"
+                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
                 >
                   Rename
                 </button>
@@ -264,7 +264,7 @@ export function MemberHeader({
                     e.stopPropagation()
                     handleDeleteClick(openMember)
                   }}
-                  className="px-3 py-1.5 text-sm rounded-lg hover:opacity-80 text-red-600 bg-teal border border-red-500"
+                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
                 >
                   Delete
                 </button>

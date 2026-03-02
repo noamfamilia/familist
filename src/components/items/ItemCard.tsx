@@ -309,7 +309,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     e.stopPropagation()
                     setIsEditing(true)
                   }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal border border-teal-dark"
+                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
                 >
                   Rename
                 </button>
@@ -321,7 +321,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   setShowDeleteConfirm(true)
                   setShowMenu(false)
                 }}
-                className="px-3 py-1.5 text-sm rounded-lg hover:opacity-80 text-red-600 bg-teal border border-red-500"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
                 Delete
               </button>
