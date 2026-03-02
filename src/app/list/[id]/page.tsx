@@ -204,7 +204,7 @@ export default function ListPage() {
 
       {/* Header */}
       <header className="text-center mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">{list.name}</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-coral">{list.name}</h1>
       </header>
 
       {/* Add item form */}

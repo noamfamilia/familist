@@ -134,7 +134,10 @@ export function MemberHeader({
               return (
                 <div key={member.id}>
                   {/* Member container - fixed size to match item state containers */}
-                  <div className={`flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${isMenuOpen ? 'border-teal' : ''}`}>
+                  <div 
+                    className={`flex items-center justify-between px-2 py-1 rounded-lg border bg-white w-[90px] h-[40px] ${isMenuOpen ? 'border-2' : 'border border-gray-200'}`}
+                    style={isMenuOpen ? { borderColor: '#FFD700' } : undefined}
+                  >
                     {editingMemberId === member.id ? (
                       <input
                         type="text"
@@ -161,7 +164,8 @@ export function MemberHeader({
                     {editingMemberId !== member.id && (
                       <button
                         onClick={() => setOpenMenuId(isMenuOpen ? null : member.id)}
-                        className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1"
+                        className="text-lg leading-none ml-1"
+                        style={{ color: isMenuOpen ? '#FFD700' : '#9ca3af' }}
                       >
                         {isMenuOpen ? '✕' : '⋮'}
                       </button>

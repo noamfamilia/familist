@@ -251,7 +251,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   onClick={() => canEdit && handleToggleDone(member.id)}
                   className={`w-6 h-6 rounded-md flex items-center justify-center text-base font-bold transition-colors ${
                     done 
-                      ? 'bg-coral text-white' 
+                      ? 'bg-cyan text-white' 
                       : 'bg-gray-100 text-primary'
                   } ${canEdit ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
                   disabled={!canEdit}
