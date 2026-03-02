@@ -434,9 +434,13 @@ export function useList(listId: string) {
   }
 
   const reorderItems = async (reorderedItems: ItemWithState[]) => {
-    // Optimistically update the UI
+    // Optimistically update the UI with updated sort_order values
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setItems(reorderedItems)
+    const itemsWithUpdatedOrder = reorderedItems.map((item, index) => ({
+      ...item,
+      sort_order: index
+    }))
+    setItems(itemsWithUpdatedOrder)
 
     // Update sort_order in database for each item
     const updates = reorderedItems.map((item, index) => 
