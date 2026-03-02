@@ -284,7 +284,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
-          <div className="px-3 py-2 bg-gray-100 border-t border-gray-200 space-y-2">
+          <div className="px-3 py-2 bg-gray-50 space-y-2">
             {/* Comment field */}
             <div className="flex gap-2">
               <input
@@ -310,7 +310,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     setIsEditing(true)
                     setShowMenu(false)
                   }}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
                 >
                   Rename
                 </button>

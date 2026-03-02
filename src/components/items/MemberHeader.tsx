@@ -207,8 +207,12 @@ export function MemberHeader({
 
         {/* Expanded menu - full width of header card */}
         {openMenuId && openMember && (
-          <div className="px-3 py-2 bg-gray-100 border-t border-gray-200 rounded-b-lg">
+          <div className="px-3 py-2 bg-gray-50 rounded-b-lg">
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Private/Public status icon */}
+              <span className="text-lg" title={openMember.is_public ? 'Public member' : 'Private member'}>
+                {openMember.is_public ? '🔓' : '🔒'}
+              </span>
               {isOpenMemberOwner && (
                 <button
                   type="button"
@@ -216,7 +220,7 @@ export function MemberHeader({
                     e.stopPropagation()
                     handleStartEdit(openMember)
                   }}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
                 >
                   Rename
                 </button>
@@ -228,7 +232,7 @@ export function MemberHeader({
                   onToggleHideDone(openMember.id)
                   setOpenMenuId(null)
                 }}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
               >
                 {hideDone[openMember.id] ? 'Show done' : 'Hide done'}
               </button>
@@ -239,7 +243,7 @@ export function MemberHeader({
                   onToggleHideNotRelevant(openMember.id)
                   setOpenMenuId(null)
                 }}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
               >
                 {hideNotRelevant[openMember.id] ? 'Show 0' : 'Hide 0'}
               </button>
@@ -251,7 +255,7 @@ export function MemberHeader({
                     handleTogglePublic(openMember)
                     setOpenMenuId(null)
                   }}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
                 >
                   {openMember.is_public ? 'Set private' : 'Set public'}
                 </button>
