@@ -198,7 +198,7 @@ export function MemberHeader({
               ) : (
                 <button
                   onClick={() => setIsAdding(true)}
-                  className="flex items-center justify-center rounded-lg bg-teal text-white text-sm hover:opacity-80 transition-colors w-[90px] h-[40px]"
+                  className="flex items-center justify-center rounded-lg bg-cyan text-white text-sm hover:opacity-80 transition-colors w-[90px] h-[40px]"
                 >
                   +Member
                 </button>
@@ -251,8 +251,7 @@ export function MemberHeader({
                     e.stopPropagation()
                     handleStartEdit(openMember)
                   }}
-                  className="px-3 py-1.5 text-sm text-gray-800 rounded-lg hover:opacity-80"
-                  style={{ backgroundColor: '#FFD700', borderColor: '#DAA520', borderWidth: 1 }}
+                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal border border-teal-dark"
                 >
                   Rename
                 </button>
@@ -265,8 +264,7 @@ export function MemberHeader({
                     e.stopPropagation()
                     handleDeleteClick(openMember)
                   }}
-                  className="px-3 py-1.5 text-sm rounded-lg hover:opacity-80 text-red-600"
-                  style={{ backgroundColor: '#FFD700', borderColor: '#ef4444', borderWidth: 1 }}
+                  className="px-3 py-1.5 text-sm rounded-lg hover:opacity-80 text-red-600 bg-teal border border-red-500"
                 >
                   Delete
                 </button>
