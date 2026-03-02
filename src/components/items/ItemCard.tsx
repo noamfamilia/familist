@@ -205,7 +205,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         )}
 
         {/* Per-member controls - aligned under header */}
-        <div className="flex items-center ml-2 flex-shrink-0 gap-3">
+        <div className="flex items-center ml-2 flex-shrink-0 gap-5">
           {members.map(member => {
             const state = item.memberStates[member.id]
             const quantity = state?.quantity || 0
@@ -216,7 +216,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             return (
               <div 
                 key={member.id} 
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white ${!isCreator ? 'opacity-50' : ''}`}
+                className={`flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[100px] h-[40px] ${!isCreator ? 'opacity-50' : ''}`}
               >
                 {/* Quantity - editable text */}
                 {isEditingThis ? (

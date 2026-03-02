@@ -129,7 +129,7 @@ export function MemberHeader({
         <div className="w-20 flex-shrink-0" />
         
         {/* Members section */}
-        <div className="flex items-center ml-2 flex-shrink-0 gap-3">
+        <div className="flex items-center ml-2 flex-shrink-0 gap-5">
           {members.map(member => {
             const isOwner = member.created_by === user?.id
             const isMenuOpen = openMenuId === member.id
@@ -137,7 +137,7 @@ export function MemberHeader({
             return (
               <div key={member.id} className="relative" ref={isMenuOpen ? menuRef : null}>
                 {/* Member container - fixed size to match item state containers */}
-                <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[76px] h-10">
+                <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[100px] h-[40px]">
                   {editingMemberId === member.id ? (
                     <input
                       type="text"
@@ -233,7 +233,7 @@ export function MemberHeader({
         {showAddMember && (
           <div className="relative">
             {isAdding ? (
-              <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[76px] h-10">
+              <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[100px] h-[40px]">
                 <input
                   type="text"
                   value={newMemberName}
@@ -254,7 +254,7 @@ export function MemberHeader({
             ) : (
               <button
                 onClick={() => setIsAdding(true)}
-                className="flex items-center justify-center rounded-lg bg-coral text-white font-semibold text-sm hover:bg-coral-dark transition-colors w-[76px] h-10"
+                className="flex items-center justify-center rounded-lg bg-coral text-white font-semibold text-sm hover:bg-coral-dark transition-colors w-[100px] h-[40px]"
               >
                 +Member
               </button>
