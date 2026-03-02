@@ -153,7 +153,14 @@ export function MemberHeader({
                         autoFocus
                       />
                     ) : (
-                      <span className="text-lg truncate flex-1 text-center">
+                      <span 
+                        className={`text-lg truncate flex-1 text-center ${member.created_by === user?.id ? 'cursor-pointer hover:text-teal' : ''}`}
+                        onClick={() => {
+                          if (member.created_by === user?.id) {
+                            handleStartEdit(member)
+                          }
+                        }}
+                      >
                         {member.name}
                       </span>
                     )}
