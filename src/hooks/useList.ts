@@ -287,7 +287,8 @@ export function useList(listId: string) {
     // Use RPC to enforce creator-only permission
     const { error } = await (supabase.rpc as any)('update_member', {
       p_member_id: memberId,
-      p_name: updates.name || null,
+      p_name: updates.name !== undefined ? updates.name : null,
+      p_is_public: updates.is_public !== undefined ? updates.is_public : null,
     })
 
     if (error) {
