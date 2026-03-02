@@ -201,15 +201,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         </span>
       )}
 
-      {/* Metadata - hidden on mobile */}
-      <span className="text-sm text-gray-500 hidden sm:inline flex-shrink-0">
-        {!isOwner && list.ownerNickname && (
-          <span className="text-teal">{list.ownerNickname}</span>
-        )}
-        {!isOwner && list.ownerNickname && ' · '}
-        {list.memberCount || 0} members · {list.activeItemCount || 0} items
-      </span>
-
       {/* Kebab menu button */}
       <button
         onClick={() => setMenuOpen(!menuOpen)}
