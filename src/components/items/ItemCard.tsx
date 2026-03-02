@@ -308,9 +308,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   onClick={(e) => {
                     e.stopPropagation()
                     setIsEditing(true)
-                    setShowMenu(false)
                   }}
-                  className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
+                  className="px-3 py-1.5 text-sm text-gray-800 rounded-lg hover:opacity-80"
+                  style={{ backgroundColor: '#FFD700', borderColor: '#DAA520', borderWidth: 1 }}
                 >
                   Rename
                 </button>

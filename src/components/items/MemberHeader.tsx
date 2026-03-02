@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { Toggle } from '@/components/ui/Toggle'
 import type { Member, MemberWithCreator } from '@/lib/supabase/types'
 
 interface MemberHeaderProps {
@@ -208,11 +209,38 @@ export function MemberHeader({
         {/* Expanded menu - full width of header card */}
         {openMenuId && openMember && (
           <div className="px-3 py-2 bg-gray-50 rounded-b-lg">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
               {/* Private/Public status icon */}
               <span className="text-lg" title={openMember.is_public ? 'Public member' : 'Private member'}>
                 {openMember.is_public ? '🔓' : '🔒'}
               </span>
+              
+              {/* Show all / Show to-do toggle */}
+              <Toggle
+                options={[
+                  { value: 'all', label: 'Show all' },
+                  { value: 'todo', label: 'Show to-do' },
+                ]}
+                value={hideDone[openMember.id] && hideNotRelevant[openMember.id] ? 'todo' : 'all'}
+                onChange={(v) => {
+                  const showTodo = v === 'todo'
+                  if (showTodo !== hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                  if (showTodo !== hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                }}
+              />
+              
+              {/* Public/Private toggle - only for owner */}
+              {isOpenMemberOwner && (
+                <Toggle
+                  options={[
+                    { value: 'private', label: 'Private' },
+                    { value: 'public', label: 'Public' },
+                  ]}
+                  value={openMember.is_public ? 'public' : 'private'}
+                  onChange={() => handleTogglePublic(openMember)}
+                />
+              )}
+              
               {isOpenMemberOwner && (
                 <button
                   type="button"
@@ -220,46 +248,13 @@ export function MemberHeader({
                     e.stopPropagation()
                     handleStartEdit(openMember)
                   }}
-                  className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
+                  className="px-3 py-1.5 text-sm text-gray-800 rounded-lg hover:opacity-80"
+                  style={{ backgroundColor: '#FFD700', borderColor: '#DAA520', borderWidth: 1 }}
                 >
                   Rename
                 </button>
               )}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleHideDone(openMember.id)
-                  setOpenMenuId(null)
-                }}
-                className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
-              >
-                {hideDone[openMember.id] ? 'Show done' : 'Hide done'}
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleHideNotRelevant(openMember.id)
-                  setOpenMenuId(null)
-                }}
-                className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
-              >
-                {hideNotRelevant[openMember.id] ? 'Show 0' : 'Hide 0'}
-              </button>
-              {isOpenMemberOwner && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleTogglePublic(openMember)
-                    setOpenMenuId(null)
-                  }}
-                  className="px-3 py-1.5 text-sm bg-yellow-300 border border-yellow-400 rounded-lg hover:bg-yellow-400"
-                >
-                  {openMember.is_public ? 'Set private' : 'Set public'}
-                </button>
-              )}
+              
               {isOpenMemberOwner && (
                 <button
                   type="button"
@@ -272,6 +267,7 @@ export function MemberHeader({
                   Delete
                 </button>
               )}
+              
               {!isOpenMemberOwner && openMember.creator?.nickname && (
                 <span className="px-3 py-1.5 text-sm text-gray-500">
                   Created by: {openMember.creator.nickname}
