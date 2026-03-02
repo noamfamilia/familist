@@ -216,10 +216,9 @@ export function MemberHeader({
                     e.stopPropagation()
                     handleStartEdit(openMember)
                   }}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
-                  <span>✏️</span>
-                  <span>Rename</span>
+                  Rename
                 </button>
               )}
               <button
@@ -229,10 +228,9 @@ export function MemberHeader({
                   onToggleHideDone(openMember.id)
                   setOpenMenuId(null)
                 }}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                <span>{hideDone[openMember.id] ? '👁' : '🙈'}</span>
-                <span>{hideDone[openMember.id] ? 'Show done' : 'Hide done'}</span>
+                {hideDone[openMember.id] ? 'Show done' : 'Hide done'}
               </button>
               <button
                 type="button"
@@ -241,10 +239,9 @@ export function MemberHeader({
                   onToggleHideNotRelevant(openMember.id)
                   setOpenMenuId(null)
                 }}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                <span>{hideNotRelevant[openMember.id] ? '👁' : '🙈'}</span>
-                <span>{hideNotRelevant[openMember.id] ? 'Show 0' : 'Hide 0'}</span>
+                {hideNotRelevant[openMember.id] ? 'Show 0' : 'Hide 0'}
               </button>
               {isOpenMemberOwner && (
                 <button
@@ -254,10 +251,9 @@ export function MemberHeader({
                     handleTogglePublic(openMember)
                     setOpenMenuId(null)
                   }}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
-                  <span>{openMember.is_public ? '🔓' : '🔒'}</span>
-                  <span>{openMember.is_public ? 'Public' : 'Private'}</span>
+                  {openMember.is_public ? 'Set private' : 'Set public'}
                 </button>
               )}
               {isOpenMemberOwner && (
@@ -267,10 +263,9 @@ export function MemberHeader({
                     e.stopPropagation()
                     handleDeleteClick(openMember)
                   }}
-                  className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600"
                 >
-                  <span>🗑️</span>
-                  <span>Delete</span>
+                  Delete
                 </button>
               )}
               {!isOpenMemberOwner && openMember.creator?.nickname && (

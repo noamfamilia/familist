@@ -310,10 +310,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     setIsEditing(true)
                     setShowMenu(false)
                   }}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
-                  <span>✏️</span>
-                  <span>Rename</span>
+                  Rename
                 </button>
               )}
               <button
@@ -323,10 +322,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   setShowDeleteConfirm(true)
                   setShowMenu(false)
                 }}
-                className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+                className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600"
               >
-                <span>🗑️</span>
-                <span>Delete</span>
+                Delete
               </button>
             </div>
           </div>
