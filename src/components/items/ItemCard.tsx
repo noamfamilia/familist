@@ -322,7 +322,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   setShowDeleteConfirm(true)
                   setShowMenu(false)
                 }}
-                className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600"
+                className="px-3 py-1.5 text-sm rounded-lg hover:opacity-80 text-red-600"
+                style={{ backgroundColor: '#FFD700', borderColor: '#ef4444', borderWidth: 1 }}
               >
                 Delete
               </button>

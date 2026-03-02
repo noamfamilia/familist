@@ -9,16 +9,16 @@ interface ToggleProps {
 
 export function Toggle({ options, value, onChange, className = '' }: ToggleProps) {
   return (
-    <div className={`flex gap-1 ${className}`}>
+    <div className={`flex ${className}`}>
       {options.map((option, index) => (
         <button
           key={option.value}
           type="button"
           onClick={() => onChange(option.value)}
-          className={`px-3 py-0.5 text-xs transition-all duration-200 ${
-            index === 0 ? 'rounded-l-md' : ''
+          className={`px-2 py-1.5 text-sm transition-all duration-200 ${
+            index === 0 ? 'rounded-l-lg' : ''
           } ${
-            index === options.length - 1 ? 'rounded-r-md' : ''
+            index === options.length - 1 ? 'rounded-r-lg' : ''
           } ${
             value === option.value
               ? 'bg-teal text-white border-teal'
