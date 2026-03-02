@@ -123,21 +123,21 @@ export function MemberHeader({
 
   return (
     <div className="mb-3 min-w-full w-max">
-      {/* Header row */}
-      <div className="flex items-start gap-0.5 px-3 py-3 rounded-lg whitespace-nowrap" style={{ backgroundColor: '#fff9e6' }}>
-        <span className="w-5 text-lg tracking-tighter invisible flex-shrink-0">⋮⋮</span>
+      {/* Header row - matching item card styling */}
+      <div className="flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg whitespace-nowrap">
+        <div className="w-5 flex-shrink-0" />
         <div className="w-20 flex-shrink-0" />
         
         {/* Members section */}
-        <div className="flex items-start ml-2 flex-shrink-0 gap-3">
+        <div className="flex items-center ml-2 flex-shrink-0 gap-3">
           {members.map(member => {
             const isOwner = member.created_by === user?.id
             const isMenuOpen = openMenuId === member.id
             
             return (
-              <div key={member.id} className="flex flex-col items-center min-w-[70px]" ref={isMenuOpen ? menuRef : null}>
-                {/* Member container with name and menu */}
-                <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-gray-200 bg-white relative">
+              <div key={member.id} className="relative" ref={isMenuOpen ? menuRef : null}>
+                {/* Member container with name and menu - matching item state containers */}
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white">
                   {editingMemberId === member.id ? (
                     <input
                       type="text"
@@ -231,9 +231,9 @@ export function MemberHeader({
 
         {/* Add member section */}
         {showAddMember && (
-          <div className="flex flex-col items-center min-w-[70px]">
+          <div className="relative">
             {isAdding ? (
-              <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-gray-200 bg-white">
+              <div className="flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white">
                 <input
                   type="text"
                   value={newMemberName}
@@ -252,12 +252,12 @@ export function MemberHeader({
                 />
               </div>
             ) : (
-              <span
+              <button
                 onClick={() => setIsAdding(true)}
-                className="text-lg font-semibold text-primary cursor-pointer hover:text-primary-dark"
+                className="px-3 py-1 rounded-lg bg-coral text-white font-semibold text-sm hover:bg-coral-dark transition-colors"
               >
                 +Member
-              </span>
+              </button>
             )}
           </div>
         )}
