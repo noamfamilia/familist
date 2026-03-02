@@ -132,10 +132,8 @@ export function MemberHeader({
               const isMenuOpen = openMenuId === member.id
               const isHidden = openMenuId && !isMenuOpen
               
-              if (isHidden) return null
-              
               return (
-                <div key={member.id}>
+                <div key={member.id} className={isHidden ? 'invisible' : ''}>
                   {/* Member container - fixed size to match item state containers */}
                   <div className="flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]">
                     {editingMemberId === member.id ? (
@@ -176,8 +174,8 @@ export function MemberHeader({
           </div>
 
           {/* Add member section - same size as member containers */}
-          {showAddMember && !openMenuId && (
-            <div className="relative ml-2.5">
+          {showAddMember && (
+            <div className={`relative ml-2.5 ${openMenuId ? 'invisible' : ''}`}>
               {isAdding ? (
                 <div className="flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]">
                   <input
