@@ -130,14 +130,14 @@ export function MemberHeader({
           <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
             {members.map(member => {
               const isMenuOpen = openMenuId === member.id
+              const isHidden = openMenuId && !isMenuOpen
+              
+              if (isHidden) return null
               
               return (
                 <div key={member.id}>
                   {/* Member container - fixed size to match item state containers */}
-                  <div 
-                    className={`flex items-center justify-between px-2 py-1 rounded-lg border bg-white w-[90px] h-[40px] ${isMenuOpen ? 'border-2' : 'border border-gray-200'}`}
-                    style={isMenuOpen ? { borderColor: '#FFD700' } : undefined}
-                  >
+                  <div className="flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]">
                     {editingMemberId === member.id ? (
                       <input
                         type="text"
@@ -164,8 +164,7 @@ export function MemberHeader({
                     {editingMemberId !== member.id && (
                       <button
                         onClick={() => setOpenMenuId(isMenuOpen ? null : member.id)}
-                        className="text-lg leading-none ml-1"
-                        style={{ color: isMenuOpen ? '#FFD700' : '#9ca3af' }}
+                        className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1"
                       >
                         {isMenuOpen ? '✕' : '⋮'}
                       </button>
@@ -177,7 +176,7 @@ export function MemberHeader({
           </div>
 
           {/* Add member section - same size as member containers */}
-          {showAddMember && (
+          {showAddMember && !openMenuId && (
             <div className="relative ml-2.5">
               {isAdding ? (
                 <div className="flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]">
