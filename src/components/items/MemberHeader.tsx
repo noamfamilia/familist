@@ -136,8 +136,8 @@ export function MemberHeader({
             
             return (
               <div key={member.id} className="relative" ref={isMenuOpen ? menuRef : null}>
-                {/* Member container - same size as item state containers */}
-                <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white min-w-[76px] h-10">
+                {/* Member container - fixed size to match item state containers */}
+                <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[76px] h-10">
                   {editingMemberId === member.id ? (
                     <input
                       type="text"
@@ -229,11 +229,11 @@ export function MemberHeader({
 
         </div>
 
-        {/* Add member section */}
+        {/* Add member section - same size as member containers */}
         {showAddMember && (
           <div className="relative">
             {isAdding ? (
-              <div className="flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white">
+              <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[76px] h-10">
                 <input
                   type="text"
                   value={newMemberName}
@@ -247,14 +247,14 @@ export function MemberHeader({
                     }
                   }}
                   placeholder={profile?.nickname || 'Name'}
-                  className="w-14 px-1 py-0.5 text-sm border border-teal rounded"
+                  className="w-full px-1 py-0.5 text-sm border border-teal rounded"
                   autoFocus
                 />
               </div>
             ) : (
               <button
                 onClick={() => setIsAdding(true)}
-                className="px-3 py-1 rounded-lg bg-coral text-white font-semibold text-sm hover:bg-coral-dark transition-colors"
+                className="flex items-center justify-center rounded-lg bg-coral text-white font-semibold text-sm hover:bg-coral-dark transition-colors w-[76px] h-10"
               >
                 +Member
               </button>
