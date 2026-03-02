@@ -109,6 +109,7 @@ export interface Database {
           name: string
           created_by: string | null
           sort_order: number | null
+          is_public: boolean
           created_at: string
           updated_at: string
         }
@@ -118,6 +119,7 @@ export interface Database {
           name: string
           created_by?: string | null
           sort_order?: number | null
+          is_public?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -127,6 +129,7 @@ export interface Database {
           name?: string
           created_by?: string | null
           sort_order?: number | null
+          is_public?: boolean
           created_at?: string
           updated_at?: string
         }

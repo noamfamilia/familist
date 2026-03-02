@@ -44,25 +44,10 @@ export function MemberHeader({
     memberName: '',
   })
   const [deleteLoading, setDeleteLoading] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpenMenuId(null)
-      }
-    }
-    if (openMenuId) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [openMenuId])
 
   const handleAddMember = async () => {
     const nameToAdd = newMemberName.trim() || profile?.nickname || 'Me'
     
-    // Check if name already exists
     const nameExists = members.some(m => m.name.toLowerCase() === nameToAdd.toLowerCase())
     if (nameExists) {
       showError(`Member "${nameToAdd}" already exists`)
@@ -77,19 +62,18 @@ export function MemberHeader({
   const handleStartEdit = (member: Member) => {
     setEditingMemberId(member.id)
     setEditName(member.name)
+    setOpenMenuId(null)
   }
 
   const handleSaveEdit = async () => {
     if (editingMemberId && editName.trim()) {
       const trimmedName = editName.trim()
       
-      // Check if name already exists (excluding current member)
       const nameExists = members.some(m => 
         m.id !== editingMemberId && m.name.toLowerCase() === trimmedName.toLowerCase()
       )
       if (nameExists) {
         showError(`Member "${trimmedName}" already exists`)
-        // Revert to original name
         const originalMember = members.find(m => m.id === editingMemberId)
         setEditName(originalMember?.name || '')
         return
@@ -106,6 +90,7 @@ export function MemberHeader({
 
   const handleDeleteClick = (member: Member) => {
     setDeleteConfirm({ open: true, memberId: member.id, memberName: member.name })
+    setOpenMenuId(null)
   }
 
   const handleConfirmDelete = async () => {
@@ -121,23 +106,30 @@ export function MemberHeader({
     setDeleteConfirm({ open: false, memberId: null, memberName: '' })
   }
 
+  const handleTogglePublic = async (member: MemberWithCreator) => {
+    const { error } = await onUpdateMember(member.id, { is_public: !member.is_public })
+    if (error) {
+      showError(error.message || 'Failed to update member')
+    }
+  }
+
   return (
     <div className="mb-3 min-w-full w-max">
       {/* Header row - matching item card styling */}
-      <div className="flex items-center gap-0.5 px-3 py-1 bg-gray-50 rounded-lg whitespace-nowrap">
-        <div className="w-5 flex-shrink-0" />
-        <div className="w-20 flex-shrink-0" />
+      <div className="flex items-start gap-0.5 px-3 py-1 bg-gray-50 rounded-lg whitespace-nowrap">
+        <div className="w-5 flex-shrink-0 h-[40px]" />
+        <div className="w-20 flex-shrink-0 h-[40px]" />
         
         {/* Members section */}
-        <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
+        <div className="flex items-start ml-2 flex-shrink-0 gap-2.5">
           {members.map(member => {
             const isOwner = member.created_by === user?.id
             const isMenuOpen = openMenuId === member.id
             
             return (
-              <div key={member.id} className="relative" ref={isMenuOpen ? menuRef : null}>
+              <div key={member.id} className="flex flex-col">
                 {/* Member container - fixed size to match item state containers */}
-                <div className="flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]">
+                <div className="flex items-center justify-between px-2 py-1 rounded-t-lg border border-gray-200 bg-white w-[90px] h-[40px]">
                   {editingMemberId === member.id ? (
                     <input
                       type="text"
@@ -166,63 +158,85 @@ export function MemberHeader({
                       onClick={() => setOpenMenuId(isMenuOpen ? null : member.id)}
                       className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1"
                     >
-                      ⋮
+                      {isMenuOpen ? '✕' : '⋮'}
                     </button>
                   )}
-                  
-                  {/* Dropdown menu */}
-                  {isMenuOpen && (
-                    <div className="absolute top-full left-0 mt-1 py-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[140px]">
-                      {isOwner && (
-                        <button
-                          onClick={() => {
-                            handleStartEdit(member)
-                            setOpenMenuId(null)
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                        >
-                          <span>✏️</span> Rename
-                        </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          onToggleHideDone(member.id)
-                          setOpenMenuId(null)
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <span>{hideDone[member.id] ? '👁' : '🙈'}</span>
-                        {hideDone[member.id] ? 'Show completed' : 'Hide completed'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          onToggleHideNotRelevant(member.id)
-                          setOpenMenuId(null)
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <span>{hideNotRelevant[member.id] ? '👁' : '🙈'}</span>
-                        {hideNotRelevant[member.id] ? 'Show not-relevant' : 'Hide not-relevant'}
-                      </button>
-                      {isOwner && (
-                        <button
-                          onClick={() => {
-                            handleDeleteClick(member)
-                            setOpenMenuId(null)
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-500 flex items-center gap-2"
-                        >
-                          <span>🗑️</span> Delete
-                        </button>
-                      )}
-                      {!isOwner && member.creator?.nickname && (
-                        <div className="px-3 py-2 text-xs text-gray-500 border-t border-gray-100">
-                          Created by: {member.creator.nickname}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
+                
+                {/* Expanded menu within the card */}
+                {isMenuOpen && (
+                  <div className="px-2 py-2 bg-gray-100 border border-t-0 border-gray-200 rounded-b-lg w-[90px] space-y-1">
+                    {isOwner && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleStartEdit(member)
+                        }}
+                        className="w-full px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 flex items-center gap-1"
+                      >
+                        <span>✏️</span>
+                        <span>Rename</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onToggleHideDone(member.id)
+                        setOpenMenuId(null)
+                      }}
+                      className="w-full px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 flex items-center gap-1"
+                    >
+                      <span>{hideDone[member.id] ? '👁' : '🙈'}</span>
+                      <span>{hideDone[member.id] ? 'Show done' : 'Hide done'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onToggleHideNotRelevant(member.id)
+                        setOpenMenuId(null)
+                      }}
+                      className="w-full px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 flex items-center gap-1"
+                    >
+                      <span>{hideNotRelevant[member.id] ? '👁' : '🙈'}</span>
+                      <span>{hideNotRelevant[member.id] ? 'Show 0' : 'Hide 0'}</span>
+                    </button>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleTogglePublic(member)
+                          setOpenMenuId(null)
+                        }}
+                        className="w-full px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 flex items-center gap-1"
+                      >
+                        <span>{member.is_public ? '🔓' : '🔒'}</span>
+                        <span>{member.is_public ? 'Public' : 'Private'}</span>
+                      </button>
+                    )}
+                    {isOwner && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteClick(member)
+                        }}
+                        className="w-full px-2 py-1 text-xs bg-red-50 border border-red-200 rounded hover:bg-red-100 text-red-600 flex items-center gap-1"
+                      >
+                        <span>🗑️</span>
+                        <span>Delete</span>
+                      </button>
+                    )}
+                    {!isOwner && member.creator?.nickname && (
+                      <div className="px-2 py-1 text-xs text-gray-500 border-t border-gray-200 mt-1">
+                        By: {member.creator.nickname}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -254,7 +268,7 @@ export function MemberHeader({
             ) : (
               <button
                 onClick={() => setIsAdding(true)}
-                className="flex items-center justify-center rounded-lg bg-coral text-white text-sm hover:bg-coral-dark transition-colors w-[90px] h-[40px]"
+                className="flex items-center justify-center rounded-lg bg-teal text-white text-sm hover:opacity-80 transition-colors w-[90px] h-[40px]"
               >
                 +Member
               </button>

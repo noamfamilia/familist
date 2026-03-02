@@ -211,12 +211,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             const quantity = state?.quantity || 0
             const done = state?.done || false
             const isCreator = member.created_by === user?.id
+            const canEdit = isCreator || member.is_public
             const isEditingThis = editingQuantityMember === member.id
 
             return (
               <div 
                 key={member.id} 
-                className={`flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${!isCreator ? 'opacity-50' : ''}`}
+                className={`flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${!canEdit ? 'opacity-50' : ''}`}
               >
                 {/* Quantity - editable text */}
                 {isEditingThis ? (
@@ -238,8 +239,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   />
                 ) : (
                   <span
-                    onClick={() => isCreator && handleStartEditQuantity(member.id, quantity)}
-                    className={`w-8 text-center text-lg font-semibold text-primary ${isCreator ? 'cursor-pointer hover:text-teal' : 'cursor-not-allowed'}`}
+                    onClick={() => canEdit && handleStartEditQuantity(member.id, quantity)}
+                    className={`w-8 text-center text-lg font-semibold text-primary ${canEdit ? 'cursor-pointer hover:text-teal' : 'cursor-not-allowed'}`}
                   >
                     {quantity}
                   </span>
@@ -247,13 +248,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
                 {/* Done toggle */}
                 <button
-                  onClick={() => isCreator && handleToggleDone(member.id)}
+                  onClick={() => canEdit && handleToggleDone(member.id)}
                   className={`w-6 h-6 rounded-md flex items-center justify-center text-base font-bold transition-colors ${
                     done 
                       ? 'bg-coral text-white' 
                       : 'bg-gray-100 text-primary'
-                  } ${isCreator ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
-                  disabled={!isCreator}
+                  } ${canEdit ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
+                  disabled={!canEdit}
                 >
                   ✓
                 </button>
