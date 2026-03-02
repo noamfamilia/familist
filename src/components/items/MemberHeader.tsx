@@ -227,6 +227,7 @@ export function MemberHeader({
                   if (showTodo !== hideDone[openMember.id]) onToggleHideDone(openMember.id)
                   if (showTodo !== hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
                 }}
+                variant="gold"
               />
               
               {/* Public/Private toggle - only for owner */}
@@ -238,6 +239,7 @@ export function MemberHeader({
                   ]}
                   value={openMember.is_public ? 'public' : 'private'}
                   onChange={() => handleTogglePublic(openMember)}
+                  variant="gold"
                 />
               )}
               
