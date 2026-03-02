@@ -87,6 +87,7 @@ export default function ListPage() {
   const [newItemText, setNewItemText] = useState('')
   const [adding, setAdding] = useState(false)
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
+  const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
 
   if (!user) {
     return (
@@ -150,6 +151,13 @@ export default function ListPage() {
 
   const toggleHideDone = (memberId: string) => {
     setHideDone(prev => ({
+      ...prev,
+      [memberId]: !prev[memberId],
+    }))
+  }
+
+  const toggleHideNotRelevant = (memberId: string) => {
+    setHideNotRelevant(prev => ({
       ...prev,
       [memberId]: !prev[memberId],
     }))
@@ -224,7 +232,9 @@ export default function ListPage() {
             <MemberHeader
               members={filteredMembers}
               hideDone={hideDone}
+              hideNotRelevant={hideNotRelevant}
               onToggleHideDone={toggleHideDone}
+              onToggleHideNotRelevant={toggleHideNotRelevant}
               onAddMember={addMember}
               onUpdateMember={updateMember}
               onDeleteMember={deleteMember}
@@ -248,6 +258,7 @@ export default function ListPage() {
                       item={item}
                       members={filteredMembers}
                       hideDone={hideDone}
+                      hideNotRelevant={hideNotRelevant}
                       onUpdateItem={updateItem}
                       onDeleteItem={deleteItem}
                       onChangeQuantity={changeQuantity}
@@ -280,6 +291,7 @@ export default function ListPage() {
                     item={item}
                     members={filteredMembers}
                     hideDone={hideDone}
+                    hideNotRelevant={hideNotRelevant}
                     onUpdateItem={updateItem}
                     onDeleteItem={deleteItem}
                     onChangeQuantity={changeQuantity}

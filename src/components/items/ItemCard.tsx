@@ -12,6 +12,7 @@ interface ItemCardProps {
   item: ItemWithState
   members: MemberWithCreator[]
   hideDone: Record<string, boolean>
+  hideNotRelevant: Record<string, boolean>
   onUpdateItem: (itemId: string, updates: Partial<Item>) => Promise<{ error?: { message: string } | null }>
   onDeleteItem: (itemId: string) => Promise<{ error?: Error | null }>
   onChangeQuantity: (itemId: string, memberId: string, delta: number) => Promise<any>
@@ -20,7 +21,7 @@ interface ItemCardProps {
   isDraggable?: boolean
 }
 
-export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -69,11 +70,18 @@ export function ItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, 
     }
   }, [item.text, isEditing])
 
-  // Check if any member has this item done or with 0 quantity (for hideDone filtering)
+  // Check if item should be hidden based on member filters
   const shouldHide = members.some(member => {
     const state = item.memberStates[member.id]
     const quantity = state?.quantity || 0
-    return hideDone[member.id] && (state?.done || quantity === 0)
+    const done = state?.done || false
+    
+    // Hide if done and hideDone is enabled for this member
+    if (hideDone[member.id] && done) return true
+    // Hide if not relevant (qty 0) and hideNotRelevant is enabled for this member
+    if (hideNotRelevant[member.id] && quantity === 0) return true
+    
+    return false
   })
 
   if (shouldHide) return null

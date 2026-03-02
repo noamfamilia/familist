@@ -10,13 +10,14 @@ interface SortableItemCardProps {
   item: ItemWithState
   members: MemberWithCreator[]
   hideDone: Record<string, boolean>
+  hideNotRelevant: Record<string, boolean>
   onUpdateItem: (itemId: string, updates: Partial<Item>) => Promise<any>
   onDeleteItem: (itemId: string) => Promise<{ error?: Error | null }>
   onChangeQuantity: (itemId: string, memberId: string, delta: number) => Promise<any>
   onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<any>
 }
 
-export function SortableItemCard({ item, members, hideDone, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -38,6 +39,7 @@ export function SortableItemCard({ item, members, hideDone, onUpdateItem, onDele
         item={item}
         members={members}
         hideDone={hideDone}
+        hideNotRelevant={hideNotRelevant}
         onUpdateItem={onUpdateItem}
         onDeleteItem={onDeleteItem}
         onChangeQuantity={onChangeQuantity}

@@ -9,7 +9,9 @@ import type { Member, MemberWithCreator } from '@/lib/supabase/types'
 interface MemberHeaderProps {
   members: MemberWithCreator[]
   hideDone: Record<string, boolean>
+  hideNotRelevant: Record<string, boolean>
   onToggleHideDone: (memberId: string) => void
+  onToggleHideNotRelevant: (memberId: string) => void
   onAddMember: (name: string, creatorNickname?: string) => Promise<any>
   onUpdateMember: (memberId: string, updates: Partial<MemberWithCreator>) => Promise<{ error?: { message: string } | null }>
   onDeleteMember: (memberId: string) => Promise<{ error?: { message: string } | null }>
@@ -20,7 +22,9 @@ interface MemberHeaderProps {
 export function MemberHeader({
   members,
   hideDone,
+  hideNotRelevant,
   onToggleHideDone,
+  onToggleHideNotRelevant,
   onAddMember,
   onUpdateMember,
   onDeleteMember,
@@ -33,27 +37,27 @@ export function MemberHeader({
   const [newMemberName, setNewMemberName] = useState('')
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; memberId: string | null; memberName: string }>({
     open: false,
     memberId: null,
     memberName: '',
   })
   const [deleteLoading, setDeleteLoading] = useState(false)
-  const [showCreatorInfo, setShowCreatorInfo] = useState<string | null>(null)
-  const creatorInfoRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
-  // Close creator info popup when clicking outside
+  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (creatorInfoRef.current && !creatorInfoRef.current.contains(event.target as Node)) {
-        setShowCreatorInfo(null)
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null)
       }
     }
-    if (showCreatorInfo) {
+    if (openMenuId) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showCreatorInfo])
+  }, [openMenuId])
 
   const handleAddMember = async () => {
     const nameToAdd = newMemberName.trim() || profile?.nickname || 'Me'
@@ -121,118 +125,141 @@ export function MemberHeader({
     <div className="mb-3 min-w-full w-max">
       {/* Header row */}
       <div className="flex items-start gap-0.5 px-3 py-3 rounded-lg whitespace-nowrap" style={{ backgroundColor: '#fff9e6' }}>
-        <span className="text-lg tracking-tighter invisible flex-shrink-0">⋮⋮</span>
-        <div className="w-20 flex-shrink-0 flex flex-col">
-          <div className="h-6"></div>
-          <div className="h-10 mt-1.5"></div>
-        </div>
+        <span className="w-5 text-lg tracking-tighter invisible flex-shrink-0">⋮⋮</span>
+        <div className="w-20 flex-shrink-0" />
         
-        {/* Members section - toggle below name */}
+        {/* Members section */}
         <div className="flex items-start ml-2 flex-shrink-0 gap-3">
-          {members.map(member => (
-            <div key={member.id} className="flex flex-col items-center group min-w-[70px]">
-              {editingMemberId === member.id ? (
+          {members.map(member => {
+            const isOwner = member.created_by === user?.id
+            const isMenuOpen = openMenuId === member.id
+            
+            return (
+              <div key={member.id} className="flex flex-col items-center min-w-[70px]" ref={isMenuOpen ? menuRef : null}>
+                {/* Member container with name and menu */}
+                <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-gray-200 bg-white relative">
+                  {editingMemberId === member.id ? (
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onBlur={handleSaveEdit}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit()
+                        if (e.key === 'Escape') {
+                          setEditingMemberId(null)
+                          setEditName('')
+                        }
+                      }}
+                      className="w-14 px-1 py-0.5 text-sm border border-teal rounded"
+                      autoFocus
+                    />
+                  ) : (
+                    <span className="text-lg font-semibold text-primary truncate max-w-[60px]">
+                      {member.name}
+                    </span>
+                  )}
+                  
+                  {/* Menu button */}
+                  {editingMemberId !== member.id && (
+                    <button
+                      onClick={() => setOpenMenuId(isMenuOpen ? null : member.id)}
+                      className="text-gray-400 hover:text-gray-600 text-lg"
+                    >
+                      ▼
+                    </button>
+                  )}
+                  
+                  {/* Dropdown menu */}
+                  {isMenuOpen && (
+                    <div className="absolute top-full left-0 mt-1 py-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[140px]">
+                      {isOwner && (
+                        <button
+                          onClick={() => {
+                            handleStartEdit(member)
+                            setOpenMenuId(null)
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <span>✏️</span> Rename
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          onToggleHideDone(member.id)
+                          setOpenMenuId(null)
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <span>{hideDone[member.id] ? '👁' : '🙈'}</span>
+                        {hideDone[member.id] ? 'Show completed' : 'Hide completed'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          onToggleHideNotRelevant(member.id)
+                          setOpenMenuId(null)
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <span>{hideNotRelevant[member.id] ? '👁' : '🙈'}</span>
+                        {hideNotRelevant[member.id] ? 'Show not-relevant' : 'Hide not-relevant'}
+                      </button>
+                      {isOwner && (
+                        <button
+                          onClick={() => {
+                            handleDeleteClick(member)
+                            setOpenMenuId(null)
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-500 flex items-center gap-2"
+                        >
+                          <span>🗑️</span> Delete
+                        </button>
+                      )}
+                      {!isOwner && member.creator?.nickname && (
+                        <div className="px-3 py-2 text-xs text-gray-500 border-t border-gray-100">
+                          Created by: {member.creator.nickname}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+
+        </div>
+
+        {/* Add member section */}
+        {showAddMember && (
+          <div className="flex flex-col items-center min-w-[70px]">
+            {isAdding ? (
+              <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-gray-200 bg-white">
                 <input
                   type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  onBlur={handleSaveEdit}
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  onBlur={handleAddMember}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveEdit()
+                    if (e.key === 'Enter') handleAddMember()
                     if (e.key === 'Escape') {
-                      setEditingMemberId(null)
-                      setEditName('')
+                      setIsAdding(false)
+                      setNewMemberName('')
                     }
                   }}
-                  className="w-16 px-2 py-1 text-sm border border-teal rounded"
+                  placeholder={profile?.nickname || 'Name'}
+                  className="w-14 px-1 py-0.5 text-sm border border-teal rounded"
                   autoFocus
                 />
-              ) : (
-                <>
-                  <span
-                    onClick={() => member.created_by === user?.id && handleStartEdit(member)}
-                    className={`text-lg font-semibold text-primary truncate max-w-[70px] ${member.created_by === user?.id ? 'cursor-pointer hover:text-primary-dark' : ''}`}
-                  >
-                    {member.name}
-                  </span>
-                  {/* Info/Delete and Hide done buttons in container */}
-                  <div ref={showCreatorInfo === member.id ? creatorInfoRef : null} className="flex items-center gap-1 mt-1.5 px-2 py-1 rounded-lg border border-gray-200 bg-white relative">
-                    {member.created_by === user?.id ? (
-                      <button
-                        onClick={() => handleDeleteClick(member)}
-                        className="w-8 h-8 flex items-center justify-center text-lg font-bold transition-colors text-red-500 hover:text-red-600"
-                      >
-                        ✕
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setShowCreatorInfo(showCreatorInfo === member.id ? null : member.id)}
-                        className="w-8 h-8 flex items-center justify-center text-xl transition-colors text-teal hover:text-teal-dark"
-                      >
-                        ℹ
-                      </button>
-                    )}
-                    <button
-                      onClick={() => onToggleHideDone(member.id)}
-                      className="w-8 h-8 flex items-center justify-center text-2xl transition-colors text-teal hover:opacity-80"
-                      title={hideDone[member.id] ? 'Show done items' : 'Hide done items'}
-                    >
-                      {hideDone[member.id] ? '🙈' : '👁'}
-                    </button>
-                    {/* Creator info popup */}
-                    {showCreatorInfo === member.id && member.creator?.nickname && (
-                      <div className="absolute top-full left-0 mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-lg z-20 whitespace-nowrap text-sm">
-                        Created by: <span className="font-semibold">{member.creator.nickname}</span>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-
-        </div>
-
-        {/* Add member section - same pitch as member columns */}
-        {showAddMember && (
-        <div className="flex flex-col items-center min-w-[70px]">
-          {isAdding ? (
-            <>
-              <input
-                type="text"
-                value={newMemberName}
-                onChange={(e) => setNewMemberName(e.target.value)}
-                onBlur={() => {
-                  setIsAdding(false)
-                  setNewMemberName('')
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddMember()
-                  if (e.key === 'Escape') {
-                    setIsAdding(false)
-                    setNewMemberName('')
-                  }
-                }}
-                placeholder={profile?.nickname || 'Name'}
-                className="w-16 px-2 py-1 text-lg text-center border border-teal rounded"
-                autoFocus
-              />
-              <button
-                onMouseDown={handleAddMember}
-                className="mt-1.5 w-16 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors bg-red-500 text-white hover:bg-red-600"
+              </div>
+            ) : (
+              <span
+                onClick={() => setIsAdding(true)}
+                className="text-lg font-semibold text-primary cursor-pointer hover:text-primary-dark"
               >
-                Add
-              </button>
-            </>
-          ) : (
-            <span
-              onClick={() => setIsAdding(true)}
-              className="text-lg font-semibold text-primary cursor-pointer hover:text-primary-dark"
-            >
-              +Member
-            </span>
-          )}
-        </div>
+                +Member
+              </span>
+            )}
+          </div>
         )}
 
       </div>
