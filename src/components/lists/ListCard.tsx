@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useSwipeable } from 'react-swipeable'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/Toast'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -34,8 +33,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [leaving, setLeaving] = useState(false)
   const [comment, setComment] = useState((list as any).comment || '')
   const inputRef = useRef<HTMLInputElement>(null)
-  const [swipeOffset, setSwipeOffset] = useState(0)
-  const [isSwiping, setIsSwiping] = useState(false)
 
   const isOwner = list.role === 'owner'
 
@@ -49,41 +46,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       }
     }
   }
-
-  const getSwipeThreshold = () => typeof window !== 'undefined' ? window.innerWidth * 0.5 : 200
-
-  const swipeHandlers = useSwipeable({
-    onSwiping: (e) => {
-      // Only allow swipe right (positive deltaX) - require 40px before starting
-      if (e.deltaX > 40) {
-        setIsSwiping(true)
-        setSwipeOffset(e.deltaX - 30)
-      }
-    },
-    onSwipedRight: () => {
-      if (swipeOffset > getSwipeThreshold()) {
-        // Active lists → Archive, Archived lists → Delete/Leave
-        if (list.userArchived) {
-          if (isOwner) {
-            setShowDeleteConfirm(true)
-          } else {
-            setShowLeaveConfirm(true)
-          }
-        } else {
-          handleArchive()
-        }
-      }
-      setSwipeOffset(0)
-      setIsSwiping(false)
-    },
-    onSwiped: () => {
-      setSwipeOffset(0)
-      setIsSwiping(false)
-    },
-    trackMouse: false,
-    trackTouch: true,
-    preventScrollOnSwipe: true,
-  })
 
 
   // Focus input when renaming
@@ -192,24 +154,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
   return (
     <>
-    <div className="relative overflow-hidden rounded-lg">
-      {/* Background action revealed on swipe right */}
-      <div className="absolute inset-0 flex pointer-events-none">
-        {/* Active → Archive (amber), Archived → Delete/Leave (red) */}
-        <div 
-          className={`w-full flex items-center justify-start pl-4 text-white font-semibold transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'} ${list.userArchived ? 'bg-red-500' : 'bg-amber-500'}`}
-        >
-          {list.userArchived ? `🗑️ ${isOwner ? 'Delete' : 'Leave'}` : '📥 Archive'}
-        </div>
-        <div className="flex-1" />
-      </div>
-
-      {/* Main card content - wrapper for swipe transform */}
-      <div 
-        {...swipeHandlers}
-        style={{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
-        className="bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-      >
+    {/* Main card content */}
+    <div className="bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3" data-tour="list-card">
       {/* Drag handle */}
@@ -382,7 +328,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           </div>
         </div>
       )}
-      </div>
     </div>
 
     <ConfirmModal

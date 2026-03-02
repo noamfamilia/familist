@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { useSwipeable } from 'react-swipeable'
+import { useState, useEffect } from 'react'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -32,35 +31,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [showMenu, setShowMenu] = useState(false)
   const [editingQuantityMember, setEditingQuantityMember] = useState<string | null>(null)
   const [editQuantityValue, setEditQuantityValue] = useState('')
-  const [swipeOffset, setSwipeOffset] = useState(0)
-  const [isSwiping, setIsSwiping] = useState(false)
-
-  const getSwipeThreshold = () => typeof window !== 'undefined' ? window.innerWidth * 0.5 : 200
-
-  const swipeHandlers = useSwipeable({
-    onSwiping: (e) => {
-      // Only allow swipe for archived items (to delete)
-      if (item.archived && e.deltaX > 40) {
-        setIsSwiping(true)
-        setSwipeOffset(e.deltaX - 30)
-      }
-    },
-    onSwipedRight: () => {
-      // Only archived items can be swiped to delete
-      if (item.archived && swipeOffset > getSwipeThreshold()) {
-        setShowDeleteConfirm(true)
-      }
-      setSwipeOffset(0)
-      setIsSwiping(false)
-    },
-    onSwiped: () => {
-      setSwipeOffset(0)
-      setIsSwiping(false)
-    },
-    trackMouse: false,
-    trackTouch: true,
-    preventScrollOnSwipe: true,
-  })
 
 
   // Sync editText with item.text when not editing (handles server updates/reverts)
@@ -148,25 +118,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   return (
     <div className="min-w-full">
-      {/* Swipe container */}
-      <div className="relative overflow-hidden rounded-lg">
-        {/* Background action revealed on swipe right (only for archived items) */}
-        {item.archived && (
-          <div className="absolute inset-0 flex pointer-events-none">
-            <div 
-              className={`w-full flex items-center justify-start pl-4 text-white font-semibold transition-opacity bg-red-500 ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'}`}
-            >
-              🗑️ Delete
-            </div>
-          </div>
-        )}
-
-        {/* Main card content - wrapper for swipe transform */}
-        <div 
-          {...swipeHandlers}
-          style={{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
-          className={`bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors ${item.archived ? 'opacity-60' : ''}`}
-        >
+      {/* Main card content */}
+      <div className={`bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors ${item.archived ? 'opacity-60' : ''}`}>
         {/* Card row */}
         <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap" data-tour="item-row">
         {/* Drag handle - only shown for draggable (active) items */}
@@ -328,7 +281,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </div>
           </div>
         )}
-        </div>
       </div>
 
       <ConfirmModal
