@@ -239,19 +239,19 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 ) : (
                   <span
                     onClick={() => isCreator && handleStartEditQuantity(member.id, quantity)}
-                    className={`w-8 text-center text-xl font-semibold ${quantity === 0 ? 'text-gray-300' : 'text-primary'} ${isCreator ? 'cursor-pointer hover:text-teal' : 'cursor-not-allowed'}`}
+                    className={`w-8 text-center text-lg font-semibold text-primary ${isCreator ? 'cursor-pointer hover:text-teal' : 'cursor-not-allowed'}`}
                   >
                     {quantity}
                   </span>
                 )}
 
-                {/* Done toggle - larger with background */}
+                {/* Done toggle */}
                 <button
                   onClick={() => isCreator && handleToggleDone(member.id)}
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center text-xl font-bold transition-colors ${
+                  className={`w-6 h-6 rounded-md flex items-center justify-center text-base font-bold transition-colors ${
                     done 
                       ? 'bg-coral text-white' 
-                      : 'bg-gray-100 text-gray-400'
+                      : 'bg-gray-100 text-primary'
                   } ${isCreator ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
                   disabled={!isCreator}
                 >

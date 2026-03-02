@@ -155,7 +155,7 @@ export function MemberHeader({
                       autoFocus
                     />
                   ) : (
-                    <span className="text-lg truncate flex-1">
+                    <span className="text-lg truncate flex-1 text-center">
                       {member.name}
                     </span>
                   )}
@@ -254,7 +254,7 @@ export function MemberHeader({
             ) : (
               <button
                 onClick={() => setIsAdding(true)}
-                className="flex items-center justify-center rounded-lg bg-coral text-white text-lg hover:bg-coral-dark transition-colors w-[90px] h-[40px]"
+                className="flex items-center justify-center rounded-lg bg-coral text-white text-sm hover:bg-coral-dark transition-colors w-[90px] h-[40px]"
               >
                 +Member
               </button>
