@@ -129,7 +129,7 @@ export function MemberHeader({
         <div className="w-20 flex-shrink-0" />
         
         {/* Members section */}
-        <div className="flex items-center ml-2 flex-shrink-0 gap-5">
+        <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
           {members.map(member => {
             const isOwner = member.created_by === user?.id
             const isMenuOpen = openMenuId === member.id
@@ -137,7 +137,7 @@ export function MemberHeader({
             return (
               <div key={member.id} className="relative" ref={isMenuOpen ? menuRef : null}>
                 {/* Member container - fixed size to match item state containers */}
-                <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[100px] h-[40px]">
+                <div className="flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]">
                   {editingMemberId === member.id ? (
                     <input
                       type="text"
@@ -151,22 +151,22 @@ export function MemberHeader({
                           setEditName('')
                         }
                       }}
-                      className="w-12 px-1 py-0.5 text-sm border border-teal rounded"
+                      className="w-14 px-1 py-0.5 text-sm border border-teal rounded"
                       autoFocus
                     />
                   ) : (
-                    <span className="text-lg truncate max-w-[50px]">
+                    <span className="text-lg truncate flex-1">
                       {member.name}
                     </span>
                   )}
                   
-                  {/* Menu button */}
+                  {/* Kebab menu button */}
                   {editingMemberId !== member.id && (
                     <button
                       onClick={() => setOpenMenuId(isMenuOpen ? null : member.id)}
-                      className="text-gray-400 hover:text-gray-600 text-sm"
+                      className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1"
                     >
-                      ▼
+                      ⋮
                     </button>
                   )}
                   
@@ -231,9 +231,9 @@ export function MemberHeader({
 
         {/* Add member section - same size as member containers */}
         {showAddMember && (
-          <div className="relative">
+          <div className="relative ml-2.5">
             {isAdding ? (
-              <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[100px] h-[40px]">
+              <div className="flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]">
                 <input
                   type="text"
                   value={newMemberName}
@@ -247,14 +247,14 @@ export function MemberHeader({
                     }
                   }}
                   placeholder={profile?.nickname || 'Name'}
-                  className="w-full px-1 py-0.5 text-sm border border-teal rounded"
+                  className="w-full px-1 py-0.5 text-lg border border-teal rounded"
                   autoFocus
                 />
               </div>
             ) : (
               <button
                 onClick={() => setIsAdding(true)}
-                className="flex items-center justify-center rounded-lg bg-coral text-white font-semibold text-sm hover:bg-coral-dark transition-colors w-[100px] h-[40px]"
+                className="flex items-center justify-center rounded-lg bg-coral text-white text-lg hover:bg-coral-dark transition-colors w-[90px] h-[40px]"
               >
                 +Member
               </button>
