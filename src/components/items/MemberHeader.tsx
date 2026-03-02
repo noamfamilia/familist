@@ -136,8 +136,8 @@ export function MemberHeader({
             
             return (
               <div key={member.id} className="relative" ref={isMenuOpen ? menuRef : null}>
-                {/* Member container with name and menu - matching item state containers */}
-                <div className="flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white">
+                {/* Member container - same size as item state containers */}
+                <div className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white min-w-[76px] h-10">
                   {editingMemberId === member.id ? (
                     <input
                       type="text"
@@ -151,11 +151,11 @@ export function MemberHeader({
                           setEditName('')
                         }
                       }}
-                      className="w-14 px-1 py-0.5 text-sm border border-teal rounded"
+                      className="w-12 px-1 py-0.5 text-sm border border-teal rounded"
                       autoFocus
                     />
                   ) : (
-                    <span className="text-lg font-semibold text-primary truncate max-w-[60px]">
+                    <span className="text-lg truncate max-w-[50px]">
                       {member.name}
                     </span>
                   )}
@@ -164,7 +164,7 @@ export function MemberHeader({
                   {editingMemberId !== member.id && (
                     <button
                       onClick={() => setOpenMenuId(isMenuOpen ? null : member.id)}
-                      className="text-gray-400 hover:text-gray-600 text-lg"
+                      className="text-gray-400 hover:text-gray-600 text-sm"
                     >
                       ▼
                     </button>
