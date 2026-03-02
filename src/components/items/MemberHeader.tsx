@@ -256,19 +256,6 @@ export function MemberHeader({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleStartEdit(openMember)
-                  }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-                >
-                  Rename
-                </button>
-              )}
-              
-              {isOpenMemberOwner && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
                     handleDeleteClick(openMember)
                   }}
                   className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
