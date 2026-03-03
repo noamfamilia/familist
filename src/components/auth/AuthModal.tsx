@@ -275,18 +275,20 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         </Button>
       </form>
 
-      <div className="mt-6 text-center text-sm text-gray-500">
-        {isSignUp ? "Already have an account?" : "Don't have an account?"}
-        <button
+      <div className="mt-6 flex flex-col items-center gap-2">
+        <span className="text-sm text-gray-500">
+          {isSignUp ? "Already have an account?" : "Don't have an account?"}
+        </span>
+        <Button
           type="button"
+          variant="secondary"
           onClick={() => {
             setIsSignUp(!isSignUp)
             setError('')
           }}
-          className="ml-2 text-teal font-semibold hover:underline"
         >
           {isSignUp ? 'Sign In' : 'Sign Up'}
-        </button>
+        </Button>
       </div>
     </Modal>
   )
