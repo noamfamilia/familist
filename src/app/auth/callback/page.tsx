@@ -19,6 +19,10 @@ function CallbackHandler() {
         const code = searchParams.get('code')
 
         if (code) {
+          // Debug: Log storage keys before exchange
+          console.log("localStorage keys", Object.keys(localStorage).filter(k => k.includes("supabase") || k.includes("pkce") || k.includes("code_verifier")))
+          console.log("sessionStorage keys", Object.keys(sessionStorage).filter(k => k.includes("supabase") || k.includes("pkce") || k.includes("code_verifier")))
+          
           setStatus('Exchanging code for session...')
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
           if (exchangeError) {
