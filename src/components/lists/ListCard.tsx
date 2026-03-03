@@ -228,7 +228,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               onClick={(e) => e.stopPropagation()}
             />
           </div>
-          {/* Action buttons */}
+          {/* Action buttons - styled like member menu */}
           <div className="flex items-center justify-end gap-2 flex-wrap">
             {/* Share - only for active lists, owner only */}
             {isOwner && !list.userArchived && (
@@ -239,10 +239,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   setShowShareModal(true)
                   setMenuOpen(false)
                 }}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-green-600"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
-                <span>🔗</span>
-                <span>Share</span>
+                Share
               </button>
             )}
             {/* Rename - only for active lists, owner only */}
@@ -254,10 +253,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   setIsRenaming(true)
                   setMenuOpen(false)
                 }}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-teal"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
-                <span>✏️</span>
-                <span>Rename</span>
+                Rename
               </button>
             )}
             {/* Duplicate - only for active lists */}
@@ -269,10 +267,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   handleDuplicate()
                   setMenuOpen(false)
                 }}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-cyan-600"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
-                <span>📋</span>
-                <span>Duplicate</span>
+                Duplicate
               </button>
             )}
             {/* Archive/Restore - always show */}
@@ -283,13 +280,12 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 handleArchive()
                 setMenuOpen(false)
               }}
-              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
             >
-              <span>{list.userArchived ? '↩' : '📥'}</span>
-              <span>{list.userArchived ? 'Restore' : 'Archive'}</span>
+              {list.userArchived ? 'Restore' : 'Archive'}
             </button>
-            {/* Delete/Leave - only for archived lists */}
-            {list.userArchived && (isOwner ? (
+            {/* Delete/Leave - always show */}
+            {isOwner ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -297,10 +293,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   handleDeleteClick()
                   setMenuOpen(false)
                 }}
-                className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
-                <span>🗑️</span>
-                <span>Delete</span>
+                Delete
               </button>
             ) : (
               <button
@@ -310,12 +305,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   handleLeaveClick()
                   setMenuOpen(false)
                 }}
-                className="px-3 py-1.5 text-sm bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 text-red-600 flex items-center gap-1.5"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
-                <span>🚪</span>
-                <span>Leave</span>
+                Leave
               </button>
-            ))}
+            )}
           </div>
         </div>
       )}

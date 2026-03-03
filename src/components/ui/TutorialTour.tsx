@@ -12,14 +12,26 @@ interface TutorialTourProps {
 export function TutorialTour({ tourId, steps, run: runProp }: TutorialTourProps) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
+  const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
 
   useEffect(() => {
     const hasSeenTour = localStorage.getItem(`tutorial_${tourId}`)
     if (!hasSeenTour && runProp !== false) {
-      const timer = setTimeout(() => setRun(true), 500)
-      return () => clearTimeout(timer)
+      // Filter steps to only include those with existing targets
+      const availableSteps = steps.filter(step => {
+        if (typeof step.target === 'string') {
+          return document.querySelector(step.target) !== null
+        }
+        return true
+      })
+      
+      if (availableSteps.length > 0) {
+        setFilteredSteps(availableSteps)
+        const timer = setTimeout(() => setRun(true), 500)
+        return () => clearTimeout(timer)
+      }
     }
-  }, [tourId, runProp])
+  }, [tourId, runProp, steps])
 
   const handleCallback = (data: CallBackProps) => {
     const { status, index, type } = data
@@ -34,9 +46,11 @@ export function TutorialTour({ tourId, steps, run: runProp }: TutorialTourProps)
     }
   }
 
+  if (filteredSteps.length === 0) return null
+
   return (
     <Joyride
-      steps={steps}
+      steps={filteredSteps}
       run={run}
       stepIndex={stepIndex}
       continuous

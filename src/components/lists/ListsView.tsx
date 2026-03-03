@@ -222,8 +222,8 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
         )}
       </div>
       
-      {/* Tutorial - only show when there are lists and tutorial is enabled */}
-      {homeTourSteps && showTutorial && filteredLists.length > 0 && (
+      {/* Tutorial - show when enabled (steps will be filtered based on available targets) */}
+      {homeTourSteps && showTutorial && (
         <TutorialTour tourId="home" steps={homeTourSteps} />
       )}
     </div>
