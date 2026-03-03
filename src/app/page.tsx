@@ -40,22 +40,7 @@ export default function Home() {
     <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 p-4 sm:p-8 relative">
       {/* Top bar */}
       <div className="flex items-center justify-between mb-4">
-        {/* View toggle - top left */}
-        {user && (
-          <div data-tour="home-view-toggle">
-            <Toggle
-              options={[
-                { value: 'all', label: 'All' },
-                { value: 'mine', label: 'Mine' },
-              ]}
-              value={viewMode}
-              onChange={(v) => setViewMode(v as 'all' | 'mine')}
-            />
-          </div>
-        )}
-        {!user && <div />}
-        
-        {/* Auth button - top right */}
+        {/* Auth button - top left */}
         {user ? (
           <button
             onClick={() => setShowAuthModal(true)}
@@ -74,6 +59,21 @@ export default function Home() {
             Sign in
           </button>
         )}
+        
+        {/* View toggle - top right */}
+        {user && (
+          <div data-tour="home-view-toggle">
+            <Toggle
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'mine', label: 'Mine' },
+              ]}
+              value={viewMode}
+              onChange={(v) => setViewMode(v as 'all' | 'mine')}
+            />
+          </div>
+        )}
+        {!user && <div />}
       </div>
 
       {/* Header */}

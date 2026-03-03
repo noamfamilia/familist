@@ -190,7 +190,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {/* Archive/Restore icon */}
       <button
         onClick={handleArchiveClick}
-        className="text-sm flex-shrink-0 hover:opacity-70"
+        className={`text-sm flex-shrink-0 hover:opacity-70 ${list.userArchived ? 'text-teal' : ''}`}
         title={list.userArchived ? 'Restore list' : 'Archive list'}
       >
         {list.userArchived ? '↩' : '📥'}
