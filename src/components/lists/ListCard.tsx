@@ -57,8 +57,20 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }, [isRenaming])
 
   const handleCardClick = () => {
-    if (!isRenaming) {
+    // Navigate to list only if not archived and not renaming
+    if (!isRenaming && !list.userArchived && !menuOpen) {
       router.push(`/list/${list.id}`)
+    }
+  }
+
+  const handleNameClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isRenaming) return
+    
+    // Toggle archive state
+    const { error } = await onArchive(list.id, { archived: !list.userArchived })
+    if (!error) {
+      success(list.userArchived ? 'List restored' : 'List archived')
     }
   }
 
@@ -158,13 +170,15 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     <div className="bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3" data-tour="list-card">
-      {/* Drag handle */}
-      <div 
-        className="text-gray-400 cursor-grab select-none text-sm tracking-tighter touch-none"
-        {...dragHandleProps}
-      >
-        ⋮⋮
-      </div>
+      {/* Drag handle - only for active lists */}
+      {!list.userArchived && dragHandleProps && (
+        <div 
+          className="text-gray-400 cursor-grab select-none text-sm tracking-tighter touch-none"
+          {...dragHandleProps}
+        >
+          ⋮⋮
+        </div>
+      )}
 
       {/* Visibility icon - display only */}
       <span
@@ -174,7 +188,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         {list.visibility === 'private' ? '🔒' : '🔗'}
       </span>
 
-      {/* List name */}
+      {/* List name - click to archive/restore */}
       {isRenaming ? (
         <input
           ref={inputRef}
@@ -194,11 +208,27 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         />
       ) : (
         <span
-          onClick={handleCardClick}
-          className="flex-1 min-w-0 font-medium text-primary hover:text-teal cursor-pointer truncate"
+          onClick={handleNameClick}
+          className={`flex-1 min-w-0 font-medium cursor-pointer truncate ${
+            list.userArchived 
+              ? 'text-gray-400 line-through hover:text-gray-600' 
+              : 'text-primary hover:text-teal'
+          }`}
+          title={list.userArchived ? 'Click to restore' : 'Click to archive'}
         >
           {list.name}
         </span>
+      )}
+      
+      {/* Navigate button - only for active lists */}
+      {!list.userArchived && !isRenaming && (
+        <button
+          onClick={handleCardClick}
+          className="text-gray-400 hover:text-teal px-1 text-lg"
+          title="Open list"
+        >
+          →
+        </button>
       )}
 
       {/* Kebab menu button */}
@@ -272,18 +302,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 Duplicate
               </button>
             )}
-            {/* Archive/Restore - always show */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleArchive()
-                setMenuOpen(false)
-              }}
-              className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-            >
-              {list.userArchived ? 'Restore' : 'Archive'}
-            </button>
             {/* Delete/Leave - always show */}
             {isOwner ? (
               <button

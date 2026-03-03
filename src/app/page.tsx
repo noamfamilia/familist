@@ -10,7 +10,7 @@ import type { Step } from 'react-joyride'
 const homeTourSteps: Step[] = [
   {
     target: '[data-tour="home-view-toggle"]',
-    content: 'Switch between active and archived lists.',
+    content: 'Filter to show all lists or just the ones you own.',
     disableBeacon: true,
   },
   {
@@ -19,14 +19,14 @@ const homeTourSteps: Step[] = [
   },
   {
     target: '[data-tour="list-card"]',
-    content: 'Click on a list to open it. Use the menu (⋮) to rename, share, archive, or delete.',
+    content: 'Click the list name to archive/restore. Click elsewhere on the card to open the list. Use the menu (⋮) for more options.',
   },
 ]
 
 export default function Home() {
   const { user, profile, loading } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
+  const [viewMode, setViewMode] = useState<'all' | 'mine'>('all')
 
   if (loading) {
     return (
@@ -45,12 +45,11 @@ export default function Home() {
           <div data-tour="home-view-toggle">
             <Toggle
               options={[
-                { value: 'active', label: 'Active' },
-                { value: 'archived', label: 'Archived' },
+                { value: 'all', label: 'All' },
+                { value: 'mine', label: 'Mine' },
               ]}
               value={viewMode}
-              onChange={(v) => setViewMode(v as 'active' | 'archived')}
-              className="text-xs"
+              onChange={(v) => setViewMode(v as 'all' | 'mine')}
             />
           </div>
         )}
