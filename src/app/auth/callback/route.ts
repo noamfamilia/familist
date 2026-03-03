@@ -8,8 +8,15 @@ export async function GET(request: Request) {
   const type = searchParams.get('type')
   const next = searchParams.get('next') ?? '/'
 
+  // Determine redirect URL based on type
+  const redirectUrl = type === 'recovery' ? `${origin}/reset` : `${origin}${next}`
+  
+  // Create the response FIRST so we can attach cookies to it
+  const response = NextResponse.redirect(redirectUrl)
+
   if (code) {
     const cookieStore = await cookies()
+    
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,13 +26,10 @@ export async function GET(request: Request) {
             return cookieStore.getAll()
           },
           setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              )
-            } catch {
-              // Ignore errors in route handlers
-            }
+            cookiesToSet.forEach(({ name, value, options }) => {
+              // Set cookies on the RESPONSE object so they persist through redirect
+              response.cookies.set(name, value, options)
+            })
           },
         },
       }
@@ -33,15 +37,14 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
-    if (!error) {
-      // If this is a password recovery, redirect to reset page
-      if (type === 'recovery') {
-        return NextResponse.redirect(`${origin}/reset`)
-      }
-      return NextResponse.redirect(`${origin}${next}`)
+    if (error) {
+      // On error, redirect to home instead
+      return NextResponse.redirect(`${origin}/`)
     }
+  } else {
+    // No code provided, redirect to home
+    return NextResponse.redirect(`${origin}/`)
   }
 
-  // Return to home page on error
-  return NextResponse.redirect(`${origin}/`)
+  return response
 }
