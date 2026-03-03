@@ -57,6 +57,7 @@ function CallbackHandler() {
 
         // 2) Check for code-based return (PKCE flow)
         const code = searchParams.get('code')
+        const type = searchParams.get('type')
 
         if (code) {
           setStatus('Exchanging code for session...')
@@ -66,8 +67,12 @@ function CallbackHandler() {
             return
           }
           
-          // This callback is used for password recovery - always go to /reset
-          router.replace('/reset')
+          // Redirect based on type
+          if (type === 'recovery') {
+            router.replace('/reset')
+          } else {
+            router.replace('/')
+          }
           return
         }
 
