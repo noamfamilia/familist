@@ -108,7 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
-        data: { username, nickname }
+        data: { username, nickname },
+        emailRedirectTo: `${window.location.origin}/auth/callback`
       }
     })
 

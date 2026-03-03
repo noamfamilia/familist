@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-export default function AuthCallbackPage() {
+function CallbackHandler() {
   const router = useRouter()
-  const [message, setMessage] = useState('Completing password recovery...')
+  const searchParams = useSearchParams()
+  const type = searchParams.get('type')
+  const [message, setMessage] = useState('Completing authentication...')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -20,16 +22,21 @@ export default function AuthCallbackPage() {
         return
       }
 
-      if (data.session) {
-        router.replace('/reset')
+      if (!data.session) {
+        setError('No session found. The link may be expired. Please try again.')
         return
       }
 
-      setError('No recovery session found. Please request a new reset email.')
+      // Branch based on flow type
+      if (type === 'recovery') {
+        router.replace('/reset')
+      } else {
+        router.replace('/')
+      }
     }
 
     handleCallback()
-  }, [router])
+  }, [router, type])
 
   if (error) {
     return (
@@ -56,5 +63,20 @@ export default function AuthCallbackPage() {
         <p className="text-gray-600">{message}</p>
       </div>
     </div>
+  )
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+        <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <CallbackHandler />
+    </Suspense>
   )
 }
