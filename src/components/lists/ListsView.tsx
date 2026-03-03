@@ -10,13 +10,17 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useToast } from '@/components/ui/Toast'
 import { SortableListCard } from './SortableListCard'
 import { ListCard } from './ListCard'
+import { TutorialTour } from '@/components/ui/TutorialTour'
 import type { ListWithRole } from '@/lib/supabase/types'
+import type { Step } from 'react-joyride'
 
 interface ListsViewProps {
   viewMode: 'active' | 'archived'
+  homeTourSteps?: Step[]
+  showTutorial?: boolean
 }
 
-export function ListsView({ viewMode }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: ListsViewProps) {
   const { lists, loading, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
   
   const sensors = useSensors(
@@ -217,6 +221,11 @@ export function ListsView({ viewMode }: ListsViewProps) {
           </div>
         )}
       </div>
+      
+      {/* Tutorial - only show when there are lists and tutorial is enabled */}
+      {homeTourSteps && showTutorial && filteredLists.length > 0 && (
+        <TutorialTour tourId="home" steps={homeTourSteps} />
+      )}
     </div>
   )
 }

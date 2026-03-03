@@ -3,7 +3,6 @@
 import { useAuth } from '@/providers/AuthProvider'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { ListsView } from '@/components/lists/ListsView'
-import { TutorialTour } from '@/components/ui/TutorialTour'
 import { Toggle } from '@/components/ui/Toggle'
 import { useState } from 'react'
 import type { Step } from 'react-joyride'
@@ -90,8 +89,7 @@ export default function Home() {
       {/* Main content */}
       {user ? (
         <>
-          <ListsView viewMode={viewMode} />
-          <TutorialTour tourId="home" steps={homeTourSteps} />
+          <ListsView viewMode={viewMode} homeTourSteps={homeTourSteps} showTutorial={!showAuthModal} />
         </>
       ) : (
         <div className="text-center py-12 text-gray-500">
