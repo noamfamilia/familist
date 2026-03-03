@@ -301,11 +301,13 @@ export function useList(listId: string) {
     ))
 
     // Broadcast to other users that the list changed
-    supabase.channel(`list-${listId}`).send({
-      type: 'broadcast',
-      event: 'member_updated',
-      payload: { memberId }
-    })
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'member_updated',
+        payload: { memberId }
+      })
+    }
 
     return { error: null }
   }
@@ -331,11 +333,13 @@ export function useList(listId: string) {
     })))
 
     // Broadcast to other users that the list changed
-    supabase.channel(`list-${listId}`).send({
-      type: 'broadcast',
-      event: 'member_deleted',
-      payload: { memberId }
-    })
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'member_deleted',
+        payload: { memberId }
+      })
+    }
 
     return { error: null }
   }
