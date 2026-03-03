@@ -10,7 +10,7 @@ interface AuthContextType {
   profile: Profile | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
-  signUp: (email: string, password: string, username: string, nickname: string) => Promise<{ error: Error | null }>
+  signUp: (email: string, password: string, username: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   resetPassword: (email: string) => Promise<{ error: Error | null }>
@@ -119,7 +119,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await fetchProfile(data.user.id)
     }
 
-    return { error: error as Error | null }
+    // Email confirmation is needed if signup succeeded but no session was returned
+    const needsEmailConfirmation = !error && data?.user && !data.session
+
+    return { error: error as Error | null, needsEmailConfirmation: !!needsEmailConfirmation }
   }
 
   const signOut = async () => {

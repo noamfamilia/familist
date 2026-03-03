@@ -72,9 +72,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           return
         }
 
-        const { error } = await signUp(email, password, username.trim(), nickname.trim())
+        const { error, needsEmailConfirmation } = await signUp(email, password, username.trim(), nickname.trim())
         if (error) {
           setError(error.message)
+        } else if (needsEmailConfirmation) {
+          setSuccessMessage('Account created! Check your email to confirm your account.')
         } else {
           handleClose()
         }
