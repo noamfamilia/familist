@@ -57,15 +57,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }, [isRenaming])
 
   const handleCardClick = () => {
-    // Navigate to list only if not archived and not renaming
-    if (!isRenaming && !list.userArchived && !menuOpen) {
+    // Navigate to list if not renaming and menu is closed
+    if (!isRenaming && !menuOpen) {
       router.push(`/list/${list.id}`)
     }
   }
 
-  const handleNameClick = async (e: React.MouseEvent) => {
+  const handleArchiveClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (isRenaming) return
     
     // Toggle archive state
     const { error } = await onArchive(list.id, { archived: !list.userArchived })
@@ -188,7 +187,16 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         {list.visibility === 'private' ? '🔒' : '🔗'}
       </span>
 
-      {/* List name - click to archive/restore */}
+      {/* Archive/Restore icon */}
+      <button
+        onClick={handleArchiveClick}
+        className="text-sm flex-shrink-0 hover:opacity-70"
+        title={list.userArchived ? 'Restore list' : 'Archive list'}
+      >
+        {list.userArchived ? '↩' : '📥'}
+      </button>
+
+      {/* List name - click to navigate */}
       {isRenaming ? (
         <input
           ref={inputRef}
@@ -208,27 +216,15 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         />
       ) : (
         <span
-          onClick={handleNameClick}
+          onClick={handleCardClick}
           className={`flex-1 min-w-0 font-medium cursor-pointer truncate ${
             list.userArchived 
               ? 'text-gray-400 line-through hover:text-gray-600' 
               : 'text-primary hover:text-teal'
           }`}
-          title={list.userArchived ? 'Click to restore' : 'Click to archive'}
         >
           {list.name}
         </span>
-      )}
-      
-      {/* Navigate button - only for active lists */}
-      {!list.userArchived && !isRenaming && (
-        <button
-          onClick={handleCardClick}
-          className="text-gray-400 hover:text-teal px-1 text-lg"
-          title="Open list"
-        >
-          →
-        </button>
       )}
 
       {/* Kebab menu button */}
