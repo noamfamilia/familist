@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { forceNewClient } from '@/lib/supabase/client'
 import type { List } from '@/lib/supabase/types'
 
@@ -19,6 +20,8 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   const [token, setToken] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [otherMembersCount, setOtherMembersCount] = useState(0)
 
   // Only reset state when modal opens, not when list object reference changes
   useEffect(() => {
@@ -26,6 +29,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       setVisibility(list.visibility)
       setToken('')
       setCopied(false)
+      setShowConfirm(false)
       
       // If already link-enabled, generate a new token to display
       if (list.visibility === 'link') {
@@ -51,28 +55,59 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     }
   }
 
+  const checkOtherMembers = async (): Promise<number> => {
+    const supabase = forceNewClient()
+    // Count members not created by the list owner
+    const { data, error } = await supabase
+      .from('members')
+      .select('id, created_by')
+      .eq('list_id', list.id)
+      .neq('created_by', list.owner_id)
+    
+    if (error) {
+      console.error('Error checking members:', error)
+      return 0
+    }
+    return data?.length || 0
+  }
+
   const handleVisibilityChange = async (newVisibility: 'private' | 'link') => {
     if (newVisibility === 'link') {
       setVisibility('link')
       await generateToken()
       onUpdate()
     } else {
+      // Check if there are members created by other users
       setLoading(true)
-      try {
-        const supabase = forceNewClient()
-        const { error } = await (supabase.rpc as any)('revoke_share_token', {
-          p_list_id: list.id,
-        })
-
-        if (error) throw error
-        setToken('')
-        setVisibility('private')
-        onUpdate()
-      } catch (err) {
-        console.error('Error updating visibility:', err)
-      } finally {
-        setLoading(false)
+      const count = await checkOtherMembers()
+      setLoading(false)
+      
+      if (count > 0) {
+        setOtherMembersCount(count)
+        setShowConfirm(true)
+      } else {
+        await makePrivate()
       }
+    }
+  }
+
+  const makePrivate = async () => {
+    setLoading(true)
+    try {
+      const supabase = forceNewClient()
+      const { error } = await (supabase.rpc as any)('revoke_share_token', {
+        p_list_id: list.id,
+      })
+
+      if (error) throw error
+      setToken('')
+      setVisibility('private')
+      setShowConfirm(false)
+      onUpdate()
+    } catch (err) {
+      console.error('Error updating visibility:', err)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -182,6 +217,17 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal"></div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={makePrivate}
+        title="Make List Private"
+        message={`This will remove ${otherMembersCount} member${otherMembersCount > 1 ? 's' : ''} created by other users and all their data. This cannot be undone.`}
+        confirmText="Make Private"
+        variant="danger"
+        loading={loading}
+      />
     </Modal>
   )
 }
