@@ -13,6 +13,9 @@ function CallbackHandler() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // TEMP DEBUG - expose supabase to console, remove later
+    ;(window as any).supabase = supabase
+    
     const handleCallback = async () => {
       try {
         // Check for code-based return (PKCE flow)
