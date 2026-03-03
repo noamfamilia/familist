@@ -10,9 +10,13 @@ import type { Step } from 'react-joyride'
 
 const homeTourSteps: Step[] = [
   {
+    target: '[data-tour="home-view-toggle"]',
+    content: 'Switch between active and archived lists.',
+    disableBeacon: true,
+  },
+  {
     target: '[data-tour="create-list"]',
     content: 'Type a name to create a new list, or type @token to join a shared list.',
-    disableBeacon: true,
   },
   {
     target: '[data-tour="list-card"]',
@@ -39,15 +43,17 @@ export default function Home() {
       <div className="flex items-center justify-between mb-4">
         {/* View toggle - top left */}
         {user && (
-          <Toggle
-            options={[
-              { value: 'active', label: 'Active' },
-              { value: 'archived', label: 'Archived' },
-            ]}
-            value={viewMode}
-            onChange={(v) => setViewMode(v as 'active' | 'archived')}
-            className="text-xs"
-          />
+          <div data-tour="home-view-toggle">
+            <Toggle
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'archived', label: 'Archived' },
+              ]}
+              value={viewMode}
+              onChange={(v) => setViewMode(v as 'active' | 'archived')}
+              className="text-xs"
+            />
+          </div>
         )}
         {!user && <div />}
         

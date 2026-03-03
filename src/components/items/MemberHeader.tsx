@@ -170,6 +170,7 @@ export function MemberHeader({
                       <button
                         onClick={() => setOpenMenuId(isMenuOpen ? null : member.id)}
                         className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1"
+                        data-tour="member-kebab"
                       >
                         {isMenuOpen ? '✕' : '⋮'}
                       </button>

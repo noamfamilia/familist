@@ -32,12 +32,20 @@ const listTourSteps: Step[] = [
     content: 'Each column represents a family member. Click "+Member" to add someone.',
   },
   {
+    target: '[data-tour="member-kebab"]',
+    content: 'Click here to rename a member, filter their items, set public/private visibility, or delete. Click the member name to rename directly.',
+  },
+  {
+    target: '[data-tour="drag-handle"]',
+    content: 'Drag items up or down to reorder them.',
+  },
+  {
     target: '[data-tour="item-row"]',
-    content: 'Each item shows quantity and done status per member. Click the item name to archive/restore it.',
+    content: 'Each item shows quantity and done status per member. Tap the quantity to edit directly. Click the item name to archive/restore it.',
   },
   {
     target: '[data-tour="item-kebab"]',
-    content: 'Use this menu to add comments or delete items.',
+    content: 'Use this menu to rename, add comments, or delete items.',
   },
 ]
 

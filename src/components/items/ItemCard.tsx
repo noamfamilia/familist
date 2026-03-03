@@ -126,6 +126,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         <div 
           className={`w-5 text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${isDraggable ? 'cursor-grab' : ''}`}
           {...(isDraggable ? dragHandleProps : {})}
+          data-tour="drag-handle"
         >
           {isDraggable ? '⋮⋮' : ''}
         </div>
