@@ -258,27 +258,30 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             Sign Out
           </Button>
 
-          <button
-            className="w-full flex items-center justify-center gap-1 text-sm text-teal hover:underline mt-3"
-            onClick={() => {
-              navigator.clipboard.writeText('Check out MyFamiList - a shared lists app for families! https://myfamilist.com')
-              alert('Link copied to clipboard!')
-            }}
-          >
-            Share <img src="/logo.png" alt="MyFamiList" className="h-8 inline-block" /> with family and friends
-          </button>
+          <div className="flex justify-between items-end mt-4">
+            <button
+              className="flex flex-col items-start text-sm text-teal hover:underline"
+              onClick={() => {
+                navigator.clipboard.writeText('Check out MyFamiList - a shared lists app for families! https://myfamilist.com')
+                alert('Link copied to clipboard!')
+              }}
+            >
+              <span>Share</span>
+              <img src="/logo.png" alt="MyFamiList" className="h-8 mt-1" />
+            </button>
 
-          <button
-            className="w-full text-center text-sm text-teal hover:underline mt-2"
-            onClick={() => {
-              resetTutorial('home')
-              resetTutorial('list')
-              handleClose()
-              window.location.reload()
-            }}
-          >
-            Replay Tutorial
-          </button>
+            <button
+              className="text-sm text-teal hover:underline"
+              onClick={() => {
+                resetTutorial('home')
+                resetTutorial('list')
+                handleClose()
+                window.location.reload()
+              }}
+            >
+              Replay Tutorial
+            </button>
+          </div>
         </div>
       </Modal>
     )
