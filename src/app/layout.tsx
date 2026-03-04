@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   metadataBase: new URL('https://myfamilist.com'),
   title: 'MyFamiList',
-  description: 'A collaborative shared lists application for families',
+  description: 'Shared list application for family and friends',
   manifest: '/manifest.json',
   icons: {
     icon: '/icon-192.png',
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'MyFamiList',
-    description: 'A collaborative shared lists application for families',
+    description: 'Shared list application for family and friends',
     url: 'https://myfamilist.com',
     siteName: 'MyFamiList',
     images: [
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'MyFamiList - Shared lists for families',
+        alt: 'MyFamiList - Shared lists for family and friends',
       },
     ],
     type: 'website',
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'MyFamiList',
-    description: 'A collaborative shared lists application for families',
+    description: 'Shared list application for family and friends',
     images: ['/og-image.png'],
   },
   appleWebApp: {
