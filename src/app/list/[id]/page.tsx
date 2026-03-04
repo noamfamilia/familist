@@ -30,7 +30,11 @@ const listIntroSteps: Step[] = [
   },
   {
     target: '[data-tour="add-member"]',
-    content: 'Click +Member to add family members who will use this list.',
+    content: 'Click +Member to manage more members.',
+  },
+  {
+    target: '[data-tour="members-header"]',
+    content: 'A shared list can have multiple members that are managed by different users.',
   },
 ]
 

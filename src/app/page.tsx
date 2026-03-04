@@ -20,7 +20,7 @@ const homeIntroSteps: Step[] = [
   },
   {
     target: '[data-tour="profile-icon"]',
-    content: 'Access your profile settings, share the app, or replay this tutorial.',
+    content: 'Access your profile settings.',
   },
 ]
 
@@ -32,7 +32,7 @@ const homeListSteps: Step[] = [
     disableBeacon: true,
   },
   {
-    target: '[data-tour="list-share"]',
+    target: '[data-tour="list-card"]',
     content: 'Click the lock/link icon to manage sharing. Use the menu (⋮) for rename, duplicate, or delete.',
   },
 ]
