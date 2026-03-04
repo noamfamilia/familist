@@ -190,7 +190,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {/* Archive/Restore icon */}
       <button
         onClick={handleArchiveClick}
-        className="text-xl flex-shrink-0 hover:opacity-70 text-teal"
+        className="text-xl flex-shrink-0 hover:opacity-70 text-coral"
         title={list.userArchived ? 'Restore list' : 'Archive list'}
       >
         {list.userArchived ? '▲' : '▼'}
@@ -224,6 +224,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           }`}
         >
           {list.name}
+          {!isOwner && list.ownerNickname && (
+            <span className="text-teal ml-1">({list.ownerNickname})</span>
+          )}
         </span>
       )}
 
