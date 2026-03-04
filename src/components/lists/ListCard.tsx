@@ -188,29 +188,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         {list.userArchived ? '▲' : '▼'}
       </button>
 
-      {/* Visibility icon - only for owned lists, clickable to open share modal (except archived) */}
-      {isOwner && (
-        list.userArchived ? (
-          <span
-            className="text-lg flex-shrink-0 opacity-40"
-            title={list.visibility === 'private' ? 'Private' : 'Shared by link'}
-          >
-            {list.visibility === 'private' ? '🔒' : '🔗'}
-          </span>
-        ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowShareModal(true)
-            }}
-            className="text-lg flex-shrink-0 opacity-60 hover:opacity-100"
-            title={list.visibility === 'private' ? 'Private - Click to share' : 'Shared by link - Click to manage'}
-          >
-            {list.visibility === 'private' ? '🔒' : '🔗'}
-          </button>
-        )
-      )}
-
       {/* List name - click to navigate */}
       {isRenaming ? (
         <input
@@ -243,6 +220,29 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             <span className="text-teal ml-1">({list.ownerNickname})</span>
           )}
         </span>
+      )}
+
+      {/* Visibility icon - only for owned lists, clickable to open share modal (except archived) */}
+      {isOwner && (
+        list.userArchived ? (
+          <span
+            className="text-lg flex-shrink-0 opacity-40"
+            title={list.visibility === 'private' ? 'Private' : 'Shared by link'}
+          >
+            {list.visibility === 'private' ? '🔒' : '🔗'}
+          </span>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowShareModal(true)
+            }}
+            className="text-lg flex-shrink-0 opacity-60 hover:opacity-100"
+            title={list.visibility === 'private' ? 'Private - Click to share' : 'Shared by link - Click to manage'}
+          >
+            {list.visibility === 'private' ? '🔒' : '🔗'}
+          </button>
+        )
       )}
 
       {/* Kebab menu button */}
