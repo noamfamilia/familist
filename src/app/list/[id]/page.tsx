@@ -14,11 +14,12 @@ import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
-import { TutorialTour, hasSeenTutorial } from '@/components/ui/TutorialTour'
+import { TutorialTour } from '@/components/ui/TutorialTour'
 import type { Step } from 'react-joyride'
 
-// Intro steps - always shown first
-const listIntroSteps: Step[] = [
+// All list tour steps - shown progressively as targets become available
+const listTourSteps: Step[] = [
+  // Intro steps - always available
   {
     target: '[data-tour="add-item"]',
     content: 'Add items to your list here.',
@@ -36,27 +37,19 @@ const listIntroSteps: Step[] = [
     target: '[data-tour="members-header"]',
     content: 'A shared list can have multiple members that are owned by different users.',
   },
-]
-
-// Item-specific steps - shown when items exist
-const listItemSteps: Step[] = [
+  // Item-specific steps - shown when items exist
   {
     target: '[data-tour="item-archive"]',
     content: 'Click the item name to archive it. Click again to restore.',
-    disableBeacon: true,
   },
   {
     target: '[data-tour="item-menu"]',
     content: 'Use the menu (⋮) to rename, add a comment, or delete the item.',
   },
-]
-
-// Member-specific steps - shown when members exist
-const listMemberSteps: Step[] = [
+  // Member-specific steps - shown when members exist
   {
     target: '[data-tour="member-kebab"]',
     content: 'Each member has a menu to rename, toggle visibility filters, and manage privacy settings.',
-    disableBeacon: true,
   },
   {
     target: '[data-tour="item-state"]',
@@ -87,15 +80,6 @@ export default function ListPage() {
     changeQuantity,
     reorderItems,
   } = useList(listId)
-
-  const [introComplete, setIntroComplete] = useState(false)
-  const [itemsComplete, setItemsComplete] = useState(false)
-
-  // Set initial tutorial state after mount to avoid SSR issues
-  useEffect(() => {
-    setIntroComplete(hasSeenTutorial('list-intro'))
-    setItemsComplete(hasSeenTutorial('list-items'))
-  }, [])
 
   // Redirect to home if access is revoked
   useEffect(() => {
@@ -337,26 +321,12 @@ export default function ListPage() {
         </div>
       </div>
       
-      {/* Tutorial - intro steps (always available) */}
+      {/* Tutorial - shows available steps, resumes when new targets appear */}
       <TutorialTour 
-        tourId="list-intro" 
-        steps={listIntroSteps} 
-        onComplete={() => setIntroComplete(true)}
+        tourId="list" 
+        steps={listTourSteps}
+        listsExist={items.length > 0 || members.length > 0}
       />
-      
-      {/* Tutorial - item-specific steps (only after intro done and items exist) */}
-      {items.length > 0 && introComplete && (
-        <TutorialTour 
-          tourId="list-items" 
-          steps={listItemSteps}
-          onComplete={() => setItemsComplete(true)}
-        />
-      )}
-      
-      {/* Tutorial - member-specific steps (only after items done and members exist) */}
-      {members.length > 0 && introComplete && itemsComplete && (
-        <TutorialTour tourId="list-members" steps={listMemberSteps} />
-      )}
     </div>
   )
 }

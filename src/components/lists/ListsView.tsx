@@ -10,25 +10,18 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useToast } from '@/components/ui/Toast'
 import { SortableListCard } from './SortableListCard'
 import { ListCard } from './ListCard'
-import { TutorialTour, hasSeenTutorial } from '@/components/ui/TutorialTour'
+import { TutorialTour } from '@/components/ui/TutorialTour'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 
 interface ListsViewProps {
   viewMode: 'all' | 'mine'
-  homeIntroSteps?: Step[]
-  homeListSteps?: Step[]
+  homeTourSteps?: Step[]
   showTutorial?: boolean
 }
 
-export function ListsView({ viewMode, homeIntroSteps, homeListSteps, showTutorial = true }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: ListsViewProps) {
   const { lists, loading, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
-  const [introComplete, setIntroComplete] = useState(false)
-  
-  // Set initial tutorial state after mount to avoid SSR issues
-  useEffect(() => {
-    setIntroComplete(hasSeenTutorial('home-intro'))
-  }, [])
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -211,18 +204,13 @@ export function ListsView({ viewMode, homeIntroSteps, homeListSteps, showTutoria
         )}
       </div>
       
-      {/* Tutorial - intro steps (always available) */}
-      {homeIntroSteps && showTutorial && (
+      {/* Tutorial - shows available steps, resumes when new targets appear */}
+      {homeTourSteps && showTutorial && (
         <TutorialTour 
-          tourId="home-intro" 
-          steps={homeIntroSteps} 
-          onComplete={() => setIntroComplete(true)}
+          tourId="home" 
+          steps={homeTourSteps}
+          listsExist={lists.length > 0}
         />
-      )}
-      
-      {/* Tutorial - list-specific steps (only after intro is done and lists exist) */}
-      {homeListSteps && showTutorial && lists.length > 0 && introComplete && (
-        <TutorialTour tourId="home-lists" steps={homeListSteps} />
       )}
     </div>
   )

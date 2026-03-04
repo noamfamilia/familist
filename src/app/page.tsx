@@ -7,8 +7,8 @@ import { Toggle } from '@/components/ui/Toggle'
 import { useState } from 'react'
 import type { Step } from 'react-joyride'
 
-// Intro steps - always shown first
-const homeIntroSteps: Step[] = [
+// All home tour steps - list steps only shown when lists exist
+const homeTourSteps: Step[] = [
   {
     target: '[data-tour="create-list"]',
     content: 'Type a name to create a new list, or type @token to join a shared list.',
@@ -22,14 +22,10 @@ const homeIntroSteps: Step[] = [
     target: '[data-tour="profile-icon"]',
     content: 'Access your profile settings.',
   },
-]
-
-// List-specific steps - shown when lists exist
-const homeListSteps: Step[] = [
+  // List-specific steps - only shown when list targets exist
   {
     target: '[data-tour="list-archive"]',
     content: 'Use ▼ to archive a list or ▲ to restore it.',
-    disableBeacon: true,
   },
   {
     target: '[data-tour="list-share"]',
@@ -109,8 +105,7 @@ export default function Home() {
         <>
           <ListsView 
             viewMode={viewMode} 
-            homeIntroSteps={homeIntroSteps}
-            homeListSteps={homeListSteps}
+            homeTourSteps={homeTourSteps}
             showTutorial={!showAuthModal} 
           />
         </>

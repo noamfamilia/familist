@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Joyride, { CallBackProps, STATUS, Step } from 'react-joyride'
 
 interface TutorialTourProps {
@@ -8,38 +8,72 @@ interface TutorialTourProps {
   steps: Step[]
   run?: boolean
   onComplete?: () => void
+  listsExist?: boolean // Trigger to check for new available steps
 }
 
-export function TutorialTour({ tourId, steps, run: runProp, onComplete }: TutorialTourProps) {
+export function TutorialTour({ tourId, steps, run: runProp, onComplete, listsExist }: TutorialTourProps) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
+  const prevAvailableCount = useRef(0)
 
   useEffect(() => {
-    const hasSeenTour = localStorage.getItem(`tutorial_${tourId}`)
-    if (!hasSeenTour && runProp !== false) {
-      // Filter steps to only include those with existing targets
-      const availableSteps = steps.filter(step => {
+    // Get completed step count from localStorage
+    const completedCount = parseInt(localStorage.getItem(`tutorial_${tourId}_completed`) || '0', 10)
+    const isFullyComplete = localStorage.getItem(`tutorial_${tourId}`) === 'true'
+    
+    if (isFullyComplete && runProp !== false) {
+      // Tour was fully completed, don't show again
+      return
+    }
+
+    // Filter steps to only include those with existing targets
+    const availableSteps = steps.filter(step => {
+      if (typeof step.target === 'string') {
+        return document.querySelector(step.target) !== null
+      }
+      return true
+    })
+    
+    // Check if there are new steps available beyond what we've completed
+    if (availableSteps.length > completedCount && runProp !== false) {
+      // Get only the steps we haven't shown yet
+      const remainingSteps = availableSteps.slice(completedCount)
+      
+      if (remainingSteps.length > 0 && remainingSteps.length !== prevAvailableCount.current) {
+        prevAvailableCount.current = remainingSteps.length
+        setFilteredSteps(remainingSteps)
+        setStepIndex(0)
+        const timer = setTimeout(() => setRun(true), 500)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [tourId, runProp, steps, listsExist])
+
+  const handleCallback = (data: CallBackProps) => {
+    const { status, index, type } = data
+    const completedCount = parseInt(localStorage.getItem(`tutorial_${tourId}_completed`) || '0', 10)
+
+    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+      // Update completed count
+      const newCompletedCount = completedCount + filteredSteps.length
+      localStorage.setItem(`tutorial_${tourId}_completed`, newCompletedCount.toString())
+      
+      // Check if we've shown all steps
+      const allAvailableSteps = steps.filter(step => {
         if (typeof step.target === 'string') {
           return document.querySelector(step.target) !== null
         }
         return true
       })
       
-      if (availableSteps.length > 0) {
-        setFilteredSteps(availableSteps)
-        const timer = setTimeout(() => setRun(true), 500)
-        return () => clearTimeout(timer)
+      if (newCompletedCount >= steps.length || status === STATUS.SKIPPED) {
+        // All steps shown or skipped, mark as fully complete
+        localStorage.setItem(`tutorial_${tourId}`, 'true')
       }
-    }
-  }, [tourId, runProp, steps])
-
-  const handleCallback = (data: CallBackProps) => {
-    const { status, index, type } = data
-
-    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
-      localStorage.setItem(`tutorial_${tourId}`, 'true')
+      
       setRun(false)
+      prevAvailableCount.current = 0
       onComplete?.()
     }
 
@@ -93,6 +127,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete }: Tutori
 
 export function resetTutorial(tourId: string) {
   localStorage.removeItem(`tutorial_${tourId}`)
+  localStorage.removeItem(`tutorial_${tourId}_completed`)
 }
 
 export function hasSeenTutorial(tourId: string): boolean {

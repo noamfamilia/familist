@@ -272,11 +272,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <button
               className="absolute right-0 text-sm text-teal hover:underline flex flex-col items-end"
               onClick={() => {
-                resetTutorial('home-intro')
-                resetTutorial('home-lists')
-                resetTutorial('list-intro')
-                resetTutorial('list-items')
-                resetTutorial('list-members')
+                resetTutorial('home')
+                resetTutorial('list')
                 handleClose()
                 window.location.reload()
               }}
