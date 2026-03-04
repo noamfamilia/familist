@@ -77,7 +77,7 @@ export default function ListPage() {
   useEffect(() => {
     if (accessDenied) {
       showError('You no longer have access to this list')
-      router.push('/')
+      router.replace('/')
     }
   }, [accessDenied, router, showError])
 
@@ -118,7 +118,7 @@ export default function ListPage() {
       <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
         <p className="text-center text-gray-500">List not found or deleted</p>
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.replace('/')}
           className="mt-4 text-primary hover:underline block mx-auto"
         >
           ← Back to lists
@@ -192,7 +192,7 @@ export default function ListPage() {
       {/* Top bar with back button and member filter */}
       <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.replace('/')}
           className="text-primary hover:underline text-sm sm:text-base"
           aria-label="Go back to all lists"
         >

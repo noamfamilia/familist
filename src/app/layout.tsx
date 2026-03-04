@@ -8,12 +8,34 @@ import { InstallBanner } from '@/components/ui/InstallBanner'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://myfamilist.com'),
   title: 'MyFamiList',
   description: 'A collaborative shared lists application for families',
   manifest: '/manifest.json',
   icons: {
     icon: '/icon-192.png',
     apple: '/icon-192.png',
+  },
+  openGraph: {
+    title: 'MyFamiList',
+    description: 'A collaborative shared lists application for families',
+    url: 'https://myfamilist.com',
+    siteName: 'MyFamiList',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'MyFamiList - Shared lists for families',
+      },
+    ],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'MyFamiList',
+    description: 'A collaborative shared lists application for families',
+    images: ['/og-image.png'],
   },
   appleWebApp: {
     capable: true,
