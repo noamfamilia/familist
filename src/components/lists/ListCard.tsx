@@ -179,6 +179,15 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         </div>
       )}
 
+      {/* Archive/Restore icon */}
+      <button
+        onClick={handleArchiveClick}
+        className="text-xl flex-shrink-0 hover:opacity-70 text-coral"
+        title={list.userArchived ? 'Restore list' : 'Archive list'}
+      >
+        {list.userArchived ? '▲' : '▼'}
+      </button>
+
       {/* Visibility icon - only for owned lists, clickable to open share modal (except archived) */}
       {isOwner && (
         list.userArchived ? (
@@ -201,15 +210,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           </button>
         )
       )}
-
-      {/* Archive/Restore icon */}
-      <button
-        onClick={handleArchiveClick}
-        className="text-xl flex-shrink-0 hover:opacity-70 text-coral"
-        title={list.userArchived ? 'Restore list' : 'Archive list'}
-      >
-        {list.userArchived ? '▲' : '▼'}
-      </button>
 
       {/* List name - click to navigate */}
       {isRenaming ? (
