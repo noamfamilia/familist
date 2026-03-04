@@ -260,14 +260,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           <div className="flex justify-between items-end mt-4">
             <button
-              className="flex flex-col items-start text-sm text-teal hover:underline"
+              className="hover:opacity-80"
               onClick={() => {
                 navigator.clipboard.writeText('Check out MyFamiList - a shared lists app for families! https://myfamilist.com')
                 alert('Link copied to clipboard!')
               }}
             >
-              <span>Share</span>
-              <img src="/logo.png" alt="MyFamiList" className="h-8 mt-1" />
+              <img src="/share.png" alt="Share MyFamiList" className="h-12" />
             </button>
 
             <button
