@@ -276,6 +276,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 resetTutorial('home-lists')
                 resetTutorial('list-intro')
                 resetTutorial('list-items')
+                resetTutorial('list-members')
                 handleClose()
                 window.location.reload()
               }}

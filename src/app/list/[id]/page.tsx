@@ -29,8 +29,8 @@ const listIntroSteps: Step[] = [
     content: 'Filter to show all members or just the ones you created.',
   },
   {
-    target: '[data-tour="member-kebab"]',
-    content: 'Each member has a menu to rename, toggle visibility filters, and manage privacy settings.',
+    target: '[data-tour="add-member"]',
+    content: 'Click +Member to add family members who will use this list.',
   },
 ]
 
@@ -42,12 +42,21 @@ const listItemSteps: Step[] = [
     disableBeacon: true,
   },
   {
-    target: '[data-tour="item-state"]',
-    content: 'Each member column shows quantity and done status. Tap quantity to edit directly.',
-  },
-  {
     target: '[data-tour="item-menu"]',
     content: 'Use the menu (⋮) to rename, add a comment, or delete the item.',
+  },
+]
+
+// Member-specific steps - shown when members exist
+const listMemberSteps: Step[] = [
+  {
+    target: '[data-tour="member-kebab"]',
+    content: 'Each member has a menu to rename, toggle visibility filters, and manage privacy settings.',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="item-state"]',
+    content: 'Each member column shows quantity and done status. Tap quantity to edit directly.',
   },
 ]
 
@@ -321,6 +330,11 @@ export default function ListPage() {
       {/* Tutorial - item-specific steps (only when items exist) */}
       {items.length > 0 && (
         <TutorialTour tourId="list-items" steps={listItemSteps} />
+      )}
+      
+      {/* Tutorial - member-specific steps (only when members exist) */}
+      {members.length > 0 && (
+        <TutorialTour tourId="list-members" steps={listMemberSteps} />
       )}
     </div>
   )

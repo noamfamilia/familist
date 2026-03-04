@@ -207,6 +207,7 @@ export function MemberHeader({
                 <button
                   onClick={() => setIsAdding(true)}
                   className="flex items-center justify-center rounded-lg bg-cyan text-white text-sm hover:opacity-80 transition-colors w-[90px] h-[40px]"
+                  data-tour="add-member"
                 >
                   +Member
                 </button>
