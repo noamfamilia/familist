@@ -258,7 +258,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             Sign Out
           </Button>
 
-          <div className="flex justify-center items-center gap-8 mt-4">
+          <div className="flex justify-between items-center mt-4">
             <button
               className="hover:opacity-80"
               onClick={() => {
