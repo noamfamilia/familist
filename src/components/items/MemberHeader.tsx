@@ -219,10 +219,20 @@ export function MemberHeader({
         {openMenuId && openMember && (
           <div className="px-3 py-2 bg-gray-50 rounded-b-lg">
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Private/Public status icon */}
-              <span className="text-lg" title={openMember.is_public ? 'Public member' : 'Private member'}>
-                {openMember.is_public ? '🔓' : '🔒'}
-              </span>
+              {/* Private/Public status icon - clickable for owner */}
+              {isOpenMemberOwner ? (
+                <button
+                  onClick={() => handleTogglePublic(openMember)}
+                  className="text-lg hover:opacity-70"
+                  title={openMember.is_public ? 'Public - Click to make private' : 'Private - Click to make public'}
+                >
+                  {openMember.is_public ? '🔓' : '🔒'}
+                </button>
+              ) : (
+                <span className="text-lg opacity-60" title={openMember.is_public ? 'Public member' : 'Private member'}>
+                  {openMember.is_public ? '🔓' : '🔒'}
+                </span>
+              )}
               
               {/* Show all / Show to-do toggle */}
               <Toggle
@@ -238,19 +248,6 @@ export function MemberHeader({
                 }}
                 variant="menu"
               />
-              
-              {/* Public/Private toggle - only for owner */}
-              {isOpenMemberOwner && (
-                <Toggle
-                  options={[
-                    { value: 'private', label: 'Private' },
-                    { value: 'public', label: 'Public' },
-                  ]}
-                  value={openMember.is_public ? 'public' : 'private'}
-                  onChange={() => handleTogglePublic(openMember)}
-                  variant="menu"
-                />
-              )}
               
               {isOpenMemberOwner && (
                 <button
