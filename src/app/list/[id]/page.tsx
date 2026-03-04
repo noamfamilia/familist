@@ -14,7 +14,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
-import { TutorialTour } from '@/components/ui/TutorialTour'
+import { TutorialTour, hasSeenTutorial } from '@/components/ui/TutorialTour'
 import type { Step } from 'react-joyride'
 
 // Intro steps - always shown first
@@ -331,13 +331,13 @@ export default function ListPage() {
       {/* Tutorial - intro steps (always available) */}
       <TutorialTour tourId="list-intro" steps={listIntroSteps} />
       
-      {/* Tutorial - item-specific steps (only when items exist) */}
-      {items.length > 0 && (
+      {/* Tutorial - item-specific steps (only after intro done and items exist) */}
+      {items.length > 0 && hasSeenTutorial('list-intro') && (
         <TutorialTour tourId="list-items" steps={listItemSteps} />
       )}
       
-      {/* Tutorial - member-specific steps (only when members exist) */}
-      {members.length > 0 && (
+      {/* Tutorial - member-specific steps (only after items done and members exist) */}
+      {members.length > 0 && hasSeenTutorial('list-intro') && hasSeenTutorial('list-items') && (
         <TutorialTour tourId="list-members" steps={listMemberSteps} />
       )}
     </div>

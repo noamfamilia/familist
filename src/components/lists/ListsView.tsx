@@ -10,7 +10,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useToast } from '@/components/ui/Toast'
 import { SortableListCard } from './SortableListCard'
 import { ListCard } from './ListCard'
-import { TutorialTour } from '@/components/ui/TutorialTour'
+import { TutorialTour, hasSeenTutorial } from '@/components/ui/TutorialTour'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 
@@ -210,8 +210,8 @@ export function ListsView({ viewMode, homeIntroSteps, homeListSteps, showTutoria
         <TutorialTour tourId="home-intro" steps={homeIntroSteps} />
       )}
       
-      {/* Tutorial - list-specific steps (only when lists exist) */}
-      {homeListSteps && showTutorial && lists.length > 0 && (
+      {/* Tutorial - list-specific steps (only after intro is done and lists exist) */}
+      {homeListSteps && showTutorial && lists.length > 0 && hasSeenTutorial('home-intro') && (
         <TutorialTour tourId="home-lists" steps={homeListSteps} />
       )}
     </div>
