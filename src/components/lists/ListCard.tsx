@@ -34,6 +34,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [comment, setComment] = useState(list.comment || '')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Sync comment state when list updates from realtime
+  useEffect(() => {
+    setComment(list.comment || '')
+  }, [list.comment])
+
   const isOwner = list.role === 'owner'
 
   const handleSaveComment = async () => {

@@ -27,6 +27,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [editText, setEditText] = useState(item.text)
   const [comment, setComment] = useState(item.comment || '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  // Sync comment state when item updates from realtime
+  useEffect(() => {
+    setComment(item.comment || '')
+  }, [item.comment])
   const [deleting, setDeleting] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [editingQuantityMember, setEditingQuantityMember] = useState<string | null>(null)
