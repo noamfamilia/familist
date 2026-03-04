@@ -270,7 +270,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </button>
 
             <button
-              className="absolute right-0 text-sm text-teal hover:underline"
+              className="absolute right-0 text-sm text-teal hover:underline flex flex-col items-end"
               onClick={() => {
                 resetTutorial('home')
                 resetTutorial('list')
@@ -278,7 +278,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 window.location.reload()
               }}
             >
-              Replay Tutorial
+              <span>Replay</span>
+              <span>Tutorial</span>
             </button>
           </div>
         </div>
