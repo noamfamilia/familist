@@ -57,8 +57,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }, [isRenaming])
 
   const handleCardClick = () => {
-    // Navigate to list if not renaming and menu is closed
-    if (!isRenaming && !menuOpen) {
+    // Navigate to list if not archived, not renaming, and menu is closed
+    if (!list.userArchived && !isRenaming && !menuOpen) {
       router.push(`/list/${list.id}`)
     }
   }
@@ -217,10 +217,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       ) : (
         <span
           onClick={handleCardClick}
-          className={`flex-1 min-w-0 font-medium cursor-pointer truncate text-lg ${
+          className={`flex-1 min-w-0 font-medium truncate text-lg ${
             list.userArchived 
-              ? 'text-gray-400 line-through hover:text-gray-600' 
-              : 'text-primary hover:text-teal'
+              ? 'text-gray-400 line-through' 
+              : 'text-primary hover:text-teal cursor-pointer'
           }`}
         >
           {list.name}
