@@ -19,7 +19,7 @@ const homeTourSteps: Step[] = [
   },
   {
     target: '[data-tour="list-card"]',
-    content: 'Click the list to open it. Use the archive icon (📥/↩) to archive or restore. Use the menu (⋮) for more options.',
+    content: 'Click the list to open it. Use ▼ to archive or ▲ to restore. Click the lock/link icon to manage sharing. Use the menu (⋮) for more options.',
   },
 ]
 
