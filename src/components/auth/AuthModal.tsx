@@ -62,15 +62,7 @@ function InstallAppButton() {
     setDeferredPrompt(null)
   }
 
-  if (isInstalled) {
-    return (
-      <Button variant="secondary" className="w-full" disabled>
-        ✓ App Installed
-      </Button>
-    )
-  }
-
-  if (!canInstall) {
+  if (isInstalled || !canInstall) {
     return null
   }
 
@@ -260,13 +252,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             variant="secondary"
             className="w-full mt-6"
             onClick={() => {
-              resetTutorial('home')
-              resetTutorial('list')
-              handleClose()
-              window.location.reload()
+              navigator.clipboard.writeText('Check out MyFamiList - a shared lists app for families! https://myfamilist.com')
+              alert('Link copied to clipboard!')
             }}
           >
-            Replay Tutorial
+            Share App
           </Button>
 
           <InstallAppButton />
@@ -278,6 +268,18 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           >
             Sign Out
           </Button>
+
+          <button
+            className="w-full text-center text-sm text-teal hover:underline mt-2"
+            onClick={() => {
+              resetTutorial('home')
+              resetTutorial('list')
+              handleClose()
+              window.location.reload()
+            }}
+          >
+            Replay Tutorial
+          </button>
         </div>
       </Modal>
     )
