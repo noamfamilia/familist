@@ -179,13 +179,28 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         </div>
       )}
 
-      {/* Visibility icon - display only */}
-      <span
-        className="text-lg flex-shrink-0 opacity-60"
-        title={list.visibility === 'private' ? 'Private' : 'Shared by link'}
-      >
-        {list.visibility === 'private' ? '🔒' : '🔗'}
-      </span>
+      {/* Visibility icon - only for owned lists, clickable to open share modal (except archived) */}
+      {isOwner && (
+        list.userArchived ? (
+          <span
+            className="text-lg flex-shrink-0 opacity-40"
+            title={list.visibility === 'private' ? 'Private' : 'Shared by link'}
+          >
+            {list.visibility === 'private' ? '🔒' : '🔗'}
+          </span>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowShareModal(true)
+            }}
+            className="text-lg flex-shrink-0 opacity-60 hover:opacity-100"
+            title={list.visibility === 'private' ? 'Private - Click to share' : 'Shared by link - Click to manage'}
+          >
+            {list.visibility === 'private' ? '🔒' : '🔗'}
+          </button>
+        )
+      )}
 
       {/* Archive/Restore icon */}
       <button
@@ -259,20 +274,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           </div>
           {/* Action buttons - styled like member menu */}
           <div className="flex items-center justify-end gap-2 flex-wrap">
-            {/* Share - only for active lists, owner only */}
-            {isOwner && !list.userArchived && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowShareModal(true)
-                  setMenuOpen(false)
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-              >
-                Share
-              </button>
-            )}
             {/* Rename - only for active lists, owner only */}
             {isOwner && !list.userArchived && (
               <button
