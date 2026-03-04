@@ -172,7 +172,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {/* Drag handle - only for active lists */}
       {!list.userArchived && dragHandleProps && (
         <div 
-          className="text-gray-400 cursor-grab select-none text-sm tracking-tighter touch-none"
+          className="text-gray-400 cursor-grab select-none text-lg tracking-tighter touch-none"
           {...dragHandleProps}
         >
           ⋮⋮
@@ -181,7 +181,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
       {/* Visibility icon - display only */}
       <span
-        className="text-sm flex-shrink-0 opacity-60"
+        className="text-lg flex-shrink-0 opacity-60"
         title={list.visibility === 'private' ? 'Private' : 'Shared by link'}
       >
         {list.visibility === 'private' ? '🔒' : '🔗'}
@@ -190,7 +190,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {/* Archive/Restore icon */}
       <button
         onClick={handleArchiveClick}
-        className={`text-sm flex-shrink-0 hover:opacity-70 ${list.userArchived ? 'text-teal' : ''}`}
+        className={`text-lg flex-shrink-0 hover:opacity-70 ${list.userArchived ? 'text-teal' : ''}`}
         title={list.userArchived ? 'Restore list' : 'Archive list'}
       >
         {list.userArchived ? '↩' : '📥'}
@@ -211,13 +211,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               setIsRenaming(false)
             }
           }}
-          className="flex-1 min-w-0 px-2 py-1 border border-teal rounded text-base font-medium"
+          className="flex-1 min-w-0 px-2 py-1 border border-teal rounded text-lg font-medium"
           aria-label="List name"
         />
       ) : (
         <span
           onClick={handleCardClick}
-          className={`flex-1 min-w-0 font-medium cursor-pointer truncate ${
+          className={`flex-1 min-w-0 font-medium cursor-pointer truncate text-lg ${
             list.userArchived 
               ? 'text-gray-400 line-through hover:text-gray-600' 
               : 'text-primary hover:text-teal'
@@ -230,7 +230,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {/* Kebab menu button */}
       <button
         onClick={() => setMenuOpen(!menuOpen)}
-        className="text-gray-400 hover:text-gray-600 px-2 py-1 text-xl leading-none"
+        className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg leading-none"
       >
         {menuOpen ? '✕' : '⋮'}
       </button>
