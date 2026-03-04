@@ -14,11 +14,19 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   const modalRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
+  const historyPushedRef = useRef(false)
   onCloseRef.current = onClose
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        onCloseRef.current()
+      }
+    }
+
+    const handlePopState = () => {
+      if (historyPushedRef.current) {
+        historyPushedRef.current = false
         onCloseRef.current()
       }
     }
@@ -30,13 +38,27 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       document.addEventListener('keydown', handleEscape)
       document.body.style.overflow = 'hidden'
       
+      // Push state for back button handling
+      if (!historyPushedRef.current) {
+        window.history.pushState({ modal: true }, '')
+        historyPushedRef.current = true
+      }
+      window.addEventListener('popstate', handlePopState)
+      
       // Focus the modal
       setTimeout(() => modalRef.current?.focus(), 0)
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape)
+      window.removeEventListener('popstate', handlePopState)
       document.body.style.overflow = ''
+      
+      // If modal closes normally (not via back button), clean up history
+      if (historyPushedRef.current) {
+        historyPushedRef.current = false
+        window.history.back()
+      }
       
       // Restore focus
       if (previousFocusRef.current) {
