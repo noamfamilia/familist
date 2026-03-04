@@ -1,11 +1,85 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/providers/AuthProvider'
 import { resetTutorial } from '@/components/ui/TutorialTour'
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+function InstallAppButton() {
+  const [canInstall, setCanInstall] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [isIOS, setIsIOS] = useState(false)
+  const [isInstalled, setIsInstalled] = useState(false)
+
+  useEffect(() => {
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true)
+      return
+    }
+
+    // Check for iOS
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+    setIsIOS(isIOSDevice)
+
+    if (isIOSDevice) {
+      const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator as any).standalone
+      if (!isInStandaloneMode) {
+        setCanInstall(true)
+      }
+    } else {
+      const handler = (e: Event) => {
+        e.preventDefault()
+        setDeferredPrompt(e as BeforeInstallPromptEvent)
+        setCanInstall(true)
+      }
+      window.addEventListener('beforeinstallprompt', handler)
+      return () => window.removeEventListener('beforeinstallprompt', handler)
+    }
+  }, [])
+
+  const handleInstall = async () => {
+    if (isIOS) {
+      alert('To install MyFamiList:\n\n1. Tap the Share button (□↑) at the bottom of Safari\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" to confirm')
+      return
+    }
+
+    if (!deferredPrompt) return
+
+    await deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') {
+      setCanInstall(false)
+      setIsInstalled(true)
+    }
+    setDeferredPrompt(null)
+  }
+
+  if (isInstalled) {
+    return (
+      <Button variant="secondary" className="w-full" disabled>
+        ✓ App Installed
+      </Button>
+    )
+  }
+
+  if (!canInstall) {
+    return null
+  }
+
+  return (
+    <Button variant="secondary" className="w-full" onClick={handleInstall}>
+      Install App
+    </Button>
+  )
+}
 
 interface AuthModalProps {
   isOpen: boolean
@@ -194,6 +268,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           >
             Replay Tutorial
           </Button>
+
+          <InstallAppButton />
 
           <Button
             variant="danger"

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/providers/AuthProvider'
 import { ToastProvider } from '@/components/ui/Toast'
+import { InstallBanner } from '@/components/ui/InstallBanner'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -44,6 +45,7 @@ export default function RootLayout({
             <main className="min-h-screen flex items-center justify-center p-0 sm:p-5">
               {children}
             </main>
+            <InstallBanner />
           </ToastProvider>
         </AuthProvider>
       </body>
