@@ -248,26 +248,25 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </div>
           )}
 
+          <InstallAppButton />
+
           <Button
-            variant="secondary"
+            variant="danger"
             className="w-full mt-6"
+            onClick={handleSignOut}
+          >
+            Sign Out
+          </Button>
+
+          <button
+            className="w-full text-center text-sm text-teal hover:underline mt-3"
             onClick={() => {
               navigator.clipboard.writeText('Check out MyFamiList - a shared lists app for families! https://myfamilist.com')
               alert('Link copied to clipboard!')
             }}
           >
-            Share App
-          </Button>
-
-          <InstallAppButton />
-
-          <Button
-            variant="danger"
-            className="w-full"
-            onClick={handleSignOut}
-          >
-            Sign Out
-          </Button>
+            Share MyFamiList with family and friends
+          </button>
 
           <button
             className="w-full text-center text-sm text-teal hover:underline mt-2"
