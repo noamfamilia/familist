@@ -16,11 +16,12 @@ import type { Step } from 'react-joyride'
 
 interface ListsViewProps {
   viewMode: 'all' | 'mine'
-  homeTourSteps?: Step[]
+  homeIntroSteps?: Step[]
+  homeListSteps?: Step[]
   showTutorial?: boolean
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: ListsViewProps) {
+export function ListsView({ viewMode, homeIntroSteps, homeListSteps, showTutorial = true }: ListsViewProps) {
   const { lists, loading, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
   
   const sensors = useSensors(
@@ -204,9 +205,14 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
         )}
       </div>
       
-      {/* Tutorial - show when enabled (steps will be filtered based on available targets) */}
-      {homeTourSteps && showTutorial && (
-        <TutorialTour tourId="home" steps={homeTourSteps} />
+      {/* Tutorial - intro steps (always available) */}
+      {homeIntroSteps && showTutorial && (
+        <TutorialTour tourId="home-intro" steps={homeIntroSteps} />
+      )}
+      
+      {/* Tutorial - list-specific steps (only when lists exist) */}
+      {homeListSteps && showTutorial && lists.length > 0 && (
+        <TutorialTour tourId="home-lists" steps={homeListSteps} />
       )}
     </div>
   )

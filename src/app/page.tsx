@@ -7,7 +7,8 @@ import { Toggle } from '@/components/ui/Toggle'
 import { useState } from 'react'
 import type { Step } from 'react-joyride'
 
-const homeTourSteps: Step[] = [
+// Intro steps - always shown first
+const homeIntroSteps: Step[] = [
   {
     target: '[data-tour="create-list"]',
     content: 'Type a name to create a new list, or type @token to join a shared list.',
@@ -21,9 +22,18 @@ const homeTourSteps: Step[] = [
     target: '[data-tour="profile-icon"]',
     content: 'Access your profile settings, share the app, or replay this tutorial.',
   },
+]
+
+// List-specific steps - shown when lists exist
+const homeListSteps: Step[] = [
   {
-    target: '[data-tour="list-card"]',
-    content: 'Click the list to open it. Use ▼ to archive or ▲ to restore. Click the lock/link icon to manage sharing. Use the menu (⋮) for more options.',
+    target: '[data-tour="list-archive"]',
+    content: 'Use ▼ to archive a list or ▲ to restore it.',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="list-share"]',
+    content: 'Click the lock/link icon to manage sharing. Use the menu (⋮) for rename, duplicate, or delete.',
   },
 ]
 
@@ -93,7 +103,12 @@ export default function Home() {
       {/* Main content */}
       {user ? (
         <>
-          <ListsView viewMode={viewMode} homeTourSteps={homeTourSteps} showTutorial={!showAuthModal} />
+          <ListsView 
+            viewMode={viewMode} 
+            homeIntroSteps={homeIntroSteps}
+            homeListSteps={homeListSteps}
+            showTutorial={!showAuthModal} 
+          />
         </>
       ) : (
         <div className="text-center py-12 text-gray-500">

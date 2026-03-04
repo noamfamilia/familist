@@ -189,6 +189,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         onClick={handleArchiveClick}
         className="text-xl flex-shrink-0 hover:opacity-70 text-coral"
         title={list.userArchived ? 'Restore list' : 'Archive list'}
+        data-tour="list-archive"
       >
         {list.userArchived ? '▲' : '▼'}
       </button>
@@ -244,6 +245,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             }}
             className="text-lg flex-shrink-0 opacity-60 hover:opacity-100"
             title={list.visibility === 'private' ? 'Private - Click to share' : 'Shared by link - Click to manage'}
+            data-tour="list-share"
           >
             {list.visibility === 'private' ? '🔒' : '🔗'}
           </button>

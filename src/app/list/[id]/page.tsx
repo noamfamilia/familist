@@ -17,15 +17,37 @@ import { MemberHeader } from '@/components/items/MemberHeader'
 import { TutorialTour } from '@/components/ui/TutorialTour'
 import type { Step } from 'react-joyride'
 
-const listTourSteps: Step[] = [
+// Intro steps - always shown first
+const listIntroSteps: Step[] = [
   {
     target: '[data-tour="add-item"]',
     content: 'Add items to your list here.',
     disableBeacon: true,
   },
   {
-    target: '[data-tour="item-row"]',
-    content: 'Each item shows quantity and done status per member. Tap quantity to edit. Use the drag handle to reorder. Open the menu (⋮) to rename, comment, or delete.',
+    target: '[data-tour="view-toggle"]',
+    content: 'Filter to show all members or just the ones you created.',
+  },
+  {
+    target: '[data-tour="member-kebab"]',
+    content: 'Each member has a menu to rename, toggle visibility filters, and manage privacy settings.',
+  },
+]
+
+// Item-specific steps - shown when items exist
+const listItemSteps: Step[] = [
+  {
+    target: '[data-tour="item-archive"]',
+    content: 'Click the item name to archive it. Click again to restore.',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="item-state"]',
+    content: 'Each member column shows quantity and done status. Tap quantity to edit directly.',
+  },
+  {
+    target: '[data-tour="item-menu"]',
+    content: 'Use the menu (⋮) to rename, add a comment, or delete the item.',
   },
 ]
 
@@ -293,8 +315,13 @@ export default function ListPage() {
         </div>
       </div>
       
-      {/* Tutorial Tour */}
-      <TutorialTour tourId="list" steps={listTourSteps} />
+      {/* Tutorial - intro steps (always available) */}
+      <TutorialTour tourId="list-intro" steps={listIntroSteps} />
+      
+      {/* Tutorial - item-specific steps (only when items exist) */}
+      {items.length > 0 && (
+        <TutorialTour tourId="list-items" steps={listItemSteps} />
+      )}
     </div>
   )
 }

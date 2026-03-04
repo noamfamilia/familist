@@ -158,13 +158,14 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             onClick={handleArchive}
             className={`w-20 flex-shrink-0 truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500' : ''}`}
             title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
+            data-tour="item-archive"
           >
             {item.text}
           </span>
         )}
 
         {/* Per-member controls - aligned under header */}
-        <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
+        <div className="flex items-center ml-2 flex-shrink-0 gap-2.5" data-tour="item-state">
           {members.map(member => {
             const state = item.memberStates[member.id]
             const quantity = state?.quantity || 0
@@ -234,7 +235,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             onClick={() => setShowMenu(!showMenu)}
             className="text-gray-400 hover:text-gray-600 px-1 py-0.5 rounded hover:bg-gray-200"
             title="More options"
-            data-tour="item-kebab"
+            data-tour="item-menu"
           >
             <span className="text-lg">{showMenu ? '✕' : '⋮'}</span>
           </button>
