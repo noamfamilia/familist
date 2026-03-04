@@ -250,6 +250,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 type="text"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
+                onBlur={handleSaveComment}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveComment()
                 }}
@@ -257,17 +258,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
                 onClick={(e) => e.stopPropagation()}
               />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleSaveComment()
-                }}
-                className="text-teal hover:opacity-80 text-xl"
-                title="Save comment"
-              >
-                ✓
-              </button>
             </div>
             {/* Action buttons */}
             <div className="flex items-center justify-end gap-2">
