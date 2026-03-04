@@ -265,7 +265,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               alert('Link copied to clipboard!')
             }}
           >
-            Share <img src="/logo.png" alt="MyFamiList" className="h-4 inline-block" /> with family and friends
+            Share <img src="/logo.png" alt="MyFamiList" className="h-8 inline-block" /> with family and friends
           </button>
 
           <button
