@@ -253,17 +253,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
                 onClick={(e) => e.stopPropagation()}
               />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleSaveComment()
-                }}
-                className="w-8 h-8 flex items-center justify-center bg-coral text-white rounded-lg hover:opacity-80"
-                title="Save comment"
-              >
-                ✓
-              </button>
             </div>
             {/* Action buttons */}
             <div className="flex items-center justify-end gap-2">

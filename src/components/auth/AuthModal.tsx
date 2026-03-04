@@ -258,7 +258,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             Sign Out
           </Button>
 
-          <div className="flex justify-between items-center mt-4">
+          <div className="relative flex justify-center items-center mt-2">
             <button
               className="hover:opacity-80"
               onClick={() => {
@@ -270,7 +270,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </button>
 
             <button
-              className="text-sm text-teal hover:underline"
+              className="absolute right-0 text-sm text-teal hover:underline"
               onClick={() => {
                 resetTutorial('home')
                 resetTutorial('list')
