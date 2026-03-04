@@ -13,6 +13,12 @@ export function InstallBanner() {
   const [isIOS, setIsIOS] = useState(false)
 
   useEffect(() => {
+    // Only show on mobile devices
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    if (!isMobile) {
+      return
+    }
+
     // Check if already installed
     if (window.matchMedia('(display-mode: standalone)').matches) {
       return
