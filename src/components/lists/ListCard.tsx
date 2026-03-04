@@ -31,18 +31,18 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [deleting, setDeleting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [leaving, setLeaving] = useState(false)
-  const [comment, setComment] = useState((list as any).comment || '')
+  const [comment, setComment] = useState(list.comment || '')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const isOwner = list.role === 'owner'
 
   const handleSaveComment = async () => {
     const trimmed = comment.trim()
-    if (trimmed !== ((list as any).comment || '')) {
-      const { error } = await onUpdate(list.id, { comment: trimmed })
+    if (trimmed !== (list.comment || '')) {
+      const { error } = await onUpdate(list.id, { comment: trimmed || null })
       if (error) {
         showError('Failed to save comment')
-        setComment((list as any).comment || '')
+        setComment(list.comment || '')
       }
     }
   }

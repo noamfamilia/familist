@@ -39,6 +39,7 @@ export interface Database {
           owner_id: string
           visibility: 'private' | 'link'
           archived: boolean
+          comment: string | null
           join_token_hash: string | null
           join_role_granted: 'viewer' | 'editor'
           join_expires_at: string | null
@@ -53,6 +54,7 @@ export interface Database {
           owner_id: string
           visibility?: 'private' | 'link'
           archived?: boolean
+          comment?: string | null
           join_token_hash?: string | null
           join_role_granted?: 'viewer' | 'editor'
           join_expires_at?: string | null
@@ -67,6 +69,7 @@ export interface Database {
           owner_id?: string
           visibility?: 'private' | 'link'
           archived?: boolean
+          comment?: string | null
           join_token_hash?: string | null
           join_role_granted?: 'viewer' | 'editor'
           join_expires_at?: string | null
@@ -233,6 +236,7 @@ export type ListWithRole = List & {
   memberCount?: number
   activeItemCount?: number
   ownerNickname?: string | null
+  comment?: string | null
 }
 
 export type ItemWithState = Item & {

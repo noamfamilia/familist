@@ -55,6 +55,7 @@ export function useLists() {
         memberCount: item.memberCount,
         activeItemCount: item.activeItemCount,
         ownerNickname: item.ownerNickname,
+        comment: item.comment,
       }))
 
       setLists(listsData)
@@ -153,7 +154,7 @@ export function useLists() {
     return { data, error: null }
   }
 
-  const updateList = async (listId: string, updates: { name?: string; archived?: boolean }) => {
+  const updateList = async (listId: string, updates: { name?: string; archived?: boolean; comment?: string | null }) => {
     const { error } = await supabase
       .from('lists')
       .update(updates)
