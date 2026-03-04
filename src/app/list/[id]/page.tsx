@@ -20,32 +20,12 @@ import type { Step } from 'react-joyride'
 const listTourSteps: Step[] = [
   {
     target: '[data-tour="add-item"]',
-    content: 'Add items to your shopping list here.',
+    content: 'Add items to your list here.',
     disableBeacon: true,
   },
   {
-    target: '[data-tour="view-toggle"]',
-    content: 'Filter to show all members or just yours.',
-  },
-  {
-    target: '[data-tour="members-header"]',
-    content: 'Each column represents a family member. Click "+Member" to add someone.',
-  },
-  {
-    target: '[data-tour="member-kebab"]',
-    content: 'Click here to rename a member, filter their items, set public/private visibility, or delete. Click the member name to rename directly.',
-  },
-  {
-    target: '[data-tour="drag-handle"]',
-    content: 'Drag items up or down to reorder them.',
-  },
-  {
     target: '[data-tour="item-row"]',
-    content: 'Each item shows quantity and done status per member. Tap the quantity to edit directly. Click the item name to archive/restore it.',
-  },
-  {
-    target: '[data-tour="item-kebab"]',
-    content: 'Use this menu to rename, add comments, or delete items.',
+    content: 'Each item shows quantity and done status per member. Tap quantity to edit. Use the drag handle to reorder. Open the menu (⋮) to rename, comment, or delete.',
   },
 ]
 

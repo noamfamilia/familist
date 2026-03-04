@@ -9,13 +9,17 @@ import type { Step } from 'react-joyride'
 
 const homeTourSteps: Step[] = [
   {
-    target: '[data-tour="home-view-toggle"]',
-    content: 'Filter to show all lists or just the ones you own.',
+    target: '[data-tour="create-list"]',
+    content: 'Type a name to create a new list, or type @token to join a shared list.',
     disableBeacon: true,
   },
   {
-    target: '[data-tour="create-list"]',
-    content: 'Type a name to create a new list, or type @token to join a shared list.',
+    target: '[data-tour="home-view-toggle"]',
+    content: 'Filter to show all lists or just the ones you own.',
+  },
+  {
+    target: '[data-tour="profile-icon"]',
+    content: 'Access your profile settings, share the app, or replay this tutorial.',
   },
   {
     target: '[data-tour="list-card"]',
@@ -47,6 +51,7 @@ export default function Home() {
             className="hover:opacity-80 transition-opacity"
             aria-label="Account settings"
             title={profile?.nickname || profile?.username || user.email}
+            data-tour="profile-icon"
           >
             <img src="/profile.png" alt="Profile settings" className="w-8 h-8" />
           </button>
