@@ -256,6 +256,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       <button
         onClick={() => setMenuOpen(!menuOpen)}
         className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg leading-none"
+        data-tour="list-menu"
       >
         {menuOpen ? '✕' : '⋮'}
       </button>

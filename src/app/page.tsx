@@ -32,8 +32,12 @@ const homeListSteps: Step[] = [
     disableBeacon: true,
   },
   {
-    target: '[data-tour="list-card"]',
-    content: 'Click the lock/link icon to manage sharing. Use the menu (⋮) for rename, duplicate, or delete.',
+    target: '[data-tour="list-share"]',
+    content: 'Click the lock/link icon to manage sharing.',
+  },
+  {
+    target: '[data-tour="list-menu"]',
+    content: 'Use the menu (⋮) for rename, duplicate, or delete.',
   },
 ]
 
