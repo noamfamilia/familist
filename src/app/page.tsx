@@ -48,7 +48,7 @@ export default function Home() {
             aria-label="Account settings"
             title={profile?.nickname || profile?.username || user.email}
           >
-            <img src="/profile-icon.png" alt="Profile settings" className="w-8 h-8" />
+            <img src="/profile.png" alt="Profile settings" className="w-8 h-8" />
           </button>
         ) : (
           <button
