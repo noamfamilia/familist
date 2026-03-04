@@ -259,13 +259,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </Button>
 
           <button
-            className="w-full text-center text-sm text-teal hover:underline mt-3"
+            className="w-full flex items-center justify-center gap-1 text-sm text-teal hover:underline mt-3"
             onClick={() => {
               navigator.clipboard.writeText('Check out MyFamiList - a shared lists app for families! https://myfamilist.com')
               alert('Link copied to clipboard!')
             }}
           >
-            Share MyFamiList with family and friends
+            Share <img src="/logo.png" alt="MyFamiList" className="h-4 inline-block" /> with family and friends
           </button>
 
           <button
