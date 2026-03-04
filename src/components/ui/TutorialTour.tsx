@@ -7,9 +7,10 @@ interface TutorialTourProps {
   tourId: string
   steps: Step[]
   run?: boolean
+  onComplete?: () => void
 }
 
-export function TutorialTour({ tourId, steps, run: runProp }: TutorialTourProps) {
+export function TutorialTour({ tourId, steps, run: runProp, onComplete }: TutorialTourProps) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
@@ -39,6 +40,7 @@ export function TutorialTour({ tourId, steps, run: runProp }: TutorialTourProps)
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
       localStorage.setItem(`tutorial_${tourId}`, 'true')
       setRun(false)
+      onComplete?.()
     }
 
     if (type === 'step:after') {

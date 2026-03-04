@@ -30,11 +30,11 @@ const listIntroSteps: Step[] = [
   },
   {
     target: '[data-tour="add-member"]',
-    content: 'Click +Member to manage more members.',
+    content: 'Click to add members that are owned by you.',
   },
   {
     target: '[data-tour="members-header"]',
-    content: 'A shared list can have multiple members that are managed by different users.',
+    content: 'A shared list can have multiple members that are owned by different users.',
   },
 ]
 
@@ -87,6 +87,9 @@ export default function ListPage() {
     changeQuantity,
     reorderItems,
   } = useList(listId)
+
+  const [introComplete, setIntroComplete] = useState(() => hasSeenTutorial('list-intro'))
+  const [itemsComplete, setItemsComplete] = useState(() => hasSeenTutorial('list-items'))
 
   // Redirect to home if access is revoked
   useEffect(() => {
@@ -329,15 +332,23 @@ export default function ListPage() {
       </div>
       
       {/* Tutorial - intro steps (always available) */}
-      <TutorialTour tourId="list-intro" steps={listIntroSteps} />
+      <TutorialTour 
+        tourId="list-intro" 
+        steps={listIntroSteps} 
+        onComplete={() => setIntroComplete(true)}
+      />
       
       {/* Tutorial - item-specific steps (only after intro done and items exist) */}
-      {items.length > 0 && hasSeenTutorial('list-intro') && (
-        <TutorialTour tourId="list-items" steps={listItemSteps} />
+      {items.length > 0 && introComplete && (
+        <TutorialTour 
+          tourId="list-items" 
+          steps={listItemSteps}
+          onComplete={() => setItemsComplete(true)}
+        />
       )}
       
       {/* Tutorial - member-specific steps (only after items done and members exist) */}
-      {members.length > 0 && hasSeenTutorial('list-intro') && hasSeenTutorial('list-items') && (
+      {members.length > 0 && introComplete && itemsComplete && (
         <TutorialTour tourId="list-members" steps={listMemberSteps} />
       )}
     </div>

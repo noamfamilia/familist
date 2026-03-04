@@ -23,6 +23,7 @@ interface ListsViewProps {
 
 export function ListsView({ viewMode, homeIntroSteps, homeListSteps, showTutorial = true }: ListsViewProps) {
   const { lists, loading, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
+  const [introComplete, setIntroComplete] = useState(() => hasSeenTutorial('home-intro'))
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -207,11 +208,15 @@ export function ListsView({ viewMode, homeIntroSteps, homeListSteps, showTutoria
       
       {/* Tutorial - intro steps (always available) */}
       {homeIntroSteps && showTutorial && (
-        <TutorialTour tourId="home-intro" steps={homeIntroSteps} />
+        <TutorialTour 
+          tourId="home-intro" 
+          steps={homeIntroSteps} 
+          onComplete={() => setIntroComplete(true)}
+        />
       )}
       
       {/* Tutorial - list-specific steps (only after intro is done and lists exist) */}
-      {homeListSteps && showTutorial && lists.length > 0 && hasSeenTutorial('home-intro') && (
+      {homeListSteps && showTutorial && lists.length > 0 && introComplete && (
         <TutorialTour tourId="home-lists" steps={homeListSteps} />
       )}
     </div>
