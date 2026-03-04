@@ -88,8 +88,14 @@ export default function ListPage() {
     reorderItems,
   } = useList(listId)
 
-  const [introComplete, setIntroComplete] = useState(() => hasSeenTutorial('list-intro'))
-  const [itemsComplete, setItemsComplete] = useState(() => hasSeenTutorial('list-items'))
+  const [introComplete, setIntroComplete] = useState(false)
+  const [itemsComplete, setItemsComplete] = useState(false)
+
+  // Set initial tutorial state after mount to avoid SSR issues
+  useEffect(() => {
+    setIntroComplete(hasSeenTutorial('list-intro'))
+    setItemsComplete(hasSeenTutorial('list-items'))
+  }, [])
 
   // Redirect to home if access is revoked
   useEffect(() => {

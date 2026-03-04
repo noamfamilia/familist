@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useLists } from '@/hooks/useLists'
@@ -23,7 +23,12 @@ interface ListsViewProps {
 
 export function ListsView({ viewMode, homeIntroSteps, homeListSteps, showTutorial = true }: ListsViewProps) {
   const { lists, loading, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
-  const [introComplete, setIntroComplete] = useState(() => hasSeenTutorial('home-intro'))
+  const [introComplete, setIntroComplete] = useState(false)
+  
+  // Set initial tutorial state after mount to avoid SSR issues
+  useEffect(() => {
+    setIntroComplete(hasSeenTutorial('home-intro'))
+  }, [])
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
