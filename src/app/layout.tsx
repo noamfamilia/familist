@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   description: 'A collaborative shared lists application for families',
   manifest: '/manifest.json',
   icons: {
-    icon: '/icon.svg',
-    apple: '/icon.svg',
+    icon: '/icon-192.png',
+    apple: '/icon-192.png',
   },
   appleWebApp: {
     capable: true,
