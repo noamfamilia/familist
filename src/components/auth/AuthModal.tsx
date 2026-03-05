@@ -259,6 +259,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </Button>
 
           <div className="relative flex justify-center items-center mt-2">
+            <div className="absolute left-0 text-xs text-gray-400 flex flex-col">
+              <span>All rights reserved:</span>
+              <span>Noam Familia</span>
+            </div>
+
             <button
               className="hover:opacity-80"
               onClick={() => {
@@ -281,11 +286,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               <span>Replay</span>
               <span>Tutorial</span>
             </button>
-          </div>
-
-          <div className="text-left text-xs text-gray-400 mt-4">
-            <div>All rights reserved to</div>
-            <div>Noam Familia</div>
           </div>
         </div>
       </Modal>
