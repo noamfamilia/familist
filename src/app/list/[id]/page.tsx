@@ -325,7 +325,7 @@ export default function ListPage() {
       <TutorialTour 
         tourId="list" 
         steps={listTourSteps}
-        listsExist={items.length > 0 || members.length > 0}
+        contentKey={`${items.length}-${members.length}`}
       />
     </div>
   )

@@ -8,7 +8,7 @@ interface TutorialTourProps {
   steps: Step[]
   run?: boolean
   onComplete?: () => void
-  listsExist?: boolean // Trigger to check for new available steps
+  contentKey?: string | number // Changes when content changes to trigger re-check
 }
 
 // Get completed targets from localStorage
@@ -23,7 +23,7 @@ function saveCompletedTargets(tourId: string, targets: Set<string>) {
   localStorage.setItem(`tutorial_${tourId}_targets`, JSON.stringify([...targets]))
 }
 
-export function TutorialTour({ tourId, steps, run: runProp, onComplete, listsExist }: TutorialTourProps) {
+export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentKey }: TutorialTourProps) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
@@ -58,7 +58,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, listsExi
       const timer = setTimeout(() => setRun(true), 500)
       return () => clearTimeout(timer)
     }
-  }, [tourId, runProp, steps, listsExist])
+  }, [tourId, runProp, steps, contentKey])
 
   const handleCallback = (data: CallBackProps) => {
     const { status, index, type } = data

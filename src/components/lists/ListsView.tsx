@@ -209,7 +209,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
         <TutorialTour 
           tourId="home" 
           steps={homeTourSteps}
-          listsExist={lists.length > 0}
+          contentKey={lists.length}
         />
       )}
     </div>
