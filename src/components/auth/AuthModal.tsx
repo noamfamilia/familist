@@ -262,7 +262,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <button
               className="hover:opacity-80"
               onClick={() => {
-                navigator.clipboard.writeText('Check out MyFamiList - a shared lists app for families! https://myfamilist.com')
+                navigator.clipboard.writeText('https://myfamilist.com/?v1')
                 alert('Link copied to clipboard!')
               }}
             >
