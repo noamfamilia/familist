@@ -11,69 +11,75 @@ interface TutorialTourProps {
   listsExist?: boolean // Trigger to check for new available steps
 }
 
+// Get completed targets from localStorage
+function getCompletedTargets(tourId: string): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+  const stored = localStorage.getItem(`tutorial_${tourId}_targets`)
+  return stored ? new Set(JSON.parse(stored)) : new Set()
+}
+
+// Save completed targets to localStorage
+function saveCompletedTargets(tourId: string, targets: Set<string>) {
+  localStorage.setItem(`tutorial_${tourId}_targets`, JSON.stringify([...targets]))
+}
+
 export function TutorialTour({ tourId, steps, run: runProp, onComplete, listsExist }: TutorialTourProps) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
-  const prevAvailableCount = useRef(0)
+  const prevStepsKey = useRef('')
 
   useEffect(() => {
-    // Get completed step count from localStorage
-    const completedCount = parseInt(localStorage.getItem(`tutorial_${tourId}_completed`) || '0', 10)
     const isFullyComplete = localStorage.getItem(`tutorial_${tourId}`) === 'true'
     
-    if (isFullyComplete && runProp !== false) {
-      // Tour was fully completed, don't show again
+    if (isFullyComplete || runProp === false) {
       return
     }
 
-    // Filter steps to only include those with existing targets
+    const completedTargets = getCompletedTargets(tourId)
+
+    // Filter steps: target exists in DOM AND hasn't been completed
     const availableSteps = steps.filter(step => {
       if (typeof step.target === 'string') {
-        return document.querySelector(step.target) !== null
+        const exists = document.querySelector(step.target) !== null
+        const notCompleted = !completedTargets.has(step.target)
+        return exists && notCompleted
       }
       return true
     })
     
-    // Check if there are new steps available beyond what we've completed
-    if (availableSteps.length > completedCount && runProp !== false) {
-      // Get only the steps we haven't shown yet
-      const remainingSteps = availableSteps.slice(completedCount)
-      
-      if (remainingSteps.length > 0 && remainingSteps.length !== prevAvailableCount.current) {
-        prevAvailableCount.current = remainingSteps.length
-        setFilteredSteps(remainingSteps)
-        setStepIndex(0)
-        const timer = setTimeout(() => setRun(true), 500)
-        return () => clearTimeout(timer)
-      }
+    // Create a key to detect changes in available steps
+    const stepsKey = availableSteps.map(s => s.target).join(',')
+    
+    if (availableSteps.length > 0 && stepsKey !== prevStepsKey.current) {
+      prevStepsKey.current = stepsKey
+      setFilteredSteps(availableSteps)
+      setStepIndex(0)
+      const timer = setTimeout(() => setRun(true), 500)
+      return () => clearTimeout(timer)
     }
   }, [tourId, runProp, steps, listsExist])
 
   const handleCallback = (data: CallBackProps) => {
     const { status, index, type } = data
-    const completedCount = parseInt(localStorage.getItem(`tutorial_${tourId}_completed`) || '0', 10)
 
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
-      // Update completed count
-      const newCompletedCount = completedCount + filteredSteps.length
-      localStorage.setItem(`tutorial_${tourId}_completed`, newCompletedCount.toString())
-      
-      // Check if we've shown all steps
-      const allAvailableSteps = steps.filter(step => {
+      // Mark shown steps as completed by their target
+      const completedTargets = getCompletedTargets(tourId)
+      filteredSteps.forEach(step => {
         if (typeof step.target === 'string') {
-          return document.querySelector(step.target) !== null
+          completedTargets.add(step.target)
         }
-        return true
       })
+      saveCompletedTargets(tourId, completedTargets)
       
-      if (newCompletedCount >= steps.length || status === STATUS.SKIPPED) {
-        // All steps shown or skipped, mark as fully complete
+      // Check if all steps have been completed or skipped
+      if (completedTargets.size >= steps.length || status === STATUS.SKIPPED) {
         localStorage.setItem(`tutorial_${tourId}`, 'true')
       }
       
       setRun(false)
-      prevAvailableCount.current = 0
+      prevStepsKey.current = ''
       onComplete?.()
     }
 
@@ -128,6 +134,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, listsExi
 export function resetTutorial(tourId: string) {
   localStorage.removeItem(`tutorial_${tourId}`)
   localStorage.removeItem(`tutorial_${tourId}_completed`)
+  localStorage.removeItem(`tutorial_${tourId}_targets`)
 }
 
 export function hasSeenTutorial(tourId: string): boolean {
