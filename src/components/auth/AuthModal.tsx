@@ -283,7 +283,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </button>
           </div>
 
-          <div className="text-right text-xs text-gray-400 mt-4">
+          <div className="text-left text-xs text-gray-400 mt-4">
             <div>All rights reserved to</div>
             <div>Noam Familia</div>
           </div>
