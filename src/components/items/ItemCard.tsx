@@ -165,7 +165,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         )}
 
         {/* Per-member controls - aligned under header */}
-        <div className="flex items-center ml-2 flex-shrink-0 gap-2.5" data-tour="item-state">
+        <div 
+          className="flex items-center ml-2 flex-shrink-0 gap-2.5"
+          {...(members.length > 0 ? { 'data-tour': 'item-state' } : {})}
+        >
           {members.map(member => {
             const state = item.memberStates[member.id]
             const quantity = state?.quantity || 0
