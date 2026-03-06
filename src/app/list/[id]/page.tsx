@@ -149,12 +149,16 @@ export default function ListPage() {
     setAdding(false)
   }
 
+  const searchText = newItemText.trim().toLowerCase()
+
   const activeItems = items
     .filter(item => !item.archived)
+    .filter(item => searchText ? item.text.toLowerCase().includes(searchText) : true)
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
   
   const archivedItems = items
     .filter(item => item.archived)
+    .filter(item => searchText ? item.text.toLowerCase().includes(searchText) : true)
     .sort((a, b) => {
       const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
       const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0

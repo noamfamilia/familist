@@ -39,11 +39,14 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
   const [error, setError] = useState('')
   
   const isJoinMode = inputValue.startsWith('@')
+  const searchText = isJoinMode ? '' : inputValue.trim().toLowerCase()
 
-  // Filter lists based on ownership (all or mine only)
-  const filteredLists = viewMode === 'mine' 
-    ? lists.filter(list => list.role === 'owner')
-    : lists
+  // Filter lists based on ownership (all or mine only) and search text
+  const filteredLists = lists.filter(list => {
+    const matchesViewMode = viewMode === 'mine' ? list.role === 'owner' : true
+    const matchesSearch = searchText ? list.name.toLowerCase().includes(searchText) : true
+    return matchesViewMode && matchesSearch
+  })
 
   // Separate active and archived lists
   const activeLists = filteredLists.filter(list => !list.userArchived)
