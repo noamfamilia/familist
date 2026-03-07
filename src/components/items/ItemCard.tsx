@@ -180,7 +180,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             return (
               <div 
                 key={member.id} 
-                className={`flex items-center justify-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${!canEdit ? 'opacity-50' : ''}`}
+                className={`flex items-center justify-center ${quantity > 0 ? 'gap-1' : ''} px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${!canEdit ? 'opacity-50' : ''} ${quantity === 0 && canEdit && !isEditingThis ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                onClick={() => {
+                  if (quantity === 0 && canEdit && !isEditingThis) {
+                    onUpdateMemberState(item.id, member.id, { quantity: 1 })
+                  }
+                }}
               >
                 {/* Quantity - editable text */}
                 {isEditingThis ? (
@@ -202,25 +207,35 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   />
                 ) : (
                   <span
-                    onClick={() => canEdit && handleStartEditQuantity(member.id, quantity)}
-                    className={`w-8 text-center text-lg font-semibold text-primary ${canEdit ? 'cursor-pointer hover:text-teal' : 'cursor-not-allowed'}`}
+                    onClick={(e) => {
+                      if (quantity > 0 && canEdit) {
+                        e.stopPropagation()
+                        handleStartEditQuantity(member.id, quantity)
+                      }
+                    }}
+                    className={`text-center text-lg font-semibold ${quantity === 0 ? 'text-gray-400' : 'text-primary'} ${quantity > 0 && canEdit ? 'cursor-pointer hover:text-teal w-8' : ''}`}
                   >
                     {quantity}
                   </span>
                 )}
 
-                {/* Done toggle */}
-                <button
-                  onClick={() => canEdit && handleToggleDone(member.id)}
-                  className={`w-6 h-6 rounded-md flex items-center justify-center text-base font-bold transition-colors ${
-                    done 
-                      ? 'bg-coral text-white' 
-                      : 'bg-gray-100 text-primary'
-                  } ${canEdit ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
-                  disabled={!canEdit}
-                >
-                  ✓
-                </button>
+                {/* Done toggle - only visible when quantity > 0 */}
+                {quantity > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      canEdit && handleToggleDone(member.id)
+                    }}
+                    className={`w-6 h-6 rounded-md flex items-center justify-center text-base font-bold transition-colors ${
+                      done 
+                        ? 'bg-coral text-white' 
+                        : 'bg-gray-100 text-primary'
+                    } ${canEdit ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
+                    disabled={!canEdit}
+                  >
+                    ✓
+                  </button>
+                )}
               </div>
             )
           })}
