@@ -18,9 +18,10 @@ interface ItemCardProps {
   onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<any>
   dragHandleProps?: Record<string, unknown>
   isDraggable?: boolean
+  itemTextWidth?: number
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80 }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -150,13 +151,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 setIsEditing(false)
               }
             }}
-            className="w-20 flex-shrink-0 px-2 py-0.5 border border-teal rounded text-lg"
+            className="flex-shrink-0 px-2 py-0.5 border border-teal rounded text-lg"
+            style={{ width: itemTextWidth }}
             autoFocus
           />
         ) : (
           <span
             onClick={handleArchive}
-            className={`w-20 flex-shrink-0 truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500' : ''}`}
+            className={`flex-shrink-0 truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500' : ''}`}
+            style={{ width: itemTextWidth }}
             title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
             data-tour="item-archive"
           >

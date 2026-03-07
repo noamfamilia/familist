@@ -15,9 +15,10 @@ interface SortableItemCardProps {
   onDeleteItem: (itemId: string) => Promise<{ error?: Error | null }>
   onChangeQuantity: (itemId: string, memberId: string, delta: number) => Promise<any>
   onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<any>
+  itemTextWidth?: number
 }
 
-export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -46,6 +47,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
         onUpdateMemberState={onUpdateMemberState}
         dragHandleProps={{ ...attributes, ...listeners }}
         isDraggable={true}
+        itemTextWidth={itemTextWidth}
       />
     </div>
   )

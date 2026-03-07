@@ -104,6 +104,11 @@ export default function ListPage() {
   const [adding, setAdding] = useState(false)
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
   const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
+  const [itemTextWidth, setItemTextWidth] = useState(80)
+
+  const handleWidthChange = (delta: number) => {
+    setItemTextWidth(prev => Math.max(80, prev + delta))
+  }
 
   if (!user) {
     return (
@@ -260,6 +265,8 @@ export default function ListPage() {
               onDeleteMember={deleteMember}
               listId={listId}
               showAddMember={memberFilter === 'all'}
+              itemTextWidth={itemTextWidth}
+              onWidthChange={handleWidthChange}
             />
           </div>
 
@@ -283,6 +290,7 @@ export default function ListPage() {
                       onDeleteItem={deleteItem}
                       onChangeQuantity={changeQuantity}
                       onUpdateMemberState={updateMemberState}
+                      itemTextWidth={itemTextWidth}
                     />
                   ))}
                 </SortableContext>
@@ -317,6 +325,7 @@ export default function ListPage() {
                     onChangeQuantity={changeQuantity}
                     onUpdateMemberState={updateMemberState}
                     isDraggable={false}
+                    itemTextWidth={itemTextWidth}
                   />
                 ))}
               </div>

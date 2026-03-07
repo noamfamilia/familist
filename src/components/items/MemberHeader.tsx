@@ -18,6 +18,8 @@ interface MemberHeaderProps {
   onDeleteMember: (memberId: string) => Promise<{ error?: { message: string } | null }>
   listId: string
   showAddMember?: boolean
+  itemTextWidth?: number
+  onWidthChange?: (delta: number) => void
 }
 
 export function MemberHeader({
@@ -31,6 +33,8 @@ export function MemberHeader({
   onDeleteMember,
   listId,
   showAddMember = true,
+  itemTextWidth = 80,
+  onWidthChange,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
@@ -124,7 +128,24 @@ export function MemberHeader({
         {/* Header row - matching item card styling */}
         <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap">
           <div className="w-5 flex-shrink-0 h-[40px]" />
-          <div className="w-20 flex-shrink-0 h-[40px]" />
+          <div 
+            className="flex-shrink-0 h-[40px] flex items-center justify-between"
+            style={{ width: itemTextWidth }}
+          >
+            <button
+              onClick={() => onWidthChange?.(-20)}
+              disabled={itemTextWidth <= 80}
+              className="text-gray-400 hover:text-teal disabled:opacity-30 text-sm"
+            >
+              ◀
+            </button>
+            <button
+              onClick={() => onWidthChange?.(20)}
+              className="text-gray-400 hover:text-teal text-sm"
+            >
+              ▶
+            </button>
+          </div>
           
           {/* Members section */}
           <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
