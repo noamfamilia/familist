@@ -40,18 +40,26 @@ const homeTourSteps: Step[] = [
 export default function Home() {
   const { user, profile, loading, updateProfile } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [viewMode, setViewMode] = useState<'all' | 'mine'>('all')
+  const [viewMode, setViewMode] = useState<'all' | 'mine'>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('home_list_filter')
+      if (cached === 'all' || cached === 'mine') return cached
+    }
+    return 'all'
+  })
 
-  // Initialize viewMode from profile when loaded
+  // Sync viewMode from profile (for cross-device consistency)
   useEffect(() => {
     if (profile?.list_filter === 'mine' || profile?.list_filter === 'all') {
       setViewMode(profile.list_filter)
+      localStorage.setItem('home_list_filter', profile.list_filter)
     }
   }, [profile?.list_filter])
 
-  // Save viewMode to profile when changed
+  // Save viewMode to localStorage and profile when changed
   const handleViewModeChange = (mode: 'all' | 'mine') => {
     setViewMode(mode)
+    localStorage.setItem('home_list_filter', mode)
     updateProfile({ list_filter: mode })
   }
 

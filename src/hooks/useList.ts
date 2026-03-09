@@ -30,6 +30,19 @@ function getCachedPrefs(listId: string) {
   return { memberFilter: 'all' as const, itemTextWidth: 80 }
 }
 
+// Helper to save preferences to localStorage
+function setCachedPrefs(listId: string, prefs: { memberFilter?: 'all' | 'mine', itemTextWidth?: number }) {
+  if (typeof window === 'undefined') return
+  try {
+    const current = getCachedPrefs(listId)
+    const updated = { ...current, ...prefs }
+    localStorage.setItem(`list_${listId}_prefs`, JSON.stringify(updated))
+  } catch { /* ignore */ }
+}
+
+const FETCH_TIMEOUT_MS = 5000
+const SAVE_TIMEOUT_MS = 5000
+
 export function useList(listId: string) {
   const { user } = useAuth()
   // Initialize from cache for instant load
@@ -39,16 +52,45 @@ export function useList(listId: string) {
   const [members, setMembers] = useState<MemberWithCreator[]>(cached?.members || [])
   const [loading, setLoading] = useState(!cached?.list)
   const [isFetching, setIsFetching] = useState(true)
+  const [fetchTimedOut, setFetchTimedOut] = useState(false)
+  const [saveTimedOut, setSaveTimedOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
   const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>(() => getCachedPrefs(listId).memberFilter)
   const [itemTextWidth, setItemTextWidth] = useState(() => getCachedPrefs(listId).itemTextWidth)
   const fetchingRef = useRef(false)
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingSaveOpsRef = useRef(0)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const hadAccessRef = useRef(false)
   const hasInitialDataRef = useRef(false)
   const skipRealtimeUntilRef = useRef(0)
   const userId = user?.id
+
+  const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
+    pendingSaveOpsRef.current++
+    setSaveTimedOut(false)
+
+    if (!saveTimeoutRef.current) {
+      saveTimeoutRef.current = setTimeout(() => {
+        if (pendingSaveOpsRef.current > 0) setSaveTimedOut(true)
+      }, SAVE_TIMEOUT_MS)
+    }
+
+    try {
+      return await operation
+    } finally {
+      pendingSaveOpsRef.current--
+      if (pendingSaveOpsRef.current === 0) {
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current)
+          saveTimeoutRef.current = null
+        }
+        setSaveTimedOut(false)
+      }
+    }
+  }
 
   const fetchList = useCallback(async () => {
     if (!userId || !listId) {
@@ -60,6 +102,15 @@ export function useList(listId: string) {
     if (fetchingRef.current) return
     fetchingRef.current = true
     setIsFetching(true)
+    setFetchTimedOut(false)
+
+    // Set timeout for fetch
+    if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
+    fetchTimeoutRef.current = setTimeout(() => {
+      if (fetchingRef.current) {
+        setFetchTimedOut(true)
+      }
+    }, FETCH_TIMEOUT_MS)
 
     // Only show loading spinner on initial load if no cached data
     const cachedData = getCachedList(listId)
@@ -116,14 +167,18 @@ export function useList(listId: string) {
       if (listUserData) {
         if (listUserData.member_filter === 'all' || listUserData.member_filter === 'mine') {
           setMemberFilter(listUserData.member_filter)
+          setCachedPrefs(listId, { memberFilter: listUserData.member_filter })
         }
         if (listUserData.item_text_width && listUserData.item_text_width >= 80) {
           setItemTextWidth(listUserData.item_text_width)
+          setCachedPrefs(listId, { itemTextWidth: listUserData.item_text_width })
         }
       }
+      setFetchTimedOut(false)
     } catch (err) {
       setError((err as Error).message)
     } finally {
+      if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setLoading(false)
       setIsFetching(false)
       fetchingRef.current = false
@@ -217,18 +272,19 @@ export function useList(listId: string) {
     const maxSortOrder = items.reduce((max, item) => 
       Math.max(max, item.sort_order || 0), 0)
 
-    const { data, error } = await supabase
-      .from('items')
-      .insert({
-        list_id: listId,
-        text,
-        sort_order: maxSortOrder + 1,
-      })
-      .select()
-      .single()
+    const { data, error } = await trackSaveOperation(
+      supabase
+        .from('items')
+        .insert({
+          list_id: listId,
+          text,
+          sort_order: maxSortOrder + 1,
+        })
+        .select()
+        .single()
+    )
 
     if (error) {
-      // Handle unique constraint violation
       if (error.code === '23505') {
         return { data: null, error: { ...error, message: 'An item with this name already exists' } }
       }
@@ -241,13 +297,14 @@ export function useList(listId: string) {
   }
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
-    const { error } = await supabase
-      .from('items')
-      .update(updates)
-      .eq('id', itemId)
+    const { error } = await trackSaveOperation(
+      supabase
+        .from('items')
+        .update(updates)
+        .eq('id', itemId)
+    )
 
     if (error) {
-      // Handle unique constraint violation
       if (error.code === '23505') {
         return { error: { ...error, message: 'An item with this name already exists' } }
       }
@@ -259,7 +316,6 @@ export function useList(listId: string) {
       item.id === itemId ? { ...item, ...updates } : item
     ))
     
-    // Broadcast to other clients
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -272,16 +328,17 @@ export function useList(listId: string) {
   }
 
   const deleteItem = async (itemId: string) => {
-    const { error } = await supabase
-      .from('items')
-      .delete()
-      .eq('id', itemId)
+    const { error } = await trackSaveOperation(
+      supabase
+        .from('items')
+        .delete()
+        .eq('id', itemId)
+    )
 
     if (!error) {
       skipRealtimeUntilRef.current = Date.now() + 2000
       setItems(prev => prev.filter(item => item.id !== itemId))
       
-      // Broadcast to other clients
       if (channelRef.current) {
         channelRef.current.send({
           type: 'broadcast',
@@ -300,27 +357,27 @@ export function useList(listId: string) {
     const maxSortOrder = members.reduce((max, member) => 
       Math.max(max, member.sort_order || 0), 0)
 
-    const { data, error } = await supabase
-      .from('members')
-      .insert({
-        list_id: listId,
-        name,
-        created_by: userId,
-        sort_order: maxSortOrder + 1,
-      })
-      .select()
-      .single()
+    const { data, error } = await trackSaveOperation(
+      supabase
+        .from('members')
+        .insert({
+          list_id: listId,
+          name,
+          created_by: userId,
+          sort_order: maxSortOrder + 1,
+        })
+        .select()
+        .single()
+    )
 
     if (!error && data) {
       skipRealtimeUntilRef.current = Date.now() + 2000
-      // Include creator info in optimistic update
       const memberWithCreator = {
         ...data,
         creator: creatorNickname ? { nickname: creatorNickname } : null
       }
       setMembers(prev => [...prev, memberWithCreator])
       
-      // Broadcast to other clients
       if (channelRef.current) {
         channelRef.current.send({
           type: 'broadcast',
@@ -334,12 +391,13 @@ export function useList(listId: string) {
   }
 
   const updateMember = async (memberId: string, updates: Partial<Member>) => {
-    // Use RPC to enforce creator-only permission
-    const { error } = await (supabase.rpc as any)('update_member', {
-      p_member_id: memberId,
-      p_name: updates.name !== undefined ? updates.name : null,
-      p_is_public: updates.is_public !== undefined ? updates.is_public : null,
-    })
+    const { error } = await trackSaveOperation(
+      (supabase.rpc as any)('update_member', {
+        p_member_id: memberId,
+        p_name: updates.name !== undefined ? updates.name : null,
+        p_is_public: updates.is_public !== undefined ? updates.is_public : null,
+      })
+    )
 
     if (error) {
       return { error: { ...error, message: error.message || 'Failed to update member' } }
@@ -350,7 +408,6 @@ export function useList(listId: string) {
       member.id === memberId ? { ...member, ...updates } : member
     ))
 
-    // Broadcast to other users that the list changed
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -363,10 +420,11 @@ export function useList(listId: string) {
   }
 
   const deleteMember = async (memberId: string) => {
-    // Use RPC to enforce creator-only permission
-    const { error } = await (supabase.rpc as any)('delete_member', {
-      p_member_id: memberId,
-    })
+    const { error } = await trackSaveOperation(
+      (supabase.rpc as any)('delete_member', {
+        p_member_id: memberId,
+      })
+    )
 
     if (error) {
       return { error: { ...error, message: error.message || 'Failed to delete member' } }
@@ -374,7 +432,6 @@ export function useList(listId: string) {
 
     skipRealtimeUntilRef.current = Date.now() + 2000
     setMembers(prev => prev.filter(member => member.id !== memberId))
-    // Also remove member states from items
     setItems(prev => prev.map(item => ({
       ...item,
       memberStates: Object.fromEntries(
@@ -382,7 +439,6 @@ export function useList(listId: string) {
       ),
     })))
 
-    // Broadcast to other users that the list changed
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -399,16 +455,16 @@ export function useList(listId: string) {
     memberId: string,
     updates: { quantity?: number; done?: boolean }
   ) => {
-    // Check if state exists
     const existingState = items.find(i => i.id === itemId)?.memberStates[memberId]
 
     if (existingState) {
-      // Update existing
-      const { error } = await supabase
-        .from('item_member_state')
-        .update(updates)
-        .eq('item_id', itemId)
-        .eq('member_id', memberId)
+      const { error } = await trackSaveOperation(
+        supabase
+          .from('item_member_state')
+          .update(updates)
+          .eq('item_id', itemId)
+          .eq('member_id', memberId)
+      )
 
       if (!error) {
         skipRealtimeUntilRef.current = Date.now() + 2000
@@ -426,17 +482,18 @@ export function useList(listId: string) {
 
       return { error }
     } else {
-      // Insert new
-      const { data, error } = await supabase
-        .from('item_member_state')
-        .insert({
-          item_id: itemId,
-          member_id: memberId,
-          quantity: updates.quantity ?? 0,
-          done: updates.done ?? false,
-        })
-        .select()
-        .single()
+      const { data, error } = await trackSaveOperation(
+        supabase
+          .from('item_member_state')
+          .insert({
+            item_id: itemId,
+            member_id: memberId,
+            quantity: updates.quantity ?? 0,
+            done: updates.done ?? false,
+          })
+          .select()
+          .single()
+      )
 
       if (!error && data) {
         skipRealtimeUntilRef.current = Date.now() + 2000
@@ -457,11 +514,13 @@ export function useList(listId: string) {
   }
 
   const changeQuantity = async (itemId: string, memberId: string, delta: number) => {
-    const { data, error } = await (supabase.rpc as any)('change_quantity', {
-      p_item_id: itemId,
-      p_member_id: memberId,
-      p_delta: delta,
-    })
+    const { data, error } = await trackSaveOperation(
+      (supabase.rpc as any)('change_quantity', {
+        p_item_id: itemId,
+        p_member_id: memberId,
+        p_delta: delta,
+      })
+    )
 
     if (!error) {
       skipRealtimeUntilRef.current = Date.now() + 2000
@@ -488,7 +547,6 @@ export function useList(listId: string) {
   }
 
   const reorderItems = async (reorderedItems: ItemWithState[]) => {
-    // Optimistically update the UI with updated sort_order values
     skipRealtimeUntilRef.current = Date.now() + 2000
     const itemsWithUpdatedOrder = reorderedItems.map((item, index) => ({
       ...item,
@@ -496,12 +554,13 @@ export function useList(listId: string) {
     }))
     setItems(itemsWithUpdatedOrder)
 
-    // Update sort_order in database for each item
     const updates = reorderedItems.map((item, index) => 
-      supabase
-        .from('items')
-        .update({ sort_order: index })
-        .eq('id', item.id)
+      trackSaveOperation(
+        supabase
+          .from('items')
+          .update({ sort_order: index })
+          .eq('id', item.id)
+      )
     )
 
     await Promise.all(updates)
@@ -509,24 +568,30 @@ export function useList(listId: string) {
 
   const updateMemberFilter = async (filter: 'all' | 'mine') => {
     setMemberFilter(filter)
+    setCachedPrefs(listId, { memberFilter: filter })
     if (userId) {
-      await supabase
-        .from('list_users')
-        .update({ member_filter: filter })
-        .eq('list_id', listId)
-        .eq('user_id', userId)
+      await trackSaveOperation(
+        supabase
+          .from('list_users')
+          .update({ member_filter: filter })
+          .eq('list_id', listId)
+          .eq('user_id', userId)
+      )
     }
   }
 
   const updateItemTextWidth = async (width: number) => {
     const newWidth = Math.max(80, width)
     setItemTextWidth(newWidth)
+    setCachedPrefs(listId, { itemTextWidth: newWidth })
     if (userId) {
-      await supabase
-        .from('list_users')
-        .update({ item_text_width: newWidth })
-        .eq('list_id', listId)
-        .eq('user_id', userId)
+      await trackSaveOperation(
+        supabase
+          .from('list_users')
+          .update({ item_text_width: newWidth })
+          .eq('list_id', listId)
+          .eq('user_id', userId)
+      )
     }
   }
 
@@ -536,6 +601,8 @@ export function useList(listId: string) {
     members,
     loading,
     isFetching,
+    fetchTimedOut,
+    saveTimedOut,
     error,
     accessDenied,
     memberFilter,

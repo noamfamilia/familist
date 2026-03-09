@@ -21,7 +21,7 @@ interface ListsViewProps {
 }
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: ListsViewProps) {
-  const { lists, loading, isFetching, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
+  const { lists, loading, isFetching, fetchTimedOut, saveTimedOut, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -121,6 +121,13 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
 
   return (
     <div className="space-y-6">
+      {/* Timeout message */}
+      {(fetchTimedOut || saveTimedOut) && (
+        <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium">
+          Your changes may not have been saved to the server. Refresh page and try again
+        </div>
+      )}
+
       {/* Create or Join */}
       <form onSubmit={handleSubmit} className="flex gap-3" data-tour="create-list">
         <div className="flex-1">

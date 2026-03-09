@@ -10,18 +10,50 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const supabase = createClient()
 
+const FETCH_TIMEOUT_MS = 5000
+const SAVE_TIMEOUT_MS = 5000
+
 export function useLists() {
   const { user } = useAuth()
   // Initialize from cache for instant load
   const [lists, setLists] = useState<ListWithRole[]>(() => getCachedLists()?.lists || [])
   const [loading, setLoading] = useState(() => !getCachedLists()?.lists?.length)
   const [isFetching, setIsFetching] = useState(true)
+  const [fetchTimedOut, setFetchTimedOut] = useState(false)
+  const [saveTimedOut, setSaveTimedOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fetchingRef = useRef(false)
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingSaveOpsRef = useRef(0)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const skipRealtimeUntilRef = useRef<number>(0)
   const hasInitialDataRef = useRef(false)
   const userId = user?.id
+
+  const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
+    pendingSaveOpsRef.current++
+    setSaveTimedOut(false)
+
+    if (!saveTimeoutRef.current) {
+      saveTimeoutRef.current = setTimeout(() => {
+        if (pendingSaveOpsRef.current > 0) setSaveTimedOut(true)
+      }, SAVE_TIMEOUT_MS)
+    }
+
+    try {
+      return await operation
+    } finally {
+      pendingSaveOpsRef.current--
+      if (pendingSaveOpsRef.current === 0) {
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current)
+          saveTimeoutRef.current = null
+        }
+        setSaveTimedOut(false)
+      }
+    }
+  }
 
   const fetchLists = useCallback(async () => {
     if (!userId) {
@@ -34,6 +66,15 @@ export function useLists() {
     if (fetchingRef.current) return
     fetchingRef.current = true
     setIsFetching(true)
+    setFetchTimedOut(false)
+
+    // Set timeout for fetch
+    if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
+    fetchTimeoutRef.current = setTimeout(() => {
+      if (fetchingRef.current) {
+        setFetchTimedOut(true)
+      }
+    }, FETCH_TIMEOUT_MS)
 
     // Only show loading spinner on initial load if no cached data
     if (!hasInitialDataRef.current && !getCachedLists()?.lists?.length) {
@@ -66,9 +107,11 @@ export function useLists() {
       setLists(listsData)
       setCachedLists(listsData)
       hasInitialDataRef.current = true
+      setFetchTimedOut(false)
     } catch (err) {
       setError((err as Error).message)
     } finally {
+      if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setLoading(false)
       setIsFetching(false)
       fetchingRef.current = false
@@ -128,24 +171,23 @@ export function useLists() {
   const createList = async (name: string) => {
     if (!user) return { error: new Error('Not authenticated') }
 
-    const { data, error } = await supabase
-      .from('lists')
-      .insert({ name, owner_id: user.id })
-      .select()
-      .single()
+    const { data, error } = await trackSaveOperation(
+      supabase
+        .from('lists')
+        .insert({ name, owner_id: user.id })
+        .select()
+        .single()
+    )
 
     if (error) {
-      // Check for unique constraint violation
       if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
       return { error }
     }
 
-    // Skip next realtime fetch since we're updating optimistically
     skipRealtimeUntilRef.current = Date.now() + 2000
 
-    // Optimistically add the new list to state (prevent duplicates)
     const newList: ListWithRole = {
       ...data,
       role: 'owner',
@@ -162,10 +204,12 @@ export function useLists() {
   }
 
   const updateList = async (listId: string, updates: { name?: string; archived?: boolean; comment?: string | null }) => {
-    const { error } = await supabase
-      .from('lists')
-      .update(updates)
-      .eq('id', listId)
+    const { error } = await trackSaveOperation(
+      supabase
+        .from('lists')
+        .update(updates)
+        .eq('id', listId)
+    )
 
     if (error) {
       if (error.code === '23505') {
@@ -183,10 +227,12 @@ export function useLists() {
   }
 
   const deleteList = async (listId: string) => {
-    const { error } = await supabase
-      .from('lists')
-      .delete()
-      .eq('id', listId)
+    const { error } = await trackSaveOperation(
+      supabase
+        .from('lists')
+        .delete()
+        .eq('id', listId)
+    )
 
     if (!error) {
       skipRealtimeUntilRef.current = Date.now() + 2000
@@ -199,11 +245,13 @@ export function useLists() {
   const updateUserListState = async (listId: string, updates: { archived?: boolean; sort_order?: number }) => {
     if (!user) return { error: new Error('Not authenticated') }
 
-    const { error } = await supabase
-      .from('list_users')
-      .update(updates)
-      .eq('list_id', listId)
-      .eq('user_id', user.id)
+    const { error } = await trackSaveOperation(
+      supabase
+        .from('list_users')
+        .update(updates)
+        .eq('list_id', listId)
+        .eq('user_id', user.id)
+    )
 
     if (!error) {
       skipRealtimeUntilRef.current = Date.now() + 2000
@@ -216,9 +264,10 @@ export function useLists() {
   }
 
   const joinListByToken = async (token: string) => {
-    // Use a fresh client to ensure we have the current user's session
     const freshClient = forceNewClient()
-    const { data, error } = await (freshClient.rpc as any)('join_list_by_token', { p_token: token })
+    const { data, error } = await trackSaveOperation(
+      (freshClient.rpc as any)('join_list_by_token', { p_token: token })
+    )
 
     if (!error) {
       skipRealtimeUntilRef.current = Date.now() + 2000
@@ -231,33 +280,32 @@ export function useLists() {
   const leaveList = async (listId: string) => {
     if (!user) return { error: new Error('Not authenticated') }
 
-    // Delete all members created by this user in the list
-    // (cascade will delete their item_member_state entries)
-    const { error: membersError } = await supabase
-      .from('members')
-      .delete()
-      .eq('list_id', listId)
-      .eq('created_by', user.id)
+    const { error: membersError } = await trackSaveOperation(
+      supabase
+        .from('members')
+        .delete()
+        .eq('list_id', listId)
+        .eq('created_by', user.id)
+    )
 
     if (membersError) return { error: membersError }
 
-    // Remove user from list_users
-    const { error: listUsersError } = await supabase
-      .from('list_users')
-      .delete()
-      .eq('list_id', listId)
-      .eq('user_id', user.id)
+    const { error: listUsersError } = await trackSaveOperation(
+      supabase
+        .from('list_users')
+        .delete()
+        .eq('list_id', listId)
+        .eq('user_id', user.id)
+    )
 
     if (listUsersError) return { error: listUsersError }
 
-    // Broadcast to other users that the list changed (so they refresh metadata)
     supabase.channel(`list-${listId}`).send({
       type: 'broadcast',
       event: 'user_left',
       payload: { userId: user.id }
     })
 
-    // Remove list from local state
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => prev.filter(list => list.id !== listId))
 
@@ -267,21 +315,21 @@ export function useLists() {
   const duplicateList = async (listId: string, newName: string) => {
     if (!user) return { error: new Error('Not authenticated') }
 
-    // First, fetch the original list's items and members
     const [itemsResult, membersResult] = await Promise.all([
-      supabase.from('items').select('*').eq('list_id', listId),
-      supabase.from('members').select('*').eq('list_id', listId),
+      trackSaveOperation(supabase.from('items').select('*').eq('list_id', listId)),
+      trackSaveOperation(supabase.from('members').select('*').eq('list_id', listId)),
     ])
 
     if (itemsResult.error) return { error: itemsResult.error }
     if (membersResult.error) return { error: membersResult.error }
 
-    // Create new list
-    const { data: newList, error: createError } = await supabase
-      .from('lists')
-      .insert({ name: newName, owner_id: user.id })
-      .select()
-      .single()
+    const { data: newList, error: createError } = await trackSaveOperation(
+      supabase
+        .from('lists')
+        .insert({ name: newName, owner_id: user.id })
+        .select()
+        .single()
+    )
 
     if (createError) {
       if (createError.code === '23505') {
@@ -290,68 +338,71 @@ export function useLists() {
       return { error: createError }
     }
 
-    // Create member mapping (old ID -> new ID)
     const memberMapping: Record<string, string> = {}
 
-    // Duplicate members
     if (membersResult.data && membersResult.data.length > 0) {
       for (const member of membersResult.data) {
-        const { data: newMember, error: memberError } = await supabase
-          .from('members')
-          .insert({
-            list_id: newList.id,
-            name: member.name,
-            created_by: user.id,
-            sort_order: member.sort_order,
-          })
-          .select()
-          .single()
+        const { data: newMember, error: memberError } = await trackSaveOperation(
+          supabase
+            .from('members')
+            .insert({
+              list_id: newList.id,
+              name: member.name,
+              created_by: user.id,
+              sort_order: member.sort_order,
+            })
+            .select()
+            .single()
+        )
 
         if (memberError) continue
         memberMapping[member.id] = newMember.id
       }
     }
 
-    // Duplicate items and their member states
     if (itemsResult.data && itemsResult.data.length > 0) {
       for (const item of itemsResult.data) {
-        const { data: newItem, error: itemError } = await supabase
-          .from('items')
-          .insert({
-            list_id: newList.id,
-            text: item.text,
-            comment: item.comment,
-            archived: item.archived,
-            sort_order: item.sort_order,
-          })
-          .select()
-          .single()
+        const { data: newItem, error: itemError } = await trackSaveOperation(
+          supabase
+            .from('items')
+            .insert({
+              list_id: newList.id,
+              text: item.text,
+              comment: item.comment,
+              archived: item.archived,
+              sort_order: item.sort_order,
+            })
+            .select()
+            .single()
+        )
 
         if (itemError || !newItem) continue
 
-        // Fetch and duplicate item_member_state
-        const { data: states } = await supabase
-          .from('item_member_state')
-          .select('*')
-          .eq('item_id', item.id)
+        const { data: states } = await trackSaveOperation(
+          supabase
+            .from('item_member_state')
+            .select('*')
+            .eq('item_id', item.id)
+        )
 
         if (states) {
           for (const state of states) {
             const newMemberId = memberMapping[state.member_id]
             if (newMemberId) {
-              await supabase.from('item_member_state').insert({
-                item_id: newItem.id,
-                member_id: newMemberId,
-                quantity: state.quantity,
-                done: state.done,
-              })
+              await trackSaveOperation(
+                supabase.from('item_member_state').insert({
+                  item_id: newItem.id,
+                  member_id: newMemberId,
+                  quantity: state.quantity,
+                  done: state.done,
+                })
+              )
             }
           }
         }
       }
     }
 
-    // Optimistically add the duplicated list
     skipRealtimeUntilRef.current = Date.now() + 2000
     const duplicatedList: ListWithRole = {
       ...newList,
@@ -360,7 +411,6 @@ export function useLists() {
       memberCount: membersResult.data?.length || 0,
       activeItemCount: itemsResult.data?.filter(i => !i.archived).length || 0,
     }
-    // Prevent duplicate entries
     setLists(prev => {
       if (prev.some(l => l.id === duplicatedList.id)) return prev
       return [duplicatedList, ...prev]
@@ -372,17 +422,17 @@ export function useLists() {
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
     if (!user) return
 
-    // Optimistically update the UI
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(reorderedLists)
 
-    // Update sort_order in database for each list
     const updates = reorderedLists.map((list, index) => 
-      supabase
-        .from('list_users')
-        .update({ sort_order: index })
-        .eq('list_id', list.id)
-        .eq('user_id', user.id)
+      trackSaveOperation(
+        supabase
+          .from('list_users')
+          .update({ sort_order: index })
+          .eq('list_id', list.id)
+          .eq('user_id', user.id)
+      )
     )
 
     await Promise.all(updates)
@@ -392,6 +442,8 @@ export function useLists() {
     lists,
     loading,
     isFetching,
+    fetchTimedOut,
+    saveTimedOut,
     error,
     refresh: fetchLists,
     createList,

@@ -70,6 +70,8 @@ export default function ListPage() {
     members,
     loading,
     isFetching,
+    fetchTimedOut,
+    saveTimedOut,
     accessDenied,
     memberFilter,
     itemTextWidth,
@@ -209,6 +211,13 @@ export default function ListPage() {
 
   return (
     <div className={`bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-6xl min-h-screen sm:min-h-0 p-4 sm:p-8 ${isFetching ? '[&_button]:pointer-events-none [&_button]:opacity-50 [&_input]:pointer-events-none [&_input]:opacity-50' : ''}`}>
+      {/* Timeout message */}
+      {(fetchTimedOut || saveTimedOut) && (
+        <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
+          Your changes may not have been saved to the server. Refresh page and try again
+        </div>
+      )}
+
       {/* Top bar with back button and member filter */}
       <div className="flex items-center justify-between mb-4">
         <button
