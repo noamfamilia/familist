@@ -70,6 +70,8 @@ export default function ListPage() {
     members,
     loading,
     accessDenied,
+    memberFilter,
+    itemTextWidth,
     addItem,
     addMember,
     updateMember,
@@ -79,6 +81,8 @@ export default function ListPage() {
     updateMemberState,
     changeQuantity,
     reorderItems,
+    updateMemberFilter,
+    updateItemTextWidth,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -99,15 +103,13 @@ export default function ListPage() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
-  const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>('all')
   const [newItemText, setNewItemText] = useState('')
   const [adding, setAdding] = useState(false)
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
   const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
-  const [itemTextWidth, setItemTextWidth] = useState(80)
 
   const handleWidthChange = (delta: number) => {
-    setItemTextWidth(prev => Math.max(80, prev + delta))
+    updateItemTextWidth(itemTextWidth + delta)
   }
 
   if (!user) {
@@ -222,7 +224,7 @@ export default function ListPage() {
               { value: 'mine', label: 'Mine' },
             ]}
             value={memberFilter}
-            onChange={(v) => setMemberFilter(v as 'all' | 'mine')}
+            onChange={(v) => updateMemberFilter(v as 'all' | 'mine')}
           />
         </div>
       </div>

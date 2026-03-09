@@ -15,6 +15,7 @@ export interface Database {
           email: string | null
           username: string | null
           nickname: string | null
+          list_filter: string | null
           created_at: string
         }
         Insert: {
@@ -22,6 +23,7 @@ export interface Database {
           email?: string | null
           username?: string | null
           nickname?: string | null
+          list_filter?: string | null
           created_at?: string
         }
         Update: {
@@ -29,6 +31,7 @@ export interface Database {
           email?: string | null
           username?: string | null
           nickname?: string | null
+          list_filter?: string | null
           created_at?: string
         }
       }
@@ -86,6 +89,8 @@ export interface Database {
           role: 'owner' | 'editor' | 'viewer'
           archived: boolean
           sort_order: number | null
+          member_filter: string | null
+          item_text_width: number | null
           created_at: string
         }
         Insert: {
@@ -94,6 +99,8 @@ export interface Database {
           role?: 'owner' | 'editor' | 'viewer'
           archived?: boolean
           sort_order?: number | null
+          member_filter?: string | null
+          item_text_width?: number | null
           created_at?: string
         }
         Update: {
@@ -102,6 +109,8 @@ export interface Database {
           role?: 'owner' | 'editor' | 'viewer'
           archived?: boolean
           sort_order?: number | null
+          member_filter?: string | null
+          item_text_width?: number | null
           created_at?: string
         }
       }

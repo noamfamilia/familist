@@ -21,6 +21,8 @@ export function useList(listId: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
+  const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>('all')
+  const [itemTextWidth, setItemTextWidth] = useState(80)
   const fetchingRef = useRef(false)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const hadAccessRef = useRef(false)
@@ -72,6 +74,23 @@ export function useList(listId: string) {
       setMembers(data.members || [])
       setItems(data.items || [])
       hasInitialDataRef.current = true
+
+      // Fetch user preferences from list_users
+      const { data: listUserData } = await supabase
+        .from('list_users')
+        .select('member_filter, item_text_width')
+        .eq('list_id', listId)
+        .eq('user_id', userId)
+        .single()
+
+      if (listUserData) {
+        if (listUserData.member_filter === 'all' || listUserData.member_filter === 'mine') {
+          setMemberFilter(listUserData.member_filter)
+        }
+        if (listUserData.item_text_width && listUserData.item_text_width >= 80) {
+          setItemTextWidth(listUserData.item_text_width)
+        }
+      }
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -457,6 +476,29 @@ export function useList(listId: string) {
     await Promise.all(updates)
   }
 
+  const updateMemberFilter = async (filter: 'all' | 'mine') => {
+    setMemberFilter(filter)
+    if (userId) {
+      await supabase
+        .from('list_users')
+        .update({ member_filter: filter })
+        .eq('list_id', listId)
+        .eq('user_id', userId)
+    }
+  }
+
+  const updateItemTextWidth = async (width: number) => {
+    const newWidth = Math.max(80, width)
+    setItemTextWidth(newWidth)
+    if (userId) {
+      await supabase
+        .from('list_users')
+        .update({ item_text_width: newWidth })
+        .eq('list_id', listId)
+        .eq('user_id', userId)
+    }
+  }
+
   return {
     list,
     items,
@@ -464,6 +506,8 @@ export function useList(listId: string) {
     loading,
     error,
     accessDenied,
+    memberFilter,
+    itemTextWidth,
     refresh: fetchList,
     addItem,
     updateItem,
@@ -474,5 +518,7 @@ export function useList(listId: string) {
     updateMemberState,
     changeQuantity,
     reorderItems,
+    updateMemberFilter,
+    updateItemTextWidth,
   }
 }

@@ -4,7 +4,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { ListsView } from '@/components/lists/ListsView'
 import { Toggle } from '@/components/ui/Toggle'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Step } from 'react-joyride'
 
 // All home tour steps - list steps only shown when lists exist
@@ -38,9 +38,22 @@ const homeTourSteps: Step[] = [
 ]
 
 export default function Home() {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, updateProfile } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all')
+
+  // Initialize viewMode from profile when loaded
+  useEffect(() => {
+    if (profile?.list_filter === 'mine' || profile?.list_filter === 'all') {
+      setViewMode(profile.list_filter)
+    }
+  }, [profile?.list_filter])
+
+  // Save viewMode to profile when changed
+  const handleViewModeChange = (mode: 'all' | 'mine') => {
+    setViewMode(mode)
+    updateProfile({ list_filter: mode })
+  }
 
   if (loading) {
     return (
@@ -84,7 +97,7 @@ export default function Home() {
                 { value: 'mine', label: 'Mine' },
               ]}
               value={viewMode}
-              onChange={(v) => setViewMode(v as 'all' | 'mine')}
+              onChange={(v) => handleViewModeChange(v as 'all' | 'mine')}
             />
           </div>
         )}
