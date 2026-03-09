@@ -179,10 +179,10 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
         )}
 
         {/* Separator between active and archived */}
-        {activeLists.length > 0 && archivedLists.length > 0 && (
+        {archivedLists.length > 0 && (
           <div className="flex items-center gap-3 py-3">
             <div className="flex-1 h-px bg-gray-300"></div>
-            <span className="text-xs text-gray-400 tracking-wide">Archived</span>
+            <span className="text-sm text-gray-500 font-medium">Archived</span>
             <div className="flex-1 h-px bg-gray-300"></div>
           </div>
         )}
