@@ -206,8 +206,8 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
           </div>
         )}
 
-        {/* Empty state */}
-        {filteredLists.length === 0 && (
+        {/* Empty state - only show when truly no lists exist */}
+        {lists.length === 0 && (
           <div className="text-center py-12 text-gray-500 italic">
             No lists yet. Create one above!
           </div>
