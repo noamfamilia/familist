@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
+import { getCachedList, setCachedList } from '@/lib/cache'
 import type { List, Member, MemberWithCreator, Item, ItemMemberState } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -13,16 +14,35 @@ export interface ItemWithState extends Item {
   memberStates: Record<string, ItemMemberState>
 }
 
+// Helper to get cached preferences from localStorage
+function getCachedPrefs(listId: string) {
+  if (typeof window === 'undefined') return { memberFilter: 'all' as const, itemTextWidth: 80 }
+  const cached = localStorage.getItem(`list_${listId}_prefs`)
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached)
+      return {
+        memberFilter: (parsed.memberFilter === 'mine' || parsed.memberFilter === 'all') ? parsed.memberFilter : 'all' as const,
+        itemTextWidth: typeof parsed.itemTextWidth === 'number' && parsed.itemTextWidth >= 80 ? parsed.itemTextWidth : 80
+      }
+    } catch { /* ignore */ }
+  }
+  return { memberFilter: 'all' as const, itemTextWidth: 80 }
+}
+
 export function useList(listId: string) {
   const { user } = useAuth()
-  const [list, setList] = useState<List | null>(null)
-  const [items, setItems] = useState<ItemWithState[]>([])
-  const [members, setMembers] = useState<MemberWithCreator[]>([])
-  const [loading, setLoading] = useState(true)
+  // Initialize from cache for instant load
+  const cached = getCachedList(listId)
+  const [list, setList] = useState<List | null>(cached?.list || null)
+  const [items, setItems] = useState<ItemWithState[]>(cached?.items || [])
+  const [members, setMembers] = useState<MemberWithCreator[]>(cached?.members || [])
+  const [loading, setLoading] = useState(!cached?.list)
+  const [isFetching, setIsFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
-  const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>('all')
-  const [itemTextWidth, setItemTextWidth] = useState(80)
+  const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>(() => getCachedPrefs(listId).memberFilter)
+  const [itemTextWidth, setItemTextWidth] = useState(() => getCachedPrefs(listId).itemTextWidth)
   const fetchingRef = useRef(false)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const hadAccessRef = useRef(false)
@@ -33,14 +53,17 @@ export function useList(listId: string) {
   const fetchList = useCallback(async () => {
     if (!userId || !listId) {
       setLoading(false)
+      setIsFetching(false)
       return
     }
 
     if (fetchingRef.current) return
     fetchingRef.current = true
+    setIsFetching(true)
 
-    // Only show loading spinner on initial load, not on background refreshes
-    if (!hasInitialDataRef.current) {
+    // Only show loading spinner on initial load if no cached data
+    const cachedData = getCachedList(listId)
+    if (!hasInitialDataRef.current && !cachedData?.list) {
       setLoading(true)
     }
     setError(null)
@@ -75,6 +98,13 @@ export function useList(listId: string) {
       setItems(data.items || [])
       hasInitialDataRef.current = true
 
+      // Cache the list data for instant load next time
+      setCachedList(listId, {
+        list: data.list,
+        items: data.items || [],
+        members: data.members || []
+      })
+
       // Fetch user preferences from list_users
       const { data: listUserData } = await supabase
         .from('list_users')
@@ -95,6 +125,7 @@ export function useList(listId: string) {
       setError((err as Error).message)
     } finally {
       setLoading(false)
+      setIsFetching(false)
       fetchingRef.current = false
     }
   }, [userId, listId])
@@ -504,6 +535,7 @@ export function useList(listId: string) {
     items,
     members,
     loading,
+    isFetching,
     error,
     accessDenied,
     memberFilter,

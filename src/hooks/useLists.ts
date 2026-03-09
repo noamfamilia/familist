@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
+import { getCachedLists, setCachedLists } from '@/lib/cache'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -11,8 +12,10 @@ const supabase = createClient()
 
 export function useLists() {
   const { user } = useAuth()
-  const [lists, setLists] = useState<ListWithRole[]>([])
-  const [loading, setLoading] = useState(true)
+  // Initialize from cache for instant load
+  const [lists, setLists] = useState<ListWithRole[]>(() => getCachedLists()?.lists || [])
+  const [loading, setLoading] = useState(() => !getCachedLists()?.lists?.length)
+  const [isFetching, setIsFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const fetchingRef = useRef(false)
   const channelRef = useRef<RealtimeChannel | null>(null)
@@ -24,14 +27,16 @@ export function useLists() {
     if (!userId) {
       setLists([])
       setLoading(false)
+      setIsFetching(false)
       return
     }
 
     if (fetchingRef.current) return
     fetchingRef.current = true
+    setIsFetching(true)
 
-    // Only show loading spinner on initial load, not on refreshes
-    if (!hasInitialDataRef.current) {
+    // Only show loading spinner on initial load if no cached data
+    if (!hasInitialDataRef.current && !getCachedLists()?.lists?.length) {
       setLoading(true)
     }
     setError(null)
@@ -59,11 +64,13 @@ export function useLists() {
       }))
 
       setLists(listsData)
+      setCachedLists(listsData)
       hasInitialDataRef.current = true
     } catch (err) {
       setError((err as Error).message)
     } finally {
       setLoading(false)
+      setIsFetching(false)
       fetchingRef.current = false
     }
   }, [userId])
@@ -384,6 +391,7 @@ export function useLists() {
   return {
     lists,
     loading,
+    isFetching,
     error,
     refresh: fetchLists,
     createList,

@@ -21,7 +21,7 @@ interface ListsViewProps {
 }
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: ListsViewProps) {
-  const { lists, loading, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
+  const { lists, loading, isFetching, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -128,10 +128,10 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="List name or @token"
-            disabled={submitting}
+            disabled={submitting || isFetching}
           />
         </div>
-        <Button type="submit" loading={submitting} className="bg-red-500 hover:bg-red-600">
+        <Button type="submit" loading={submitting} disabled={isFetching} className="bg-red-500 hover:bg-red-600">
           {isJoinMode ? 'Join' : 'Create'}
         </Button>
       </form>
@@ -143,7 +143,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
       )}
 
       {/* Lists */}
-      <div className="space-y-2 min-h-[120px]">
+      <div className={`space-y-2 min-h-[120px] ${isFetching ? '[&_button]:pointer-events-none [&_button]:opacity-50 [&_input]:pointer-events-none [&_input]:opacity-50' : ''}`}>
         {/* Active Lists - draggable */}
         {activeLists.length > 0 && (
           <DndContext
