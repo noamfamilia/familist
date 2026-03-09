@@ -307,11 +307,11 @@ export default function ListPage() {
                   ))}
                 </SortableContext>
               </DndContext>
-            ) : (
+            ) : archivedItems.length === 0 ? (
               <div className="text-center py-8 text-gray-500 italic">
                 No items yet. Add one above!
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Archived section separator */}
