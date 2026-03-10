@@ -2,11 +2,15 @@
 // @ts-nocheck
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { forceNewClient } from '@/lib/supabase/client'
 import type { List } from '@/lib/supabase/types'
+
+const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
+  ssr: false,
+})
 
 interface ShareModalProps {
   isOpen: boolean

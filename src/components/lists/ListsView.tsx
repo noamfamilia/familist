@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useLists } from '@/hooks/useLists'
@@ -10,9 +11,12 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useToast } from '@/components/ui/Toast'
 import { SortableListCard } from './SortableListCard'
 import { ListCard } from './ListCard'
-import { TutorialTour } from '@/components/ui/TutorialTour'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
+
+const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
+  ssr: false,
+})
 
 interface ListsViewProps {
   viewMode: 'all' | 'mine'

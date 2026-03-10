@@ -1,11 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Toggle } from '@/components/ui/Toggle'
 import type { Member, MemberWithCreator } from '@/lib/supabase/types'
+
+const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
+  ssr: false,
+})
 
 interface MemberHeaderProps {
   members: MemberWithCreator[]

@@ -1,11 +1,15 @@
 'use client'
 
 import { useAuth } from '@/providers/AuthProvider'
-import { AuthModal } from '@/components/auth/AuthModal'
 import { ListsView } from '@/components/lists/ListsView'
 import { Toggle } from '@/components/ui/Toggle'
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
+
+const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
+  ssr: false,
+})
 
 // All home tour steps - list steps only shown when lists exist
 const homeTourSteps: Step[] = [

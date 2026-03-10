@@ -1,11 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import type { ItemWithState } from '@/hooks/useList'
 import type { MemberWithCreator, Item } from '@/lib/supabase/types'
+
+const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
+  ssr: false,
+})
 
 interface ItemCardProps {
   item: ItemWithState

@@ -1,11 +1,17 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
-import { ShareModal } from './ShareModal'
 import type { ListWithRole } from '@/lib/supabase/types'
+
+const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
+  ssr: false,
+})
+const ShareModal = dynamic(() => import('./ShareModal').then(mod => mod.ShareModal), {
+  ssr: false,
+})
 
 interface ListCardProps {
   list: ListWithRole
@@ -20,7 +26,6 @@ interface ListCardProps {
 }
 
 export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, dragHandleProps }: ListCardProps) {
-  const router = useRouter()
   const { success, error: showError } = useToast()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -61,44 +66,36 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     }
   }, [isRenaming])
 
-  const handleCardClick = () => {
-    // Navigate to list if not archived, not renaming, and menu is closed
-    if (!list.userArchived && !isRenaming && !menuOpen) {
-      // Debug timing - detailed breakdown
-      const t1 = performance.now()
-      const visState = document.visibilityState
-      const swState = navigator.serviceWorker?.controller?.state || 'no-sw'
-      
-      console.log(`[NAV T1] ${new Date().toISOString()} List clicked: ${list.id}`)
-      console.log(`[NAV T1] Tab visibility: ${visState}, SW state: ${swState}`)
-      
-      if (typeof window !== 'undefined') {
-        (window as any).__navTiming = { listId: list.id, t1_click: t1 }
-      }
-      
-      // T1a: After router.push returns
-      router.push(`/list/${list.id}`)
-      const t1a = performance.now()
-      console.log(`[NAV T1a] router.push() returned - ${(t1a - t1).toFixed(0)}ms`)
-      
-      // T1b: When event loop is free (setTimeout 0)
-      setTimeout(() => {
-        const t1b = performance.now()
-        console.log(`[NAV T1b] Event loop free (setTimeout 0) - ${(t1b - t1).toFixed(0)}ms since click`)
-      }, 0)
-      
-      // T1c: Next animation frame
-      requestAnimationFrame(() => {
-        const t1c = performance.now()
-        console.log(`[NAV T1c] requestAnimationFrame - ${(t1c - t1).toFixed(0)}ms since click`)
-        
-        // T1d: After paint (double rAF)
-        requestAnimationFrame(() => {
-          const t1d = performance.now()
-          console.log(`[NAV T1d] After paint (double rAF) - ${(t1d - t1).toFixed(0)}ms since click`)
-        })
-      })
+  // Debug timing for navigation (Link handles actual navigation)
+  const handleLinkClick = () => {
+    const t1 = performance.now()
+    const visState = document.visibilityState
+    const swState = navigator.serviceWorker?.controller?.state || 'no-sw'
+    
+    console.log(`[NAV T1] ${new Date().toISOString()} List clicked: ${list.id}`)
+    console.log(`[NAV T1] Tab visibility: ${visState}, SW state: ${swState}`)
+    
+    if (typeof window !== 'undefined') {
+      (window as any).__navTiming = { listId: list.id, t1_click: t1 }
     }
+    
+    // T1b: When event loop is free (setTimeout 0)
+    setTimeout(() => {
+      const t1b = performance.now()
+      console.log(`[NAV T1b] Event loop free (setTimeout 0) - ${(t1b - t1).toFixed(0)}ms since click`)
+    }, 0)
+    
+    // T1c: Next animation frame
+    requestAnimationFrame(() => {
+      const t1c = performance.now()
+      console.log(`[NAV T1c] requestAnimationFrame - ${(t1c - t1).toFixed(0)}ms since click`)
+      
+      // T1d: After paint (double rAF)
+      requestAnimationFrame(() => {
+        const t1d = performance.now()
+        console.log(`[NAV T1d] After paint (double rAF) - ${(t1d - t1).toFixed(0)}ms since click`)
+      })
+    })
   }
 
   const handleArchiveClick = async (e: React.MouseEvent) => {
@@ -245,20 +242,26 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           className="flex-1 min-w-0 px-2 py-1 border border-teal rounded text-lg font-medium"
           aria-label="List name"
         />
-      ) : (
+      ) : list.userArchived ? (
         <span
-          onClick={handleCardClick}
-          className={`flex-1 min-w-0 font-medium truncate text-lg ${
-            list.userArchived 
-              ? 'text-gray-400 line-through' 
-              : 'text-primary hover:text-teal cursor-pointer'
-          }`}
+          className="flex-1 min-w-0 font-medium truncate text-lg text-gray-400 line-through"
         >
           {list.name}
           {!isOwner && list.ownerNickname && (
             <span className="text-teal ml-1">({list.ownerNickname})</span>
           )}
         </span>
+      ) : (
+        <Link
+          href={`/list/${list.id}`}
+          onClick={handleLinkClick}
+          className="flex-1 min-w-0 font-medium truncate text-lg text-primary hover:text-teal"
+        >
+          {list.name}
+          {!isOwner && list.ownerNickname && (
+            <span className="text-teal ml-1">({list.ownerNickname})</span>
+          )}
+        </Link>
       )}
 
       {/* Visibility icon - only for owned lists, clickable to open share modal (except archived) */}
