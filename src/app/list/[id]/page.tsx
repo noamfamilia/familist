@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
@@ -237,13 +238,13 @@ export default function ListPage() {
 
       {/* Top bar with back button and member filter */}
       <div className="flex items-center justify-between mb-4">
-        <button
-          onClick={() => router.replace('/')}
+        <Link
+          href="/"
           className="text-primary hover:underline text-sm sm:text-base"
           aria-label="Go back to all lists"
         >
           ← Back to lists
-        </button>
+        </Link>
         <div data-tour="view-toggle">
           <Toggle
             options={[
