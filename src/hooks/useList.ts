@@ -45,8 +45,17 @@ const SAVE_TIMEOUT_MS = 5000
 
 export function useList(listId: string) {
   const { user } = useAuth()
-  // Initialize from cache for instant load
+  
+  // Debug timing - cache read
+  const t_cacheStart = performance.now()
   const cached = getCachedList(listId)
+  const t_cacheEnd = performance.now()
+  const navTiming = typeof window !== 'undefined' ? (window as any).__navTiming : null
+  if (navTiming && navTiming.listId === listId) {
+    console.log(`[NAV] useList init - cache read took ${(t_cacheEnd - t_cacheStart).toFixed(1)}ms, hasCache=${!!cached?.list}, cacheAge=${cached?.cachedAt ? Math.round((Date.now() - cached.cachedAt) / 1000) + 's' : 'N/A'}`)
+  }
+  
+  // Initialize from cache for instant load
   const [list, setList] = useState<List | null>(cached?.list || null)
   const [items, setItems] = useState<ItemWithState[]>(cached?.items || [])
   const [members, setMembers] = useState<MemberWithCreator[]>(cached?.members || [])
@@ -104,6 +113,13 @@ export function useList(listId: string) {
     setIsFetching(true)
     setFetchTimedOut(false)
 
+    // Debug timing - T4: fetchList starts
+    const t4_fetchStart = performance.now()
+    const navTiming = typeof window !== 'undefined' ? (window as any).__navTiming : null
+    if (navTiming && navTiming.listId === listId) {
+      console.log(`[NAV T4] fetchList() starting - ${(t4_fetchStart - navTiming.t1_click).toFixed(0)}ms since click`)
+    }
+
     // Set timeout for fetch
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
     fetchTimeoutRef.current = setTimeout(() => {
@@ -120,10 +136,22 @@ export function useList(listId: string) {
     setError(null)
 
     try {
+      // Debug timing - T5: RPC call starts
+      const t5_rpcStart = performance.now()
+      if (navTiming && navTiming.listId === listId) {
+        console.log(`[NAV T5] Supabase RPC get_list_data called - ${(t5_rpcStart - navTiming.t1_click).toFixed(0)}ms since click`)
+      }
+
       // Fetch all list data in a single RPC call
       const { data, error: rpcError } = await (supabase.rpc as any)('get_list_data', {
         p_list_id: listId
       })
+
+      // Debug timing - T6: RPC response
+      const t6_rpcEnd = performance.now()
+      if (navTiming && navTiming.listId === listId) {
+        console.log(`[NAV T6] Supabase RPC response - ${(t6_rpcEnd - navTiming.t1_click).toFixed(0)}ms since click, RPC took ${(t6_rpcEnd - t5_rpcStart).toFixed(0)}ms`)
+      }
 
       if (rpcError) {
         // If we previously had access but now get an error, access was revoked
@@ -182,6 +210,15 @@ export function useList(listId: string) {
       setLoading(false)
       setIsFetching(false)
       fetchingRef.current = false
+
+      // Debug timing - T7: fetch complete
+      const t7_fetchEnd = performance.now()
+      const navTimingFinal = typeof window !== 'undefined' ? (window as any).__navTiming : null
+      if (navTimingFinal && navTimingFinal.listId === listId) {
+        console.log(`[NAV T7] fetchList() complete - ${(t7_fetchEnd - navTimingFinal.t1_click).toFixed(0)}ms total since click`)
+        // Clear timing data
+        delete (window as any).__navTiming
+      }
     }
   }, [userId, listId])
 

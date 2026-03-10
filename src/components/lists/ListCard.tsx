@@ -64,6 +64,12 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const handleCardClick = () => {
     // Navigate to list if not archived, not renaming, and menu is closed
     if (!list.userArchived && !isRenaming && !menuOpen) {
+      // Debug timing
+      const now = performance.now()
+      console.log(`[NAV T1] ${new Date().toISOString()} List clicked: ${list.id} (${list.name})`)
+      if (typeof window !== 'undefined') {
+        (window as any).__navTiming = { listId: list.id, t1_click: now }
+      }
       router.push(`/list/${list.id}`)
     }
   }
