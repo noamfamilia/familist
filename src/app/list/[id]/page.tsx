@@ -63,13 +63,6 @@ const listTourSteps: Step[] = [
 ]
 
 export default function ListPage() {
-  // Debug timing - T2: component mount
-  const t2_mount = performance.now()
-  const navTiming = typeof window !== 'undefined' ? (window as any).__navTiming : null
-  if (navTiming) {
-    console.log(`[NAV T2] ListPage mount - ${(t2_mount - navTiming.t1_click).toFixed(0)}ms since click`)
-  }
-
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
@@ -99,12 +92,6 @@ export default function ListPage() {
     updateMemberFilter,
     updateItemTextWidth,
   } = useList(listId)
-
-  // Debug timing - T3: after useList returns
-  if (navTiming && navTiming.listId === listId) {
-    const t3_afterHook = performance.now()
-    console.log(`[NAV T3] useList returned - ${(t3_afterHook - navTiming.t1_click).toFixed(0)}ms since click, loading=${loading}, hasCachedData=${!!list}`)
-  }
 
   // Redirect to home if access is revoked
   useEffect(() => {
