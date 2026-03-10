@@ -64,13 +64,40 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const handleCardClick = () => {
     // Navigate to list if not archived, not renaming, and menu is closed
     if (!list.userArchived && !isRenaming && !menuOpen) {
-      // Debug timing
-      const now = performance.now()
-      console.log(`[NAV T1] ${new Date().toISOString()} List clicked: ${list.id} (${list.name})`)
+      // Debug timing - detailed breakdown
+      const t1 = performance.now()
+      const visState = document.visibilityState
+      const swState = navigator.serviceWorker?.controller?.state || 'no-sw'
+      
+      console.log(`[NAV T1] ${new Date().toISOString()} List clicked: ${list.id}`)
+      console.log(`[NAV T1] Tab visibility: ${visState}, SW state: ${swState}`)
+      
       if (typeof window !== 'undefined') {
-        (window as any).__navTiming = { listId: list.id, t1_click: now }
+        (window as any).__navTiming = { listId: list.id, t1_click: t1 }
       }
+      
+      // T1a: After router.push returns
       router.push(`/list/${list.id}`)
+      const t1a = performance.now()
+      console.log(`[NAV T1a] router.push() returned - ${(t1a - t1).toFixed(0)}ms`)
+      
+      // T1b: When event loop is free (setTimeout 0)
+      setTimeout(() => {
+        const t1b = performance.now()
+        console.log(`[NAV T1b] Event loop free (setTimeout 0) - ${(t1b - t1).toFixed(0)}ms since click`)
+      }, 0)
+      
+      // T1c: Next animation frame
+      requestAnimationFrame(() => {
+        const t1c = performance.now()
+        console.log(`[NAV T1c] requestAnimationFrame - ${(t1c - t1).toFixed(0)}ms since click`)
+        
+        // T1d: After paint (double rAF)
+        requestAnimationFrame(() => {
+          const t1d = performance.now()
+          console.log(`[NAV T1d] After paint (double rAF) - ${(t1d - t1).toFixed(0)}ms since click`)
+        })
+      })
     }
   }
 
