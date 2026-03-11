@@ -332,11 +332,10 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           <div className="space-y-2">
             {joinedUsers.map(user => (
               <label key={user.user_id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
-                <span dir="ltr" className="text-sm font-medium">
-                  {user.nickname || 'Unknown user'}
-                  <span className="text-gray-400 mx-1">·</span>
-                  <span className="text-gray-400 font-normal">{user.member_count} member{user.member_count !== 1 ? 's' : ''}</span>
-                </span>
+                <div className="flex items-center gap-1 text-sm">
+                  <span dir="auto" className="font-medium">{user.nickname || 'Unknown user'}</span>
+                  <span dir="ltr" className="text-gray-400">· {user.member_count} member{user.member_count !== 1 ? 's' : ''}</span>
+                </div>
                 <input
                   type="checkbox"
                   checked={selectedUserIds.has(user.user_id)}
