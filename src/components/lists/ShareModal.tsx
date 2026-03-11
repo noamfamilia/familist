@@ -266,17 +266,20 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
               type="text"
               value={token ? '@' + token : ''}
               readOnly
-              placeholder="Regenerate overrides old token"
               className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg font-mono bg-gray-50 text-sm truncate"
             />
-            <button
+            <Button
+              variant="secondary"
               onClick={generateTokenAndCopy}
               disabled={loading}
-              className="px-3 py-2 bg-coral text-white text-sm font-medium rounded-lg hover:bg-coral-dark disabled:opacity-50 flex-shrink-0"
+              className="flex-shrink-0"
             >
               Regenerate
-            </button>
+            </Button>
           </div>
+          <p className="text-xs text-gray-400 mt-2 text-center">
+            Regenerating a new token will invalidate the current one
+          </p>
         </div>
       )}
 
