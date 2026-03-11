@@ -35,6 +35,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   const [joinedUsers, setJoinedUsers] = useState<JoinedUser[]>([])
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
+  const [contentReady, setContentReady] = useState(false)
 
   // Fetch joined users when modal opens
   const fetchJoinedUsers = async () => {
@@ -61,12 +62,16 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       setShowRemoveConfirm(false)
       setSelectedUserIds(new Set())
       
-      // Fetch joined users if link-enabled
+      // Fetch joined users if link-enabled, then show content
       if (list.visibility === 'link') {
-        fetchJoinedUsers()
+        setContentReady(false)
+        fetchJoinedUsers().then(() => setContentReady(true))
       } else {
         setJoinedUsers([])
+        setContentReady(true)
       }
+    } else {
+      setContentReady(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, list.visibility])
@@ -205,6 +210,12 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Share Settings">
+      {!contentReady ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal"></div>
+        </div>
+      ) : (
+        <>
       <p className="text-center text-gray-500 font-medium mb-5">{list.name}</p>
 
       <div className="space-y-3 mb-5">
@@ -277,10 +288,10 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
             </Button>
           </div>
           <p className="text-xs text-gray-400 mt-2 text-center">
-            Share your token with friends
+            Share your token with friends.
           </p>
           <p className="text-xs text-gray-400 text-center">
-            Regenerating a new token will invalidate the current one
+            Regenerating a new token will invalidate the current one.
           </p>
         </div>
       )}
@@ -344,6 +355,8 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
         <div className="flex items-center justify-center py-4">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal"></div>
         </div>
+      )}
+        </>
       )}
 
       <ConfirmModal
