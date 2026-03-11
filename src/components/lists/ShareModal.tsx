@@ -88,7 +88,6 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       document.execCommand('copy')
       document.body.removeChild(textArea)
     }
-    success('Token copied to clipboard')
   }
 
   const generateTokenAndCopy = async () => {
@@ -279,9 +278,10 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
             />
             <Button
               variant="secondary"
+              size="sm"
               onClick={generateTokenAndCopy}
               disabled={loading}
-              className="flex-shrink-0"
+              className="flex-shrink-0 py-2"
             >
               Regenerate
             </Button>
