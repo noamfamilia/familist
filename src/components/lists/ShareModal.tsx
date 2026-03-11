@@ -32,9 +32,8 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   const [token, setToken] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [otherMembersCount, setOtherMembersCount] = useState(0)
   const [joinedUsers, setJoinedUsers] = useState<JoinedUser[]>([])
-  const [userToRemove, setUserToRemove] = useState<JoinedUser | null>(null)
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
 
   // Fetch joined users when modal opens
@@ -60,7 +59,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       setToken('')
       setShowConfirm(false)
       setShowRemoveConfirm(false)
-      setUserToRemove(null)
+      setSelectedUserIds(new Set())
       
       // Fetch joined users if link-enabled
       if (list.visibility === 'link') {
@@ -104,20 +103,34 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     }
   }
 
-  const checkOtherMembers = async (): Promise<number> => {
-    const supabase = forceNewClient()
-    // Count members not created by the list owner
-    const { data, error } = await supabase
-      .from('members')
-      .select('id, created_by')
-      .eq('list_id', list.id)
-      .neq('created_by', list.owner_id)
-    
-    if (error) {
-      console.error('Error checking members:', error)
-      return 0
+  // Calculate totals from joinedUsers
+  const totalUsers = joinedUsers.length
+  const totalMembers = joinedUsers.reduce((sum, u) => sum + (u.member_count || 0), 0)
+  
+  // Calculate selected totals
+  const selectedUsers = joinedUsers.filter(u => selectedUserIds.has(u.user_id))
+  const selectedUsersCount = selectedUsers.length
+  const selectedMembersCount = selectedUsers.reduce((sum, u) => sum + (u.member_count || 0), 0)
+  
+  // Selection handlers
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
+  }
+  
+  const toggleSelectAll = () => {
+    if (selectedUserIds.size === joinedUsers.length) {
+      setSelectedUserIds(new Set())
+    } else {
+      setSelectedUserIds(new Set(joinedUsers.map(u => u.user_id)))
     }
-    return data?.length || 0
   }
 
   const handleVisibilityChange = async (newVisibility: 'private' | 'link') => {
@@ -126,13 +139,8 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       await generateTokenAndCopy()
       onUpdate()
     } else {
-      // Check if there are members created by other users
-      setLoading(true)
-      const count = await checkOtherMembers()
-      setLoading(false)
-      
-      if (count > 0) {
-        setOtherMembersCount(count)
+      // If there are users/members, show confirmation
+      if (totalUsers > 0 || totalMembers > 0) {
         setShowConfirm(true)
       } else {
         await makePrivate()
@@ -161,34 +169,35 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     }
   }
 
-  const handleRemoveUser = (user: JoinedUser) => {
-    setUserToRemove(user)
-    if (user.member_count > 0) {
+  const handleRemoveSelected = () => {
+    if (selectedUsersCount > 0) {
       setShowRemoveConfirm(true)
-    } else {
-      removeUser(user)
     }
   }
 
-  const removeUser = async (user: JoinedUser) => {
+  const removeSelectedUsers = async () => {
+    if (selectedUserIds.size === 0) return
+    
     setLoading(true)
     try {
       const supabase = forceNewClient()
-      const { error } = await (supabase.rpc as any)('remove_user_from_list', {
+      const userIdsArray = Array.from(selectedUserIds)
+      
+      const { error } = await (supabase.rpc as any)('remove_users_from_list', {
         p_list_id: list.id,
-        p_user_id: user.user_id,
+        p_user_ids: userIdsArray,
       })
 
       if (error) throw error
       
-      setJoinedUsers(prev => prev.filter(u => u.user_id !== user.user_id))
+      setJoinedUsers(prev => prev.filter(u => !selectedUserIds.has(u.user_id)))
+      setSelectedUserIds(new Set())
       setShowRemoveConfirm(false)
-      setUserToRemove(null)
-      success('User removed')
+      success(`${selectedUsersCount} user${selectedUsersCount > 1 ? 's' : ''} removed`)
       onUpdate()
     } catch (err) {
-      console.error('Error removing user:', err)
-      showError('Failed to remove user')
+      console.error('Error removing users:', err)
+      showError('Failed to remove users')
     } finally {
       setLoading(false)
     }
@@ -274,21 +283,55 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       {/* Joined users section */}
       {visibility === 'link' && joinedUsers.length > 0 && (
         <div className="pt-4 mt-4 border-t border-gray-200">
-          <label className="text-sm text-gray-500 mb-2 block">Users who joined:</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm text-gray-500">Users who joined:</label>
+          </div>
+          
+          {/* Header row with select all and remove button */}
+          <div className="flex items-center justify-between py-2 px-3 bg-gray-100 rounded-lg mb-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedUserIds.size === joinedUsers.length && joinedUsers.length > 0}
+                onChange={toggleSelectAll}
+                disabled={loading}
+                className="w-4 h-4 rounded border-gray-300 text-teal focus:ring-teal"
+              />
+              <span className="text-sm text-gray-600">
+                {selectedUserIds.size === joinedUsers.length ? 'Deselect all' : 'Select all'}
+              </span>
+            </label>
+            {selectedUsersCount > 0 && (
+              <button
+                onClick={handleRemoveSelected}
+                disabled={loading}
+                className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50"
+              >
+                Remove selected
+              </button>
+            )}
+          </div>
+          
+          {/* User rows */}
           <div className="space-y-2">
             {joinedUsers.map(user => (
-              <div key={user.user_id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                <span className="text-sm font-medium">
+              <label key={user.user_id} className="flex items-center gap-3 py-2 px-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
+                <input
+                  type="checkbox"
+                  checked={selectedUserIds.has(user.user_id)}
+                  onChange={() => toggleUserSelection(user.user_id)}
+                  disabled={loading}
+                  className="w-4 h-4 rounded border-gray-300 text-teal focus:ring-teal"
+                />
+                <span className="text-sm font-medium flex-1">
                   {user.nickname || 'Unknown user'}
                 </span>
-                <button
-                  onClick={() => handleRemoveUser(user)}
-                  disabled={loading}
-                  className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50"
-                >
-                  Remove
-                </button>
-              </div>
+                {user.member_count > 0 && (
+                  <span className="text-xs text-gray-400">
+                    {user.member_count} member{user.member_count > 1 ? 's' : ''}
+                  </span>
+                )}
+              </label>
             ))}
           </div>
         </div>
@@ -305,7 +348,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
         onClose={() => setShowConfirm(false)}
         onConfirm={makePrivate}
         title="Make List Private"
-        message={`This will remove ${otherMembersCount} member${otherMembersCount > 1 ? 's' : ''} created by other users and all their data. This cannot be undone.`}
+        message={`This will remove ${totalUsers} user${totalUsers !== 1 ? 's' : ''} and ${totalMembers} member${totalMembers !== 1 ? 's' : ''} from the list. This cannot be undone.`}
         confirmText="Make Private"
         variant="danger"
         loading={loading}
@@ -313,13 +356,10 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
       <ConfirmModal
         isOpen={showRemoveConfirm}
-        onClose={() => {
-          setShowRemoveConfirm(false)
-          setUserToRemove(null)
-        }}
-        onConfirm={() => userToRemove && removeUser(userToRemove)}
-        title="Remove User"
-        message={`This will remove ${userToRemove?.nickname || 'this user'} and delete ${userToRemove?.member_count} member${(userToRemove?.member_count || 0) > 1 ? 's' : ''} they created. This cannot be undone.`}
+        onClose={() => setShowRemoveConfirm(false)}
+        onConfirm={removeSelectedUsers}
+        title="Remove Users"
+        message={`This will remove ${selectedUsersCount} user${selectedUsersCount !== 1 ? 's' : ''} and ${selectedMembersCount} member${selectedMembersCount !== 1 ? 's' : ''} from the list. This cannot be undone.`}
         confirmText="Remove"
         variant="danger"
         loading={loading}
