@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { useToast } from '@/components/ui/Toast'
 import { forceNewClient } from '@/lib/supabase/client'
 import type { List } from '@/lib/supabase/types'
 
@@ -19,31 +20,101 @@ interface ShareModalProps {
   onUpdate: () => void
 }
 
+interface JoinedUser {
+  user_id: string
+  nickname: string | null
+  member_count: number
+}
+
 export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps) {
+  const { success, error: showError } = useToast()
   const [visibility, setVisibility] = useState<'private' | 'link'>(list.visibility)
   const [token, setToken] = useState<string>('')
   const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [otherMembersCount, setOtherMembersCount] = useState(0)
+  const [joinedUsers, setJoinedUsers] = useState<JoinedUser[]>([])
+  const [userToRemove, setUserToRemove] = useState<JoinedUser | null>(null)
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
+
+  // Fetch joined users when modal opens
+  const fetchJoinedUsers = async () => {
+    const supabase = forceNewClient()
+    
+    // Get all non-owner users with their profiles
+    const { data: listUsers, error: listUsersError } = await supabase
+      .from('list_users')
+      .select('user_id, profiles:user_id(nickname)')
+      .eq('list_id', list.id)
+      .neq('role', 'owner')
+    
+    if (listUsersError) {
+      console.error('Error fetching joined users:', listUsersError)
+      return
+    }
+
+    // Get member counts for each user
+    const { data: members, error: membersError } = await supabase
+      .from('members')
+      .select('created_by')
+      .eq('list_id', list.id)
+    
+    if (membersError) {
+      console.error('Error fetching members:', membersError)
+      return
+    }
+
+    // Count members per user
+    const memberCounts: Record<string, number> = {}
+    members?.forEach(m => {
+      memberCounts[m.created_by] = (memberCounts[m.created_by] || 0) + 1
+    })
+
+    // Combine data
+    const users: JoinedUser[] = (listUsers || []).map(lu => ({
+      user_id: lu.user_id,
+      nickname: (lu.profiles as any)?.nickname || null,
+      member_count: memberCounts[lu.user_id] || 0
+    }))
+
+    setJoinedUsers(users)
+  }
 
   // Only reset state when modal opens, not when list object reference changes
   useEffect(() => {
     if (isOpen) {
       setVisibility(list.visibility)
       setToken('')
-      setCopied(false)
       setShowConfirm(false)
+      setShowRemoveConfirm(false)
+      setUserToRemove(null)
       
-      // If already link-enabled, generate a new token to display
+      // Fetch joined users if link-enabled
       if (list.visibility === 'link') {
-        generateToken()
+        fetchJoinedUsers()
+      } else {
+        setJoinedUsers([])
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen])
+  }, [isOpen, list.visibility])
 
-  const generateToken = async () => {
+  const copyToClipboard = async (tokenValue: string) => {
+    const tokenWithPrefix = '@' + tokenValue
+    try {
+      await navigator.clipboard.writeText(tokenWithPrefix)
+    } catch {
+      const textArea = document.createElement('textarea')
+      textArea.value = tokenWithPrefix
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+    }
+    success('Token copied to clipboard')
+  }
+
+  const generateTokenAndCopy = async () => {
     setLoading(true)
     try {
       const supabase = forceNewClient()
@@ -52,6 +123,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       })
       if (error) throw error
       setToken(data)
+      await copyToClipboard(data)
     } catch (err) {
       console.error('Error generating token:', err)
     } finally {
@@ -78,7 +150,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   const handleVisibilityChange = async (newVisibility: 'private' | 'link') => {
     if (newVisibility === 'link') {
       setVisibility('link')
-      await generateToken()
+      await generateTokenAndCopy()
       onUpdate()
     } else {
       // Check if there are members created by other users
@@ -107,6 +179,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       setToken('')
       setVisibility('private')
       setShowConfirm(false)
+      setJoinedUsers([])
       onUpdate()
     } catch (err) {
       console.error('Error updating visibility:', err)
@@ -115,25 +188,36 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     }
   }
 
-  const handleCopyToken = async () => {
-    if (!token) return
-    
-    const tokenWithPrefix = '@' + token
-    
+  const handleRemoveUser = (user: JoinedUser) => {
+    setUserToRemove(user)
+    if (user.member_count > 0) {
+      setShowRemoveConfirm(true)
+    } else {
+      removeUser(user)
+    }
+  }
+
+  const removeUser = async (user: JoinedUser) => {
+    setLoading(true)
     try {
-      await navigator.clipboard.writeText(tokenWithPrefix)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea')
-      textArea.value = tokenWithPrefix
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textArea)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      const supabase = forceNewClient()
+      const { error } = await (supabase.rpc as any)('remove_user_from_list', {
+        p_list_id: list.id,
+        p_user_id: user.user_id,
+      })
+
+      if (error) throw error
+      
+      setJoinedUsers(prev => prev.filter(u => u.user_id !== user.user_id))
+      setShowRemoveConfirm(false)
+      setUserToRemove(null)
+      success('User removed')
+      onUpdate()
+    } catch (err) {
+      console.error('Error removing user:', err)
+      showError('Failed to remove user')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -192,27 +276,52 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       </div>
 
       {/* Token section */}
-      {visibility === 'link' && token && (
+      {visibility === 'link' && (
         <div className="pt-4 border-t border-gray-200">
           <label className="text-sm text-gray-500 mb-2 block">Share token:</label>
           <div className="flex items-center gap-2">
             <input
               type="text"
-              value={'@' + token}
+              value={token ? '@' + token : ''}
               readOnly
+              placeholder="Click Regenerate to get a new token"
               className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg font-mono bg-gray-50 text-sm truncate"
             />
             <Button
               variant="secondary"
-              onClick={handleCopyToken}
+              onClick={generateTokenAndCopy}
+              disabled={loading}
               className="flex-shrink-0"
             >
-              {copied ? 'Copied!' : 'Copy'}
+              Regenerate
             </Button>
           </div>
           <p className="text-xs text-gray-400 mt-2">
-            Share this token with others to let them join your list.
+            Regenerate to override old token
           </p>
+        </div>
+      )}
+
+      {/* Joined users section */}
+      {visibility === 'link' && joinedUsers.length > 0 && (
+        <div className="pt-4 mt-4 border-t border-gray-200">
+          <label className="text-sm text-gray-500 mb-2 block">Users who joined:</label>
+          <div className="space-y-2">
+            {joinedUsers.map(user => (
+              <div key={user.user_id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                <span className="text-sm font-medium">
+                  {user.nickname || 'Unknown user'}
+                </span>
+                <button
+                  onClick={() => handleRemoveUser(user)}
+                  disabled={loading}
+                  className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -229,6 +338,20 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
         title="Make List Private"
         message={`This will remove ${otherMembersCount} member${otherMembersCount > 1 ? 's' : ''} created by other users and all their data. This cannot be undone.`}
         confirmText="Make Private"
+        variant="danger"
+        loading={loading}
+      />
+
+      <ConfirmModal
+        isOpen={showRemoveConfirm}
+        onClose={() => {
+          setShowRemoveConfirm(false)
+          setUserToRemove(null)
+        }}
+        onConfirm={() => userToRemove && removeUser(userToRemove)}
+        title="Remove User"
+        message={`This will remove ${userToRemove?.nickname || 'this user'} and delete ${userToRemove?.member_count} member${(userToRemove?.member_count || 0) > 1 ? 's' : ''} they created. This cannot be undone.`}
+        confirmText="Remove"
         variant="danger"
         loading={loading}
       />
