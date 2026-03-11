@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
-import type { List, Member, MemberWithCreator, Item, ItemMemberState } from '@/lib/supabase/types'
+import type { Database, List, Member, MemberWithCreator, Item, ItemMemberState } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const supabase = createClient()
@@ -41,6 +41,8 @@ function setCachedPrefs(listId: string, prefs: { memberFilter?: 'all' | 'mine', 
 
 const FETCH_TIMEOUT_MS = 5000
 const SAVE_TIMEOUT_MS = 5000
+
+type ListDataRpcResult = Database['public']['Functions']['get_list_data']['Returns']
 
 export function useList(listId: string) {
   const { user } = useAuth()
@@ -121,7 +123,7 @@ export function useList(listId: string) {
 
     try {
       // Fetch all list data in a single RPC call
-      const { data, error: rpcError } = await (supabase.rpc as any)('get_list_data', {
+      const { data, error: rpcError } = await supabase.rpc('get_list_data', {
         p_list_id: listId
       })
 
@@ -402,8 +404,8 @@ export function useList(listId: string) {
   }
 
   const updateMember = async (memberId: string, updates: Partial<Member>) => {
-    const { error } = await trackSaveOperation(
-      (supabase.rpc as any)('update_member', {
+      const { error } = await trackSaveOperation(
+        supabase.rpc('update_member', {
         p_member_id: memberId,
         p_name: updates.name !== undefined ? updates.name : null,
         p_is_public: updates.is_public !== undefined ? updates.is_public : null,
@@ -431,8 +433,8 @@ export function useList(listId: string) {
   }
 
   const deleteMember = async (memberId: string) => {
-    const { error } = await trackSaveOperation(
-      (supabase.rpc as any)('delete_member', {
+      const { error } = await trackSaveOperation(
+        supabase.rpc('delete_member', {
         p_member_id: memberId,
       })
     )
@@ -540,7 +542,7 @@ export function useList(listId: string) {
 
   const changeQuantity = async (itemId: string, memberId: string, delta: number) => {
     const { data, error } = await trackSaveOperation(
-      (supabase.rpc as any)('change_quantity', {
+      supabase.rpc('change_quantity', {
         p_item_id: itemId,
         p_member_id: memberId,
         p_delta: delta,

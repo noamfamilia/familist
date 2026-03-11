@@ -236,7 +236,7 @@ export default function ListPage() {
           <Toggle
             options={[
               { value: 'all', label: 'All' },
-              { value: 'mine', label: 'Mine' },
+              { value: 'mine', label: 'Owned' },
             ]}
             value={memberFilter}
             onChange={(v) => updateMemberFilter(v as 'all' | 'mine')}

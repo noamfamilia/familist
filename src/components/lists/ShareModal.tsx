@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { forceNewClient } from '@/lib/supabase/client'
-import type { List } from '@/lib/supabase/types'
+import type { Database, List } from '@/lib/supabase/types'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -25,6 +25,8 @@ interface JoinedUser {
   member_count: number
 }
 
+type JoinedUsersRpcResult = Database['public']['Functions']['get_list_joined_users']['Returns']
+
 export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps) {
   const { success, error: showError } = useToast()
   const [visibility, setVisibility] = useState<'private' | 'link'>(list.visibility)
@@ -40,7 +42,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   const fetchJoinedUsers = async (): Promise<JoinedUser[]> => {
     const supabase = forceNewClient()
     
-    const { data, error } = await (supabase.rpc as any)('get_list_joined_users', {
+    const { data, error } = await supabase.rpc('get_list_joined_users', {
       p_list_id: list.id
     })
     
@@ -51,7 +53,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       return []
     }
 
-    const nextUsers = data || []
+    const nextUsers: JoinedUsersRpcResult = data || []
     setJoinedUsers(nextUsers)
     return nextUsers
   }
@@ -97,7 +99,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     setLoading(true)
     try {
       const supabase = forceNewClient()
-      const { data, error } = await (supabase.rpc as any)('generate_share_token', {
+      const { data, error } = await supabase.rpc('generate_share_token', {
         p_list_id: list.id,
       })
       if (error) throw error
@@ -164,7 +166,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     setLoading(true)
     try {
       const supabase = forceNewClient()
-      const { error } = await (supabase.rpc as any)('revoke_share_token', {
+      const { error } = await supabase.rpc('revoke_share_token', {
         p_list_id: list.id,
       })
 
@@ -198,7 +200,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       const supabase = forceNewClient()
       const userIdsArray = Array.from(selectedUserIds)
       
-      const { error } = await (supabase.rpc as any)('remove_users_from_list', {
+      const { error } = await supabase.rpc('remove_users_from_list', {
         p_list_id: list.id,
         p_user_ids: userIdsArray,
       })
@@ -357,6 +359,12 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
               </label>
             ))}
           </div>
+        </div>
+      )}
+
+      {visibility === 'link' && joinedUsers.length === 0 && (
+        <div className="pt-4 mt-4 border-t border-gray-200 text-center text-sm text-gray-500">
+          No one has joined this list yet.
         </div>
       )}
 

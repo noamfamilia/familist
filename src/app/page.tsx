@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { Toggle } from '@/components/ui/Toggle'
@@ -88,7 +89,7 @@ export default function Home() {
             title={profile?.nickname || profile?.username || user.email}
             data-tour="profile-icon"
           >
-            <img src="/profile.png" alt="Profile settings" className="w-8 h-8" />
+            <Image src="/profile.png" alt="Profile settings" width={32} height={32} className="w-8 h-8" />
           </button>
         ) : (
           <button
@@ -106,7 +107,7 @@ export default function Home() {
             <Toggle
               options={[
                 { value: 'all', label: 'All' },
-                { value: 'mine', label: 'Mine' },
+                { value: 'mine', label: 'Owned' },
               ]}
               value={viewMode}
               onChange={(v) => handleViewModeChange(v as 'all' | 'mine')}
@@ -118,10 +119,13 @@ export default function Home() {
 
       {/* Header */}
       <header className="text-center mb-6 sm:mb-8">
-        <img 
-          src="/logo.png" 
-          alt="MyFamiList" 
-          className="h-12 sm:h-16 mx-auto"
+        <Image
+          src="/logo.png"
+          alt="MyFamiList"
+          width={256}
+          height={64}
+          className="h-12 sm:h-16 w-auto mx-auto"
+          priority
         />
       </header>
 

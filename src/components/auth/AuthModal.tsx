@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -266,7 +267,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 alert('Link copied to clipboard!')
               }}
             >
-              <img src="/share.png" alt="Share MyFamiList" className="h-12" />
+              <Image src="/share.png" alt="Share MyFamiList" width={48} height={48} className="h-12 w-auto" />
             </button>
 
             <button

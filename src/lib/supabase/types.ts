@@ -210,9 +210,45 @@ export interface Database {
         Args: { p_token: string }
         Returns: string
       }
+      get_user_lists: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          name: string
+          owner_id: string
+          visibility: 'private' | 'link'
+          archived: boolean
+          created_at: string
+          updated_at: string
+          role: 'owner' | 'editor' | 'viewer'
+          userArchived: boolean
+          memberCount: number
+          activeItemCount: number
+          ownerNickname: string | null
+          comment: string | null
+        }[]
+      }
+      get_list_data: {
+        Args: { p_list_id: string }
+        Returns: {
+          list: Database['public']['Tables']['lists']['Row'] | null
+          items: Database['public']['Tables']['items']['Row'][]
+          members: (Database['public']['Tables']['members']['Row'] & {
+            creator?: { nickname: string | null } | null
+          })[]
+        }
+      }
       change_quantity: {
         Args: { p_item_id: string; p_member_id: string; p_delta: number }
         Returns: number
+      }
+      update_member: {
+        Args: { p_member_id: string; p_name: string | null; p_is_public: boolean | null }
+        Returns: void
+      }
+      delete_member: {
+        Args: { p_member_id: string }
+        Returns: void
       }
       generate_share_token: {
         Args: { p_list_id: string }
@@ -220,6 +256,18 @@ export interface Database {
       }
       revoke_share_token: {
         Args: { p_list_id: string }
+        Returns: void
+      }
+      get_list_joined_users: {
+        Args: { p_list_id: string }
+        Returns: {
+          user_id: string
+          nickname: string | null
+          member_count: number
+        }[]
+      }
+      remove_users_from_list: {
+        Args: { p_list_id: string; p_user_ids: string[] }
         Returns: void
       }
     }
