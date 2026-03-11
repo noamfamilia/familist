@@ -260,7 +260,6 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       {/* Token section */}
       {visibility === 'link' && (
         <div className="pt-4 border-t border-gray-200">
-          <label className="text-sm text-gray-500 mb-2 block">Share token:</label>
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -278,6 +277,9 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
             </Button>
           </div>
           <p className="text-xs text-gray-400 mt-2 text-center">
+            Share your token with friends
+          </p>
+          <p className="text-xs text-gray-400 text-center">
             Regenerating a new token will invalidate the current one
           </p>
         </div>
