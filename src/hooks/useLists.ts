@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
-import { getCachedLists, setCachedLists } from '@/lib/cache'
+import { getCachedLists, setCachedLists, removeCachedList } from '@/lib/cache'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -29,6 +29,8 @@ export function useLists() {
   const channelRef = useRef<RealtimeChannel | null>(null)
   const skipRealtimeUntilRef = useRef<number>(0)
   const hasInitialDataRef = useRef(false)
+  const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingRealtimeRef = useRef(false)
   const userId = user?.id
 
   const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
@@ -123,6 +125,10 @@ export function useLists() {
     fetchLists()
   }, [fetchLists])
 
+  useEffect(() => {
+    setCachedLists(lists)
+  }, [lists])
+
   // Real-time subscriptions
   useEffect(() => {
     if (!userId) return
@@ -132,8 +138,27 @@ export function useLists() {
       if (Date.now() < skipRealtimeUntilRef.current) {
         return
       }
+
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        pendingRealtimeRef.current = true
+        return
+      }
+
+      if (realtimeDebounceRef.current) return
+      realtimeDebounceRef.current = setTimeout(() => {
+        realtimeDebounceRef.current = null
+        fetchLists()
+      }, 250)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible' || !pendingRealtimeRef.current) return
+      pendingRealtimeRef.current = false
+      if (Date.now() < skipRealtimeUntilRef.current) return
       fetchLists()
     }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     const channel = supabase
       .channel(`lists-${userId}`)
@@ -162,6 +187,11 @@ export function useLists() {
     channelRef.current = channel
 
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (realtimeDebounceRef.current) {
+        clearTimeout(realtimeDebounceRef.current)
+        realtimeDebounceRef.current = null
+      }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
       }
@@ -237,6 +267,7 @@ export function useLists() {
     if (!error) {
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLists(prev => prev.filter(list => list.id !== listId))
+      removeCachedList(listId)
     }
 
     return { error }
@@ -308,6 +339,7 @@ export function useLists() {
 
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => prev.filter(list => list.id !== listId))
+    removeCachedList(listId)
 
     return { error: null }
   }

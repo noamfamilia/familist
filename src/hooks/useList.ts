@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
-import { getCachedList, setCachedList } from '@/lib/cache'
+import { getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import type { List, Member, MemberWithCreator, Item, ItemMemberState } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -190,6 +190,17 @@ export function useList(listId: string) {
   useEffect(() => {
     fetchList()
   }, [fetchList])
+
+  // Keep local cache in sync with optimistic updates too.
+  useEffect(() => {
+    if (!list) return
+    setCachedList(listId, { list, items, members })
+  }, [listId, list, items, members])
+
+  useEffect(() => {
+    if (!accessDenied) return
+    removeCachedList(listId)
+  }, [accessDenied, listId])
 
   // Real-time subscriptions
   useEffect(() => {

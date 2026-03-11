@@ -38,7 +38,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   const [contentReady, setContentReady] = useState(false)
 
   // Fetch joined users when modal opens
-  const fetchJoinedUsers = async () => {
+  const fetchJoinedUsers = async (): Promise<JoinedUser[]> => {
     const supabase = forceNewClient()
     
     const { data, error } = await (supabase.rpc as any)('get_list_joined_users', {
@@ -47,10 +47,14 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     
     if (error) {
       console.error('Error fetching joined users:', error)
-      return
+      showError('Failed to load joined users')
+      setJoinedUsers([])
+      return []
     }
 
-    setJoinedUsers(data || [])
+    const nextUsers = data || []
+    setJoinedUsers(nextUsers)
+    return nextUsers
   }
 
   // Only reset state when modal opens, not when list object reference changes
@@ -65,7 +69,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       // Fetch joined users if link-enabled, then show content
       if (list.visibility === 'link') {
         setContentReady(false)
-        fetchJoinedUsers().then(() => setContentReady(true))
+        fetchJoinedUsers().finally(() => setContentReady(true))
       } else {
         setJoinedUsers([])
         setContentReady(true)
@@ -100,8 +104,11 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       if (error) throw error
       setToken(data)
       await copyToClipboard(data)
+      return true
     } catch (err) {
       console.error('Error generating token:', err)
+      showError('Failed to generate token')
+      return false
     } finally {
       setLoading(false)
     }
@@ -139,9 +146,11 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
   const handleVisibilityChange = async (newVisibility: 'private' | 'link') => {
     if (newVisibility === 'link') {
-      setVisibility('link')
-      await generateTokenAndCopy()
-      onUpdate()
+      const didGenerateToken = await generateTokenAndCopy()
+      if (didGenerateToken) {
+        setVisibility('link')
+        onUpdate()
+      }
     } else {
       // If there are users/members, show confirmation
       if (totalUsers > 0 || totalMembers > 0) {
@@ -166,8 +175,11 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       setShowConfirm(false)
       setJoinedUsers([])
       onUpdate()
+      return true
     } catch (err) {
       console.error('Error updating visibility:', err)
+      showError('Failed to update sharing settings')
+      return false
     } finally {
       setLoading(false)
     }
