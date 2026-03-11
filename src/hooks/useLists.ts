@@ -1,5 +1,4 @@
 'use client'
-// @ts-nocheck
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
@@ -133,6 +132,32 @@ export function useLists() {
   useEffect(() => {
     if (!userId) return
 
+    const scheduleRealtimeFetch = (delayMs: number, consumePending = false) => {
+      if (realtimeDebounceRef.current) {
+        clearTimeout(realtimeDebounceRef.current)
+      }
+
+      realtimeDebounceRef.current = setTimeout(() => {
+        realtimeDebounceRef.current = null
+
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          if (consumePending) pendingRealtimeRef.current = true
+          return
+        }
+
+        const remainingSkipMs = skipRealtimeUntilRef.current - Date.now()
+        if (remainingSkipMs > 0) {
+          if (consumePending || pendingRealtimeRef.current) {
+            scheduleRealtimeFetch(remainingSkipMs, true)
+          }
+          return
+        }
+
+        if (consumePending) pendingRealtimeRef.current = false
+        fetchLists()
+      }, Math.max(delayMs, 0))
+    }
+
     const handleRealtimeChange = () => {
       // Skip fetch if we recently did a local optimistic update (within 2 seconds)
       if (Date.now() < skipRealtimeUntilRef.current) {
@@ -144,18 +169,12 @@ export function useLists() {
         return
       }
 
-      if (realtimeDebounceRef.current) return
-      realtimeDebounceRef.current = setTimeout(() => {
-        realtimeDebounceRef.current = null
-        fetchLists()
-      }, 250)
+      scheduleRealtimeFetch(250)
     }
 
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible' || !pendingRealtimeRef.current) return
-      pendingRealtimeRef.current = false
-      if (Date.now() < skipRealtimeUntilRef.current) return
-      fetchLists()
+      scheduleRealtimeFetch(0, true)
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -192,6 +211,7 @@ export function useLists() {
         clearTimeout(realtimeDebounceRef.current)
         realtimeDebounceRef.current = null
       }
+      pendingRealtimeRef.current = false
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
       }

@@ -1,5 +1,4 @@
 'use client'
-// @ts-nocheck
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -226,11 +225,6 @@ export function useList(listId: string) {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'item_member_state' },
-        handleRealtimeChange
-      )
-      .on(
-        'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'list_users', filter: `list_id=eq.${listId}` },
         (payload) => {
           // Check if the current user was removed (always process, don't skip)
@@ -262,6 +256,11 @@ export function useList(listId: string) {
       .on(
         'broadcast',
         { event: 'member_updated' },
+        handleRealtimeChange
+      )
+      .on(
+        'broadcast',
+        { event: 'member_state_updated' },
         handleRealtimeChange
       )
       .on(
@@ -490,6 +489,13 @@ export function useList(listId: string) {
             },
           }
         }))
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'member_state_updated',
+            payload: { listId, itemId, memberId }
+          })
+        }
       }
 
       return { error }
@@ -519,6 +525,13 @@ export function useList(listId: string) {
             },
           }
         }))
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'member_state_updated',
+            payload: { listId, itemId, memberId }
+          })
+        }
       }
 
       return { error }
@@ -553,6 +566,13 @@ export function useList(listId: string) {
           },
         }
       }))
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'member_state_updated',
+          payload: { listId, itemId, memberId }
+        })
+      }
     }
 
     return { data, error }
