@@ -56,7 +56,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     return nextUsers
   }
 
-  // Only reset state when modal opens, not when list object reference changes
+  // Only reset state when the modal opens, not when list visibility changes while open.
   useEffect(() => {
     if (isOpen) {
       setVisibility(list.visibility)
@@ -77,7 +77,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       setContentReady(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, list.visibility])
+  }, [isOpen, list.id])
 
   const copyToClipboard = async (tokenValue: string) => {
     const tokenWithPrefix = '@' + tokenValue
