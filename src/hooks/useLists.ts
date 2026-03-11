@@ -34,6 +34,13 @@ export function useLists() {
   const pendingRealtimeRef = useRef(false)
   const userId = user?.id
 
+  useEffect(() => {
+    const cachedLists = getCachedLists(userId)?.lists || []
+    setLists(cachedLists)
+    setLoading(!!userId && cachedLists.length === 0)
+    hasInitialDataRef.current = cachedLists.length > 0
+  }, [userId])
+
   const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
     pendingSaveOpsRef.current++
     setSaveTimedOut(false)
@@ -80,7 +87,7 @@ export function useLists() {
     }, FETCH_TIMEOUT_MS)
 
     // Only show loading spinner on initial load if no cached data
-    if (!hasInitialDataRef.current && !getCachedLists()?.lists?.length) {
+    if (!hasInitialDataRef.current && !getCachedLists(userId)?.lists?.length) {
       setLoading(true)
     }
     setError(null)
@@ -108,7 +115,7 @@ export function useLists() {
       }))
 
       setLists(listsData)
-      setCachedLists(listsData)
+      setCachedLists(userId, listsData)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
     } catch (err) {
@@ -127,8 +134,8 @@ export function useLists() {
   }, [fetchLists])
 
   useEffect(() => {
-    setCachedLists(lists)
-  }, [lists])
+    setCachedLists(userId, lists)
+  }, [userId, lists])
 
   // Real-time subscriptions
   useEffect(() => {
@@ -289,7 +296,7 @@ export function useLists() {
     if (!error) {
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLists(prev => prev.filter(list => list.id !== listId))
-      removeCachedList(listId)
+      removeCachedList(userId, listId)
     }
 
     return { error }
@@ -361,7 +368,7 @@ export function useLists() {
 
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => prev.filter(list => list.id !== listId))
-    removeCachedList(listId)
+    removeCachedList(userId, listId)
 
     return { error: null }
   }

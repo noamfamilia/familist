@@ -1,7 +1,8 @@
-import type { ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
+import type { List, ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
 import type { ItemWithState } from '@/hooks/useList'
 
 const MAX_CACHED_LISTS = 10
+const CACHE_KEY_ACTIVE_USER = 'active_cache_user'
 const CACHE_KEY_LISTS = 'cached_lists'
 const CACHE_KEY_RECENT = 'recent_lists'
 
@@ -11,88 +12,137 @@ interface CachedLists {
 }
 
 interface CachedListData {
-  list: any
+  list: List
   items: ItemWithState[]
   members: MemberWithCreator[]
   cachedAt: number
 }
 
-function getCacheKey(listId: string) {
-  return `cached_list_${listId}`
+function getListsKey(userId: string) {
+  return `${CACHE_KEY_LISTS}_${userId}`
 }
 
-export function getCachedLists(): CachedLists | null {
+function getRecentKey(userId: string) {
+  return `${CACHE_KEY_RECENT}_${userId}`
+}
+
+function getCacheKey(userId: string, listId: string) {
+  return `cached_list_${userId}_${listId}`
+}
+
+export function getActiveCacheUserId() {
   if (typeof window === 'undefined') return null
   try {
-    const cached = localStorage.getItem(CACHE_KEY_LISTS)
+    return localStorage.getItem(CACHE_KEY_ACTIVE_USER)
+  } catch {
+    return null
+  }
+}
+
+export function setActiveCacheUserId(userId: string) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(CACHE_KEY_ACTIVE_USER, userId)
+  } catch {
+    // Ignore errors
+  }
+}
+
+export function clearActiveCacheUserId() {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(CACHE_KEY_ACTIVE_USER)
+  } catch {
+    // Ignore errors
+  }
+}
+
+function resolveUserId(userId?: string) {
+  return userId || getActiveCacheUserId()
+}
+
+export function getCachedLists(userId?: string): CachedLists | null {
+  const scopedUserId = resolveUserId(userId)
+  if (!scopedUserId) return null
+  if (typeof window === 'undefined') return null
+  try {
+    const cached = localStorage.getItem(getListsKey(scopedUserId))
     return cached ? JSON.parse(cached) : null
   } catch {
     return null
   }
 }
 
-export function setCachedLists(lists: ListWithRole[]) {
+export function setCachedLists(userId: string | undefined, lists: ListWithRole[]) {
+  const scopedUserId = resolveUserId(userId)
+  if (!scopedUserId) return
   if (typeof window === 'undefined') return
   try {
     const data: CachedLists = {
       lists,
       cachedAt: Date.now()
     }
-    localStorage.setItem(CACHE_KEY_LISTS, JSON.stringify(data))
+    localStorage.setItem(getListsKey(scopedUserId), JSON.stringify(data))
   } catch {
     // Storage full or other error - ignore
   }
 }
 
-export function getCachedList(listId: string): CachedListData | null {
+export function getCachedList(userId: string | undefined, listId: string): CachedListData | null {
+  const scopedUserId = resolveUserId(userId)
+  if (!scopedUserId) return null
   if (typeof window === 'undefined') return null
   try {
-    const cached = localStorage.getItem(getCacheKey(listId))
+    const cached = localStorage.getItem(getCacheKey(scopedUserId, listId))
     return cached ? JSON.parse(cached) : null
   } catch {
     return null
   }
 }
 
-export function setCachedList(listId: string, data: Omit<CachedListData, 'cachedAt'>) {
+export function setCachedList(userId: string | undefined, listId: string, data: Omit<CachedListData, 'cachedAt'>) {
+  const scopedUserId = resolveUserId(userId)
+  if (!scopedUserId) return
   if (typeof window === 'undefined') return
   try {
     const cacheData: CachedListData = {
       ...data,
       cachedAt: Date.now()
     }
-    localStorage.setItem(getCacheKey(listId), JSON.stringify(cacheData))
-    updateRecentLists(listId)
+    localStorage.setItem(getCacheKey(scopedUserId, listId), JSON.stringify(cacheData))
+    updateRecentLists(scopedUserId, listId)
   } catch {
     // Storage full or other error - ignore
   }
 }
 
-export function removeCachedList(listId: string) {
+export function removeCachedList(userId: string | undefined, listId: string) {
+  const scopedUserId = resolveUserId(userId)
+  if (!scopedUserId) return
   if (typeof window === 'undefined') return
   try {
-    localStorage.removeItem(getCacheKey(listId))
+    localStorage.removeItem(getCacheKey(scopedUserId, listId))
     // Also remove from recent lists
-    const recent = getRecentLists()
+    const recent = getRecentLists(scopedUserId)
     const updated = recent.filter(id => id !== listId)
-    localStorage.setItem(CACHE_KEY_RECENT, JSON.stringify(updated))
+    localStorage.setItem(getRecentKey(scopedUserId), JSON.stringify(updated))
   } catch {
     // Ignore errors
   }
 }
 
-function getRecentLists(): string[] {
+function getRecentLists(userId: string): string[] {
   try {
-    const cached = localStorage.getItem(CACHE_KEY_RECENT)
+    const cached = localStorage.getItem(getRecentKey(userId))
     return cached ? JSON.parse(cached) : []
   } catch {
     return []
   }
 }
 
-function updateRecentLists(listId: string) {
+function updateRecentLists(userId: string, listId: string) {
   try {
-    let recent = getRecentLists()
+    let recent = getRecentLists(userId)
     
     // Remove if already exists (will be added to front)
     recent = recent.filter(id => id !== listId)
@@ -104,11 +154,11 @@ function updateRecentLists(listId: string) {
     if (recent.length > MAX_CACHED_LISTS) {
       const evicted = recent.pop()
       if (evicted) {
-        localStorage.removeItem(getCacheKey(evicted))
+        localStorage.removeItem(getCacheKey(userId, evicted))
       }
     }
     
-    localStorage.setItem(CACHE_KEY_RECENT, JSON.stringify(recent))
+    localStorage.setItem(getRecentKey(userId), JSON.stringify(recent))
   } catch {
     // Ignore errors
   }

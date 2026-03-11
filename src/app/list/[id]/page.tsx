@@ -77,9 +77,11 @@ export default function ListPage() {
     isFetching,
     fetchTimedOut,
     saveTimedOut,
+    error,
     accessDenied,
     memberFilter,
     itemTextWidth,
+    refresh,
     addItem,
     addMember,
     updateMember,
@@ -139,13 +141,33 @@ export default function ListPage() {
   if (!list) {
     return (
       <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
-        <p className="text-center text-gray-500">List not found or deleted</p>
-        <button
-          onClick={() => router.replace('/')}
-          className="mt-4 text-primary hover:underline block mx-auto"
-        >
-          ← Back to lists
-        </button>
+        {error ? (
+          <>
+            <p className="text-center text-red-700 font-medium">Can&apos;t load this list right now.</p>
+            <p className="text-center text-sm text-red-600 mt-1">Please try again.</p>
+            <div className="flex items-center gap-3 mt-4">
+              <Button type="button" size="sm" variant="secondary" onClick={refresh}>
+                Retry
+              </Button>
+              <button
+                onClick={() => router.replace('/')}
+                className="text-primary hover:underline block"
+              >
+                ← Back to lists
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-center text-gray-500">List not found or deleted</p>
+            <button
+              onClick={() => router.replace('/')}
+              className="mt-4 text-primary hover:underline block mx-auto"
+            >
+              ← Back to lists
+            </button>
+          </>
+        )}
       </div>
     )
   }
@@ -223,6 +245,15 @@ export default function ListPage() {
         </div>
       )}
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-3 mb-4">
+          <span>Can&apos;t refresh this list right now.</span>
+          <Button type="button" size="sm" variant="secondary" onClick={refresh}>
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Top bar with back button and member filter */}
       <div className="flex items-center justify-between mb-4">
         <Link
@@ -264,6 +295,10 @@ export default function ListPage() {
             Add
           </Button>
         </form>
+
+      {searchText && (
+        <p className="text-xs text-gray-400 px-1 -mt-4 mb-4 sm:mb-6">Filtering...</p>
+      )}
 
       {/* Scrollable container for header + items */}
       <div className="overflow-x-auto overflow-y-auto max-h-[500px]">

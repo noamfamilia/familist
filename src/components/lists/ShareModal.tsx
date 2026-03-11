@@ -5,8 +5,9 @@ import dynamic from 'next/dynamic'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
-import { forceNewClient } from '@/lib/supabase/client'
+import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { Database, List } from '@/lib/supabase/types'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -55,6 +56,10 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
     const nextUsers: JoinedUsersRpcResult = data || []
     setJoinedUsers(nextUsers)
+    setSelectedUserIds(prev => {
+      const validUserIds = new Set(nextUsers.map(user => user.user_id))
+      return new Set(Array.from(prev).filter(userId => validUserIds.has(userId)))
+    })
     return nextUsers
   }
 
@@ -80,6 +85,40 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, list.id])
+
+  useEffect(() => {
+    if (!isOpen || visibility !== 'link') return
+
+    const supabase = createClient()
+    let refreshTimeout: NodeJS.Timeout | null = null
+
+    const scheduleRefresh = () => {
+      if (refreshTimeout) clearTimeout(refreshTimeout)
+      refreshTimeout = setTimeout(() => {
+        fetchJoinedUsers()
+      }, 200)
+    }
+
+    const channel: RealtimeChannel = supabase
+      .channel(`share-modal-${list.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'list_users', filter: `list_id=eq.${list.id}` },
+        scheduleRefresh
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'members', filter: `list_id=eq.${list.id}` },
+        scheduleRefresh
+      )
+      .subscribe()
+
+    return () => {
+      if (refreshTimeout) clearTimeout(refreshTimeout)
+      supabase.removeChannel(channel)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, visibility, list.id])
 
   const copyToClipboard = async (tokenValue: string) => {
     const tokenWithPrefix = '@' + tokenValue

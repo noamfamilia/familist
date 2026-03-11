@@ -166,6 +166,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     }
   }
 
+  const ownerBadge = !isOwner && list.ownerNickname ? (
+    <span className="ml-1 inline-flex items-center gap-1 align-middle text-xs text-gray-400">
+      <span aria-hidden="true">·</span>
+      <bdi dir="auto">{list.ownerNickname}</bdi>
+    </span>
+  ) : null
+
   return (
     <>
     {/* Main card content */}
@@ -215,9 +222,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           className="flex-1 min-w-0 font-medium truncate text-lg text-gray-400 line-through"
         >
           {list.name}
-          {!isOwner && list.ownerNickname && (
-            <span className="text-teal ml-1">({list.ownerNickname})</span>
-          )}
+          {ownerBadge}
         </span>
       ) : (
         <Link
@@ -225,9 +230,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           className="flex-1 min-w-0 font-medium truncate text-lg text-primary hover:text-teal"
         >
           {list.name}
-          {!isOwner && list.ownerNickname && (
-            <span className="text-teal ml-1">({list.ownerNickname})</span>
-          )}
+          {ownerBadge}
         </Link>
       )}
 

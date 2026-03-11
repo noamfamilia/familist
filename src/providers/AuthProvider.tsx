@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
+import { clearActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
 
 interface AuthContextType {
   user: User | null
@@ -19,6 +20,22 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs)
+
+    promise
+      .then((value) => {
+        clearTimeout(timeoutId)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId)
+        reject(error)
+      })
+  })
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -27,23 +44,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      // Use fetch directly to bypass Supabase client state issues after tab switching
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=*`,
-        {
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-          },
-        }
-      )
-      
-      if (!response.ok) return
-      
-      const data = await response.json()
-      if (data && data.length > 0) {
-        setProfile(data[0])
-      }
+      const freshClient = forceNewClient()
+      const { data, error } = await freshClient
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (error) return
+      setProfile(data)
     } catch (err) {
       console.error('fetchProfile error:', err)
     }
@@ -59,7 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         setUser(session?.user ?? null)
         if (session?.user) {
+          setActiveCacheUserId(session.user.id)
           await fetchProfile(session.user.id)
+        } else {
+          clearActiveCacheUserId()
         }
       } catch (error) {
         console.error('Failed to get session:', error)
@@ -82,22 +94,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Use fresh client to avoid stale connection issues
       const freshClient = forceNewClient()
-      
-      const timeoutPromise = new Promise<{ error: Error }>((_, reject) => 
-        setTimeout(() => reject(new Error('Sign in timed out. Please refresh the page.')), 10000)
+
+      const result = await withTimeout(
+        freshClient.auth.signInWithPassword({ email, password }),
+        10000,
+        'Sign in timed out. Please refresh the page.'
       )
-      
-      const signInPromise = freshClient.auth.signInWithPassword({ email, password })
-      
-      const result = await Promise.race([signInPromise, timeoutPromise]) as any
       
       if (!result.error && result.data?.user) {
         // Update local state directly (no cross-tab sync)
         setUser(result.data.user)
+        setActiveCacheUserId(result.data.user.id)
         await fetchProfile(result.data.user.id)
       }
       
-      return { error: result.error as Error | null }
+      return { error: result.error }
     } catch (error) {
       return { error: error as Error }
     }
@@ -116,6 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // If sign up successful and user is returned (no email confirmation required)
     if (!error && data?.user && data.session) {
       setUser(data.user)
+      setActiveCacheUserId(data.user.id)
       await fetchProfile(data.user.id)
     }
 
@@ -129,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Clear local state first for immediate UI response
     setUser(null)
     setProfile(null)
+    clearActiveCacheUserId()
     
     // Fire and forget - don't block on Supabase
     supabase.auth.signOut().catch(error => {

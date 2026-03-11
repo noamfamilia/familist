@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
-import { getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
+import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import type { Database, List, Member, MemberWithCreator, Item, ItemMemberState } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -14,9 +14,17 @@ export interface ItemWithState extends Item {
 }
 
 // Helper to get cached preferences from localStorage
-function getCachedPrefs(listId: string) {
+function getPrefsKey(listId: string, userId?: string) {
+  const scopedUserId = userId || getActiveCacheUserId()
+  return scopedUserId ? `list_${scopedUserId}_${listId}_prefs` : null
+}
+
+function getCachedPrefs(listId: string, userId?: string) {
   if (typeof window === 'undefined') return { memberFilter: 'all' as const, itemTextWidth: 80 }
-  const cached = localStorage.getItem(`list_${listId}_prefs`)
+  const prefsKey = getPrefsKey(listId, userId)
+  if (!prefsKey) return { memberFilter: 'all' as const, itemTextWidth: 80 }
+
+  const cached = localStorage.getItem(prefsKey)
   if (cached) {
     try {
       const parsed = JSON.parse(cached)
@@ -30,12 +38,14 @@ function getCachedPrefs(listId: string) {
 }
 
 // Helper to save preferences to localStorage
-function setCachedPrefs(listId: string, prefs: { memberFilter?: 'all' | 'mine', itemTextWidth?: number }) {
+function setCachedPrefs(listId: string, prefs: { memberFilter?: 'all' | 'mine', itemTextWidth?: number }, userId?: string) {
   if (typeof window === 'undefined') return
+  const prefsKey = getPrefsKey(listId, userId)
+  if (!prefsKey) return
   try {
-    const current = getCachedPrefs(listId)
+    const current = getCachedPrefs(listId, userId)
     const updated = { ...current, ...prefs }
-    localStorage.setItem(`list_${listId}_prefs`, JSON.stringify(updated))
+    localStorage.setItem(prefsKey, JSON.stringify(updated))
   } catch { /* ignore */ }
 }
 
@@ -46,7 +56,7 @@ type ListDataRpcResult = Database['public']['Functions']['get_list_data']['Retur
 
 export function useList(listId: string) {
   const { user } = useAuth()
-  const cached = getCachedList(listId)
+  const cached = getCachedList(undefined, listId)
   
   // Initialize from cache for instant load
   const [list, setList] = useState<List | null>(cached?.list || null)
@@ -69,6 +79,19 @@ export function useList(listId: string) {
   const hasInitialDataRef = useRef(false)
   const skipRealtimeUntilRef = useRef(0)
   const userId = user?.id
+
+  useEffect(() => {
+    const cachedData = getCachedList(userId, listId)
+    const cachedPrefs = getCachedPrefs(listId, userId)
+
+    setList(cachedData?.list || null)
+    setItems(cachedData?.items || [])
+    setMembers(cachedData?.members || [])
+    setMemberFilter(cachedPrefs.memberFilter)
+    setItemTextWidth(cachedPrefs.itemTextWidth)
+    setLoading(!!userId && !cachedData?.list)
+    hasInitialDataRef.current = !!cachedData?.list
+  }, [userId, listId])
 
   const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
     pendingSaveOpsRef.current++
@@ -96,6 +119,9 @@ export function useList(listId: string) {
 
   const fetchList = useCallback(async () => {
     if (!userId || !listId) {
+      setList(null)
+      setItems([])
+      setMembers([])
       setLoading(false)
       setIsFetching(false)
       return
@@ -115,7 +141,7 @@ export function useList(listId: string) {
     }, FETCH_TIMEOUT_MS)
 
     // Only show loading spinner on initial load if no cached data
-    const cachedData = getCachedList(listId)
+    const cachedData = getCachedList(userId, listId)
     if (!hasInitialDataRef.current && !cachedData?.list) {
       setLoading(true)
     }
@@ -152,7 +178,7 @@ export function useList(listId: string) {
       hasInitialDataRef.current = true
 
       // Cache the list data for instant load next time
-      setCachedList(listId, {
+      setCachedList(userId, listId, {
         list: data.list,
         items: data.items || [],
         members: data.members || []
@@ -169,11 +195,11 @@ export function useList(listId: string) {
       if (listUserData) {
         if (listUserData.member_filter === 'all' || listUserData.member_filter === 'mine') {
           setMemberFilter(listUserData.member_filter)
-          setCachedPrefs(listId, { memberFilter: listUserData.member_filter })
+          setCachedPrefs(listId, { memberFilter: listUserData.member_filter }, userId)
         }
         if (listUserData.item_text_width && listUserData.item_text_width >= 80) {
           setItemTextWidth(listUserData.item_text_width)
-          setCachedPrefs(listId, { itemTextWidth: listUserData.item_text_width })
+          setCachedPrefs(listId, { itemTextWidth: listUserData.item_text_width }, userId)
         }
       }
       setFetchTimedOut(false)
@@ -195,13 +221,13 @@ export function useList(listId: string) {
   // Keep local cache in sync with optimistic updates too.
   useEffect(() => {
     if (!list) return
-    setCachedList(listId, { list, items, members })
-  }, [listId, list, items, members])
+    setCachedList(userId, listId, { list, items, members })
+  }, [userId, listId, list, items, members])
 
   useEffect(() => {
     if (!accessDenied) return
-    removeCachedList(listId)
-  }, [accessDenied, listId])
+    removeCachedList(userId, listId)
+  }, [accessDenied, userId, listId])
 
   // Real-time subscriptions
   useEffect(() => {
@@ -602,7 +628,7 @@ export function useList(listId: string) {
 
   const updateMemberFilter = async (filter: 'all' | 'mine') => {
     setMemberFilter(filter)
-    setCachedPrefs(listId, { memberFilter: filter })
+    setCachedPrefs(listId, { memberFilter: filter }, userId)
     if (userId) {
       await trackSaveOperation(
         supabase
@@ -617,7 +643,7 @@ export function useList(listId: string) {
   const updateItemTextWidth = async (width: number) => {
     const newWidth = Math.max(80, width)
     setItemTextWidth(newWidth)
-    setCachedPrefs(listId, { itemTextWidth: newWidth })
+    setCachedPrefs(listId, { itemTextWidth: newWidth }, userId)
     if (userId) {
       await trackSaveOperation(
         supabase

@@ -25,7 +25,7 @@ interface ListsViewProps {
 }
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: ListsViewProps) {
-  const { lists, loading, isFetching, fetchTimedOut, saveTimedOut, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
+  const { lists, loading, isFetching, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -147,14 +147,37 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
         </Button>
       </form>
 
+      {searchText && (
+        <p className="text-xs text-gray-400 px-1 -mt-4">Filtering...</p>
+      )}
+
       {error && (
         <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
 
+      {fetchError && lists.length > 0 && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-3">
+          <span>Can&apos;t refresh your lists right now.</span>
+          <Button type="button" size="sm" variant="secondary" onClick={refresh}>
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Lists */}
       <div className={`space-y-2 min-h-[120px] ${isFetching ? '[&_button]:pointer-events-none [&_button]:opacity-50 [&_input]:pointer-events-none [&_input]:opacity-50' : ''}`}>
+        {fetchError && lists.length === 0 && (
+          <div className="text-center py-10 px-4 border border-red-200 bg-red-50 rounded-lg">
+            <p className="text-red-700 font-medium">Can&apos;t load your lists right now.</p>
+            <p className="text-sm text-red-600 mt-1">Please try again.</p>
+            <Button type="button" size="sm" variant="secondary" className="mt-4" onClick={refresh}>
+              Retry
+            </Button>
+          </div>
+        )}
+
         {/* Active Lists - draggable */}
         {activeLists.length > 0 && (
           <DndContext
