@@ -41,43 +41,16 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   const fetchJoinedUsers = async () => {
     const supabase = forceNewClient()
     
-    // Get all non-owner users with their profiles
-    const { data: listUsers, error: listUsersError } = await supabase
-      .from('list_users')
-      .select('user_id, profiles:user_id(nickname)')
-      .eq('list_id', list.id)
-      .neq('role', 'owner')
-    
-    if (listUsersError) {
-      console.error('Error fetching joined users:', listUsersError)
-      return
-    }
-
-    // Get member counts for each user
-    const { data: members, error: membersError } = await supabase
-      .from('members')
-      .select('created_by')
-      .eq('list_id', list.id)
-    
-    if (membersError) {
-      console.error('Error fetching members:', membersError)
-      return
-    }
-
-    // Count members per user
-    const memberCounts: Record<string, number> = {}
-    members?.forEach(m => {
-      memberCounts[m.created_by] = (memberCounts[m.created_by] || 0) + 1
+    const { data, error } = await (supabase.rpc as any)('get_list_joined_users', {
+      p_list_id: list.id
     })
+    
+    if (error) {
+      console.error('Error fetching joined users:', error)
+      return
+    }
 
-    // Combine data
-    const users: JoinedUser[] = (listUsers || []).map(lu => ({
-      user_id: lu.user_id,
-      nickname: (lu.profiles as any)?.nickname || null,
-      member_count: memberCounts[lu.user_id] || 0
-    }))
-
-    setJoinedUsers(users)
+    setJoinedUsers(data || [])
   }
 
   // Only reset state when modal opens, not when list object reference changes
