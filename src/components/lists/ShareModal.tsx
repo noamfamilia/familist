@@ -199,7 +199,6 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       setSelectedUserIds(new Set())
       setShowRemoveConfirm(false)
       success(`${selectedUsersCount} user${selectedUsersCount > 1 ? 's' : ''} removed`)
-      onUpdate()
     } catch (err) {
       console.error('Error removing users:', err)
       showError('Failed to remove users')
