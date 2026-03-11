@@ -293,19 +293,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           </div>
           
           {/* Header row with select all and remove button */}
-          <div className="flex items-center justify-between py-2 px-3 bg-gray-100 rounded-lg mb-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={selectedUserIds.size === joinedUsers.length && joinedUsers.length > 0}
-                onChange={toggleSelectAll}
-                disabled={loading}
-                className="w-4 h-4 rounded border-gray-300 text-teal focus:ring-teal"
-              />
-              <span className="text-sm text-gray-600">
-                {selectedUserIds.size === joinedUsers.length ? 'Deselect all' : 'Select all'}
-              </span>
-            </label>
+          <div className="flex items-center justify-between py-2 px-3 mb-2">
             {selectedUsersCount > 0 && (
               <button
                 onClick={handleRemoveSelected}
@@ -315,12 +303,30 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
                 Remove selected
               </button>
             )}
+            {selectedUsersCount === 0 && <div />}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-sm text-gray-600">
+                {selectedUserIds.size === joinedUsers.length ? 'Deselect all' : 'Select all'}
+              </span>
+              <input
+                type="checkbox"
+                checked={selectedUserIds.size === joinedUsers.length && joinedUsers.length > 0}
+                onChange={toggleSelectAll}
+                disabled={loading}
+                className="w-4 h-4 rounded border-gray-300 text-teal focus:ring-teal"
+              />
+            </label>
           </div>
           
           {/* User rows */}
           <div className="space-y-2">
             {joinedUsers.map(user => (
-              <label key={user.user_id} className="flex items-center gap-3 py-2 px-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
+              <label key={user.user_id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
+                <span className="text-sm font-medium">
+                  {user.nickname || 'Unknown user'}
+                  <span className="text-gray-400 mx-1">·</span>
+                  <span className="text-gray-400 font-normal">{user.member_count} member{user.member_count !== 1 ? 's' : ''}</span>
+                </span>
                 <input
                   type="checkbox"
                   checked={selectedUserIds.has(user.user_id)}
@@ -328,14 +334,6 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
                   disabled={loading}
                   className="w-4 h-4 rounded border-gray-300 text-teal focus:ring-teal"
                 />
-                <span className="text-sm font-medium flex-1">
-                  {user.nickname || 'Unknown user'}
-                </span>
-                {user.member_count > 0 && (
-                  <span className="text-xs text-gray-400">
-                    {user.member_count} member{user.member_count > 1 ? 's' : ''}
-                  </span>
-                )}
               </label>
             ))}
           </div>
