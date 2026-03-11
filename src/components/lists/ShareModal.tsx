@@ -332,7 +332,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           <div className="space-y-2">
             {joinedUsers.map(user => (
               <label key={user.user_id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
-                <span className="text-sm font-medium">
+                <span dir="ltr" className="text-sm font-medium">
                   {user.nickname || 'Unknown user'}
                   <span className="text-gray-400 mx-1">·</span>
                   <span className="text-gray-400 font-normal">{user.member_count} member{user.member_count !== 1 ? 's' : ''}</span>
