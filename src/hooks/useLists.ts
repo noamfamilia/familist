@@ -14,6 +14,10 @@ const SAVE_TIMEOUT_MS = 5000
 
 type UserListsRpcRow = Database['public']['Functions']['get_user_lists']['Returns'][number]
 
+function createTempId(prefix: string) {
+  return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
 export function useLists() {
   const { user } = useAuth()
   // Initialize from cache for instant load
@@ -236,6 +240,31 @@ export function useLists() {
   const createList = async (name: string) => {
     if (!user) return { error: new Error('Not authenticated') }
 
+    const tempId = createTempId('list')
+    const now = new Date().toISOString()
+    const optimisticList: ListWithRole = {
+      id: tempId,
+      name,
+      owner_id: user.id,
+      visibility: 'private',
+      archived: false,
+      comment: null,
+      join_token_hash: null,
+      join_role_granted: 'editor',
+      join_expires_at: null,
+      join_revoked_at: null,
+      join_use_count: 0,
+      created_at: now,
+      updated_at: now,
+      role: 'owner',
+      userArchived: false,
+      memberCount: 0,
+      activeItemCount: 0,
+    }
+
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setLists(prev => [optimisticList, ...prev])
+
     const { data, error } = await trackSaveOperation(
       supabase
         .from('lists')
@@ -245,13 +274,12 @@ export function useLists() {
     )
 
     if (error) {
+      setLists(prev => prev.filter(list => list.id !== tempId))
       if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
       return { error }
     }
-
-    skipRealtimeUntilRef.current = Date.now() + 2000
 
     const newList: ListWithRole = {
       ...data,
@@ -261,8 +289,23 @@ export function useLists() {
       activeItemCount: 0,
     }
     setLists(prev => {
-      if (prev.some(l => l.id === newList.id)) return prev
-      return [newList, ...prev]
+      let replaced = false
+      const next = prev.map(list => {
+        if (list.id === tempId) {
+          replaced = true
+          return newList
+        }
+        return list
+      })
+
+      const deduped: ListWithRole[] = []
+      for (const list of next) {
+        if (!deduped.some(existing => existing.id === list.id)) {
+          deduped.push(list)
+        }
+      }
+
+      return replaced ? deduped : [newList, ...deduped]
     })
 
     return { data, error: null }

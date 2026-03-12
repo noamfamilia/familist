@@ -48,6 +48,10 @@ function setCachedPrefs(listId: string, prefs: { memberFilter?: 'all' | 'mine', 
 const FETCH_TIMEOUT_MS = 5000
 const SAVE_TIMEOUT_MS = 5000
 
+function createTempId(prefix: string) {
+  return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
 export function useList(listId: string) {
   const { user } = useAuth()
   const cached = getCachedList(undefined, listId)
@@ -328,6 +332,23 @@ export function useList(listId: string) {
   const addItem = async (text: string) => {
     const maxSortOrder = items.reduce((max, item) => 
       Math.max(max, item.sort_order || 0), 0)
+    const tempId = createTempId('item')
+    const now = new Date().toISOString()
+    const optimisticItem: ItemWithState = {
+      id: tempId,
+      list_id: listId,
+      text,
+      comment: null,
+      archived: false,
+      archived_at: null,
+      sort_order: maxSortOrder + 1,
+      created_at: now,
+      updated_at: now,
+      memberStates: {},
+    }
+
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setItems(prev => [...prev, optimisticItem])
 
     const { data, error } = await trackSaveOperation(
       supabase
@@ -342,14 +363,33 @@ export function useList(listId: string) {
     )
 
     if (error) {
+      setItems(prev => prev.filter(item => item.id !== tempId))
       if (error.code === '23505') {
         return { data: null, error: { ...error, message: 'An item with this name already exists' } }
       }
       return { data: null, error }
     }
 
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setItems(prev => [...prev, { ...data, memberStates: {} }])
+    const newItem: ItemWithState = { ...data, memberStates: {} }
+    setItems(prev => {
+      let replaced = false
+      const next = prev.map(item => {
+        if (item.id === tempId) {
+          replaced = true
+          return newItem
+        }
+        return item
+      })
+
+      const deduped: ItemWithState[] = []
+      for (const item of next) {
+        if (!deduped.some(existing => existing.id === item.id)) {
+          deduped.push(item)
+        }
+      }
+
+      return replaced ? deduped : [...deduped, newItem]
+    })
     return { data, error: null }
   }
 
@@ -417,6 +457,22 @@ export function useList(listId: string) {
 
     const maxSortOrder = members.reduce((max, member) => 
       Math.max(max, member.sort_order || 0), 0)
+    const tempId = createTempId('member')
+    const now = new Date().toISOString()
+    const optimisticMember: MemberWithCreator = {
+      id: tempId,
+      list_id: listId,
+      name,
+      created_by: userId,
+      sort_order: maxSortOrder + 1,
+      is_public: false,
+      created_at: now,
+      updated_at: now,
+      creator: creatorNickname ? { nickname: creatorNickname } : null,
+    }
+
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setMembers(prev => [...prev, optimisticMember])
 
     const { data, error } = await trackSaveOperation(
       supabase
@@ -431,21 +487,41 @@ export function useList(listId: string) {
         .single()
     )
 
-    if (!error && data) {
-      skipRealtimeUntilRef.current = Date.now() + 2000
-      const memberWithCreator = {
-        ...data,
-        creator: creatorNickname ? { nickname: creatorNickname } : null
+    if (error || !data) {
+      setMembers(prev => prev.filter(member => member.id !== tempId))
+      return { data, error }
+    }
+
+    const memberWithCreator = {
+      ...data,
+      creator: creatorNickname ? { nickname: creatorNickname } : null
+    }
+    setMembers(prev => {
+      let replaced = false
+      const next = prev.map(member => {
+        if (member.id === tempId) {
+          replaced = true
+          return memberWithCreator
+        }
+        return member
+      })
+
+      const deduped: MemberWithCreator[] = []
+      for (const member of next) {
+        if (!deduped.some(existing => existing.id === member.id)) {
+          deduped.push(member)
+        }
       }
-      setMembers(prev => [...prev, memberWithCreator])
-      
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'member_added',
-          payload: { memberId: data.id }
-        })
-      }
+
+      return replaced ? deduped : [...deduped, memberWithCreator]
+    })
+    
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'member_added',
+        payload: { memberId: data.id }
+      })
     }
 
     return { data, error }
