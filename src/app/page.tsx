@@ -84,7 +84,7 @@ export default function Home() {
         {user ? (
           <button
             onClick={() => setShowAuthModal(true)}
-            className="hover:opacity-80 transition-opacity"
+            className="h-8 flex items-center hover:opacity-80 transition-opacity"
             aria-label="Account settings"
             title={profile?.nickname || profile?.username || user.email}
             data-tour="profile-icon"
@@ -94,7 +94,7 @@ export default function Home() {
         ) : (
           <button
             onClick={() => setShowAuthModal(true)}
-            className="text-sm text-teal font-medium hover:bg-teal-light px-2 py-1 rounded"
+            className="h-8 flex items-center text-sm text-teal font-medium hover:bg-teal-light px-2 py-1 rounded"
             aria-label="Sign in"
           >
             Sign in

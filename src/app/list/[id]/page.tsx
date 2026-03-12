@@ -73,7 +73,6 @@ export default function ListPage() {
     items,
     members,
     loading,
-    isInitialSyncing,
     fetchTimedOut,
     saveTimedOut,
     error,
@@ -117,6 +116,15 @@ export default function ListPage() {
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
   const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
 
+  const handleBackToLists = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+      return
+    }
+
+    router.replace('/')
+  }
+
   const handleWidthChange = (delta: number) => {
     updateItemTextWidth(itemTextWidth + delta)
   }
@@ -149,7 +157,7 @@ export default function ListPage() {
                 Retry
               </Button>
               <button
-                onClick={() => router.replace('/')}
+                onClick={handleBackToLists}
                 className="text-primary hover:underline block"
               >
                 ← Back to lists
@@ -160,7 +168,7 @@ export default function ListPage() {
           <>
             <p className="text-center text-gray-500">List not found or deleted</p>
             <button
-              onClick={() => router.replace('/')}
+              onClick={handleBackToLists}
               className="mt-4 text-primary hover:underline block mx-auto"
             >
               ← Back to lists
@@ -237,7 +245,7 @@ export default function ListPage() {
   }
 
   return (
-    <div className={`bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-6xl min-h-screen sm:min-h-0 p-4 sm:p-8 ${isInitialSyncing ? '[&_button]:pointer-events-none [&_button]:opacity-50 [&_input]:pointer-events-none [&_input]:opacity-50' : ''}`}>
+    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-6xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
@@ -258,8 +266,8 @@ export default function ListPage() {
       <div className="flex items-center justify-between mb-4">
         <button
           type="button"
-          onClick={() => router.replace('/')}
-          className="text-primary hover:underline text-sm sm:text-base"
+          onClick={handleBackToLists}
+          className="h-8 flex items-center text-primary hover:underline text-sm sm:text-base"
           aria-label="Go back to all lists"
         >
           ← Back to lists
