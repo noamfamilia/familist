@@ -5,8 +5,10 @@ import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
 import { resetTutorial } from '@/components/ui/TutorialTour'
+import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -81,6 +83,7 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const { user, profile, signIn, signUp, signOut, updateProfile, resetPassword } = useAuth()
+  const { success } = useToast()
   const [mode, setMode] = useState<'signIn' | 'signUp' | 'forgotPassword'>('signIn')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -266,9 +269,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <div className="relative flex justify-center items-center mt-2">
             <button
               className="hover:opacity-80"
-              onClick={() => {
-                navigator.clipboard.writeText('https://myfamilist.com/?v1')
-                alert('Link copied to clipboard!')
+              onClick={async () => {
+                await copyTextToClipboard('https://myfamilist.com/?v1')
+                if (!isMobileDevice()) {
+                  success('Copied to clipboard')
+                }
               }}
             >
               <Image src="/share.png" alt="Share MyFamiList" width={48} height={48} className="h-12 w-auto" />

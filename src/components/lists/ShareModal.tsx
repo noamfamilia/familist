@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
+import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { Database, List } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -122,15 +123,10 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
   const copyToClipboard = async (tokenValue: string) => {
     const tokenWithPrefix = '@' + tokenValue
-    try {
-      await navigator.clipboard.writeText(tokenWithPrefix)
-    } catch {
-      const textArea = document.createElement('textarea')
-      textArea.value = tokenWithPrefix
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textArea)
+    await copyTextToClipboard(tokenWithPrefix)
+
+    if (!isMobileDevice()) {
+      success('Copied to clipboard')
     }
   }
 
