@@ -269,6 +269,12 @@ export function useLists() {
   }
 
   const updateList = async (listId: string, updates: { name?: string; archived?: boolean; comment?: string | null }) => {
+    const previousList = lists.find(list => list.id === listId)
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setLists(prev => prev.map(list => 
+      list.id === listId ? { ...list, ...updates } : list
+    ))
+
     const { error } = await trackSaveOperation(
       supabase
         .from('lists')
@@ -277,16 +283,14 @@ export function useLists() {
     )
 
     if (error) {
+      if (previousList) {
+        setLists(prev => prev.map(list => list.id === listId ? previousList : list))
+      }
       if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
       return { error }
     }
-
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => prev.map(list => 
-      list.id === listId ? { ...list, ...updates } : list
-    ))
 
     return { error: null }
   }
@@ -311,6 +315,12 @@ export function useLists() {
   const updateUserListState = async (listId: string, updates: { archived?: boolean; sort_order?: number }) => {
     if (!user) return { error: new Error('Not authenticated') }
 
+    const previousList = lists.find(list => list.id === listId)
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setLists(prev => prev.map(list => 
+      list.id === listId ? { ...list, userArchived: updates.archived ?? list.userArchived } : list
+    ))
+
     const { error } = await trackSaveOperation(
       supabase
         .from('list_users')
@@ -319,11 +329,10 @@ export function useLists() {
         .eq('user_id', user.id)
     )
 
-    if (!error) {
-      skipRealtimeUntilRef.current = Date.now() + 2000
-      setLists(prev => prev.map(list => 
-        list.id === listId ? { ...list, userArchived: updates.archived ?? list.userArchived } : list
-      ))
+    if (error) {
+      if (previousList) {
+        setLists(prev => prev.map(list => list.id === listId ? previousList : list))
+      }
     }
 
     return { error }

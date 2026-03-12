@@ -113,6 +113,24 @@ export function useList(listId: string) {
     }
   }
 
+  const setLocalMemberState = (itemId: string, memberId: string, nextState: ItemMemberState | null) => {
+    setItems(prev => prev.map(item => {
+      if (item.id !== itemId) return item
+
+      const memberStates = { ...item.memberStates }
+      if (nextState) {
+        memberStates[memberId] = nextState
+      } else {
+        delete memberStates[memberId]
+      }
+
+      return {
+        ...item,
+        memberStates,
+      }
+    }))
+  }
+
   const fetchList = useCallback(async () => {
     if (!userId || !listId) {
       setList(null)
@@ -336,6 +354,12 @@ export function useList(listId: string) {
   }
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
+    const previousItem = items.find(item => item.id === itemId)
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, ...updates } : item
+    ))
+
     const { error } = await trackSaveOperation(
       supabase
         .from('items')
@@ -344,17 +368,15 @@ export function useList(listId: string) {
     )
 
     if (error) {
+      if (previousItem) {
+        setItems(prev => prev.map(item => item.id === itemId ? previousItem : item))
+      }
       if (error.code === '23505') {
         return { error: { ...error, message: 'An item with this name already exists' } }
       }
       return { error }
     }
 
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setItems(prev => prev.map(item =>
-      item.id === itemId ? { ...item, ...updates } : item
-    ))
-    
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -430,8 +452,14 @@ export function useList(listId: string) {
   }
 
   const updateMember = async (memberId: string, updates: Partial<Member>) => {
-      const { error } = await trackSaveOperation(
-        supabase.rpc('update_member', {
+    const previousMember = members.find(member => member.id === memberId)
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setMembers(prev => prev.map(member =>
+      member.id === memberId ? { ...member, ...updates } : member
+    ))
+
+    const { error } = await trackSaveOperation(
+      supabase.rpc('update_member', {
         p_member_id: memberId,
         p_name: updates.name !== undefined ? updates.name : null,
         p_is_public: updates.is_public !== undefined ? updates.is_public : null,
@@ -439,13 +467,11 @@ export function useList(listId: string) {
     )
 
     if (error) {
+      if (previousMember) {
+        setMembers(prev => prev.map(member => member.id === memberId ? previousMember : member))
+      }
       return { error: { ...error, message: error.message || 'Failed to update member' } }
     }
-
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setMembers(prev => prev.map(member =>
-      member.id === memberId ? { ...member, ...updates } : member
-    ))
 
     if (channelRef.current) {
       channelRef.current.send({
@@ -495,6 +521,16 @@ export function useList(listId: string) {
     updates: { quantity?: number; done?: boolean }
   ) => {
     const existingState = items.find(i => i.id === itemId)?.memberStates[memberId]
+    const optimisticState: ItemMemberState = {
+      item_id: itemId,
+      member_id: memberId,
+      quantity: updates.quantity ?? existingState?.quantity ?? 0,
+      done: updates.done ?? existingState?.done ?? false,
+      updated_at: new Date().toISOString(),
+    }
+
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setLocalMemberState(itemId, memberId, optimisticState)
 
     if (existingState) {
       const { error } = await trackSaveOperation(
@@ -505,28 +541,20 @@ export function useList(listId: string) {
           .eq('member_id', memberId)
       )
 
-      if (!error) {
-        skipRealtimeUntilRef.current = Date.now() + 2000
-        setItems(prev => prev.map(item => {
-          if (item.id !== itemId) return item
-          return {
-            ...item,
-            memberStates: {
-              ...item.memberStates,
-              [memberId]: { ...item.memberStates[memberId], ...updates },
-            },
-          }
-        }))
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'member_state_updated',
-            payload: { listId, itemId, memberId }
-          })
-        }
+      if (error) {
+        setLocalMemberState(itemId, memberId, existingState)
+        return { error }
       }
 
-      return { error }
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'member_state_updated',
+          payload: { listId, itemId, memberId }
+        })
+      }
+
+      return { error: null }
     } else {
       const { data, error } = await trackSaveOperation(
         supabase
@@ -541,32 +569,38 @@ export function useList(listId: string) {
           .single()
       )
 
-      if (!error && data) {
-        skipRealtimeUntilRef.current = Date.now() + 2000
-        setItems(prev => prev.map(item => {
-          if (item.id !== itemId) return item
-          return {
-            ...item,
-            memberStates: {
-              ...item.memberStates,
-              [memberId]: data,
-            },
-          }
-        }))
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'member_state_updated',
-            payload: { listId, itemId, memberId }
-          })
-        }
+      if (error || !data) {
+        setLocalMemberState(itemId, memberId, null)
+        return { error }
       }
 
-      return { error }
+      setLocalMemberState(itemId, memberId, data)
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'member_state_updated',
+          payload: { listId, itemId, memberId }
+        })
+      }
+
+      return { error: null }
     }
   }
 
   const changeQuantity = async (itemId: string, memberId: string, delta: number) => {
+    const previousState = items.find(item => item.id === itemId)?.memberStates[memberId]
+    const optimisticState: ItemMemberState = {
+      item_id: itemId,
+      member_id: memberId,
+      quantity: Math.max(0, (previousState?.quantity || 0) + delta),
+      done: previousState?.done || false,
+      updated_at: new Date().toISOString(),
+    }
+
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setLocalMemberState(itemId, memberId, optimisticState)
+
     const { data, error } = await trackSaveOperation(
       supabase.rpc('change_quantity', {
         p_item_id: itemId,
@@ -575,32 +609,22 @@ export function useList(listId: string) {
       })
     )
 
-    if (!error) {
-      skipRealtimeUntilRef.current = Date.now() + 2000
-      setItems(prev => prev.map(item => {
-        if (item.id !== itemId) return item
-        const currentState = item.memberStates[memberId] || {
-          item_id: itemId,
-          member_id: memberId,
-          quantity: 0,
-          done: false,
-          updated_at: new Date().toISOString(),
-        }
-        return {
-          ...item,
-          memberStates: {
-            ...item.memberStates,
-            [memberId]: { ...currentState, quantity: data || 0 },
-          },
-        }
-      }))
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'member_state_updated',
-          payload: { listId, itemId, memberId }
-        })
-      }
+    if (error) {
+      setLocalMemberState(itemId, memberId, previousState || null)
+      return { data, error }
+    }
+
+    setLocalMemberState(itemId, memberId, {
+      ...optimisticState,
+      quantity: typeof data === 'number' ? data : optimisticState.quantity,
+    })
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'member_state_updated',
+        payload: { listId, itemId, memberId }
+      })
     }
 
     return { data, error }
