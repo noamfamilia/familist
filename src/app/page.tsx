@@ -77,7 +77,7 @@ export default function Home() {
   }
 
   return (
-    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 p-4 sm:p-8 relative">
+    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
       {/* Top bar */}
       <div className="flex items-center justify-between mb-4">
         {/* Auth button - top left */}
