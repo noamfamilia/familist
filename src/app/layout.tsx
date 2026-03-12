@@ -64,7 +64,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <ToastProvider>
-            <main className="min-h-screen flex items-center justify-center p-0 sm:p-5">
+            <main className="min-h-screen flex items-start justify-start sm:items-center sm:justify-center p-0 sm:p-5">
               {children}
             </main>
             <InstallBanner />
