@@ -19,7 +19,7 @@ interface ListCardProps {
   onUpdate: (listId: string, updates: { name?: string; archived?: boolean; comment?: string }) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
   onArchive: (listId: string, updates: { archived?: boolean }) => Promise<{ error: Error | null }>
-  onDuplicate: (listId: string, newName: string) => Promise<{ error: Error | null }>
+  onDuplicate: (listId: string, newName: string) => Promise<{ error: Error | null; warning?: string | null }>
   onLeave: (listId: string) => Promise<{ error: Error | null }>
   onRefresh?: () => void
   dragHandleProps?: Record<string, unknown>
@@ -139,11 +139,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       return
     }
 
-    const { error } = await onDuplicate(list.id, dupName)
+    const { error, warning } = await onDuplicate(list.id, dupName)
     if (error) {
       showError('Failed to duplicate list')
     } else {
       success('List duplicated')
+      if (warning) {
+        showError(warning)
+      }
     }
     setDuplicating(false)
   }

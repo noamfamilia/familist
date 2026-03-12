@@ -110,7 +110,7 @@ export default function Home() {
                 { value: 'mine', label: 'Owned' },
               ]}
               value={viewMode}
-              onChange={(v) => handleViewModeChange(v as 'all' | 'mine')}
+              onChange={handleViewModeChange}
             />
           </div>
         )}

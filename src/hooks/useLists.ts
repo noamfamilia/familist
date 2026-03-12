@@ -400,6 +400,10 @@ export function useLists() {
     }
 
     const memberMapping: Record<string, string> = {}
+    let memberCopyFailures = 0
+    let itemCopyFailures = 0
+    let stateCopyFailures = 0
+    let copiedActiveItemCount = 0
 
     if (membersResult.data && membersResult.data.length > 0) {
       for (const member of membersResult.data) {
@@ -416,7 +420,10 @@ export function useLists() {
             .single()
         )
 
-        if (memberError) continue
+        if (memberError || !newMember) {
+          memberCopyFailures++
+          continue
+        }
         memberMapping[member.id] = newMember.id
       }
     }
@@ -437,7 +444,14 @@ export function useLists() {
             .single()
         )
 
-        if (itemError || !newItem) continue
+        if (itemError || !newItem) {
+          itemCopyFailures++
+          continue
+        }
+
+        if (!item.archived) {
+          copiedActiveItemCount++
+        }
 
         const { data: states } = await trackSaveOperation(
           supabase
@@ -450,7 +464,7 @@ export function useLists() {
           for (const state of states) {
             const newMemberId = memberMapping[state.member_id]
             if (newMemberId) {
-              await trackSaveOperation(
+              const { error: stateError } = await trackSaveOperation(
                 supabase.from('item_member_state').insert({
                   item_id: newItem.id,
                   member_id: newMemberId,
@@ -458,6 +472,10 @@ export function useLists() {
                   done: state.done,
                 })
               )
+
+              if (stateError) {
+                stateCopyFailures++
+              }
             }
           }
         }
@@ -469,15 +487,30 @@ export function useLists() {
       ...newList,
       role: 'owner',
       userArchived: false,
-      memberCount: membersResult.data?.length || 0,
-      activeItemCount: itemsResult.data?.filter(i => !i.archived).length || 0,
+      memberCount: Object.keys(memberMapping).length,
+      activeItemCount: copiedActiveItemCount,
     }
     setLists(prev => {
       if (prev.some(l => l.id === duplicatedList.id)) return prev
       return [duplicatedList, ...prev]
     })
 
-    return { data: newList, error: null }
+    const warningParts: string[] = []
+    if (memberCopyFailures > 0) {
+      warningParts.push(`${memberCopyFailures} member${memberCopyFailures !== 1 ? 's were' : ' was'} skipped`)
+    }
+    if (itemCopyFailures > 0) {
+      warningParts.push(`${itemCopyFailures} item${itemCopyFailures !== 1 ? 's were' : ' was'} skipped`)
+    }
+    if (stateCopyFailures > 0) {
+      warningParts.push(`${stateCopyFailures} state${stateCopyFailures !== 1 ? 's were' : ' was'} skipped`)
+    }
+
+    const warning = warningParts.length > 0
+      ? `List duplicated, but ${warningParts.join(', ')}.`
+      : null
+
+    return { data: newList, error: null, warning }
   }
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {

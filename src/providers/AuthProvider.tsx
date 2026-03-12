@@ -60,19 +60,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true
+
+    const syncSessionState = async (nextUser: User | null) => {
+      if (!mounted) return
+
+      setUser(nextUser)
+
+      if (nextUser) {
+        setActiveCacheUserId(nextUser.id)
+        await fetchProfile(nextUser.id)
+      } else {
+        setProfile(null)
+        clearActiveCacheUserId()
+      }
+    }
     
     const getInitialSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!mounted) return
-        
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          setActiveCacheUserId(session.user.id)
-          await fetchProfile(session.user.id)
-        } else {
-          clearActiveCacheUserId()
-        }
+        await syncSessionState(session?.user ?? null)
       } catch (error) {
         console.error('Failed to get session:', error)
       } finally {
@@ -84,8 +91,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getInitialSession()
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void syncSessionState(session?.user ?? null)
+      if (mounted) {
+        setLoading(false)
+      }
+    })
+
     return () => {
       mounted = false
+      subscription.unsubscribe()
     }
   }, [fetchProfile, supabase.auth])
 

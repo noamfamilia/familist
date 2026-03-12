@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
-import { useList, ItemWithState } from '@/hooks/useList'
+import { useList } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { Toggle } from '@/components/ui/Toggle'
 import { Button } from '@/components/ui/Button'
@@ -270,7 +270,7 @@ export default function ListPage() {
               { value: 'mine', label: 'Owned' },
             ]}
             value={memberFilter}
-            onChange={(v) => updateMemberFilter(v as 'all' | 'mine')}
+            onChange={updateMemberFilter}
           />
         </div>
       </div>
@@ -297,7 +297,13 @@ export default function ListPage() {
         </form>
 
       {searchText && (
-        <p className="text-xs text-gray-400 px-1 -mt-4 mb-4 sm:mb-6">Filtering...</p>
+        <p className="text-xs text-gray-400 px-1 -mt-4 mb-4 sm:mb-6">
+          {activeItems.length > 0 || archivedItems.length > 0
+            ? 'Filtering...'
+            : items.length > 0
+              ? 'No matching items'
+              : 'Filtering...'}
+        </p>
       )}
 
       {/* Scrollable container for header + items */}

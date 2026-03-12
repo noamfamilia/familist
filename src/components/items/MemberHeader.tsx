@@ -55,7 +55,12 @@ export function MemberHeader({
   const [deleteLoading, setDeleteLoading] = useState(false)
 
   const handleAddMember = async () => {
-    const nameToAdd = newMemberName.trim() || profile?.nickname || 'Me'
+    const nameToAdd = newMemberName.trim()
+    if (!nameToAdd) {
+      setNewMemberName('')
+      setIsAdding(false)
+      return
+    }
     
     const nameExists = members.some(m => m.name.toLowerCase() === nameToAdd.toLowerCase())
     if (nameExists) {
@@ -64,6 +69,11 @@ export function MemberHeader({
     }
     
     await onAddMember(nameToAdd, profile?.nickname || undefined)
+    setNewMemberName('')
+    setIsAdding(false)
+  }
+
+  const handleCancelAddMember = () => {
     setNewMemberName('')
     setIsAdding(false)
   }
@@ -215,12 +225,15 @@ export function MemberHeader({
                     type="text"
                     value={newMemberName}
                     onChange={(e) => setNewMemberName(e.target.value)}
-                    onBlur={handleAddMember}
+                    onBlur={() => {
+                      if (!newMemberName.trim()) {
+                        handleCancelAddMember()
+                      }
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleAddMember()
                       if (e.key === 'Escape') {
-                        setIsAdding(false)
-                        setNewMemberName('')
+                        handleCancelAddMember()
                       }
                     }}
                     placeholder={profile?.nickname || 'Name'}

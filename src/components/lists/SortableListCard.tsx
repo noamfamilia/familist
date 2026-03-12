@@ -11,7 +11,7 @@ interface SortableListCardProps {
   onUpdate: (listId: string, updates: { name?: string; archived?: boolean }) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
   onArchive: (listId: string, updates: { archived?: boolean }) => Promise<{ error: Error | null }>
-  onDuplicate: (listId: string, newName: string) => Promise<{ error: Error | null }>
+  onDuplicate: (listId: string, newName: string) => Promise<{ error: Error | null; warning?: string | null }>
   onLeave: (listId: string) => Promise<{ error: Error | null }>
   onRefresh?: () => void
 }

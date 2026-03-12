@@ -1,14 +1,19 @@
 'use client'
 
-interface ToggleProps {
-  options: { value: string; label: string }[]
-  value: string
-  onChange: (value: string) => void
+interface ToggleOption<T extends string> {
+  value: T
+  label: string
+}
+
+interface ToggleProps<T extends string> {
+  options: ToggleOption<T>[]
+  value: T
+  onChange: (value: T) => void
   className?: string
   variant?: 'default' | 'menu'
 }
 
-export function Toggle({ options, value, onChange, className = '', variant = 'default' }: ToggleProps) {
+export function Toggle<T extends string>({ options, value, onChange, className = '', variant = 'default' }: ToggleProps<T>) {
   const activeStyles = variant === 'menu' 
     ? 'bg-teal text-white' 
     : 'bg-teal text-white border-teal'

@@ -148,7 +148,13 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
       </form>
 
       {searchText && (
-        <p className="text-xs text-gray-400 px-1 -mt-4">Filtering...</p>
+        <p className="text-xs text-gray-400 px-1 -mt-4">
+          {filteredLists.length > 0
+            ? 'Filtering...'
+            : lists.length > 0
+              ? 'No matching lists'
+              : 'Filtering...'}
+        </p>
       )}
 
       {error && (

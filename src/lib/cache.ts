@@ -1,5 +1,4 @@
-import type { List, ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
-import type { ItemWithState } from '@/hooks/useList'
+import type { ItemWithState, List, ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
 
 const MAX_CACHED_LISTS = 10
 const CACHE_KEY_ACTIVE_USER = 'active_cache_user'

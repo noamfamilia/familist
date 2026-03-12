@@ -3,8 +3,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ItemCard } from './ItemCard'
-import type { ItemWithState } from '@/hooks/useList'
-import type { MemberWithCreator, Item } from '@/lib/supabase/types'
+import type { Item, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 
 interface SortableItemCardProps {
   item: ItemWithState

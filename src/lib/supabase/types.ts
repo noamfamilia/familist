@@ -232,7 +232,9 @@ export interface Database {
         Args: { p_list_id: string }
         Returns: {
           list: Database['public']['Tables']['lists']['Row'] | null
-          items: Database['public']['Tables']['items']['Row'][]
+          items: (Database['public']['Tables']['items']['Row'] & {
+            memberStates: Record<string, Database['public']['Tables']['item_member_state']['Row']>
+          })[]
           members: (Database['public']['Tables']['members']['Row'] & {
             creator?: { nickname: string | null } | null
           })[]
@@ -296,6 +298,4 @@ export type ListWithRole = List & {
   comment?: string | null
 }
 
-export type ItemWithState = Item & {
-  memberStates: Record<string, ItemMemberState>
-}
+export type ItemWithState = Database['public']['Functions']['get_list_data']['Returns']['items'][number]

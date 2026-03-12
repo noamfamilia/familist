@@ -4,14 +4,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
-import type { Database, List, Member, MemberWithCreator, Item, ItemMemberState } from '@/lib/supabase/types'
+import type { Database, Item, ItemMemberState, ItemWithState, List, Member, MemberWithCreator } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const supabase = createClient()
-
-export interface ItemWithState extends Item {
-  memberStates: Record<string, ItemMemberState>
-}
 
 // Helper to get cached preferences from localStorage
 function getPrefsKey(listId: string, userId?: string) {
@@ -51,8 +47,6 @@ function setCachedPrefs(listId: string, prefs: { memberFilter?: 'all' | 'mine', 
 
 const FETCH_TIMEOUT_MS = 5000
 const SAVE_TIMEOUT_MS = 5000
-
-type ListDataRpcResult = Database['public']['Functions']['get_list_data']['Returns']
 
 export function useList(listId: string) {
   const { user } = useAuth()
