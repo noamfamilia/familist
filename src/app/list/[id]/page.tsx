@@ -176,12 +176,13 @@ export default function ListPage() {
     e.preventDefault()
     if (!newItemText.trim()) return
 
+    const itemText = newItemText.trim()
     setAdding(true)
-    const { error } = await addItem(newItemText.trim())
+    setNewItemText('')
+    const { error } = await addItem(itemText)
     if (error) {
+      setNewItemText(itemText)
       showError(error.message || 'Failed to add item')
-    } else {
-      setNewItemText('')
     }
     setAdding(false)
   }

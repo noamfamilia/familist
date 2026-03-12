@@ -69,14 +69,15 @@ export function MemberHeader({
       return
     }
     
+    setNewMemberName('')
+    setIsAdding(false)
     const { error } = await onAddMember(nameToAdd, profile?.nickname || undefined)
     if (error) {
+      setNewMemberName(nameToAdd)
+      setIsAdding(true)
       showError(error.message || 'Failed to add member')
       return
     }
-
-    setNewMemberName('')
-    setIsAdding(false)
   }
 
   const handleCancelAddMember = () => {

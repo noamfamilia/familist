@@ -63,6 +63,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
     e.preventDefault()
     if (!inputValue.trim()) return
 
+    const submittedValue = inputValue.trim()
     setSubmitting(true)
     setError('')
 
@@ -83,13 +84,14 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
         success('Joined list successfully!')
       }
     } else {
-      const { error } = await createList(inputValue.trim())
+      setInputValue('')
+      const { error } = await createList(submittedValue)
       
       if (error) {
+        setInputValue(submittedValue)
         setError(error.message)
         showError('Failed to create list')
       } else {
-        setInputValue('')
         success('List created!')
       }
     }
