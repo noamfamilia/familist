@@ -20,6 +20,7 @@ export function useLists() {
   const [lists, setLists] = useState<ListWithRole[]>(() => getCachedLists()?.lists || [])
   const [loading, setLoading] = useState(() => !getCachedLists()?.lists?.length)
   const [isFetching, setIsFetching] = useState(true)
+  const [hasCompletedInitialFetch, setHasCompletedInitialFetch] = useState(false)
   const [fetchTimedOut, setFetchTimedOut] = useState(false)
   const [saveTimedOut, setSaveTimedOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -38,6 +39,7 @@ export function useLists() {
     const cachedLists = getCachedLists(userId)?.lists || []
     setLists(cachedLists)
     setLoading(!!userId && cachedLists.length === 0)
+    setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = cachedLists.length > 0
   }, [userId])
 
@@ -70,6 +72,7 @@ export function useLists() {
       setLists([])
       setLoading(false)
       setIsFetching(false)
+      setHasCompletedInitialFetch(true)
       return
     }
 
@@ -124,9 +127,12 @@ export function useLists() {
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setLoading(false)
       setIsFetching(false)
+      setHasCompletedInitialFetch(true)
       fetchingRef.current = false
     }
   }, [userId])
+
+  const isInitialSyncing = isFetching && !hasCompletedInitialFetch && lists.length > 0
 
   // Initial fetch
   useEffect(() => {
@@ -518,6 +524,7 @@ export function useLists() {
     lists,
     loading,
     isFetching,
+    isInitialSyncing,
     fetchTimedOut,
     saveTimedOut,
     error,

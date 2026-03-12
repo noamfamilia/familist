@@ -25,7 +25,7 @@ interface ListsViewProps {
 }
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: ListsViewProps) {
-  const { lists, loading, isFetching, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
+  const { lists, loading, isInitialSyncing, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -139,10 +139,10 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="List name or @token"
-            disabled={submitting || isFetching}
+            disabled={submitting || isInitialSyncing}
           />
         </div>
-        <Button type="submit" loading={submitting} disabled={isFetching} className="bg-red-500 hover:bg-red-600">
+        <Button type="submit" loading={submitting} disabled={isInitialSyncing} className="bg-red-500 hover:bg-red-600">
           {isJoinMode ? 'Join' : 'Create'}
         </Button>
       </form>
@@ -173,7 +173,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
       )}
 
       {/* Lists */}
-      <div className={`space-y-2 min-h-[120px] ${isFetching ? '[&_button]:pointer-events-none [&_button]:opacity-50 [&_input]:pointer-events-none [&_input]:opacity-50' : ''}`}>
+      <div className={`space-y-2 min-h-[120px] ${isInitialSyncing ? '[&_button]:pointer-events-none [&_button]:opacity-50 [&_input]:pointer-events-none [&_input]:opacity-50' : ''}`}>
         {fetchError && lists.length === 0 && (
           <div className="text-center py-10 px-4 border border-red-200 bg-red-50 rounded-lg">
             <p className="text-red-700 font-medium">Can&apos;t load your lists right now.</p>

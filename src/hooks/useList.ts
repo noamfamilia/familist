@@ -58,6 +58,7 @@ export function useList(listId: string) {
   const [members, setMembers] = useState<MemberWithCreator[]>(cached?.members || [])
   const [loading, setLoading] = useState(!cached?.list)
   const [isFetching, setIsFetching] = useState(true)
+  const [hasCompletedInitialFetch, setHasCompletedInitialFetch] = useState(false)
   const [fetchTimedOut, setFetchTimedOut] = useState(false)
   const [saveTimedOut, setSaveTimedOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -84,6 +85,7 @@ export function useList(listId: string) {
     setMemberFilter(cachedPrefs.memberFilter)
     setItemTextWidth(cachedPrefs.itemTextWidth)
     setLoading(!!userId && !cachedData?.list)
+    setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
   }, [userId, listId])
 
@@ -118,6 +120,7 @@ export function useList(listId: string) {
       setMembers([])
       setLoading(false)
       setIsFetching(false)
+      setHasCompletedInitialFetch(true)
       return
     }
 
@@ -203,9 +206,12 @@ export function useList(listId: string) {
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setLoading(false)
       setIsFetching(false)
+      setHasCompletedInitialFetch(true)
       fetchingRef.current = false
     }
   }, [userId, listId])
+
+  const isInitialSyncing = isFetching && !hasCompletedInitialFetch && !!list
 
   // Initial fetch
   useEffect(() => {
@@ -655,6 +661,7 @@ export function useList(listId: string) {
     members,
     loading,
     isFetching,
+    isInitialSyncing,
     fetchTimedOut,
     saveTimedOut,
     error,
