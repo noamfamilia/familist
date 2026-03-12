@@ -55,7 +55,8 @@ export function MemberHeader({
   const [deleteLoading, setDeleteLoading] = useState(false)
 
   const handleAddMember = async () => {
-    const nameToAdd = newMemberName.trim()
+    const fallbackName = profile?.nickname?.trim() || ''
+    const nameToAdd = newMemberName.trim() || fallbackName
     if (!nameToAdd) {
       setNewMemberName('')
       setIsAdding(false)

@@ -348,12 +348,6 @@ export function useLists() {
 
     if (error) return { error }
 
-    supabase.channel(`list-${listId}`).send({
-      type: 'broadcast',
-      event: 'user_left',
-      payload: { userId: user.id }
-    })
-
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => prev.filter(list => list.id !== listId))
     removeCachedList(userId, listId)

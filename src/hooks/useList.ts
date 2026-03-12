@@ -247,12 +247,17 @@ export function useList(listId: string) {
       )
       .on(
         'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'list_users', filter: `list_id=eq.${listId}` },
+        { event: '*', schema: 'public', table: 'list_users', filter: `list_id=eq.${listId}` },
         (payload) => {
-          // Check if the current user was removed (always process, don't skip)
-          if (payload.old && (payload.old as { user_id?: string }).user_id === userId) {
+          const oldRow = payload.old as Database['public']['Tables']['list_users']['Row'] | null
+
+          // If our own membership was deleted, leave the page immediately.
+          if (payload.eventType === 'DELETE' && oldRow?.user_id === userId) {
             setAccessDenied(true)
+            return
           }
+
+          handleRealtimeChange()
         }
       )
       .on(
@@ -283,11 +288,6 @@ export function useList(listId: string) {
       .on(
         'broadcast',
         { event: 'member_state_updated' },
-        handleRealtimeChange
-      )
-      .on(
-        'broadcast',
-        { event: 'user_left' },
         handleRealtimeChange
       )
       .subscribe()
