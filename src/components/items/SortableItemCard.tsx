@@ -10,10 +10,10 @@ interface SortableItemCardProps {
   members: MemberWithCreator[]
   hideDone: Record<string, boolean>
   hideNotRelevant: Record<string, boolean>
-  onUpdateItem: (itemId: string, updates: Partial<Item>) => Promise<any>
+  onUpdateItem: (itemId: string, updates: Partial<Item>) => Promise<{ error?: { message: string } | null }>
   onDeleteItem: (itemId: string) => Promise<{ error?: Error | null }>
-  onChangeQuantity: (itemId: string, memberId: string, delta: number) => Promise<any>
-  onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<any>
+  onChangeQuantity: (itemId: string, memberId: string, delta: number) => Promise<{ error?: { message?: string } | null }>
+  onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<{ error?: { message?: string } | null }>
   itemTextWidth?: number
 }
 

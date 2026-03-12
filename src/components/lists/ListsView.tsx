@@ -77,7 +77,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
       
       if (error) {
         setError(error.message)
-        showError('Invalid or expired token')
+        showError(error.message || 'Failed to join list')
       } else {
         setInputValue('')
         success('Joined list successfully!')

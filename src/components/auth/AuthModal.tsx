@@ -161,7 +161,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   }
 
   const handleSignOut = async () => {
-    await signOut()
+    const { error } = await signOut()
+    if (error) {
+      setError(error.message || 'Failed to sign out')
+      return
+    }
     handleClose()
   }
 

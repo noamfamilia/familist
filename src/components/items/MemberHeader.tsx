@@ -17,7 +17,7 @@ interface MemberHeaderProps {
   hideNotRelevant: Record<string, boolean>
   onToggleHideDone: (memberId: string) => void
   onToggleHideNotRelevant: (memberId: string) => void
-  onAddMember: (name: string, creatorNickname?: string) => Promise<any>
+  onAddMember: (name: string, creatorNickname?: string) => Promise<{ error?: { message?: string } | null }>
   onUpdateMember: (memberId: string, updates: Partial<MemberWithCreator>) => Promise<{ error?: { message: string } | null }>
   onDeleteMember: (memberId: string) => Promise<{ error?: { message: string } | null }>
   listId: string
@@ -68,7 +68,12 @@ export function MemberHeader({
       return
     }
     
-    await onAddMember(nameToAdd, profile?.nickname || undefined)
+    const { error } = await onAddMember(nameToAdd, profile?.nickname || undefined)
+    if (error) {
+      showError(error.message || 'Failed to add member')
+      return
+    }
+
     setNewMemberName('')
     setIsAdding(false)
   }

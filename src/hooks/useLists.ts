@@ -340,25 +340,13 @@ export function useLists() {
   const leaveList = async (listId: string) => {
     if (!user) return { error: new Error('Not authenticated') }
 
-    const { error: membersError } = await trackSaveOperation(
-      supabase
-        .from('members')
-        .delete()
-        .eq('list_id', listId)
-        .eq('created_by', user.id)
+    const { error } = await trackSaveOperation(
+      supabase.rpc('leave_list', {
+        p_list_id: listId,
+      })
     )
 
-    if (membersError) return { error: membersError }
-
-    const { error: listUsersError } = await trackSaveOperation(
-      supabase
-        .from('list_users')
-        .delete()
-        .eq('list_id', listId)
-        .eq('user_id', user.id)
-    )
-
-    if (listUsersError) return { error: listUsersError }
+    if (error) return { error }
 
     supabase.channel(`list-${listId}`).send({
       type: 'broadcast',

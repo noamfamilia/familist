@@ -17,8 +17,8 @@ interface ItemCardProps {
   hideNotRelevant: Record<string, boolean>
   onUpdateItem: (itemId: string, updates: Partial<Item>) => Promise<{ error?: { message: string } | null }>
   onDeleteItem: (itemId: string) => Promise<{ error?: Error | null }>
-  onChangeQuantity: (itemId: string, memberId: string, delta: number) => Promise<any>
-  onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<any>
+  onChangeQuantity: (itemId: string, memberId: string, delta: number) => Promise<{ error?: { message?: string } | null }>
+  onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<{ error?: { message?: string } | null }>
   dragHandleProps?: Record<string, unknown>
   isDraggable?: boolean
   itemTextWidth?: number
@@ -79,7 +79,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const handleToggleDone = async (memberId: string) => {
     const currentState = item.memberStates[memberId]
     const newDone = !currentState?.done
-    await onUpdateMemberState(item.id, memberId, { done: newDone })
+    const { error } = await onUpdateMemberState(item.id, memberId, { done: newDone })
+    if (error) {
+      showError(error.message || 'Failed to update item state')
+    }
   }
 
   const handleStartEditQuantity = (memberId: string, currentQuantity: number) => {
@@ -94,7 +97,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       const currentQuantity = currentState?.quantity || 0
       const delta = newQuantity - currentQuantity
       if (delta !== 0) {
-        await onChangeQuantity(item.id, memberId, delta)
+        const { error } = await onChangeQuantity(item.id, memberId, delta)
+        if (error) {
+          showError(error.message || 'Failed to update quantity')
+        }
       }
     }
     setEditingQuantityMember(null)
@@ -102,15 +108,21 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleArchive = async () => {
-    if (item.archived) {
-      await onUpdateItem(item.id, { archived: false, archived_at: null })
-    } else {
-      await onUpdateItem(item.id, { archived: true, archived_at: new Date().toISOString() })
+    const { error } = item.archived
+      ? await onUpdateItem(item.id, { archived: false, archived_at: null })
+      : await onUpdateItem(item.id, { archived: true, archived_at: new Date().toISOString() })
+
+    if (error) {
+      showError(error.message || `Failed to ${item.archived ? 'restore' : 'archive'} item`)
     }
   }
 
   const handleSaveComment = async () => {
-    await onUpdateItem(item.id, { comment: comment.trim() || null })
+    const { error } = await onUpdateItem(item.id, { comment: comment.trim() || null })
+    if (error) {
+      showError(error.message || 'Failed to save comment')
+      setComment(item.comment || '')
+    }
   }
 
   const handleDeleteConfirm = async () => {
@@ -189,7 +201,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 className={`flex items-center justify-center ${quantity > 0 ? 'gap-1' : ''} px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${!canEdit ? 'opacity-50' : ''} ${quantity === 0 && canEdit && !isEditingThis ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                 onClick={() => {
                   if (quantity === 0 && canEdit && !isEditingThis) {
-                    onUpdateMemberState(item.id, member.id, { quantity: 1 })
+                    void onUpdateMemberState(item.id, member.id, { quantity: 1 }).then(({ error }) => {
+                      if (error) {
+                        showError(error.message || 'Failed to update item state')
+                      }
+                    })
                   }
                 }}
               >

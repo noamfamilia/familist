@@ -12,7 +12,7 @@ interface AuthContextType {
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string, username: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
-  signOut: () => Promise<void>
+  signOut: () => Promise<{ error: Error | null }>
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   resetPassword: (email: string) => Promise<{ error: Error | null }>
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>
@@ -155,15 +155,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    // Clear local state first for immediate UI response
+    const { error } = await supabase.auth.signOut()
+
+    if (error) {
+      console.error('Sign out error:', error)
+      return { error: error as Error }
+    }
+
     setUser(null)
     setProfile(null)
     clearActiveCacheUserId()
-    
-    // Fire and forget - don't block on Supabase
-    supabase.auth.signOut().catch(error => {
-      console.error('Sign out error:', error)
-    })
+    return { error: null }
   }
 
   const updateProfile = async (updates: Partial<Profile>) => {

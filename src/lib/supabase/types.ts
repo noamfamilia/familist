@@ -272,6 +272,10 @@ export interface Database {
         Args: { p_list_id: string; p_user_ids: string[] }
         Returns: void
       }
+      leave_list: {
+        Args: { p_list_id: string }
+        Returns: void
+      }
     }
   }
 }
