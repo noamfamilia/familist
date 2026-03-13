@@ -1,7 +1,7 @@
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -115,6 +115,7 @@ export default function ListPage() {
   const [adding, setAdding] = useState(false)
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
   const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
+  const addItemFormRef = useRef<HTMLFormElement>(null)
 
   const handleBackToLists = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -244,6 +245,19 @@ export default function ListPage() {
     }
   }
 
+  useEffect(() => {
+    if (!newItemText) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target || addItemFormRef.current?.contains(target)) return
+      setNewItemText('')
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [newItemText])
+
   return (
     <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-6xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
@@ -290,11 +304,16 @@ export default function ListPage() {
       </header>
 
       {/* Add item form */}
-      <form onSubmit={handleAddItem} className="flex gap-2 sm:gap-3 mb-4 sm:mb-6" data-tour="add-item">
+      <form ref={addItemFormRef} onSubmit={handleAddItem} className="flex gap-2 sm:gap-3 mb-4 sm:mb-6" data-tour="add-item">
           <div className="flex-1">
             <Input
               value={newItemText}
               onChange={(e) => setNewItemText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setNewItemText('')
+                }
+              }}
               placeholder="Add an item..."
               disabled={adding}
               aria-label="New item name"

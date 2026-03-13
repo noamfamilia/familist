@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -41,6 +41,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
   const [inputValue, setInputValue] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const formRef = useRef<HTMLFormElement>(null)
   
   const isJoinMode = inputValue.startsWith('@')
   const searchText = isJoinMode ? '' : inputValue.trim().toLowerCase()
@@ -117,6 +118,19 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
     }
   }
 
+  useEffect(() => {
+    if (!inputValue) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target || formRef.current?.contains(target)) return
+      setInputValue('')
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [inputValue])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -135,11 +149,16 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
       )}
 
       {/* Create or Join */}
-      <form onSubmit={handleSubmit} className="flex gap-3" data-tour="create-list">
+      <form ref={formRef} onSubmit={handleSubmit} className="flex gap-3" data-tour="create-list">
         <div className="flex-1">
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setInputValue('')
+              }
+            }}
             placeholder="List name or @token"
             disabled={submitting}
           />
