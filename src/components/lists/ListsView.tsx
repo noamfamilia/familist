@@ -121,14 +121,14 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
   useEffect(() => {
     if (!inputValue) return
 
-    const handlePointerDown = (event: PointerEvent) => {
+    const handleClick = (event: MouseEvent) => {
       const target = event.target as Node | null
       if (!target || formRef.current?.contains(target)) return
       setInputValue('')
     }
 
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
   }, [inputValue])
 
   if (loading) {

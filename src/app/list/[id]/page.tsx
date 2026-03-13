@@ -133,14 +133,14 @@ export default function ListPage() {
   useEffect(() => {
     if (!newItemText) return
 
-    const handlePointerDown = (event: PointerEvent) => {
+    const handleClick = (event: MouseEvent) => {
       const target = event.target as Node | null
       if (!target || addItemFormRef.current?.contains(target)) return
       setNewItemText('')
     }
 
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
   }, [newItemText])
 
   if (!user) {
