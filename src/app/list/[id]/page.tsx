@@ -130,6 +130,19 @@ export default function ListPage() {
     updateItemTextWidth(itemTextWidth + delta)
   }
 
+  useEffect(() => {
+    if (!newItemText) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target || addItemFormRef.current?.contains(target)) return
+      setNewItemText('')
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [newItemText])
+
   if (!user) {
     return (
       <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
@@ -244,19 +257,6 @@ export default function ListPage() {
       }
     }
   }
-
-  useEffect(() => {
-    if (!newItemText) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null
-      if (!target || addItemFormRef.current?.contains(target)) return
-      setNewItemText('')
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [newItemText])
 
   return (
     <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-6xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
