@@ -71,6 +71,36 @@ export function useLists() {
     }
   }
 
+  const persistListOrder = async (orderedLists: ListWithRole[]) => {
+    if (!user) return null
+
+    const results = await Promise.all(
+      orderedLists.map((list, index) =>
+        trackSaveOperation(
+          supabase
+            .from('list_users')
+            .update({ sort_order: index })
+            .eq('list_id', list.id)
+            .eq('user_id', user.id)
+        )
+      )
+    )
+
+    return results.find(result => result.error)?.error || null
+  }
+
+  const moveListBetweenSections = (currentLists: ListWithRole[], listId: string, archived: boolean) => {
+    const targetList = currentLists.find(list => list.id === listId)
+    if (!targetList) return currentLists
+
+    const remainingLists = currentLists.filter(list => list.id !== listId)
+    const activeLists = remainingLists.filter(list => !list.userArchived)
+    const archivedLists = remainingLists.filter(list => list.userArchived)
+    const updatedList = { ...targetList, userArchived: archived }
+
+    return [...activeLists, updatedList, ...archivedLists]
+  }
+
   const fetchLists = useCallback(async () => {
     if (!userId) {
       setLists([])
@@ -288,25 +318,9 @@ export function useLists() {
       memberCount: 0,
       activeItemCount: 0,
     }
-    setLists(prev => {
-      let replaced = false
-      const next = prev.map(list => {
-        if (list.id === tempId) {
-          replaced = true
-          return newList
-        }
-        return list
-      })
-
-      const deduped: ListWithRole[] = []
-      for (const list of next) {
-        if (!deduped.some(existing => existing.id === list.id)) {
-          deduped.push(list)
-        }
-      }
-
-      return replaced ? deduped : [newList, ...deduped]
-    })
+    const finalLists = [newList, ...lists.filter(list => list.id !== tempId && list.id !== newList.id)]
+    setLists(finalLists)
+    await persistListOrder(finalLists)
 
     return { data, error: null }
   }
@@ -358,11 +372,15 @@ export function useLists() {
   const updateUserListState = async (listId: string, updates: { archived?: boolean; sort_order?: number }) => {
     if (!user) return { error: new Error('Not authenticated') }
 
-    const previousList = lists.find(list => list.id === listId)
+    const previousLists = lists
+    const nextLists = updates.archived !== undefined
+      ? moveListBetweenSections(lists, listId, updates.archived)
+      : lists.map(list =>
+          list.id === listId ? { ...list, userArchived: updates.archived ?? list.userArchived } : list
+        )
+
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => prev.map(list => 
-      list.id === listId ? { ...list, userArchived: updates.archived ?? list.userArchived } : list
-    ))
+    setLists(nextLists)
 
     const { error } = await trackSaveOperation(
       supabase
@@ -373,12 +391,19 @@ export function useLists() {
     )
 
     if (error) {
-      if (previousList) {
-        setLists(prev => prev.map(list => list.id === listId ? previousList : list))
+      setLists(previousLists)
+      return { error }
+    }
+
+    if (updates.archived !== undefined) {
+      const orderError = await persistListOrder(nextLists)
+      if (orderError) {
+        setLists(previousLists)
+        return { error: orderError }
       }
     }
 
-    return { error }
+    return { error: null }
   }
 
   const joinListByToken = async (token: string) => {

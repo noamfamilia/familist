@@ -330,8 +330,11 @@ export function useList(listId: string) {
   }, [userId, listId, fetchList])
 
   const addItem = async (text: string) => {
-    const maxSortOrder = items.reduce((max, item) => 
-      Math.max(max, item.sort_order || 0), 0)
+    const activeItems = items.filter(item => !item.archived)
+    const minSortOrder = activeItems.length > 0
+      ? activeItems.reduce((min, item) => Math.min(min, item.sort_order ?? 0), activeItems[0].sort_order ?? 0)
+      : 0
+    const newSortOrder = activeItems.length > 0 ? minSortOrder - 1 : 0
     const tempId = createTempId('item')
     const now = new Date().toISOString()
     const optimisticItem: ItemWithState = {
@@ -341,7 +344,7 @@ export function useList(listId: string) {
       comment: null,
       archived: false,
       archived_at: null,
-      sort_order: maxSortOrder + 1,
+      sort_order: newSortOrder,
       created_at: now,
       updated_at: now,
       memberStates: {},
@@ -356,7 +359,7 @@ export function useList(listId: string) {
         .insert({
           list_id: listId,
           text,
-          sort_order: maxSortOrder + 1,
+          sort_order: newSortOrder,
         })
         .select()
         .single()
@@ -395,15 +398,24 @@ export function useList(listId: string) {
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
     const previousItem = items.find(item => item.id === itemId)
+    const persistedUpdates = { ...updates }
+
+    if (previousItem && updates.archived === false && previousItem.archived) {
+      const maxActiveSortOrder = items
+        .filter(item => !item.archived)
+        .reduce((max, item) => Math.max(max, item.sort_order ?? 0), -1)
+      persistedUpdates.sort_order = maxActiveSortOrder + 1
+    }
+
     skipRealtimeUntilRef.current = Date.now() + 2000
     setItems(prev => prev.map(item =>
-      item.id === itemId ? { ...item, ...updates } : item
+      item.id === itemId ? { ...item, ...persistedUpdates } : item
     ))
 
     const { error } = await trackSaveOperation(
       supabase
         .from('items')
-        .update(updates)
+        .update(persistedUpdates)
         .eq('id', itemId)
     )
 
