@@ -26,7 +26,7 @@ interface ListCardProps {
 }
 
 export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, dragHandleProps }: ListCardProps) {
-  const { success, error: showError } = useToast()
+  const { error: showError } = useToast()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [newName, setNewName] = useState(list.name)
@@ -70,10 +70,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     e.stopPropagation()
     
     // Toggle archive state
-    const { error } = await onArchive(list.id, { archived: !list.userArchived })
-    if (!error) {
-      success(list.userArchived ? 'List restored' : 'List archived')
-    }
+    await onArchive(list.id, { archived: !list.userArchived })
   }
 
   const handleRename = async () => {
@@ -81,8 +78,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       const { error } = await onUpdate(list.id, { name: newName.trim() })
       if (error) {
         showError('Failed to rename list')
-      } else {
-        success('List renamed')
       }
     }
     setIsRenaming(false)
@@ -90,10 +85,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   const handleArchive = async () => {
-    const { error } = await onArchive(list.id, { archived: !list.userArchived })
-    if (!error) {
-      success(list.userArchived ? 'List restored' : 'List archived')
-    }
+    await onArchive(list.id, { archived: !list.userArchived })
     setMenuOpen(false)
   }
 
@@ -107,12 +99,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     const { error } = await onDelete(list.id)
     if (error) {
       showError('Failed to delete list')
-      setDeleting(false)
-      setShowDeleteConfirm(false)
-    } else {
-      success('List deleted')
-      setShowDeleteConfirm(false)
     }
+    setDeleting(false)
+    setShowDeleteConfirm(false)
   }
 
   const handleDuplicate = async () => {
@@ -142,11 +131,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     const { error, warning } = await onDuplicate(list.id, dupName)
     if (error) {
       showError('Failed to duplicate list')
-    } else {
-      success('List duplicated')
-      if (warning) {
-        showError(warning)
-      }
+    } else if (warning) {
+      showError(warning)
     }
     setDuplicating(false)
   }
@@ -161,12 +147,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     const { error } = await onLeave(list.id)
     if (error) {
       showError('Failed to leave list')
-      setLeaving(false)
-      setShowLeaveConfirm(false)
-    } else {
-      success('Left list')
-      setShowLeaveConfirm(false)
     }
+    setLeaving(false)
+    setShowLeaveConfirm(false)
   }
 
   const ownerBadge = !isOwner && list.ownerNickname ? (

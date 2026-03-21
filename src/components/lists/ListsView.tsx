@@ -37,7 +37,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
-  const { success, error: showError } = useToast()
+  const { error: showError } = useToast()
   const [inputValue, setInputValue] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -82,7 +82,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
         showError(error.message || 'Failed to join list')
       } else {
         setInputValue('')
-        success('Joined list successfully!')
       }
     } else {
       setInputValue('')
@@ -92,8 +91,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
         setInputValue(submittedValue)
         setError(error.message)
         showError('Failed to create list')
-      } else {
-        success('List created!')
       }
     }
     
