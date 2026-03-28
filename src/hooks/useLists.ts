@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
-import { getCachedLists, setCachedLists, removeCachedList } from '@/lib/cache'
-import type { Database, ListWithRole } from '@/lib/supabase/types'
+import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
+import type { Database, ItemWithState, ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const supabase = createClient()
@@ -465,6 +465,8 @@ export function useLists() {
     }
 
     const memberMapping: Record<string, string> = {}
+    const duplicatedMembers: MemberWithCreator[] = []
+    const duplicatedItems: ItemWithState[] = []
     let memberCopyFailures = 0
     let itemCopyFailures = 0
     let stateCopyFailures = 0
@@ -490,6 +492,10 @@ export function useLists() {
           continue
         }
         memberMapping[member.id] = newMember.id
+        duplicatedMembers.push({
+          ...newMember,
+          creator: null,
+        })
       }
     }
 
@@ -513,6 +519,12 @@ export function useLists() {
           itemCopyFailures++
           continue
         }
+
+        const duplicatedItem: ItemWithState = {
+          ...newItem,
+          memberStates: {},
+        }
+        duplicatedItems.push(duplicatedItem)
 
         if (!item.archived) {
           copiedActiveItemCount++
@@ -540,6 +552,12 @@ export function useLists() {
 
               if (stateError) {
                 stateCopyFailures++
+              } else {
+                duplicatedItem.memberStates[newMemberId] = {
+                  ...state,
+                  item_id: newItem.id,
+                  member_id: newMemberId,
+                }
               }
             }
           }
@@ -558,6 +576,12 @@ export function useLists() {
     setLists(prev => {
       if (prev.some(l => l.id === duplicatedList.id)) return prev
       return [duplicatedList, ...prev]
+    })
+
+    setCachedList(userId, newList.id, {
+      list: newList,
+      items: duplicatedItems,
+      members: duplicatedMembers,
     })
 
     const warningParts: string[] = []

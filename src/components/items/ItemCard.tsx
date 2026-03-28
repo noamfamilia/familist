@@ -65,6 +65,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   if (shouldHide) return null
 
+  const handleCancelEditText = () => {
+    setEditText(item.text)
+    setIsEditing(false)
+  }
+
   const handleSaveText = async () => {
     if (editText.trim() && editText !== item.text) {
       const { error } = await onUpdateItem(item.id, { text: editText.trim() })
@@ -158,12 +163,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             type="text"
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
-            onBlur={handleSaveText}
+            onBlur={handleCancelEditText}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSaveText()
               if (e.key === 'Escape') {
-                setEditText(item.text)
-                setIsEditing(false)
+                handleCancelEditText()
               }
             }}
             className="flex-shrink-0 px-2 py-0.5 border border-teal rounded text-lg"
@@ -307,11 +311,19 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
+                    if (isEditing) {
+                      void handleSaveText()
+                      return
+                    }
+                    setEditText(item.text)
                     setIsEditing(true)
+                  }}
+                  onMouseDown={(e) => {
+                    if (isEditing) e.preventDefault()
                   }}
                   className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
                 >
-                  Rename
+                  {isEditing ? 'Done' : 'Rename'}
                 </button>
               )}
               <button

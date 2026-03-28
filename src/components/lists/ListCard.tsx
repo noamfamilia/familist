@@ -46,6 +46,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
   const isOwner = list.role === 'owner'
 
+  const handleCancelRename = () => {
+    setNewName(list.name)
+    setIsRenaming(false)
+  }
+
   const handleSaveComment = async () => {
     const trimmed = comment.trim()
     if (trimmed !== (list.comment || '')) {
@@ -78,19 +83,17 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       const { error } = await onUpdate(list.id, { name: newName.trim() })
       if (error) {
         showError('Failed to rename list')
+        setNewName(list.name)
       }
     }
     setIsRenaming(false)
-    setMenuOpen(false)
   }
 
   const handleArchive = async () => {
     await onArchive(list.id, { archived: !list.userArchived })
-    setMenuOpen(false)
   }
 
   const handleDeleteClick = () => {
-    setMenuOpen(false)
     setShowDeleteConfirm(true)
   }
 
@@ -108,7 +111,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     // Prevent double clicks
     if (duplicating) return
     setDuplicating(true)
-    setMenuOpen(false)
 
     // Find a unique name by checking against existing list names
     const existingNamesLower = existingListNames.map(n => n.toLowerCase())
@@ -138,7 +140,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   const handleLeaveClick = () => {
-    setMenuOpen(false)
     setShowLeaveConfirm(true)
   }
 
@@ -192,12 +193,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           type="text"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          onBlur={handleRename}
+          onBlur={handleCancelRename}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleRename()
             if (e.key === 'Escape') {
-              setNewName(list.name)
-              setIsRenaming(false)
+              handleCancelRename()
             }
           }}
           className="flex-1 min-w-0 px-2 py-1 border border-teal rounded text-lg font-medium"
@@ -280,12 +280,19 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
+                  if (isRenaming) {
+                    void handleRename()
+                    return
+                  }
+                  setNewName(list.name)
                   setIsRenaming(true)
-                  setMenuOpen(false)
+                }}
+                onMouseDown={(e) => {
+                  if (isRenaming) e.preventDefault()
                 }}
                 className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
-                Rename
+                {isRenaming ? 'Done' : 'Rename'}
               </button>
             )}
             {/* Duplicate - only for active lists */}
@@ -294,8 +301,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleDuplicate()
-                  setMenuOpen(false)
+                  void handleDuplicate()
                 }}
                 className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
@@ -309,7 +315,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 onClick={(e) => {
                   e.stopPropagation()
                   handleDeleteClick()
-                  setMenuOpen(false)
                 }}
                 className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
@@ -321,7 +326,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 onClick={(e) => {
                   e.stopPropagation()
                   handleLeaveClick()
-                  setMenuOpen(false)
                 }}
                 className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
               >
