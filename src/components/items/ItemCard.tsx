@@ -321,8 +321,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   onMouseDown={(e) => {
                     if (isEditing) e.preventDefault()
                   }}
-                  className={`px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 ${
-                    isEditing ? 'bg-coral' : 'bg-teal'
+                  className={`px-3 py-1.5 text-sm text-white rounded-lg ${
+                    isEditing ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
                   }`}
                 >
                   {isEditing ? 'Done' : 'Rename'}
