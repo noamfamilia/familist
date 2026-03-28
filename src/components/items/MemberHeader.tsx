@@ -85,10 +85,15 @@ export function MemberHeader({
     setIsAdding(false)
   }
 
+  const handleCancelEdit = () => {
+    setEditingMemberId(null)
+    setEditName('')
+  }
+
   const handleStartEdit = (member: Member) => {
     setEditingMemberId(member.id)
     setEditName(member.name)
-    setOpenMenuId(null)
+    setOpenMenuId(member.id)
   }
 
   const handleSaveEdit = async () => {
@@ -108,10 +113,10 @@ export function MemberHeader({
       const { error } = await onUpdateMember(editingMemberId, { name: trimmedName })
       if (error) {
         showError(error.message || 'Failed to update member')
+        return
       }
     }
-    setEditingMemberId(null)
-    setEditName('')
+    handleCancelEdit()
   }
 
   const handleDeleteClick = (member: Member) => {
@@ -183,26 +188,18 @@ export function MemberHeader({
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        onBlur={handleSaveEdit}
+                        onBlur={handleCancelEdit}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') handleSaveEdit()
                           if (e.key === 'Escape') {
-                            setEditingMemberId(null)
-                            setEditName('')
+                            handleCancelEdit()
                           }
                         }}
                         className="w-14 px-1 py-0.5 text-sm border border-teal rounded"
                         autoFocus
                       />
                     ) : (
-                      <span 
-                        className={`text-lg truncate flex-1 text-center ${member.created_by === user?.id ? 'cursor-pointer hover:text-teal' : ''}`}
-                        onClick={() => {
-                          if (member.created_by === user?.id) {
-                            handleStartEdit(member)
-                          }
-                        }}
-                      >
+                      <span className="text-lg truncate flex-1 text-center">
                         {member.name}
                       </span>
                     )}
@@ -227,16 +224,12 @@ export function MemberHeader({
           {showAddMember && (
             <div className={`relative ml-2.5 ${openMenuId ? 'invisible' : ''}`}>
               {isAdding ? (
-                <div className="flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]">
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={newMemberName}
                     onChange={(e) => setNewMemberName(e.target.value)}
-                    onBlur={() => {
-                      if (!newMemberName.trim()) {
-                        handleCancelAddMember()
-                      }
-                    }}
+                    onBlur={handleCancelAddMember}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleAddMember()
                       if (e.key === 'Escape') {
@@ -244,9 +237,17 @@ export function MemberHeader({
                       }
                     }}
                     placeholder={profile?.nickname || 'Name'}
-                    className="w-full px-1 py-0.5 text-lg border border-teal rounded"
+                    className="w-[90px] h-[40px] px-2 py-0.5 text-lg border border-teal rounded-lg bg-white"
                     autoFocus
                   />
+                  <button
+                    type="button"
+                    onClick={handleAddMember}
+                    onMouseDown={(e) => e.preventDefault()}
+                    className="px-3 h-[40px] text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
+                  >
+                    Add
+                  </button>
                 </div>
               ) : (
                 <button
@@ -296,16 +297,37 @@ export function MemberHeader({
               />
               
               {isOpenMemberOwner && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDeleteClick(openMember)
-                  }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-                >
-                  Delete
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (editingMemberId === openMember.id) {
+                        void handleSaveEdit()
+                        return
+                      }
+                      handleStartEdit(openMember)
+                    }}
+                    onMouseDown={(e) => {
+                      if (editingMemberId === openMember.id) e.preventDefault()
+                    }}
+                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
+                      editingMemberId === openMember.id ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
+                    }`}
+                  >
+                    {editingMemberId === openMember.id ? 'Done' : 'Rename'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteClick(openMember)
+                    }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                  >
+                    Delete
+                  </button>
+                </>
               )}
               
               {!isOpenMemberOwner && openMember.creator?.nickname && (
