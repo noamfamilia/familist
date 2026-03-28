@@ -93,14 +93,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [username, setUsername] = useState('')
   const [nickname, setNickname] = useState('')
 
   const resetForm = () => {
     setEmail('')
     setPassword('')
     setConfirmPassword('')
-    setUsername('')
     setNickname('')
     setError('')
     setSuccessMessage('')
@@ -136,13 +134,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           setLoading(false)
           return
         }
-        if (!username.trim()) {
-          setError('Username is required')
-          setLoading(false)
-          return
-        }
-
-        const { error, needsEmailConfirmation } = await signUp(email, password, username.trim(), nickname.trim())
+        const { error, needsEmailConfirmation } = await signUp(email, password, nickname.trim())
         if (error) {
           setError(error.message)
         } else if (needsEmailConfirmation) {
@@ -174,7 +166,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   // If user is logged in and not in the middle of auth transition, show account info
   // Use profile data, or fall back to user metadata if profile not loaded
-  const displayUsername = profile?.username || user?.user_metadata?.username || '-'
   const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
   
   const [isEditingNickname, setIsEditingNickname] = useState(false)
@@ -203,10 +194,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
               <p className="text-gray-800 break-all">{user.email}</p>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Username</label>
-              <p className="text-gray-800">{displayUsername}</p>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nickname</label>
@@ -323,7 +310,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="your@email.com"
           required
-          autoComplete="username"
+          autoComplete="email"
         />
 
         {mode !== 'forgotPassword' && (
@@ -350,17 +337,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               required
               minLength={6}
               autoComplete="new-password"
-            />
-
-            <Input
-              label="Username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. john_smith"
-              required
-              maxLength={100}
-              autoComplete="name"
             />
 
             <Input

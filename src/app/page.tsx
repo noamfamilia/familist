@@ -86,7 +86,7 @@ export default function Home() {
             onClick={() => setShowAuthModal(true)}
             className="h-8 flex items-center hover:opacity-80 transition-opacity"
             aria-label="Account settings"
-            title={profile?.nickname || profile?.username || user.email}
+            title={user.email}
             data-tour="profile-icon"
           >
             <Image src="/profile.png" alt="Profile settings" width={32} height={32} className="w-8 h-8" />

@@ -13,7 +13,6 @@ export interface Database {
         Row: {
           id: string
           email: string | null
-          username: string | null
           nickname: string | null
           list_filter: string | null
           created_at: string
@@ -21,7 +20,6 @@ export interface Database {
         Insert: {
           id: string
           email?: string | null
-          username?: string | null
           nickname?: string | null
           list_filter?: string | null
           created_at?: string
@@ -29,7 +27,6 @@ export interface Database {
         Update: {
           id?: string
           email?: string | null
-          username?: string | null
           nickname?: string | null
           list_filter?: string | null
           created_at?: string

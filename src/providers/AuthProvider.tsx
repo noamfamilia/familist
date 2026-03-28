@@ -11,7 +11,7 @@ interface AuthContextType {
   profile: Profile | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
-  signUp: (email: string, password: string, username: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
+  signUp: (email: string, password: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
   signOut: () => Promise<{ error: Error | null }>
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   resetPassword: (email: string) => Promise<{ error: Error | null }>
@@ -131,12 +131,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, password: string, username: string, nickname: string) => {
+  const signUp = async (email: string, password: string, nickname: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { username, nickname },
+        data: { nickname },
         emailRedirectTo: `${window.location.origin}/auth/callback`
       }
     })
