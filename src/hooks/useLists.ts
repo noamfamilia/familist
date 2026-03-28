@@ -470,7 +470,9 @@ export function useLists() {
 
     setLists(prev => {
       if (prev.some(list => list.id === duplicatedList.id)) return prev
-      return [duplicatedList, ...prev]
+      const nextLists = [duplicatedList, ...prev]
+      setCachedLists(userId, nextLists)
+      return nextLists
     })
 
     setCachedList(userId, duplicatedList.id, {
@@ -478,6 +480,8 @@ export function useLists() {
       items: data.items || [],
       members: data.members || [],
     })
+
+    void fetchLists()
 
     return { data: data.list, error: null }
   }
