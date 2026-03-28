@@ -77,6 +77,8 @@ export function useList(listId: string) {
   const hadAccessRef = useRef(false)
   const hasInitialDataRef = useRef(false)
   const skipRealtimeUntilRef = useRef(0)
+  const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingRealtimeRef = useRef(false)
   const userId = user?.id
 
   useEffect(() => {
@@ -255,9 +257,46 @@ export function useList(listId: string) {
   useEffect(() => {
     if (!userId || !listId) return
 
+    const scheduleRealtimeFetch = (delayMs: number) => {
+      if (realtimeDebounceRef.current) {
+        clearTimeout(realtimeDebounceRef.current)
+      }
+
+      realtimeDebounceRef.current = setTimeout(() => {
+        realtimeDebounceRef.current = null
+
+        if (fetchingRef.current) {
+          pendingRealtimeRef.current = true
+          scheduleRealtimeFetch(250)
+          return
+        }
+
+        const remainingSkipMs = skipRealtimeUntilRef.current - Date.now()
+        if (remainingSkipMs > 0) {
+          pendingRealtimeRef.current = true
+          scheduleRealtimeFetch(remainingSkipMs)
+          return
+        }
+
+        pendingRealtimeRef.current = false
+        fetchList()
+      }, Math.max(delayMs, 0))
+    }
+
     const handleRealtimeChange = () => {
-      // Skip if we recently made a local change (prevents flickering)
-      if (Date.now() < skipRealtimeUntilRef.current) return
+      if (fetchingRef.current) {
+        pendingRealtimeRef.current = true
+        scheduleRealtimeFetch(250)
+        return
+      }
+
+      const remainingSkipMs = skipRealtimeUntilRef.current - Date.now()
+      if (remainingSkipMs > 0) {
+        pendingRealtimeRef.current = true
+        scheduleRealtimeFetch(remainingSkipMs)
+        return
+      }
+
       fetchList()
     }
 
@@ -323,6 +362,9 @@ export function useList(listId: string) {
     channelRef.current = channel
 
     return () => {
+      if (realtimeDebounceRef.current) {
+        clearTimeout(realtimeDebounceRef.current)
+      }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
       }
