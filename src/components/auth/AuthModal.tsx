@@ -348,6 +348,9 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               maxLength={50}
               autoComplete="nickname"
             />
+            <p className="-mt-2 text-xs text-gray-500">
+              Used by the app as the default member name. You can change it later.
+            </p>
           </>
         )}
 

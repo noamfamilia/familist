@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
-import type { Database, ItemWithState, ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
+import type { Database, ListWithRole } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const supabase = createClient()
@@ -440,166 +440,46 @@ export function useLists() {
 
   const duplicateList = async (listId: string, newName: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-
-    const [itemsResult, membersResult] = await Promise.all([
-      trackSaveOperation(supabase.from('items').select('*').eq('list_id', listId)),
-      trackSaveOperation(supabase.from('members').select('*').eq('list_id', listId)),
-    ])
-
-    if (itemsResult.error) return { error: itemsResult.error }
-    if (membersResult.error) return { error: membersResult.error }
-
-    const { data: newList, error: createError } = await trackSaveOperation(
-      supabase
-        .from('lists')
-        .insert({ name: newName, owner_id: user.id })
-        .select()
-        .single()
+    const { data, error } = await trackSaveOperation(
+      supabase.rpc('duplicate_list', {
+        p_source_list_id: listId,
+        p_new_name: newName,
+      })
     )
 
-    if (createError) {
-      if (createError.code === '23505') {
+    if (error) {
+      if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
-      return { error: createError }
+      return { error }
     }
 
-    const memberMapping: Record<string, string> = {}
-    const duplicatedMembers: MemberWithCreator[] = []
-    const duplicatedItems: ItemWithState[] = []
-    let memberCopyFailures = 0
-    let itemCopyFailures = 0
-    let stateCopyFailures = 0
-    let copiedActiveItemCount = 0
-
-    if (membersResult.data && membersResult.data.length > 0) {
-      for (const member of membersResult.data) {
-        const { data: newMember, error: memberError } = await trackSaveOperation(
-          supabase
-            .from('members')
-            .insert({
-              list_id: newList.id,
-              name: member.name,
-              created_by: user.id,
-              sort_order: member.sort_order,
-            })
-            .select()
-            .single()
-        )
-
-        if (memberError || !newMember) {
-          memberCopyFailures++
-          continue
-        }
-        memberMapping[member.id] = newMember.id
-        duplicatedMembers.push({
-          ...newMember,
-          creator: null,
-        })
-      }
-    }
-
-    if (itemsResult.data && itemsResult.data.length > 0) {
-      for (const item of itemsResult.data) {
-        const { data: newItem, error: itemError } = await trackSaveOperation(
-          supabase
-            .from('items')
-            .insert({
-              list_id: newList.id,
-              text: item.text,
-              comment: item.comment,
-              archived: item.archived,
-              sort_order: item.sort_order,
-            })
-            .select()
-            .single()
-        )
-
-        if (itemError || !newItem) {
-          itemCopyFailures++
-          continue
-        }
-
-        const duplicatedItem: ItemWithState = {
-          ...newItem,
-          memberStates: {},
-        }
-        duplicatedItems.push(duplicatedItem)
-
-        if (!item.archived) {
-          copiedActiveItemCount++
-        }
-
-        const { data: states } = await trackSaveOperation(
-          supabase
-            .from('item_member_state')
-            .select('*')
-            .eq('item_id', item.id)
-        )
-
-        if (states) {
-          for (const state of states) {
-            const newMemberId = memberMapping[state.member_id]
-            if (newMemberId) {
-              const { error: stateError } = await trackSaveOperation(
-                supabase.from('item_member_state').insert({
-                  item_id: newItem.id,
-                  member_id: newMemberId,
-                  quantity: state.quantity,
-                  done: state.done,
-                })
-              )
-
-              if (stateError) {
-                stateCopyFailures++
-              } else {
-                duplicatedItem.memberStates[newMemberId] = {
-                  ...state,
-                  item_id: newItem.id,
-                  member_id: newMemberId,
-                }
-              }
-            }
-          }
-        }
-      }
+    if (!data?.list) {
+      return { error: new Error('Failed to duplicate list') }
     }
 
     skipRealtimeUntilRef.current = Date.now() + 2000
+
     const duplicatedList: ListWithRole = {
-      ...newList,
+      ...data.list,
       role: 'owner',
       userArchived: false,
-      memberCount: Object.keys(memberMapping).length,
-      activeItemCount: copiedActiveItemCount,
+      memberCount: 0,
+      activeItemCount: data.items?.filter(item => !item.archived).length || 0,
     }
+
     setLists(prev => {
-      if (prev.some(l => l.id === duplicatedList.id)) return prev
+      if (prev.some(list => list.id === duplicatedList.id)) return prev
       return [duplicatedList, ...prev]
     })
 
-    setCachedList(userId, newList.id, {
-      list: newList,
-      items: duplicatedItems,
-      members: duplicatedMembers,
+    setCachedList(userId, duplicatedList.id, {
+      list: data.list,
+      items: data.items || [],
+      members: data.members || [],
     })
 
-    const warningParts: string[] = []
-    if (memberCopyFailures > 0) {
-      warningParts.push(`${memberCopyFailures} member${memberCopyFailures !== 1 ? 's were' : ' was'} skipped`)
-    }
-    if (itemCopyFailures > 0) {
-      warningParts.push(`${itemCopyFailures} item${itemCopyFailures !== 1 ? 's were' : ' was'} skipped`)
-    }
-    if (stateCopyFailures > 0) {
-      warningParts.push(`${stateCopyFailures} state${stateCopyFailures !== 1 ? 's were' : ' was'} skipped`)
-    }
-
-    const warning = warningParts.length > 0
-      ? `List duplicated, but ${warningParts.join(', ')}.`
-      : null
-
-    return { data: newList, error: null, warning }
+    return { data: data.list, error: null }
   }
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {

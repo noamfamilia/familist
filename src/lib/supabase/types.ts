@@ -237,6 +237,18 @@ export interface Database {
           })[]
         }
       }
+      duplicate_list: {
+        Args: { p_source_list_id: string; p_new_name: string }
+        Returns: {
+          list: Database['public']['Tables']['lists']['Row'] | null
+          items: (Database['public']['Tables']['items']['Row'] & {
+            memberStates: Record<string, Database['public']['Tables']['item_member_state']['Row']>
+          })[]
+          members: (Database['public']['Tables']['members']['Row'] & {
+            creator?: { nickname: string | null } | null
+          })[]
+        }
+      }
       change_quantity: {
         Args: { p_item_id: string; p_member_id: string; p_delta: number }
         Returns: number

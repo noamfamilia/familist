@@ -321,7 +321,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   onMouseDown={(e) => {
                     if (isEditing) e.preventDefault()
                   }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                  className={`px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 ${
+                    isEditing ? 'bg-coral' : 'bg-teal'
+                  }`}
                 >
                   {isEditing ? 'Done' : 'Rename'}
                 </button>

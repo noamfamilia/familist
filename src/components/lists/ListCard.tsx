@@ -290,7 +290,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 onMouseDown={(e) => {
                   if (isRenaming) e.preventDefault()
                 }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                className={`px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 ${
+                  isRenaming ? 'bg-coral' : 'bg-teal'
+                }`}
               >
                 {isRenaming ? 'Done' : 'Rename'}
               </button>
