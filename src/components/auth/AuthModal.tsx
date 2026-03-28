@@ -313,6 +313,18 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           autoComplete="email"
         />
 
+        {mode === 'signUp' && (
+          <Input
+            label="Nickname (you can change it later)"
+            type="text"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="e.g. John"
+            maxLength={50}
+            autoComplete="nickname"
+          />
+        )}
+
         {mode !== 'forgotPassword' && (
           <Input
             label="Password"
@@ -337,16 +349,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               required
               minLength={6}
               autoComplete="new-password"
-            />
-
-            <Input
-              label="Nickname (you can change it later)"
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="e.g. John"
-              maxLength={50}
-              autoComplete="nickname"
             />
           </>
         )}
