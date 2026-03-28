@@ -340,7 +340,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             />
 
             <Input
-              label="Nickname"
+              label="Nickname (you can change it later)"
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
@@ -348,9 +348,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               maxLength={50}
               autoComplete="nickname"
             />
-            <p className="-mt-2 text-xs text-gray-500">
-              Used by the app as the default member name. You can change it later.
-            </p>
           </>
         )}
 
