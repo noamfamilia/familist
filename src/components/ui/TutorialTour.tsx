@@ -98,6 +98,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       continuous
       showProgress
       showSkipButton
+      disableScrollParentFix
       callback={handleCallback}
       styles={{
         options: {

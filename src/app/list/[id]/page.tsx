@@ -334,8 +334,8 @@ export default function ListPage() {
         </p>
       )}
 
-      {/* Scrollable container for header + items */}
-      <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
+      {/* Horizontal scroll only: nested vertical overflow breaks react-joyride spotlight alignment */}
+      <div className="overflow-x-auto">
         {/* Inner container that sizes based on content */}
         <div className="inline-block min-w-full">
           {/* Members header with hide done toggles */}
