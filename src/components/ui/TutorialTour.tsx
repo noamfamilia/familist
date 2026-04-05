@@ -38,7 +38,8 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
   const prevStepsKey = useRef('')
   const filteredStepsRef = useRef<Step[]>([])
   const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingStepIndexRef = useRef<number | null>(null)
+  const currentTargetRef = useRef<string | null>(null)
+  const pendingTargetRef = useRef<string | null>(null)
   const hasStartedRef = useRef(false)
 
   const clearWaitTimer = () => {
@@ -48,37 +49,29 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
     }
   }
 
-  const moveToStep = (nextIndex: number, attempt = 0) => {
+  const waitForTargetAndAdvance = (target: string, attempt = 0) => {
     clearWaitTimer()
-
-    const nextStep = filteredStepsRef.current[nextIndex]
-    if (!nextStep) {
-      pendingStepIndexRef.current = nextIndex
-      setRun(false)
-      return
-    }
-
-    if (typeof nextStep.target !== 'string' || isTargetReady(nextStep.target)) {
-      pendingStepIndexRef.current = null
-      setStepIndex(nextIndex)
-      setRun(true)
-      return
-    }
-
-    // Wait briefly for newly-rendered targets (like created list/item cards)
-    // before letting Joyride try to anchor the next step.
-    pendingStepIndexRef.current = nextIndex
+    pendingTargetRef.current = target
     setRun(false)
 
-    if (attempt >= 20) {
-      setStepIndex(nextIndex)
-      setRun(true)
+    if (!isTargetReady(target)) {
+      if (attempt >= 40) return
+
+      waitTimerRef.current = setTimeout(() => {
+        waitForTargetAndAdvance(target, attempt + 1)
+      }, 150)
       return
     }
 
-    waitTimerRef.current = setTimeout(() => {
-      moveToStep(nextIndex, attempt + 1)
-    }, 150)
+    const nextIndex = filteredStepsRef.current.findIndex(
+      step => typeof step.target === 'string' && step.target === target
+    )
+
+    if (nextIndex !== -1) {
+      pendingTargetRef.current = null
+      setStepIndex(nextIndex)
+      setRun(true)
+    }
   }
 
   useEffect(() => {
@@ -108,21 +101,30 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       setFilteredSteps(availableSteps)
       clearWaitTimer()
 
-      const pendingStepIndex = pendingStepIndexRef.current
-      if (pendingStepIndex !== null) {
-        if (pendingStepIndex < availableSteps.length) {
-          const timer = setTimeout(() => moveToStep(pendingStepIndex), 150)
-          return () => {
-            clearTimeout(timer)
-            clearWaitTimer()
-          }
-        }
+      if (pendingTargetRef.current) {
+        const pendingIndex = availableSteps.findIndex(
+          step => typeof step.target === 'string' && step.target === pendingTargetRef.current
+        )
 
-        setRun(false)
+        if (pendingIndex !== -1 && isTargetReady(pendingTargetRef.current)) {
+          pendingTargetRef.current = null
+          setStepIndex(pendingIndex)
+          setRun(true)
+        }
         return
       }
 
       if (hasStartedRef.current) {
+        const currentTarget = currentTargetRef.current
+        const currentIndex = currentTarget
+          ? availableSteps.findIndex(
+              step => typeof step.target === 'string' && step.target === currentTarget
+            )
+          : -1
+
+        if (currentIndex !== -1) {
+          setStepIndex(currentIndex)
+        }
         return
       }
 
@@ -141,6 +143,11 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
   useEffect(() => {
     filteredStepsRef.current = filteredSteps
   }, [filteredSteps])
+
+  useEffect(() => {
+    const currentStep = filteredSteps[stepIndex]
+    currentTargetRef.current = typeof currentStep?.target === 'string' ? currentStep.target : null
+  }, [filteredSteps, stepIndex])
 
   useEffect(() => {
     return () => clearWaitTimer()
@@ -166,18 +173,38 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       
       setRun(false)
       clearWaitTimer()
-      pendingStepIndexRef.current = null
+      pendingTargetRef.current = null
+      currentTargetRef.current = null
       hasStartedRef.current = false
       prevStepsKey.current = ''
       onComplete?.()
     }
 
     if (type === 'step:after') {
-      moveToStep(index + (data.action === ACTIONS.PREV ? -1 : 1))
+      const nextIndex = index + (data.action === ACTIONS.PREV ? -1 : 1)
+
+      if (data.action === ACTIONS.PREV) {
+        setStepIndex(nextIndex)
+        return
+      }
+
+      const currentStep = filteredSteps[index]
+      const currentTarget = typeof currentStep?.target === 'string' ? currentStep.target : null
+      const currentStepOrder = currentTarget
+        ? steps.findIndex(step => step.target === currentTarget)
+        : -1
+      const nextStep = currentStepOrder !== -1 ? steps[currentStepOrder + 1] : null
+
+      if (currentTarget === '[data-tour="create-list"]' && typeof nextStep?.target === 'string') {
+        waitForTargetAndAdvance(nextStep.target)
+        return
+      }
+
+      setStepIndex(nextIndex)
     }
 
     if (type === 'error:target_not_found') {
-      moveToStep(index + (data.action === ACTIONS.PREV ? -1 : 1))
+      setStepIndex(index + (data.action === ACTIONS.PREV ? -1 : 1))
     }
   }
 
