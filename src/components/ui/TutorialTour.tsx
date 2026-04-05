@@ -38,6 +38,8 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
   const prevStepsKey = useRef('')
   const filteredStepsRef = useRef<Step[]>([])
   const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingStepIndexRef = useRef<number | null>(null)
+  const hasStartedRef = useRef(false)
 
   const clearWaitTimer = () => {
     if (waitTimerRef.current) {
@@ -51,12 +53,13 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
 
     const nextStep = filteredStepsRef.current[nextIndex]
     if (!nextStep) {
-      setStepIndex(nextIndex)
-      setRun(true)
+      pendingStepIndexRef.current = nextIndex
+      setRun(false)
       return
     }
 
     if (typeof nextStep.target !== 'string' || isTargetReady(nextStep.target)) {
+      pendingStepIndexRef.current = null
       setStepIndex(nextIndex)
       setRun(true)
       return
@@ -64,6 +67,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
 
     // Wait briefly for newly-rendered targets (like created list/item cards)
     // before letting Joyride try to anchor the next step.
+    pendingStepIndexRef.current = nextIndex
     setRun(false)
 
     if (attempt >= 20) {
@@ -102,9 +106,31 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       prevStepsKey.current = stepsKey
       filteredStepsRef.current = availableSteps
       setFilteredSteps(availableSteps)
-      setStepIndex(0)
       clearWaitTimer()
-      const timer = setTimeout(() => setRun(true), 500)
+
+      const pendingStepIndex = pendingStepIndexRef.current
+      if (pendingStepIndex !== null) {
+        if (pendingStepIndex < availableSteps.length) {
+          const timer = setTimeout(() => moveToStep(pendingStepIndex), 150)
+          return () => {
+            clearTimeout(timer)
+            clearWaitTimer()
+          }
+        }
+
+        setRun(false)
+        return
+      }
+
+      if (hasStartedRef.current) {
+        return
+      }
+
+      setStepIndex(0)
+      const timer = setTimeout(() => {
+        hasStartedRef.current = true
+        setRun(true)
+      }, 500)
       return () => {
         clearTimeout(timer)
         clearWaitTimer()
@@ -140,6 +166,8 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       
       setRun(false)
       clearWaitTimer()
+      pendingStepIndexRef.current = null
+      hasStartedRef.current = false
       prevStepsKey.current = ''
       onComplete?.()
     }
