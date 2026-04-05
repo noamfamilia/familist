@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { Toggle } from '@/components/ui/Toggle'
@@ -44,12 +45,11 @@ const homeTourSteps: Step[] = [
 ]
 
 export default function Home() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, profile, loading, updateProfile } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [inviteToken, setInviteToken] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null
-    return new URLSearchParams(window.location.search).get('invite')
-  })
+  const inviteToken = searchParams.get('invite')
   const [viewMode, setViewMode] = useState<'all' | 'mine'>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('home_list_filter')
@@ -79,14 +79,13 @@ export default function Home() {
 
   const clearInviteState = () => {
     clearPendingInviteToken()
-    setInviteToken(null)
 
     if (typeof window === 'undefined') return
 
     const url = new URL(window.location.href)
     url.searchParams.delete('invite')
     const search = url.searchParams.toString()
-    window.history.replaceState({}, '', `${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
+    router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
   }
 
   // Save viewMode to localStorage and profile when changed

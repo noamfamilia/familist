@@ -27,7 +27,7 @@ export function ConfirmModal({
   loading = false,
 }: ConfirmModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm" manageHistory={false}>
       <div className="space-y-6">
         <p className="text-gray-600 text-center">{message}</p>
         

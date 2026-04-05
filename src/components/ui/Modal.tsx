@@ -8,9 +8,10 @@ interface ModalProps {
   title?: string
   children: React.ReactNode
   size?: 'sm' | 'md' | 'lg'
+  manageHistory?: boolean
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size = 'md', manageHistory = true }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
@@ -39,11 +40,13 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       document.body.style.overflow = 'hidden'
       
       // Push state for back button handling
-      if (!historyPushedRef.current) {
+      if (manageHistory && !historyPushedRef.current) {
         window.history.pushState({ modal: true }, '')
         historyPushedRef.current = true
       }
-      window.addEventListener('popstate', handlePopState)
+      if (manageHistory) {
+        window.addEventListener('popstate', handlePopState)
+      }
       
       // Focus the modal
       setTimeout(() => modalRef.current?.focus(), 0)
@@ -51,11 +54,13 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
 
     return () => {
       document.removeEventListener('keydown', handleEscape)
-      window.removeEventListener('popstate', handlePopState)
+      if (manageHistory) {
+        window.removeEventListener('popstate', handlePopState)
+      }
       document.body.style.overflow = ''
       
       // If modal closes normally (not via back button), clean up history
-      if (historyPushedRef.current) {
+      if (manageHistory && historyPushedRef.current) {
         historyPushedRef.current = false
         window.history.back()
       }
@@ -65,7 +70,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
         previousFocusRef.current.focus()
       }
     }
-  }, [isOpen])
+  }, [isOpen, manageHistory])
 
   if (!isOpen) return null
 

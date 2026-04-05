@@ -92,13 +92,15 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     if (!isOpen || visibility !== 'link') return
 
     const supabase = createClient()
-    let refreshTimeout: NodeJS.Timeout | null = null
+    let refreshTimeouts: NodeJS.Timeout[] = []
 
     const scheduleRefresh = () => {
-      if (refreshTimeout) clearTimeout(refreshTimeout)
-      refreshTimeout = setTimeout(() => {
-        fetchJoinedUsers()
-      }, 200)
+      refreshTimeouts.forEach(clearTimeout)
+      refreshTimeouts = [200, 1500, 3000].map(delayMs =>
+        setTimeout(() => {
+          fetchJoinedUsers()
+        }, delayMs)
+      )
     }
 
     const channel: RealtimeChannel = supabase
@@ -116,7 +118,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       .subscribe()
 
     return () => {
-      if (refreshTimeout) clearTimeout(refreshTimeout)
+      refreshTimeouts.forEach(clearTimeout)
       supabase.removeChannel(channel)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
