@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { buildInvitePath, getPendingInviteToken } from '@/lib/invite'
 
 function CallbackHandler() {
   const router = useRouter()
@@ -31,7 +32,8 @@ function CallbackHandler() {
       if (type === 'recovery') {
         router.replace('/reset')
       } else {
-        router.replace('/')
+        const pendingInviteToken = getPendingInviteToken()
+        router.replace(pendingInviteToken ? buildInvitePath(pendingInviteToken) : '/')
       }
     }
 

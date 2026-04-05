@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -22,10 +23,14 @@ interface ListsViewProps {
   viewMode: 'all' | 'mine'
   homeTourSteps?: Step[]
   showTutorial?: boolean
+  inviteToken?: string | null
+  onInviteHandled?: () => void
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled }: ListsViewProps) {
   const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists } = useLists()
+  const router = useRouter()
+  const inviteJoinRef = useRef<string | null>(null)
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -37,7 +42,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
-  const { error: showError } = useToast()
+  const { success, error: showError } = useToast()
   const [inputValue, setInputValue] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -128,6 +133,44 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
     return () => document.removeEventListener('click', handleClick)
   }, [inputValue])
 
+  useEffect(() => {
+    if (!inviteToken) {
+      inviteJoinRef.current = null
+      return
+    }
+
+    if (inviteJoinRef.current === inviteToken) return
+    inviteJoinRef.current = inviteToken
+
+    let cancelled = false
+
+    const handleInviteJoin = async () => {
+      setError('')
+      const { data, error } = await joinListByToken(inviteToken)
+      if (cancelled) return
+
+      onInviteHandled?.()
+
+      if (error) {
+        setError(error.message)
+        showError(error.message || 'Failed to join list')
+        return
+      }
+
+      success('Joined list!')
+
+      if (typeof data === 'string' && data) {
+        router.replace(`/list/${data}`)
+      }
+    }
+
+    void handleInviteJoin()
+
+    return () => {
+      cancelled = true
+    }
+  }, [inviteToken, joinListByToken, onInviteHandled, router, showError, success])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -156,7 +199,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true }: List
                 setInputValue('')
               }
             }}
-            placeholder="List name or @token"
+            placeholder="List name"
             disabled={submitting}
           />
         </div>

@@ -7,6 +7,7 @@ import { Toggle } from '@/components/ui/Toggle'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
+import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -16,7 +17,7 @@ const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod =
 const homeTourSteps: Step[] = [
   {
     target: '[data-tour="create-list"]',
-    content: 'Type a name to create a new list, or type @token to join a shared list.',
+    content: 'Type a name to create a new list. Shared invite links open automatically.',
     disableBeacon: true,
   },
   {
@@ -45,6 +46,10 @@ const homeTourSteps: Step[] = [
 export default function Home() {
   const { user, profile, loading, updateProfile } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [inviteToken, setInviteToken] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return new URLSearchParams(window.location.search).get('invite')
+  })
   const [viewMode, setViewMode] = useState<'all' | 'mine'>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('home_list_filter')
@@ -60,6 +65,29 @@ export default function Home() {
       localStorage.setItem('home_list_filter', profile.list_filter)
     }
   }, [profile?.list_filter])
+
+  useEffect(() => {
+    if (!inviteToken) return
+    setPendingInviteToken(inviteToken)
+  }, [inviteToken])
+
+  useEffect(() => {
+    if (!loading && !user && inviteToken) {
+      setShowAuthModal(true)
+    }
+  }, [loading, user, inviteToken])
+
+  const clearInviteState = () => {
+    clearPendingInviteToken()
+    setInviteToken(null)
+
+    if (typeof window === 'undefined') return
+
+    const url = new URL(window.location.href)
+    url.searchParams.delete('invite')
+    const search = url.searchParams.toString()
+    window.history.replaceState({}, '', `${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
+  }
 
   // Save viewMode to localStorage and profile when changed
   const handleViewModeChange = (mode: 'all' | 'mine') => {
@@ -136,11 +164,13 @@ export default function Home() {
             viewMode={viewMode} 
             homeTourSteps={homeTourSteps}
             showTutorial={!showAuthModal} 
+            inviteToken={inviteToken}
+            onInviteHandled={clearInviteState}
           />
         </>
       ) : (
         <div className="text-center py-12 text-gray-500">
-          <p>Sign in to view and manage your lists</p>
+          <p>{inviteToken ? 'Sign in to join the shared list' : 'Sign in to view and manage your lists'}</p>
         </div>
       )}
 

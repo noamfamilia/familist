@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
+import { buildInviteUrl } from '@/lib/invite'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { Database, List } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -121,16 +122,19 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, visibility, list.id])
 
-  const copyToClipboard = async (tokenValue: string) => {
-    const tokenWithPrefix = '@' + tokenValue
-    await copyTextToClipboard(tokenWithPrefix)
+  const canUseNativeShare =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    isMobileDevice()
 
+  const copyInviteLink = async (inviteLink: string) => {
+    await copyTextToClipboard(inviteLink)
     if (!isMobileDevice()) {
       success('Copied to clipboard')
     }
   }
 
-  const generateTokenAndCopy = async () => {
+  const generateInviteToken = async () => {
     setLoading(true)
     try {
       const supabase = forceNewClient()
@@ -139,15 +143,44 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       })
       if (error) throw error
       setToken(data)
-      await copyToClipboard(data)
-      return true
+      return data
     } catch (err) {
       console.error('Error generating token:', err)
-      showError('Failed to generate token')
-      return false
+      showError('Failed to generate invite link')
+      return null
     } finally {
       setLoading(false)
     }
+  }
+
+  const shareInviteLink = async (inviteLink: string) => {
+    if (!canUseNativeShare) {
+      await copyInviteLink(inviteLink)
+      return
+    }
+
+    try {
+      await navigator.share({
+        title: `${list.name} on MyFamiList`,
+        text: `Join my shared list: ${list.name}`,
+        url: inviteLink,
+      })
+    } catch (err) {
+      const shareError = err as Error & { name?: string }
+      if (shareError.name === 'AbortError') return
+      console.error('Error sharing invite link:', err)
+      showError('Failed to share invite link')
+    }
+  }
+
+  const handleShareInvite = async () => {
+    const currentToken = token || await generateInviteToken()
+    if (!currentToken) return
+    await shareInviteLink(buildInviteUrl(currentToken))
+  }
+
+  const handleRegenerateInvite = async () => {
+    await generateInviteToken()
   }
 
   // Calculate totals from joinedUsers
@@ -182,8 +215,8 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
   const handleVisibilityChange = async (newVisibility: 'private' | 'link') => {
     if (newVisibility === 'link') {
-      const didGenerateToken = await generateTokenAndCopy()
-      if (didGenerateToken) {
+      const nextToken = await generateInviteToken()
+      if (nextToken) {
         setVisibility('link')
         onUpdate()
       }
@@ -307,26 +340,36 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
             <span className="text-2xl">🔗</span>
             <div>
               <div className="font-semibold">Link-enabled</div>
-              <div className="text-sm text-gray-500">Anyone with the token can join</div>
+              <div className="text-sm text-gray-500">Anyone with the invite link can join</div>
             </div>
           </div>
         </label>
       </div>
 
-      {/* Token section */}
+      {/* Invite link section */}
       {visibility === 'link' && (
         <div className="pt-4 border-t border-gray-200">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <input
               type="text"
-              value={token ? '@' + token : ''}
+              value={token ? buildInviteUrl(token) : ''}
+              placeholder="Share or regenerate to create a new invite link"
               readOnly
-              className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg font-mono bg-gray-50 text-sm truncate"
+              className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm truncate"
             />
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleShareInvite}
+              disabled={loading}
+              className="flex-shrink-0 py-2"
+            >
+              {canUseNativeShare ? 'Share' : 'Copy link'}
+            </Button>
             <Button
               variant="secondary"
               size="sm"
-              onClick={generateTokenAndCopy}
+              onClick={handleRegenerateInvite}
               disabled={loading}
               className="flex-shrink-0 py-2"
             >
@@ -334,10 +377,10 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
             </Button>
           </div>
           <p className="text-xs text-gray-400 mt-2 text-center">
-            Share your token with friends.
+            Share this invite link with friends.
           </p>
           <p className="text-xs text-gray-400 text-center">
-            Regenerating a new token will invalidate the current one.
+            Regenerating a new link will invalidate the current one.
           </p>
         </div>
       )}
