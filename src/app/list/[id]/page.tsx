@@ -31,7 +31,7 @@ const listTourSteps: Step[] = [
   },
   // Item-specific steps - shown when items exist
   {
-    target: '[data-tour="item-archive"]',
+    target: '[data-tour="item-row"]',
     content: 'Click the item name to archive it. Click again to restore.',
   },
   {

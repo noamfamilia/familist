@@ -23,6 +23,14 @@ function saveCompletedTargets(tourId: string, targets: Set<string>) {
   localStorage.setItem(`tutorial_${tourId}_targets`, JSON.stringify([...targets]))
 }
 
+function isTargetReady(target: string) {
+  const element = document.querySelector(target)
+  if (!element) return false
+
+  const rect = element.getBoundingClientRect()
+  return rect.width > 0 && rect.height > 0
+}
+
 export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentKey }: TutorialTourProps) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -41,9 +49,8 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
     // Filter steps: target exists in DOM AND hasn't been completed
     const availableSteps = steps.filter(step => {
       if (typeof step.target === 'string') {
-        const exists = document.querySelector(step.target) !== null
         const notCompleted = !completedTargets.has(step.target)
-        return exists && notCompleted
+        return isTargetReady(step.target) && notCompleted
       }
       return true
     })
@@ -100,7 +107,6 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       run={run}
       stepIndex={stepIndex}
       continuous
-      showProgress
       showSkipButton
       disableScrollParentFix
       callback={handleCallback}
