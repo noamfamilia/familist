@@ -29,6 +29,10 @@ const listTourSteps: Step[] = [
     content: 'Add items to your list',
     disableBeacon: true,
   },
+  {
+    target: '[data-tour="view-toggle"]',
+    content: 'Show everyone\'s goals or just your own.',
+  },
   // Item-specific steps - shown when items exist
   {
     target: '[data-tour="item-name"]',
@@ -44,20 +48,16 @@ const listTourSteps: Step[] = [
   },
   // Member-specific steps - shown when members exist
   {
+    target: '[data-tour="add-member"]',
+    content: 'Set your own goals',
+  },
+  {
     target: '[data-tour="member-chip"]',
     content: 'Member menu options',
   },
   {
     target: '[data-tour="item-state"]',
     content: 'Edit quantity and status.',
-  },
-  {
-    target: '[data-tour="add-member"]',
-    content: 'Set your own goals',
-  },
-  {
-    target: '[data-tour="view-toggle"]',
-    content: 'Show everyone\'s goals or just your own.',
   },
 ]
 

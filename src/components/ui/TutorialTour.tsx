@@ -23,6 +23,14 @@ function saveCompletedTargets(tourId: string, targets: Set<string>) {
   localStorage.setItem(`tutorial_${tourId}_targets`, JSON.stringify([...targets]))
 }
 
+function markTargetCompleted(tourId: string, target: string | null) {
+  if (!target) return
+  const completedTargets = getCompletedTargets(tourId)
+  if (completedTargets.has(target)) return
+  completedTargets.add(target)
+  saveCompletedTargets(tourId, completedTargets)
+}
+
 function isTargetReady(target: string) {
   const element = document.querySelector(target)
   if (!element) return false
@@ -196,6 +204,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
 
       const currentStep = filteredSteps[index]
       const currentTarget = typeof currentStep?.target === 'string' ? currentStep.target : null
+      markTargetCompleted(tourId, currentTarget)
       const delayedTarget = currentTarget ? delayedAdvanceTargets[currentTarget] : null
       if (typeof delayedTarget === 'string') {
         waitForTargetAndAdvance(delayedTarget)
