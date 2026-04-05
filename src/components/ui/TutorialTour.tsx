@@ -36,6 +36,46 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
   const [stepIndex, setStepIndex] = useState(0)
   const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
   const prevStepsKey = useRef('')
+  const filteredStepsRef = useRef<Step[]>([])
+  const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearWaitTimer = () => {
+    if (waitTimerRef.current) {
+      clearTimeout(waitTimerRef.current)
+      waitTimerRef.current = null
+    }
+  }
+
+  const moveToStep = (nextIndex: number, attempt = 0) => {
+    clearWaitTimer()
+
+    const nextStep = filteredStepsRef.current[nextIndex]
+    if (!nextStep) {
+      setStepIndex(nextIndex)
+      setRun(true)
+      return
+    }
+
+    if (typeof nextStep.target !== 'string' || isTargetReady(nextStep.target)) {
+      setStepIndex(nextIndex)
+      setRun(true)
+      return
+    }
+
+    // Wait briefly for newly-rendered targets (like created list/item cards)
+    // before letting Joyride try to anchor the next step.
+    setRun(false)
+
+    if (attempt >= 20) {
+      setStepIndex(nextIndex)
+      setRun(true)
+      return
+    }
+
+    waitTimerRef.current = setTimeout(() => {
+      moveToStep(nextIndex, attempt + 1)
+    }, 150)
+  }
 
   useEffect(() => {
     const isFullyComplete = localStorage.getItem(`tutorial_${tourId}`) === 'true'
@@ -60,12 +100,25 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
     
     if (availableSteps.length > 0 && stepsKey !== prevStepsKey.current) {
       prevStepsKey.current = stepsKey
+      filteredStepsRef.current = availableSteps
       setFilteredSteps(availableSteps)
       setStepIndex(0)
+      clearWaitTimer()
       const timer = setTimeout(() => setRun(true), 500)
-      return () => clearTimeout(timer)
+      return () => {
+        clearTimeout(timer)
+        clearWaitTimer()
+      }
     }
   }, [tourId, runProp, steps, contentKey])
+
+  useEffect(() => {
+    filteredStepsRef.current = filteredSteps
+  }, [filteredSteps])
+
+  useEffect(() => {
+    return () => clearWaitTimer()
+  }, [])
 
   const handleCallback = (data: CallBackProps) => {
     const { status, index, type } = data
@@ -86,16 +139,17 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       }
       
       setRun(false)
+      clearWaitTimer()
       prevStepsKey.current = ''
       onComplete?.()
     }
 
     if (type === 'step:after') {
-      setStepIndex(index + (data.action === ACTIONS.PREV ? -1 : 1))
+      moveToStep(index + (data.action === ACTIONS.PREV ? -1 : 1))
     }
 
     if (type === 'error:target_not_found') {
-      setStepIndex(index + (data.action === ACTIONS.PREV ? -1 : 1))
+      moveToStep(index + (data.action === ACTIONS.PREV ? -1 : 1))
     }
   }
 

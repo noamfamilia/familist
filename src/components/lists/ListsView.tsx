@@ -313,7 +313,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         <TutorialTour 
           tourId="home" 
           steps={homeTourSteps}
-          contentKey={lists.length}
+          contentKey={lists.map(list => `${list.id}:${list.userArchived ? 'archived' : 'active'}`).join('|')}
         />
       )}
     </div>

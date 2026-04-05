@@ -32,7 +32,7 @@ const listTourSteps: Step[] = [
   // Item-specific steps - shown when items exist
   {
     target: '[data-tour="item-name"]',
-    content: 'Click the item name to archive it. Click again to restore.',
+    content: 'Click the item name to archive/restore it.',
   },
   {
     target: '[data-tour="drag-handle"]',
@@ -424,7 +424,7 @@ export default function ListPage() {
       <TutorialTour 
         tourId="list" 
         steps={listTourSteps}
-        contentKey={`${items.length}-${members.length}`}
+        contentKey={`${items.map(item => `${item.id}:${item.archived ? 'archived' : 'active'}`).join('|')}::${members.map(member => member.id).join('|')}`}
       />
     </div>
   )
