@@ -182,7 +182,10 @@ export function MemberHeader({
               return (
                 <div key={member.id} className={isHidden ? 'invisible' : ''}>
                   {/* Member container - fixed size to match item state containers */}
-                  <div className="flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]">
+                  <div
+                    className="flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]"
+                    data-tour="member-chip"
+                  >
                     {editingMemberId === member.id ? (
                       <input
                         type="text"

@@ -44,7 +44,7 @@ const listTourSteps: Step[] = [
   },
   // Member-specific steps - shown when members exist
   {
-    target: '[data-tour="member-kebab"]',
+    target: '[data-tour="member-chip"]',
     content: 'Member menu options',
   },
   {
@@ -53,11 +53,11 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="add-member"]',
-    content: 'Set personal objectives',
+    content: 'Set your own goals',
   },
   {
     target: '[data-tour="view-toggle"]',
-    content: 'Show all members or just the ones you created.',
+    content: 'Show everyone\'s goals or just your own ones.',
   },
 ]
 

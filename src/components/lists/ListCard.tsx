@@ -237,7 +237,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               e.stopPropagation()
               setShowShareModal(true)
             }}
-            className="text-gray-500 flex-shrink-0 opacity-60 hover:opacity-100"
+            className={`flex-shrink-0 opacity-60 hover:opacity-100 ${
+              list.visibility === 'link' ? 'text-teal' : 'text-gray-500'
+            }`}
             title={list.visibility === 'private' ? 'Private - Click to share' : 'Shared by link - Click to manage'}
             data-tour="list-share"
           >
