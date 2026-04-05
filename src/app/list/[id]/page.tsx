@@ -57,7 +57,7 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="view-toggle"]',
-    content: 'Show everyone\'s goals or just your own ones.',
+    content: 'Show everyone\'s goals or just the ones you own.',
   },
 ]
 
