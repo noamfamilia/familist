@@ -172,6 +172,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         <div 
           className="text-gray-400 cursor-grab select-none text-lg tracking-tighter touch-none"
           {...dragHandleProps}
+          data-tour="list-drag-handle"
         >
           ⋮⋮
         </div>

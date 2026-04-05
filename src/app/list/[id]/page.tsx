@@ -26,20 +26,12 @@ const listTourSteps: Step[] = [
   // Intro steps - always available
   {
     target: '[data-tour="add-item"]',
-    content: 'Add items to your list here.',
+    content: 'Add an item to your list',
     disableBeacon: true,
   },
   {
     target: '[data-tour="view-toggle"]',
     content: 'Filter to show all members or just the ones you created.',
-  },
-  {
-    target: '[data-tour="add-member"]',
-    content: 'Click to add members that are owned by you.',
-  },
-  {
-    target: '[data-tour="members-header"]',
-    content: 'A shared list can have multiple members that are owned by different users.',
   },
   // Item-specific steps - shown when items exist
   {
@@ -47,8 +39,12 @@ const listTourSteps: Step[] = [
     content: 'Click the item name to archive it. Click again to restore.',
   },
   {
+    target: '[data-tour="drag-handle"]',
+    content: 'Drag here to re-arrange items.',
+  },
+  {
     target: '[data-tour="item-menu"]',
-    content: 'Use the menu (⋮) to rename, add a comment, or delete the item.',
+    content: 'Item menu options',
   },
   // Member-specific steps - shown when members exist
   {
@@ -58,6 +54,10 @@ const listTourSteps: Step[] = [
   {
     target: '[data-tour="item-state"]',
     content: 'Each member column shows quantity and done status. Tap quantity to edit directly.',
+  },
+  {
+    target: '[data-tour="add-member"]',
+    content: 'Manage quantity (optional).',
   },
 ]
 
@@ -350,7 +350,7 @@ export default function ListPage() {
               onUpdateMember={updateMember}
               onDeleteMember={deleteMember}
               listId={listId}
-              showAddMember={memberFilter === 'all'}
+              showAddMember={memberFilter === 'all' && items.length > 0}
               itemTextWidth={itemTextWidth}
               onWidthChange={handleWidthChange}
             />

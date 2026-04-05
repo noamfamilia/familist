@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Joyride, { CallBackProps, STATUS, Step } from 'react-joyride'
+import Joyride, { ACTIONS, CallBackProps, STATUS, Step } from 'react-joyride'
 
 interface TutorialTourProps {
   tourId: string
@@ -84,7 +84,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
     }
 
     if (type === 'step:after') {
-      setStepIndex(index + 1)
+      setStepIndex(index + (data.action === ACTIONS.PREV ? -1 : 1))
     }
   }
 

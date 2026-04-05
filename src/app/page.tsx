@@ -18,7 +18,7 @@ const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod =
 const homeTourSteps: Step[] = [
   {
     target: '[data-tour="create-list"]',
-    content: 'Type a name to create a new list. Shared invite links open automatically.',
+    content: 'Type a name to create a new list.',
     disableBeacon: true,
   },
   {
@@ -29,6 +29,10 @@ const homeTourSteps: Step[] = [
     target: '[data-tour="profile-icon"]',
     content: 'Access your profile settings.',
   },
+  {
+    target: '[data-tour="list-drag-handle"]',
+    content: 'Drag here to re-arrange lists.',
+  },
   // List-specific steps - only shown when list targets exist
   {
     target: '[data-tour="list-archive"]',
@@ -36,11 +40,11 @@ const homeTourSteps: Step[] = [
   },
   {
     target: '[data-tour="list-share"]',
-    content: 'Click the lock/link icon to manage sharing.',
+    content: 'Manage sharing.',
   },
   {
     target: '[data-tour="list-menu"]',
-    content: 'Use the menu (⋮) for rename, duplicate, or delete.',
+    content: 'List menu options',
   },
 ]
 
