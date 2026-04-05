@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { ShareActionIcon } from '@/components/ui/ShareIcons'
 import { useToast } from '@/components/ui/Toast'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 import { buildInviteUrl } from '@/lib/invite'
@@ -350,8 +351,8 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
       {/* Invite link section */}
       {visibility === 'link' && (
-        <div className="pt-4 border-t border-gray-200">
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+        <div className="pt-4 border-t border-gray-200 space-y-2">
+          <div className="flex items-center gap-2">
             <input
               type="text"
               value={token ? buildInviteUrl(token) : ''}
@@ -359,25 +360,26 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
               readOnly
               className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm truncate"
             />
-            <Button
-              variant="danger"
-              size="sm"
+            <button
+              type="button"
               onClick={handleShareInvite}
               disabled={loading}
-              className="flex-shrink-0 py-2"
+              className="h-10 w-10 flex-shrink-0 rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              aria-label={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
+              title={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
             >
-              {canUseNativeShare ? 'Share' : 'Copy link'}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleRegenerateInvite}
-              disabled={loading}
-              className="flex-shrink-0 py-2"
-            >
-              Regenerate
-            </Button>
+              <ShareActionIcon className="w-4 h-4" />
+            </button>
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRegenerateInvite}
+            disabled={loading}
+            className="w-full"
+          >
+            Regenerate
+          </Button>
           <p className="text-xs text-gray-400 mt-2 text-center">
             Share this invite link with friends.
           </p>

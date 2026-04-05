@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
+import { ShareCardIcon } from '@/components/ui/ShareIcons'
 import type { ListWithRole } from '@/lib/supabase/types'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
@@ -224,10 +225,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {isOwner && (
         list.userArchived ? (
           <span
-            className="text-lg flex-shrink-0 opacity-40"
+            className="text-gray-500 flex-shrink-0 opacity-40"
             title={list.visibility === 'private' ? 'Private' : 'Shared by link'}
           >
-            {list.visibility === 'private' ? '🔒' : '🔗'}
+            <ShareCardIcon />
           </span>
         ) : (
           <button
@@ -235,11 +236,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               e.stopPropagation()
               setShowShareModal(true)
             }}
-            className="text-lg flex-shrink-0 opacity-60 hover:opacity-100"
+            className="text-gray-500 flex-shrink-0 opacity-60 hover:opacity-100"
             title={list.visibility === 'private' ? 'Private - Click to share' : 'Shared by link - Click to manage'}
             data-tour="list-share"
           >
-            {list.visibility === 'private' ? '🔒' : '🔗'}
+            <ShareCardIcon />
           </button>
         )
       )}
