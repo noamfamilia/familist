@@ -195,7 +195,10 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
         : -1
       const nextStep = currentStepOrder !== -1 ? steps[currentStepOrder + 1] : null
 
-      if (currentTarget === '[data-tour="create-list"]' && typeof nextStep?.target === 'string') {
+      if (
+        (currentTarget === '[data-tour="create-list"]' || currentTarget === '[data-tour="add-item"]') &&
+        typeof nextStep?.target === 'string'
+      ) {
         waitForTargetAndAdvance(nextStep.target)
         return
       }
