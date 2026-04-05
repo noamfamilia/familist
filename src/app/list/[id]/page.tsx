@@ -49,7 +49,7 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="item-state"]',
-    content: 'Each member column shows quantity and done status. Tap quantity to edit directly.',
+    content: 'Edit quantity and status.',
   },
   {
     target: '[data-tour="add-member"]',
@@ -57,7 +57,7 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="view-toggle"]',
-    content: 'Show everyone\'s goals or just the ones you own.',
+    content: 'Show everyone\'s goals or just your own.',
   },
 ]
 
@@ -259,7 +259,7 @@ export default function ListPage() {
   }
 
   return (
-    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-6xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-3xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">

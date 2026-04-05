@@ -30,6 +30,10 @@ const homeTourSteps: Step[] = [
     content: 'Create a new list.',
   },
   {
+    target: '[data-tour="list-card"]',
+    content: 'Click list to view and manage items',
+  },
+  {
     target: '[data-tour="list-drag-handle"]',
     content: 'Drag to re-arrange lists.',
   },
