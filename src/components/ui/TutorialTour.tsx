@@ -31,6 +31,12 @@ function isTargetReady(target: string) {
   return rect.width > 0 && rect.height > 0
 }
 
+const delayedAdvanceTargets: Record<string, string> = {
+  '[data-tour="create-list"]': '[data-tour="list-card"]',
+  '[data-tour="add-item"]': '[data-tour="item-name"]',
+  '[data-tour="add-member"]': '[data-tour="member-chip"]',
+}
+
 export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentKey }: TutorialTourProps) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -190,16 +196,9 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
 
       const currentStep = filteredSteps[index]
       const currentTarget = typeof currentStep?.target === 'string' ? currentStep.target : null
-      const currentStepOrder = currentTarget
-        ? steps.findIndex(step => step.target === currentTarget)
-        : -1
-      const nextStep = currentStepOrder !== -1 ? steps[currentStepOrder + 1] : null
-
-      if (
-        (currentTarget === '[data-tour="create-list"]' || currentTarget === '[data-tour="add-item"]') &&
-        typeof nextStep?.target === 'string'
-      ) {
-        waitForTargetAndAdvance(nextStep.target)
+      const delayedTarget = currentTarget ? delayedAdvanceTargets[currentTarget] : null
+      if (typeof delayedTarget === 'string') {
+        waitForTargetAndAdvance(delayedTarget)
         return
       }
 
