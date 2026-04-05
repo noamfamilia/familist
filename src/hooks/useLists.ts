@@ -279,7 +279,7 @@ export function useLists() {
       visibility: 'private',
       archived: false,
       comment: null,
-      join_token_hash: null,
+      join_token: null,
       join_role_granted: 'editor',
       join_expires_at: null,
       join_revoked_at: null,

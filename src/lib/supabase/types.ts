@@ -40,7 +40,7 @@ export interface Database {
           visibility: 'private' | 'link'
           archived: boolean
           comment: string | null
-          join_token_hash: string | null
+          join_token: string | null
           join_role_granted: 'viewer' | 'editor'
           join_expires_at: string | null
           join_revoked_at: string | null
@@ -55,7 +55,7 @@ export interface Database {
           visibility?: 'private' | 'link'
           archived?: boolean
           comment?: string | null
-          join_token_hash?: string | null
+          join_token?: string | null
           join_role_granted?: 'viewer' | 'editor'
           join_expires_at?: string | null
           join_revoked_at?: string | null
@@ -70,7 +70,7 @@ export interface Database {
           visibility?: 'private' | 'link'
           archived?: boolean
           comment?: string | null
-          join_token_hash?: string | null
+          join_token?: string | null
           join_role_granted?: 'viewer' | 'editor'
           join_expires_at?: string | null
           join_revoked_at?: string | null
@@ -262,7 +262,7 @@ export interface Database {
         Returns: void
       }
       generate_share_token: {
-        Args: { p_list_id: string }
+        Args: { p_list_id: string; p_force_regenerate?: boolean }
         Returns: string
       }
       revoke_share_token: {

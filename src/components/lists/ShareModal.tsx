@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { ShareActionIcon } from '@/components/ui/ShareIcons'
+import { RegenerateIcon, ShareActionIcon } from '@/components/ui/ShareIcons'
 import { useToast } from '@/components/ui/Toast'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 import { buildInviteUrl } from '@/lib/invite'
@@ -66,6 +66,27 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     return nextUsers
   }
 
+  const fetchInviteToken = async () => {
+    const supabase = forceNewClient()
+
+    const { data, error } = await supabase
+      .from('lists')
+      .select('join_token')
+      .eq('id', list.id)
+      .maybeSingle()
+
+    if (error) {
+      console.error('Error fetching invite token:', error)
+      showError('Failed to load invite link')
+      setToken('')
+      return null
+    }
+
+    const nextToken = data?.join_token || ''
+    setToken(nextToken)
+    return nextToken
+  }
+
   // Only reset state when the modal opens, not when list visibility changes while open.
   useEffect(() => {
     if (isOpen) {
@@ -78,9 +99,10 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       // Fetch joined users if link-enabled, then show content
       if (list.visibility === 'link') {
         setContentReady(false)
-        fetchJoinedUsers().finally(() => setContentReady(true))
+        Promise.all([fetchJoinedUsers(), fetchInviteToken()]).finally(() => setContentReady(true))
       } else {
         setJoinedUsers([])
+        setToken('')
         setContentReady(true)
       }
     } else {
@@ -143,6 +165,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       const supabase = forceNewClient()
       const { data, error } = await supabase.rpc('generate_share_token', {
         p_list_id: list.id,
+        p_force_regenerate: false,
       })
       if (error) throw error
       setToken(data)
@@ -183,7 +206,22 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
   }
 
   const handleRegenerateInvite = async () => {
-    await generateInviteToken()
+    setLoading(true)
+    try {
+      const supabase = forceNewClient()
+      const { data, error } = await supabase.rpc('generate_share_token', {
+        p_list_id: list.id,
+        p_force_regenerate: true,
+      })
+      if (error) throw error
+      setToken(data)
+      success('New link created. Old link is invalid.')
+    } catch (err) {
+      console.error('Error regenerating token:', err)
+      showError('Failed to regenerate invite link')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Calculate totals from joinedUsers
@@ -351,12 +389,22 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
       {/* Invite link section */}
       {visibility === 'link' && (
-        <div className="pt-4 border-t border-gray-200 space-y-2">
+        <div className="pt-4 border-t border-gray-200">
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRegenerateInvite}
+              disabled={loading}
+              className="h-10 w-10 flex-shrink-0 rounded-lg bg-white border-2 border-gray-200 text-gray-500 hover:text-teal hover:border-teal disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              aria-label="Regenerate invite link"
+              title="Regenerate invite link"
+            >
+              <RegenerateIcon className="w-4 h-4" />
+            </button>
             <input
               type="text"
               value={token ? buildInviteUrl(token) : ''}
-              placeholder="Share or regenerate to create a new invite link"
+              placeholder="Invite link"
               readOnly
               className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm truncate"
             />
@@ -371,21 +419,6 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
               <ShareActionIcon className="w-4 h-4" />
             </button>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleRegenerateInvite}
-            disabled={loading}
-            className="w-full"
-          >
-            Regenerate
-          </Button>
-          <p className="text-xs text-gray-400 mt-2 text-center">
-            Share this invite link with friends.
-          </p>
-          <p className="text-xs text-gray-400 text-center">
-            Regenerating a new link will invalidate the current one.
-          </p>
         </div>
       )}
 
