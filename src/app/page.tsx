@@ -17,13 +17,17 @@ const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod =
 // All home tour steps - list steps only shown when lists exist
 const homeTourSteps: Step[] = [
   {
-    target: '[data-tour="create-list"]',
-    content: 'Create a new list.',
+    target: '[data-tour="profile-icon"]',
+    content: 'Access your profile settings.',
     disableBeacon: true,
   },
   {
-    target: '[data-tour="profile-icon"]',
-    content: 'Access your profile settings.',
+    target: '[data-tour="home-view-toggle"]',
+    content: 'Show all lists or just the ones you own.',
+  },
+  {
+    target: '[data-tour="create-list"]',
+    content: 'Create a new list.',
   },
   {
     target: '[data-tour="list-drag-handle"]',
@@ -32,19 +36,15 @@ const homeTourSteps: Step[] = [
   // List-specific steps - only shown when list targets exist
   {
     target: '[data-tour="list-archive"]',
-    content: 'Use ▼ to archive a list or ▲ to restore it.',
+    content: 'Use ▼/▲ to archive/restore a list.',
   },
   {
     target: '[data-tour="list-share"]',
-    content: 'Manage list sharing.',
+    content: 'List sharing options.',
   },
   {
     target: '[data-tour="list-menu"]',
     content: 'List menu options',
-  },
-  {
-    target: '[data-tour="home-view-toggle"]',
-    content: 'Show all lists or just the ones you own.',
   },
 ]
 

@@ -158,33 +158,37 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         </div>
 
         {/* Item name - click to toggle archive */}
-        {isEditing ? (
-          <input
-            type="text"
-            value={editText}
-            onChange={(e) => setEditText(e.target.value)}
-            onBlur={handleCancelEditText}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSaveText()
-              if (e.key === 'Escape') {
-                handleCancelEditText()
-              }
-            }}
-            className="flex-shrink-0 px-2 py-0.5 border border-teal rounded text-lg"
-            style={{ width: itemTextWidth }}
-            autoFocus
-          />
-        ) : (
-          <span
-            onClick={handleArchive}
-            className={`flex-shrink-0 truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500' : ''}`}
-            style={{ width: itemTextWidth }}
-            title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
-            data-tour="item-archive"
-          >
-            {item.text}
-          </span>
-        )}
+        <div
+          className="flex-shrink-0"
+          style={{ width: itemTextWidth }}
+          data-tour="item-name"
+        >
+          {isEditing ? (
+            <input
+              type="text"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onBlur={handleCancelEditText}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveText()
+                if (e.key === 'Escape') {
+                  handleCancelEditText()
+                }
+              }}
+              className="w-full px-2 py-0.5 border border-teal rounded text-lg"
+              autoFocus
+            />
+          ) : (
+            <span
+              onClick={handleArchive}
+              className={`block truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500' : ''}`}
+              title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
+              data-tour="item-archive"
+            >
+              {item.text}
+            </span>
+          )}
+        </div>
 
         {/* Per-member controls - aligned under header */}
         <div 
