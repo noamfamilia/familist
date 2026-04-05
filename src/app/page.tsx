@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { Toggle } from '@/components/ui/Toggle'
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
@@ -44,7 +44,7 @@ const homeTourSteps: Step[] = [
   },
 ]
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, profile, loading, updateProfile } = useAuth()
@@ -179,5 +179,21 @@ export default function Home() {
         onClose={() => setShowAuthModal(false)} 
       />
     </div>
+  )
+}
+
+function HomeFallback() {
+  return (
+    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
+    </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<HomeFallback />}>
+      <HomeContent />
+    </Suspense>
   )
 }
