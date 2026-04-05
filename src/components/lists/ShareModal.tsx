@@ -395,11 +395,11 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
               type="button"
               onClick={handleRegenerateInvite}
               disabled={loading}
-              className="h-10 w-10 flex-shrink-0 rounded-lg bg-white border-2 border-gray-200 text-gray-500 hover:text-teal hover:border-teal disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              className="h-10 w-10 flex-shrink-0 rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
               aria-label="Regenerate invite link"
               title="Regenerate invite link"
             >
-              <RegenerateIcon className="w-4 h-4" />
+              <RegenerateIcon className="w-5 h-5" />
             </button>
             <input
               type="text"
