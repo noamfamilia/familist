@@ -18,12 +18,8 @@ const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod =
 const homeTourSteps: Step[] = [
   {
     target: '[data-tour="create-list"]',
-    content: 'Type a name to create a new list.',
+    content: 'Create a new list.',
     disableBeacon: true,
-  },
-  {
-    target: '[data-tour="home-view-toggle"]',
-    content: 'Filter to show all lists or just the ones you own.',
   },
   {
     target: '[data-tour="profile-icon"]',
@@ -31,7 +27,7 @@ const homeTourSteps: Step[] = [
   },
   {
     target: '[data-tour="list-drag-handle"]',
-    content: 'Drag here to re-arrange lists.',
+    content: 'Drag to re-arrange lists.',
   },
   // List-specific steps - only shown when list targets exist
   {
@@ -40,11 +36,15 @@ const homeTourSteps: Step[] = [
   },
   {
     target: '[data-tour="list-share"]',
-    content: 'Manage sharing.',
+    content: 'Manage list sharing.',
   },
   {
     target: '[data-tour="list-menu"]',
     content: 'List menu options',
+  },
+  {
+    target: '[data-tour="home-view-toggle"]',
+    content: 'Show all lists or just the ones you own.',
   },
 ]
 

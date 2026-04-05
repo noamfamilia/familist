@@ -86,6 +86,10 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
     if (type === 'step:after') {
       setStepIndex(index + (data.action === ACTIONS.PREV ? -1 : 1))
     }
+
+    if (type === 'error:target_not_found') {
+      setStepIndex(index + (data.action === ACTIONS.PREV ? -1 : 1))
+    }
   }
 
   if (filteredSteps.length === 0) return null

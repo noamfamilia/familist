@@ -26,12 +26,8 @@ const listTourSteps: Step[] = [
   // Intro steps - always available
   {
     target: '[data-tour="add-item"]',
-    content: 'Add an item to your list',
+    content: 'Add items to your list',
     disableBeacon: true,
-  },
-  {
-    target: '[data-tour="view-toggle"]',
-    content: 'Filter to show all members or just the ones you created.',
   },
   // Item-specific steps - shown when items exist
   {
@@ -40,7 +36,7 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="drag-handle"]',
-    content: 'Drag here to re-arrange items.',
+    content: 'Drag to re-arrange items.',
   },
   {
     target: '[data-tour="item-menu"]',
@@ -49,7 +45,7 @@ const listTourSteps: Step[] = [
   // Member-specific steps - shown when members exist
   {
     target: '[data-tour="member-kebab"]',
-    content: 'Each member has a menu to rename, toggle visibility filters, and manage privacy settings.',
+    content: 'Member menu options',
   },
   {
     target: '[data-tour="item-state"]',
@@ -57,7 +53,11 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="add-member"]',
-    content: 'Manage quantity (optional).',
+    content: 'Set personal objectives',
+  },
+  {
+    target: '[data-tour="view-toggle"]',
+    content: 'Show all members or just the ones you created.',
   },
 ]
 
