@@ -6,6 +6,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import { Toggle } from '@/components/ui/Toggle'
 import type { Member, MemberWithCreator } from '@/lib/supabase/types'
+import { SortAmountDownIcon } from '@/components/icons/SortAmountDownIcon'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -24,6 +25,9 @@ interface MemberHeaderProps {
   showAddMember?: boolean
   itemTextWidth?: number
   onWidthChange?: (delta: number) => void
+  showCategorySort?: boolean
+  sortByCategory?: boolean
+  onCategorySortClick?: () => void
 }
 
 export function MemberHeader({
@@ -39,6 +43,9 @@ export function MemberHeader({
   showAddMember = true,
   itemTextWidth = 80,
   onWidthChange,
+  showCategorySort = false,
+  sortByCategory = false,
+  onCategorySortClick,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
@@ -236,9 +243,30 @@ export function MemberHeader({
             })}
           </div>
 
+          <div className="flex items-center ml-auto flex-shrink-0 gap-2.5">
+          {/* Sort by category */}
+          {showCategorySort && onCategorySortClick && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onCategorySortClick()
+              }}
+              className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 ${
+                sortByCategory ? 'ring-2 ring-offset-2 ring-teal ring-offset-white' : ''
+              }`}
+              aria-label="Sort items by category"
+              aria-pressed={sortByCategory}
+              title="Sort by category"
+            >
+              <SortAmountDownIcon className="w-5 h-5" />
+            </button>
+          )}
+
           {/* Add member section - same size as member containers */}
           {showAddMember && (
-            <div className={`relative ml-2.5 ${openMenuId ? 'invisible' : ''}`}>
+            <div className={`relative ${openMenuId ? 'invisible' : ''}`}>
               {isAdding ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -267,8 +295,9 @@ export function MemberHeader({
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => setIsAdding(true)}
-                  className="flex items-center justify-center rounded-lg bg-cyan text-white text-sm hover:opacity-80 transition-colors w-[90px] h-[40px]"
+                  className="flex items-center justify-center rounded-lg bg-cyan text-white text-base font-medium hover:opacity-80 transition-colors w-[90px] h-[40px]"
                   data-tour="add-member"
                 >
                   +Goal
@@ -276,6 +305,7 @@ export function MemberHeader({
               )}
             </div>
           )}
+          </div>
         </div>
 
         {/* Expanded menu - full width of header card */}

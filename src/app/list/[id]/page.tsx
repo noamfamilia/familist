@@ -15,7 +15,24 @@ import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
+import type { ItemWithState } from '@/lib/supabase/types'
+import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
+
+function compareItemsByCategoryThenOrder(a: ItemWithState, b: ItemWithState) {
+  const ac = normalizeItemCategory(a.category)
+  const bc = normalizeItemCategory(b.category)
+  if (ac !== bc) return ac - bc
+  return (a.sort_order || 0) - (b.sort_order || 0)
+}
+
+function compareArchivedByCategoryThenTime(a: ItemWithState, b: ItemWithState) {
+  const byCat = compareItemsByCategoryThenOrder(a, b)
+  if (byCat !== 0) return byCat
+  const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
+  const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
+  return bTime - aTime
+}
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
@@ -68,7 +85,7 @@ export default function ListPage() {
   const router = useRouter()
   const { user } = useAuth()
   const listId = params.id as string
-  const { error: showError } = useToast()
+  const { error: showError, success: showSuccess } = useToast()
   
   const {
     list,
@@ -117,6 +134,7 @@ export default function ListPage() {
   const [adding, setAdding] = useState(false)
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
   const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
+  const [sortByCategory, setSortByCategory] = useState(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
 
   const handleBackToLists = () => {
@@ -212,19 +230,25 @@ export default function ListPage() {
 
   const searchText = newItemText.trim().toLowerCase()
 
-  const activeItems = items
+  const activeItemsBase = items
     .filter(item => !item.archived)
     .filter(item => searchText ? item.text.toLowerCase().includes(searchText) : true)
-    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-  
-  const archivedItems = items
+
+  const activeItems = sortByCategory
+    ? [...activeItemsBase].sort(compareItemsByCategoryThenOrder)
+    : [...activeItemsBase].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+
+  const archivedItemsBase = items
     .filter(item => item.archived)
     .filter(item => searchText ? item.text.toLowerCase().includes(searchText) : true)
-    .sort((a, b) => {
-      const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
-      const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
-      return bTime - aTime
-    })
+
+  const archivedItems = sortByCategory
+    ? [...archivedItemsBase].sort(compareArchivedByCategoryThenTime)
+    : [...archivedItemsBase].sort((a, b) => {
+        const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
+        const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
+        return bTime - aTime
+      })
 
   const filteredMembers = memberFilter === 'all' 
     ? members 
@@ -242,6 +266,14 @@ export default function ListPage() {
       ...prev,
       [memberId]: !prev[memberId],
     }))
+  }
+
+  const handleCategorySortClick = () => {
+    const next = !sortByCategory
+    setSortByCategory(next)
+    if (next) {
+      showSuccess('Sorted items by categories')
+    }
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -363,34 +395,55 @@ export default function ListPage() {
               showAddMember={memberFilter === 'all' && items.length > 0}
               itemTextWidth={itemTextWidth}
               onWidthChange={handleWidthChange}
+              showCategorySort={items.length > 0}
+              sortByCategory={sortByCategory}
+              onCategorySortClick={handleCategorySortClick}
             />
           </div>
 
           {/* Active items list */}
           <div className="space-y-2">
             {activeItems.length > 0 ? (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext items={activeItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                  {activeItems.map(item => (
-                    <SortableItemCard
-                      key={item.id}
-                      item={item}
-                      members={filteredMembers}
-                      hideDone={hideDone}
-                      hideNotRelevant={hideNotRelevant}
-                      onUpdateItem={updateItem}
-                      onDeleteItem={deleteItem}
-                      onChangeQuantity={changeQuantity}
-                      onUpdateMemberState={updateMemberState}
-                      itemTextWidth={itemTextWidth}
-                    />
-                  ))}
-                </SortableContext>
-              </DndContext>
+              sortByCategory ? (
+                activeItems.map(item => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                    members={filteredMembers}
+                    hideDone={hideDone}
+                    hideNotRelevant={hideNotRelevant}
+                    onUpdateItem={updateItem}
+                    onDeleteItem={deleteItem}
+                    onChangeQuantity={changeQuantity}
+                    onUpdateMemberState={updateMemberState}
+                    isDraggable={false}
+                    itemTextWidth={itemTextWidth}
+                  />
+                ))
+              ) : (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext items={activeItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                    {activeItems.map(item => (
+                      <SortableItemCard
+                        key={item.id}
+                        item={item}
+                        members={filteredMembers}
+                        hideDone={hideDone}
+                        hideNotRelevant={hideNotRelevant}
+                        onUpdateItem={updateItem}
+                        onDeleteItem={deleteItem}
+                        onChangeQuantity={changeQuantity}
+                        onUpdateMemberState={updateMemberState}
+                        itemTextWidth={itemTextWidth}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              )
             ) : items.length === 0 ? (
               <div className="text-center py-8 text-gray-500 italic">
                 No items yet. Add one above!
@@ -434,7 +487,7 @@ export default function ListPage() {
       <TutorialTour 
         tourId="list" 
         steps={listTourSteps}
-        contentKey={`${items.map(item => `${item.id}:${item.archived ? 'archived' : 'active'}`).join('|')}::${members.map(member => member.id).join('|')}`}
+        contentKey={`${items.map(item => `${item.id}:${item.archived ? 'archived' : 'active'}`).join('|')}::${members.map(member => member.id).join('|')}::sc:${sortByCategory ? '1' : '0'}`}
       />
     </div>
   )
