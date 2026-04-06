@@ -8,7 +8,6 @@ import { useLists } from '@/hooks/useLists'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import { parseSheetCsv, resolveImportListName } from '@/lib/sheetImport/parseSheetCsv'
 import type { Json } from '@/lib/supabase/types'
 import { BackToHomeButton } from '@/components/navigation/BackToHomeButton'
@@ -92,10 +91,9 @@ function ImportContent() {
         return
       }
 
-      const fitW = measureFitItemTextWidthPx(parsed.rows.map(r => r.text))
       await supabase
         .from('list_users')
-        .update({ item_text_width: fitW })
+        .update({ item_text_width: 'auto' })
         .eq('list_id', newList.id)
         .eq('user_id', user.id)
 

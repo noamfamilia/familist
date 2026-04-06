@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
-import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import type { Database, ItemWithState, ListWithRole } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -489,11 +488,10 @@ export function useLists() {
       members: data.members || [],
     })
 
-    const fitW = measureFitItemTextWidthPx(rawDupItems.map(item => item.text ?? ''))
     await trackSaveOperation(
       supabase
         .from('list_users')
-        .update({ item_text_width: fitW })
+        .update({ item_text_width: 'auto' })
         .eq('list_id', duplicatedList.id)
         .eq('user_id', user.id)
     )
