@@ -28,8 +28,8 @@ function getPrefsKey(listId: string, userId?: string) {
 type WidthMode = 'auto' | 'manual'
 
 function parseWidthValue(raw: string | number | null | undefined): { mode: WidthMode; width: number } {
-  if (raw === 'auto' || raw == null) return { mode: 'auto', width: 80 }
-  const num = typeof raw === 'number' ? raw : parseInt(raw, 10)
+  if (raw == null || raw === 'auto' || typeof raw === 'number') return { mode: 'auto', width: 80 }
+  const num = parseInt(raw, 10)
   if (isNaN(num) || num < 80) return { mode: 'auto', width: 80 }
   return { mode: 'manual', width: num }
 }
