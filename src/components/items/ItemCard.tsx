@@ -370,28 +370,26 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 ))}
               </div>
               <div className="flex items-center justify-end gap-2 flex-shrink-0">
-                {!item.archived && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (isEditing) {
-                        void handleSaveText()
-                        return
-                      }
-                      setEditText(item.text)
-                      setIsEditing(true)
-                    }}
-                    onMouseDown={(e) => {
-                      if (isEditing) e.preventDefault()
-                    }}
-                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-                      isEditing ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
-                    }`}
-                  >
-                    {isEditing ? 'Done' : 'Rename'}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (isEditing) {
+                      void handleSaveText()
+                      return
+                    }
+                    setEditText(item.text)
+                    setIsEditing(true)
+                  }}
+                  onMouseDown={(e) => {
+                    if (isEditing) e.preventDefault()
+                  }}
+                  className={`px-3 py-1.5 text-sm text-white rounded-lg ${
+                    isEditing ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
+                  }`}
+                >
+                  {isEditing ? 'Done' : 'Rename'}
+                </button>
                 <button
                   type="button"
                   onClick={(e) => {

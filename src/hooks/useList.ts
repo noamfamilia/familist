@@ -808,23 +808,35 @@ export function useList(listId: string) {
   }
 
   const reorderItems = async (reorderedItems: ItemWithState[]) => {
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    const previousItems = items
+    skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
     const itemsWithUpdatedOrder = reorderedItems.map((item, index) => ({
       ...item,
       sort_order: index
     }))
     setItems(itemsWithUpdatedOrder)
 
-    const updates = reorderedItems.map((item, index) => 
-      trackSaveOperation(
-        supabase
-          .from('items')
-          .update({ sort_order: index })
-          .eq('id', item.id)
-      )
+    const { error } = await trackSaveOperation(
+      supabase.rpc('reorder_list_items', {
+        p_list_id: listId,
+        p_item_ids: reorderedItems.map(item => item.id),
+      })
     )
 
-    await Promise.all(updates)
+    if (error) {
+      setItems(previousItems)
+      return { error }
+    }
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'item_updated',
+        payload: { listId, bulkReorder: true },
+      })
+    }
+
+    return { error: null }
   }
 
   const updateMemberFilter = async (filter: 'all' | 'mine') => {

@@ -244,18 +244,21 @@ export default function ListPage() {
     }))
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-    
+
     if (over && active.id !== over.id) {
       const oldIndex = activeItems.findIndex(i => i.id === active.id)
       const newIndex = activeItems.findIndex(i => i.id === over.id)
-      
+
       if (oldIndex !== -1 && newIndex !== -1) {
         const reordered = [...activeItems]
         const [removed] = reordered.splice(oldIndex, 1)
         reordered.splice(newIndex, 0, removed)
-        reorderItems([...reordered, ...archivedItems])
+        const { error: reorderError } = await reorderItems([...reordered, ...archivedItems])
+        if (reorderError) {
+          showError(reorderError.message || 'Failed to reorder items')
+        }
       }
     }
   }
