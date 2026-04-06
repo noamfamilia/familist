@@ -21,19 +21,18 @@ const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(m
   ssr: false,
 })
 
-// All list tour steps - shown progressively as targets become available
+// All list tour steps - shown progressively as targets become available.
+// view-toggle must be before add-item: delayedAdvance jumps add-item -> item-name and skips steps in between.
 const listTourSteps: Step[] = [
-  // Intro steps - always available
-  {
-    target: '[data-tour="add-item"]',
-    content: 'Add items to your list',
-    disableBeacon: true,
-  },
   {
     target: '[data-tour="view-toggle"]',
     content: 'Show everyone\'s goals or just your own.',
+    disableBeacon: true,
   },
-  // Item-specific steps - shown when items exist
+  {
+    target: '[data-tour="add-item"]',
+    content: 'Add items to your list',
+  },
   {
     target: '[data-tour="item-name"]',
     content: 'Click the item name to archive/restore it.',
@@ -46,7 +45,14 @@ const listTourSteps: Step[] = [
     target: '[data-tour="item-menu"]',
     content: 'Item menu options',
   },
-  // Member-specific steps - shown when members exist
+  {
+    target: '[data-tour="item-state"]',
+    content: 'Edit quantity and status.',
+  },
+  {
+    target: '[data-tour="item-text-width"]',
+    content: 'Use ◀ and ▶ to give item names more or less space.',
+  },
   {
     target: '[data-tour="add-member"]',
     content: 'Set your own goals',
@@ -54,10 +60,6 @@ const listTourSteps: Step[] = [
   {
     target: '[data-tour="member-chip"]',
     content: 'Member menu options',
-  },
-  {
-    target: '[data-tour="item-state"]',
-    content: 'Edit quantity and status.',
   },
 ]
 

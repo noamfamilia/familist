@@ -781,6 +781,7 @@ export function useList(listId: string) {
   }
 
   const updateMemberFilter = async (filter: 'all' | 'mine') => {
+    skipRealtimeUntilRef.current = Date.now() + 2000
     setMemberFilter(filter)
     setCachedPrefs(listId, { memberFilter: filter }, userId)
     if (userId) {
@@ -796,6 +797,7 @@ export function useList(listId: string) {
 
   const updateItemTextWidth = async (width: number) => {
     const newWidth = Math.max(80, width)
+    skipRealtimeUntilRef.current = Date.now() + 2000
     setItemTextWidth(newWidth)
     setCachedPrefs(listId, { itemTextWidth: newWidth }, userId)
     if (userId) {

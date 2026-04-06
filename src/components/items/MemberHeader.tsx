@@ -154,20 +154,33 @@ export function MemberHeader({
         {/* Header row - matching item card styling */}
         <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap">
           <div className="w-5 flex-shrink-0 h-[40px]" />
-          <div 
-            className="flex-shrink-0 h-[40px] flex items-center justify-between"
+          <div
+            className="flex-shrink-0 h-[40px] flex items-center justify-between gap-1 px-0.5"
             style={{ width: itemTextWidth }}
+            data-tour="item-text-width"
           >
             <button
-              onClick={() => onWidthChange?.(-20)}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onWidthChange?.(-20)
+              }}
               disabled={itemTextWidth <= 80}
-              className="text-gray-400 hover:text-teal disabled:opacity-30 text-sm"
+              className="min-w-[28px] min-h-[32px] flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm rounded"
+              aria-label="Narrow item name column"
             >
               ◀
             </button>
             <button
-              onClick={() => onWidthChange?.(20)}
-              className="text-gray-400 hover:text-teal text-sm"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onWidthChange?.(20)
+              }}
+              className="min-w-[28px] min-h-[32px] flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal text-sm rounded"
+              aria-label="Widen item name column"
             >
               ▶
             </button>
