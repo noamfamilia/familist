@@ -327,8 +327,8 @@ export function MemberHeader({
               {/* Show all / Show to-do toggle */}
               <Toggle
                 options={[
-                  { value: 'all', label: 'Show all' },
-                  { value: 'todo', label: 'Show to-do' },
+                  { value: 'all', label: 'All' },
+                  { value: 'todo', label: 'To do' },
                 ]}
                 value={hideDone[openMember.id] && hideNotRelevant[openMember.id] ? 'todo' : 'all'}
                 onChange={(v) => {
