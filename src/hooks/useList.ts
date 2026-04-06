@@ -4,7 +4,16 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
-import type { Database, Item, ItemMemberState, ItemWithState, List, Member, MemberWithCreator } from '@/lib/supabase/types'
+import {
+  normalizeItemCardColor,
+  type Database,
+  type Item,
+  type ItemMemberState,
+  type ItemWithState,
+  type List,
+  type Member,
+  type MemberWithCreator,
+} from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const supabase = createClient()
@@ -52,13 +61,20 @@ function createTempId(prefix: string) {
   return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+function normalizeItemsCardColor(items: ItemWithState[]): ItemWithState[] {
+  return items.map(item => ({
+    ...item,
+    card_color: normalizeItemCardColor(item.card_color),
+  }))
+}
+
 export function useList(listId: string) {
   const { user } = useAuth()
   const cached = getCachedList(undefined, listId)
   
   // Initialize from cache for instant load
   const [list, setList] = useState<List | null>(cached?.list || null)
-  const [items, setItems] = useState<ItemWithState[]>(cached?.items || [])
+  const [items, setItems] = useState<ItemWithState[]>(() => normalizeItemsCardColor(cached?.items || []))
   const [members, setMembers] = useState<MemberWithCreator[]>(cached?.members || [])
   const [loading, setLoading] = useState(!cached?.list)
   const [isFetching, setIsFetching] = useState(true)
@@ -86,7 +102,7 @@ export function useList(listId: string) {
     const cachedPrefs = getCachedPrefs(listId, userId)
 
     setList(cachedData?.list || null)
-    setItems(cachedData?.items || [])
+    setItems(normalizeItemsCardColor(cachedData?.items || []))
     setMembers(cachedData?.members || [])
     setMemberFilter(cachedPrefs.memberFilter)
     setItemTextWidth(cachedPrefs.itemTextWidth)
@@ -195,13 +211,14 @@ export function useList(listId: string) {
       hadAccessRef.current = true
       setList(data.list)
       setMembers(data.members || [])
-      setItems(data.items || [])
+      const nextItems = normalizeItemsCardColor(data.items || [])
+      setItems(nextItems)
       hasInitialDataRef.current = true
 
       // Cache the list data for instant load next time
       setCachedList(userId, listId, {
         list: data.list,
-        items: data.items || [],
+        items: nextItems,
         members: data.members || []
       })
 
@@ -387,6 +404,7 @@ export function useList(listId: string) {
       archived: false,
       archived_at: null,
       sort_order: newSortOrder,
+      card_color: 'default',
       created_at: now,
       updated_at: now,
       memberStates: {},

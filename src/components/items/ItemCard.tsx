@@ -4,7 +4,35 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
-import type { Item, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
+import type { Item, ItemCardColor, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
+import { ITEM_CARD_COLORS, normalizeItemCardColor } from '@/lib/supabase/types'
+
+const ITEM_CARD_SHELL: Record<ItemCardColor, string> = {
+  default: 'bg-gray-50 hover:bg-gray-100',
+  mint: 'bg-teal/10 hover:bg-teal/[0.18]',
+  coral: 'bg-coral/10 hover:bg-coral/[0.18]',
+  sand: 'bg-orange/10 hover:bg-orange/20',
+  lilac: 'bg-violet-100/90 hover:bg-violet-100',
+  slate: 'bg-slate-200/60 hover:bg-slate-200/80',
+}
+
+const SWATCH_FILL: Record<ItemCardColor, string> = {
+  default: 'bg-gray-300',
+  mint: 'bg-teal',
+  coral: 'bg-coral',
+  sand: 'bg-orange',
+  lilac: 'bg-violet-500',
+  slate: 'bg-slate-500',
+}
+
+const SWATCH_LABEL: Record<ItemCardColor, string> = {
+  default: 'Default card color',
+  mint: 'Mint',
+  coral: 'Coral',
+  sand: 'Sand',
+  lilac: 'Lilac',
+  slate: 'Slate',
+}
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -141,11 +169,21 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const hasComment = item.comment && item.comment.trim().length > 0
+  const cardColor = normalizeItemCardColor(item.card_color)
+  const shellClass = ITEM_CARD_SHELL[cardColor]
+
+  const handlePickCardColor = async (next: ItemCardColor) => {
+    if (next === cardColor) return
+    const { error } = await onUpdateItem(item.id, { card_color: next })
+    if (error) {
+      showError(error.message || 'Failed to update card color')
+    }
+  }
 
   return (
     <div className="min-w-full">
       {/* Main card content */}
-      <div className={`bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors ${item.archived ? 'opacity-60' : ''}`}>
+      <div className={`rounded-lg transition-colors ${shellClass} ${item.archived ? 'opacity-60' : ''}`}>
         {/* Card row */}
         <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap" data-tour="item-row">
         {/* Drag handle - only shown for draggable (active) items */}
@@ -292,7 +330,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
-          <div className="px-3 py-2 bg-gray-50 space-y-2">
+          <div className="px-3 py-2 space-y-2 border-t border-black/10">
             {/* Comment field */}
             <div className="flex gap-2 items-center">
               <input
@@ -304,45 +342,65 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   if (e.key === 'Enter') handleSaveComment()
                 }}
                 placeholder="Add a comment..."
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal bg-white/80"
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
-            {/* Action buttons */}
-            <div className="flex items-center justify-end gap-2">
-              {!item.archived && (
+            {/* Card color swatches + Rename / Delete */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 flex-shrink-0" role="group" aria-label="Card color">
+                {ITEM_CARD_COLORS.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={SWATCH_LABEL[c]}
+                    aria-pressed={c === cardColor}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      void handlePickCardColor(c)
+                    }}
+                    className={`h-7 w-7 rounded-full border border-black/15 flex-shrink-0 touch-manipulation transition-shadow ${SWATCH_FILL[c]} ${
+                      c === cardColor ? 'ring-2 ring-teal ring-offset-2 ring-offset-white shadow-sm' : 'hover:brightness-95'
+                    }`}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center justify-end gap-2 flex-shrink-0">
+                {!item.archived && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (isEditing) {
+                        void handleSaveText()
+                        return
+                      }
+                      setEditText(item.text)
+                      setIsEditing(true)
+                    }}
+                    onMouseDown={(e) => {
+                      if (isEditing) e.preventDefault()
+                    }}
+                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
+                      isEditing ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
+                    }`}
+                  >
+                    {isEditing ? 'Done' : 'Rename'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (isEditing) {
-                      void handleSaveText()
-                      return
-                    }
-                    setEditText(item.text)
-                    setIsEditing(true)
+                    setShowDeleteConfirm(true)
+                    setShowMenu(false)
                   }}
-                  onMouseDown={(e) => {
-                    if (isEditing) e.preventDefault()
-                  }}
-                  className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-                    isEditing ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
-                  }`}
+                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
                 >
-                  {isEditing ? 'Done' : 'Rename'}
+                  Delete
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowDeleteConfirm(true)
-                  setShowMenu(false)
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-              >
-                Delete
-              </button>
+              </div>
             </div>
           </div>
         )}

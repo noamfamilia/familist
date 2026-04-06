@@ -71,6 +71,8 @@ create table if not exists public.items (
   comment text,
   archived boolean not null default false,
   sort_order integer,
+  card_color text not null default 'default'
+    check (card_color in ('default', 'mint', 'coral', 'sand', 'lilac', 'slate')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -630,6 +632,7 @@ begin
           'sort_order', m.sort_order,
           'created_at', m.created_at,
           'updated_at', m.updated_at,
+          'is_public', m.is_public,
           'creator', (select json_build_object('nickname', p.nickname) from public.profiles p where p.id = m.created_by)
         ) order by m.sort_order nulls last, m.created_at
       ), '[]'::json)
@@ -643,7 +646,9 @@ begin
           'text', i.text,
           'comment', i.comment,
           'archived', i.archived,
+          'archived_at', i.archived_at,
           'sort_order', i.sort_order,
+          'card_color', i.card_color,
           'created_at', i.created_at,
           'updated_at', i.updated_at,
           'memberStates', (

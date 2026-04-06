@@ -6,6 +6,14 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+/** Allowed values for public.items.card_color (app palette + DB check). */
+export const ITEM_CARD_COLORS = ['default', 'mint', 'coral', 'sand', 'lilac', 'slate'] as const
+export type ItemCardColor = (typeof ITEM_CARD_COLORS)[number]
+
+export function normalizeItemCardColor(value: string | null | undefined): ItemCardColor {
+  return ITEM_CARD_COLORS.includes(value as ItemCardColor) ? (value as ItemCardColor) : 'default'
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -152,6 +160,7 @@ export interface Database {
           archived: boolean
           archived_at: string | null
           sort_order: number | null
+          card_color: ItemCardColor
           created_at: string
           updated_at: string
         }
@@ -163,6 +172,7 @@ export interface Database {
           archived?: boolean
           archived_at?: string | null
           sort_order?: number | null
+          card_color?: ItemCardColor
           created_at?: string
           updated_at?: string
         }
@@ -174,6 +184,7 @@ export interface Database {
           archived?: boolean
           archived_at?: string | null
           sort_order?: number | null
+          card_color?: ItemCardColor
           created_at?: string
           updated_at?: string
         }

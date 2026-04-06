@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
-import type { Database, ListWithRole } from '@/lib/supabase/types'
+import type { Database, ItemWithState, ListWithRole } from '@/lib/supabase/types'
+import { normalizeItemCardColor } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const supabase = createClient()
@@ -475,9 +476,15 @@ export function useLists() {
       return nextLists
     })
 
+    const rawDupItems = (data.items ?? []) as ItemWithState[]
+    const dupItems: ItemWithState[] = rawDupItems.map(item => ({
+      ...item,
+      card_color: normalizeItemCardColor(item.card_color),
+    }))
+
     setCachedList(userId, duplicatedList.id, {
       list: data.list,
-      items: data.items || [],
+      items: dupItems,
       members: data.members || [],
     })
 
