@@ -1,0 +1,127 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+
+export const runtime = 'nodejs'
+
+const MAX_CSV_BYTES = 2 * 1024 * 1024
+const ALLOWED_HOSTS = new Set(['docs.google.com', 'drive.google.com'])
+
+const SPREADSHEET_ID_RE = /^[a-zA-Z0-9-_]+$/
+
+function parseSpreadsheetUrl(urlStr: string): { id: string; gid: string } | null {
+  try {
+    const u = new URL(urlStr)
+    if (!ALLOWED_HOSTS.has(u.hostname)) return null
+
+    const m = u.pathname.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
+    if (m) {
+      const gid = u.searchParams.get('gid') || '0'
+      return { id: m[1], gid }
+    }
+
+    if (u.hostname === 'drive.google.com' && u.pathname === '/open') {
+      const id = u.searchParams.get('id')
+      if (id && SPREADSHEET_ID_RE.test(id)) {
+        const gid = u.searchParams.get('gid') || '0'
+        return { id, gid }
+      }
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+export async function POST(req: Request) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let body: { url?: string }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const url = typeof body.url === 'string' ? body.url.trim() : ''
+  if (!url) {
+    return NextResponse.json({ error: 'Missing url' }, { status: 400 })
+  }
+
+  const parsed = parseSpreadsheetUrl(url)
+  if (!parsed) {
+    return NextResponse.json(
+      {
+        error:
+          'Use a Google Sheets link (e.g. docs.google.com/spreadsheets/d/…/edit or drive.google.com/open?id=…).',
+      },
+      { status: 400 }
+    )
+  }
+
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${parsed.id}/export?format=csv&gid=${encodeURIComponent(parsed.gid)}`
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 25_000)
+
+  let res: Response
+  try {
+    res = await fetch(csvUrl, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': 'FamilistSheetImport/1.0' },
+    })
+  } catch (e) {
+    clearTimeout(timeout)
+    const aborted = e instanceof Error && e.name === 'AbortError'
+    return NextResponse.json(
+      { error: aborted ? 'Download timed out' : 'Failed to reach Google Sheets' },
+      { status: 502 }
+    )
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  if (!res.ok) {
+    return NextResponse.json(
+      {
+        error: `Could not export CSV (HTTP ${res.status}). Share the spreadsheet so anyone with the link can view, then try again.`,
+      },
+      { status: 502 }
+    )
+  }
+
+  const buf = await res.arrayBuffer()
+  if (buf.byteLength > MAX_CSV_BYTES) {
+    return NextResponse.json({ error: 'Sheet is too large (max 2 MB CSV).' }, { status: 400 })
+  }
+
+  const csv = new TextDecoder('utf-8', { fatal: false }).decode(buf)
+
+  let title: string | null = null
+  const apiKey = process.env.GOOGLE_SHEETS_API_KEY
+  if (apiKey) {
+    try {
+      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(parsed.id)}?fields=properties.title&key=${encodeURIComponent(apiKey)}`
+      const metaController = new AbortController()
+      const metaT = setTimeout(() => metaController.abort(), 8000)
+      const metaRes = await fetch(metaUrl, { signal: metaController.signal })
+      clearTimeout(metaT)
+      if (metaRes.ok) {
+        const meta = (await metaRes.json()) as { properties?: { title?: string } }
+        const t = meta.properties?.title?.trim()
+        title = t || null
+      }
+    } catch {
+      /* optional title */
+    }
+  }
+
+  return NextResponse.json({ csv, title })
+}

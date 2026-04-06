@@ -303,6 +303,10 @@ export interface Database {
         Args: { p_list_id: string; p_item_ids: string[] }
         Returns: undefined
       }
+      import_list_items: {
+        Args: { p_list_id: string; p_rows: Json }
+        Returns: undefined
+      }
     }
   }
 }

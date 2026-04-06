@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -207,6 +208,12 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
           {isJoinMode ? 'Join' : 'Create'}
         </Button>
       </form>
+
+      <p className="text-center text-sm -mt-2">
+        <Link href="/import" className="text-teal font-medium hover:underline">
+          Import from Google Sheet
+        </Link>
+      </p>
 
       {searchText && (
         <p className="text-xs text-gray-400 px-1 -mt-4">

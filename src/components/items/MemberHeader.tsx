@@ -244,26 +244,6 @@ export function MemberHeader({
           </div>
 
           <div className="flex items-center ml-auto flex-shrink-0 gap-2.5">
-          {/* Sort by category */}
-          {showCategorySort && onCategorySortClick && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onCategorySortClick()
-              }}
-              className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 ${
-                sortByCategory ? 'ring-2 ring-offset-2 ring-teal ring-offset-white' : ''
-              }`}
-              aria-label="Sort items by category"
-              aria-pressed={sortByCategory}
-              title="Sort by category"
-            >
-              <SortAmountDownIcon className="w-5 h-5" />
-            </button>
-          )}
-
           {/* Add member section - same size as member containers */}
           {showAddMember && (
             <div className={`relative ${openMenuId ? 'invisible' : ''}`}>
@@ -304,6 +284,26 @@ export function MemberHeader({
                 </button>
               )}
             </div>
+          )}
+
+          {/* Sort by category */}
+          {showCategorySort && onCategorySortClick && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onCategorySortClick()
+              }}
+              className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 ${
+                sortByCategory ? 'ring-2 ring-offset-2 ring-teal ring-offset-white' : ''
+              }`}
+              aria-label="Sort items by category"
+              aria-pressed={sortByCategory}
+              title="Sort by category"
+            >
+              <SortAmountDownIcon className="w-5 h-5" />
+            </button>
           )}
           </div>
         </div>
