@@ -46,7 +46,7 @@ function getCachedPrefs(listId: string, userId?: string) {
       const parsed = JSON.parse(cached)
       return {
         memberFilter: (parsed.memberFilter === 'mine' || parsed.memberFilter === 'all') ? parsed.memberFilter : 'all' as const,
-        itemTextWidth: parsed.itemTextWidth != null ? String(parsed.itemTextWidth) : 'auto',
+        itemTextWidth: typeof parsed.itemTextWidth === 'string' ? parsed.itemTextWidth : 'auto',
       }
     } catch { /* ignore */ }
   }
