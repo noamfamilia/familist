@@ -40,7 +40,7 @@ const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(m
 })
 
 // All list tour steps - shown progressively as targets become available (filtered by DOM).
-// Order: add-item → item-text-width → row controls; category-sort immediately before +Goal.
+// Order: add-item → item-text-width → row controls; +Goal then sort (left to right).
 const listTourSteps: Step[] = [
   {
     target: '[data-tour="view-toggle"]',
@@ -72,12 +72,12 @@ const listTourSteps: Step[] = [
     content: 'Edit quantity and status.',
   },
   {
-    target: '[data-tour="category-sort"]',
-    content: 'Sort items by category.',
-  },
-  {
     target: '[data-tour="add-member"]',
     content: 'Set your own goals',
+  },
+  {
+    target: '[data-tour="category-sort"]',
+    content: 'Sort items by category.',
   },
   {
     target: '[data-tour="member-chip"]',

@@ -41,7 +41,6 @@ function isTargetReady(target: string) {
 
 const delayedAdvanceTargets: Record<string, string> = {
   '[data-tour="create-list"]': '[data-tour="list-card"]',
-  '[data-tour="add-member"]': '[data-tour="member-chip"]',
 }
 
 export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentKey }: TutorialTourProps) {

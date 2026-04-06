@@ -244,25 +244,7 @@ export function MemberHeader({
           </div>
 
           <div className="flex items-center ml-auto flex-shrink-0 gap-2.5">
-          {/* Sort by category — before +Goal */}
-          {showCategorySort && onCategorySortClick && (
-            <button
-              type="button"
-              data-tour="category-sort"
-              disabled={categorySortLoading}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                void onCategorySortClick()
-              }}
-              className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              <span className="sr-only">Sort items by category</span>
-              <SortAmountDownIcon className="w-5 h-5" />
-            </button>
-          )}
-
-          {/* Add member section - same size as member containers */}
+          {/* +Goal, then sort by category (to its right) */}
           {showAddMember && (
             <div className={`relative ${openMenuId ? 'invisible' : ''}`}>
               {isAdding ? (
@@ -302,6 +284,23 @@ export function MemberHeader({
                 </button>
               )}
             </div>
+          )}
+
+          {showCategorySort && onCategorySortClick && (
+            <button
+              type="button"
+              data-tour="category-sort"
+              disabled={categorySortLoading}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                void onCategorySortClick()
+              }}
+              className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              <span className="sr-only">Sort items by category</span>
+              <SortAmountDownIcon className="w-5 h-5" />
+            </button>
           )}
           </div>
         </div>
