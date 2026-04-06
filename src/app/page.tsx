@@ -226,7 +226,7 @@ function HomeContent() {
           alt="MyFamiList"
           width={256}
           height={64}
-          className="h-12 sm:h-16 w-auto mx-auto"
+          className="h-12 w-40 sm:h-16 sm:w-52 mx-auto"
           priority
         />
       </header>

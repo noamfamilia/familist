@@ -117,7 +117,7 @@ function ImportContent() {
     return (
       <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
         <div className="flex justify-center mb-6">
-          <Image src="/logo.png" alt="MyFamiList" width={256} height={64} className="h-12 sm:h-16 w-auto" priority />
+          <Image src="/logo.png" alt="MyFamiList" width={256} height={64} className="h-12 w-40 sm:h-16 sm:w-52" priority />
         </div>
         <p className="text-center text-gray-600 mb-6">Sign in from the home page to import a Google Sheet.</p>
         <div className="flex justify-center">
@@ -135,7 +135,7 @@ function ImportContent() {
         <BackToHomeButton className="text-sm text-teal font-medium hover:underline bg-transparent border-0 p-0 cursor-pointer font-inherit text-left">
           ← Back
         </BackToHomeButton>
-        <Image src="/logo.png" alt="MyFamiList" width={180} height={48} className="h-10 w-auto" />
+        <Image src="/logo.png" alt="MyFamiList" width={180} height={48} className="h-10 w-[132px]" />
         <span className="w-12" aria-hidden />
       </div>
 
