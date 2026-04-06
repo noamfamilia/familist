@@ -91,7 +91,7 @@ function ImportContent() {
         return
       }
 
-      router.push(`/list/${newList.id}`)
+      router.push('/')
     } finally {
       setBusy(false)
     }

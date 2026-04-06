@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { Toggle } from '@/components/ui/Toggle'
-import { Suspense, useState, useEffect } from 'react'
+import Link from 'next/link'
+import { Suspense, useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
@@ -17,8 +18,8 @@ const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod =
 // All home tour steps - list steps only shown when lists exist
 const homeTourSteps: Step[] = [
   {
-    target: '[data-tour="profile-icon"]',
-    content: 'Access your profile settings.',
+    target: '[data-tour="home-menu-profile"]',
+    content: 'Access menu and profile settings.',
     disableBeacon: true,
   },
   {
@@ -58,6 +59,9 @@ function HomeContent() {
   const { user, profile, loading, updateProfile } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
+  const [homeMenuOpen, setHomeMenuOpen] = useState(false)
+  const homeMenuRef = useRef<HTMLDivElement>(null)
+
   const [viewMode, setViewMode] = useState<'all' | 'mine'>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('home_list_filter')
@@ -84,6 +88,16 @@ function HomeContent() {
       setShowAuthModal(true)
     }
   }, [loading, user, inviteToken])
+
+  useEffect(() => {
+    if (!homeMenuOpen) return
+    const close = (e: MouseEvent) => {
+      const el = homeMenuRef.current
+      if (el && !el.contains(e.target as Node)) setHomeMenuOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [homeMenuOpen])
 
   const clearInviteState = () => {
     clearPendingInviteToken()
@@ -117,15 +131,48 @@ function HomeContent() {
       <div className="flex items-center justify-between mb-4">
         {/* Auth button - top left */}
         {user ? (
-          <button
-            onClick={() => setShowAuthModal(true)}
-            className="h-8 flex items-center hover:opacity-80 transition-opacity"
-            aria-label="Account settings"
-            title={user.email}
-            data-tour="profile-icon"
-          >
-            <Image src="/profile.png" alt="Profile settings" width={32} height={32} className="w-8 h-8" />
-          </button>
+          <div className="flex items-center gap-1" data-tour="home-menu-profile">
+            <div className="relative" ref={homeMenuRef}>
+              <button
+                type="button"
+                onClick={() => setHomeMenuOpen(o => !o)}
+                className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-700"
+                aria-label="Open menu"
+                aria-expanded={homeMenuOpen}
+                aria-haspopup="menu"
+              >
+                <span className="flex flex-col gap-1" aria-hidden>
+                  <span className="block w-4 h-0.5 rounded-full bg-current" />
+                  <span className="block w-4 h-0.5 rounded-full bg-current" />
+                  <span className="block w-4 h-0.5 rounded-full bg-current" />
+                </span>
+              </button>
+              {homeMenuOpen && (
+                <div
+                  className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
+                  role="menu"
+                >
+                  <Link
+                    href="/import"
+                    className="block px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                    role="menuitem"
+                    onClick={() => setHomeMenuOpen(false)}
+                  >
+                    Import from Google Sheet
+                  </Link>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAuthModal(true)}
+              className="h-8 flex items-center hover:opacity-80 transition-opacity"
+              aria-label="Account settings"
+              title={user.email}
+            >
+              <Image src="/profile.png" alt="Profile settings" width={32} height={32} className="w-8 h-8" />
+            </button>
+          </div>
         ) : (
           <button
             onClick={() => setShowAuthModal(true)}

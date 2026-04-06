@@ -123,5 +123,76 @@ export async function POST(req: Request) {
     }
   }
 
+  if (!title) {
+    title = await fetchSpreadsheetTitleFromDocsPage(parsed.id)
+  }
+
   return NextResponse.json({ csv, title })
+}
+
+const MAX_HTML_SNIPPET_BYTES = 600_000
+
+function decodeBasicHtmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
+/** Best-effort title from the public /edit HTML (og:title or <title>), no API key required. */
+function extractSpreadsheetTitleFromHtml(html: string): string | null {
+  const head = html.slice(0, MAX_HTML_SNIPPET_BYTES)
+
+  const ogPatterns = [
+    /<meta\s+property=["']og:title["']\s+content=["']([^"']*)["']/i,
+    /<meta\s+content=["']([^"']*)["']\s+property=["']og:title["']/i,
+    /<meta\s+itemprop=["']name["']\s+content=["']([^"']*)["']/i,
+  ]
+  for (const re of ogPatterns) {
+    const m = head.match(re)
+    if (m?.[1]) {
+      const t = decodeBasicHtmlEntities(m[1]).trim()
+      if (t && !isGenericRejectedTitle(t)) return t
+    }
+  }
+
+  const titleMatch = head.match(/<title[^>]*>([^<]{1,500})<\/title>/i)
+  if (titleMatch?.[1]) {
+    let t = decodeBasicHtmlEntities(titleMatch[1]).trim()
+    t = t.replace(/\s*-\s*Google Sheets\s*$/i, '').replace(/\s*-\s*Google Drive\s*$/i, '').trim()
+    if (t && !isGenericRejectedTitle(t)) return t
+  }
+
+  return null
+}
+
+function isGenericRejectedTitle(t: string): boolean {
+  const lower = t.toLowerCase()
+  if (lower === 'google sheets' || lower === 'sign in' || lower.includes('sign in to continue')) return true
+  return false
+}
+
+async function fetchSpreadsheetTitleFromDocsPage(spreadsheetId: string): Promise<string | null> {
+  const pageUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(spreadsheetId)}/edit`
+  const metaController = new AbortController()
+  const metaT = setTimeout(() => metaController.abort(), 10_000)
+  try {
+    const pageRes = await fetch(pageUrl, {
+      signal: metaController.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': 'FamilistSheetImport/1.0' },
+    })
+    if (!pageRes.ok) return null
+
+    const buf = await pageRes.arrayBuffer()
+    const n = Math.min(buf.byteLength, MAX_HTML_SNIPPET_BYTES)
+    const html = new TextDecoder('utf-8', { fatal: false }).decode(buf.slice(0, n))
+    return extractSpreadsheetTitleFromHtml(html)
+  } catch {
+    return null
+  } finally {
+    clearTimeout(metaT)
+  }
 }

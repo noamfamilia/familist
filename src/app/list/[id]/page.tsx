@@ -47,6 +47,10 @@ const listTourSteps: Step[] = [
     disableBeacon: true,
   },
   {
+    target: '[data-tour="category-sort"]',
+    content: 'Sort items by category.',
+  },
+  {
     target: '[data-tour="add-item"]',
     content: 'Add items to your list',
   },

@@ -290,6 +290,7 @@ export function MemberHeader({
           {showCategorySort && onCategorySortClick && (
             <button
               type="button"
+              data-tour="category-sort"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
