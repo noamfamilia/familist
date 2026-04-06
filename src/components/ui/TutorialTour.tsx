@@ -48,8 +48,10 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
   const [stepIndex, setStepIndex] = useState(0)
   const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
   const prevStepsKey = useRef('')
+  const prevContentKey = useRef<string | number | undefined>(undefined)
   const filteredStepsRef = useRef<Step[]>([])
   const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reanchorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const currentTargetRef = useRef<string | null>(null)
   const pendingTargetRef = useRef<string | null>(null)
   const hasStartedRef = useRef(false)
@@ -107,7 +109,11 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
     // Create a key to detect changes in available steps
     const stepsKey = availableSteps.map(s => s.target).join(',')
     
-    if (availableSteps.length > 0 && stepsKey !== prevStepsKey.current) {
+    const stepsChanged = stepsKey !== prevStepsKey.current
+    const contentChanged = contentKey !== prevContentKey.current
+    prevContentKey.current = contentKey
+
+    if (availableSteps.length > 0 && stepsChanged) {
       prevStepsKey.current = stepsKey
       filteredStepsRef.current = availableSteps
       setFilteredSteps(availableSteps)
@@ -137,14 +143,25 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
         if (currentIndex !== -1) {
           setStepIndex(currentIndex)
         }
+        setRun(false)
+        requestAnimationFrame(() => setRun(true))
         return
       }
 
       setStepIndex(0)
       hasStartedRef.current = true
       setRun(true)
+    } else if (contentChanged && hasStartedRef.current && run) {
+      // DOM nodes may have been replaced (e.g. optimistic→real ID key swap).
+      // Toggle run so Joyride re-queries the CSS selector for the current target.
+      if (reanchorTimerRef.current) clearTimeout(reanchorTimerRef.current)
+      setRun(false)
+      reanchorTimerRef.current = setTimeout(() => {
+        reanchorTimerRef.current = null
+        setRun(true)
+      }, 50)
     }
-  }, [tourId, runProp, steps, contentKey])
+  }, [tourId, runProp, steps, contentKey, run])
 
   useEffect(() => {
     filteredStepsRef.current = filteredSteps
@@ -156,7 +173,10 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
   }, [filteredSteps, stepIndex])
 
   useEffect(() => {
-    return () => clearWaitTimer()
+    return () => {
+      clearWaitTimer()
+      if (reanchorTimerRef.current) clearTimeout(reanchorTimerRef.current)
+    }
   }, [])
 
   const handleCallback = (data: CallBackProps) => {
