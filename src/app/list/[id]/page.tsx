@@ -40,7 +40,7 @@ const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(m
 })
 
 // All list tour steps - shown progressively as targets become available (filtered by DOM).
-// Order: add-item → item-text-width → row (name, drag, quantity, item menu); +Goal then sort; member chip.
+// Order: add-item → item-text-width → row (name, drag, item menu, quantity); +Goal then sort; member kebab.
 const listTourSteps: Step[] = [
   {
     target: '[data-tour="view-toggle"]',
@@ -65,12 +65,12 @@ const listTourSteps: Step[] = [
     spotlightPadding: 2,
   },
   {
-    target: '[data-tour="item-state"]',
-    content: 'Edit quantity and status.',
-  },
-  {
     target: '[data-tour="item-menu"]',
     content: 'Item menu options',
+  },
+  {
+    target: '[data-tour="item-state"]',
+    content: 'Edit quantity and status.',
   },
   {
     target: '[data-tour="add-member"]',
@@ -81,8 +81,9 @@ const listTourSteps: Step[] = [
     content: 'Sort items by category.',
   },
   {
-    target: '[data-tour="member-chip"]',
+    target: '[data-tour="member-kebab"]',
     content: 'Member menu options',
+    spotlightPadding: 2,
   },
 ]
 

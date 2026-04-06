@@ -44,6 +44,7 @@ const homeTourSteps: Step[] = [
   {
     target: '[data-tour="list-archive"]',
     content: 'Use ▼/▲ to archive/restore a list.',
+    spotlightPadding: 2,
   },
   {
     target: '[data-tour="list-share"]',
