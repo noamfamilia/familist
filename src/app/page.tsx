@@ -18,8 +18,8 @@ const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod =
 // All home tour steps - list steps only shown when lists exist
 const homeTourSteps: Step[] = [
   {
-    target: '[data-tour="home-menu-profile"]',
-    content: 'Access menu and profile settings.',
+    target: '[data-tour="home-profile-menu"]',
+    content: 'Tap your profile picture for account settings or to import a Google Sheet.',
     disableBeacon: true,
   },
   {
@@ -59,8 +59,8 @@ function HomeContent() {
   const { user, profile, loading, updateProfile } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
-  const [homeMenuOpen, setHomeMenuOpen] = useState(false)
-  const homeMenuRef = useRef<HTMLDivElement>(null)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
 
   const [viewMode, setViewMode] = useState<'all' | 'mine'>(() => {
     if (typeof window !== 'undefined') {
@@ -90,14 +90,23 @@ function HomeContent() {
   }, [loading, user, inviteToken])
 
   useEffect(() => {
-    if (!homeMenuOpen) return
+    if (!profileMenuOpen) return
     const close = (e: MouseEvent) => {
-      const el = homeMenuRef.current
-      if (el && !el.contains(e.target as Node)) setHomeMenuOpen(false)
+      const el = profileMenuRef.current
+      if (el && !el.contains(e.target as Node)) setProfileMenuOpen(false)
     }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
-  }, [homeMenuOpen])
+  }, [profileMenuOpen])
+
+  useEffect(() => {
+    if (!profileMenuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setProfileMenuOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [profileMenuOpen])
 
   const clearInviteState = () => {
     clearPendingInviteToken()
@@ -131,47 +140,44 @@ function HomeContent() {
       <div className="flex items-center justify-between mb-4">
         {/* Auth button - top left */}
         {user ? (
-          <div className="flex items-center gap-1" data-tour="home-menu-profile">
-            <div className="relative" ref={homeMenuRef}>
-              <button
-                type="button"
-                onClick={() => setHomeMenuOpen(o => !o)}
-                className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-700"
-                aria-label="Open menu"
-                aria-expanded={homeMenuOpen}
-                aria-haspopup="menu"
-              >
-                <span className="flex flex-col gap-1" aria-hidden>
-                  <span className="block w-4 h-0.5 rounded-full bg-current" />
-                  <span className="block w-4 h-0.5 rounded-full bg-current" />
-                  <span className="block w-4 h-0.5 rounded-full bg-current" />
-                </span>
-              </button>
-              {homeMenuOpen && (
-                <div
-                  className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
-                  role="menu"
-                >
-                  <Link
-                    href="/import"
-                    className="block px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
-                    role="menuitem"
-                    onClick={() => setHomeMenuOpen(false)}
-                  >
-                    Import from Google Sheet
-                  </Link>
-                </div>
-              )}
-            </div>
+          <div className="relative" ref={profileMenuRef} data-tour="home-profile-menu">
             <button
               type="button"
-              onClick={() => setShowAuthModal(true)}
-              className="h-8 flex items-center hover:opacity-80 transition-opacity"
-              aria-label="Account settings"
+              onClick={() => setProfileMenuOpen(o => !o)}
+              className="h-8 flex items-center hover:opacity-80 transition-opacity rounded-lg"
+              aria-label="Account menu"
+              aria-expanded={profileMenuOpen}
+              aria-haspopup="menu"
               title={user.email}
             >
-              <Image src="/profile.png" alt="Profile settings" width={32} height={32} className="w-8 h-8" />
+              <Image src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
             </button>
+            {profileMenuOpen && (
+              <div
+                className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
+                role="menu"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                  onClick={() => {
+                    setProfileMenuOpen(false)
+                    setShowAuthModal(true)
+                  }}
+                >
+                  Profile settings
+                </button>
+                <Link
+                  href="/import"
+                  className="block px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                  role="menuitem"
+                  onClick={() => setProfileMenuOpen(false)}
+                >
+                  Import from Google Sheet
+                </Link>
+              </div>
+            )}
           </div>
         ) : (
           <button

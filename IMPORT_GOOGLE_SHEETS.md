@@ -8,7 +8,7 @@
    In Google Sheets: **Share** → **General access** → **Anyone with the link** → **Viewer** (or use **Publish to web**). The app downloads the sheet as CSV from Google’s servers; without view access the import will fail.
 
 3. **Import in the app**  
-   Sign in, open the **menu** (☰, top left next to your profile), choose **Import from Google Sheet**, paste the full browser URL of the sheet, optionally set a **List name**, then **Import**.
+   Sign in, tap your **profile picture** (top left), choose **Import from Google Sheet**, paste the full browser URL of the sheet, optionally set a **List name**, then **Import**.
 
 4. **Deep link (optional)**  
    You can open the import screen with the URL prefilled:  
