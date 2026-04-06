@@ -396,10 +396,9 @@ export default function ListPage() {
               onUpdateMember={updateMember}
               onDeleteMember={deleteMember}
               listId={listId}
-              showAddMember={memberFilter === 'all' && items.length > 0}
               itemTextWidth={itemTextWidth}
               onWidthChange={handleWidthChange}
-              showCategorySort={items.length > 0}
+              showCategorySort
               categorySortLoading={categorySortLoading}
               onCategorySortClick={handleCategorySortClick}
             />
