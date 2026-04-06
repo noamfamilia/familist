@@ -390,6 +390,7 @@ export default function ListPage() {
               onUpdateMember={updateMember}
               onDeleteMember={deleteMember}
               listId={listId}
+              showAddMember={memberFilter === 'all'}
               itemTextWidth={itemTextWidth}
               onWidthChange={handleWidthChange}
               showCategorySort
