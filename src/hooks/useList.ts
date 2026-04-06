@@ -117,6 +117,7 @@ export function useList(listId: string) {
   const channelRef = useRef<RealtimeChannel | null>(null)
   const hadAccessRef = useRef(false)
   const hasInitialDataRef = useRef(false)
+  const prefsFetchedRef = useRef(false)
   const skipRealtimeUntilRef = useRef(0)
   const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const pendingRealtimeRef = useRef(false)
@@ -134,6 +135,7 @@ export function useList(listId: string) {
     setLoading(!!userId && !cachedData?.list)
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
+    prefsFetchedRef.current = false
   }, [userId, listId])
 
   const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
@@ -247,22 +249,25 @@ export function useList(listId: string) {
         members: data.members || []
       })
 
-      // Fetch user preferences from list_users
-      const { data: listUserData } = await supabase
-        .from('list_users')
-        .select('member_filter, item_text_width')
-        .eq('list_id', listId)
-        .eq('user_id', userId)
-        .single()
+      // Only fetch preferences on initial load to avoid overwriting optimistic updates
+      if (!prefsFetchedRef.current) {
+        prefsFetchedRef.current = true
+        const { data: listUserData } = await supabase
+          .from('list_users')
+          .select('member_filter, item_text_width')
+          .eq('list_id', listId)
+          .eq('user_id', userId)
+          .single()
 
-      if (listUserData) {
-        if (listUserData.member_filter === 'all' || listUserData.member_filter === 'mine') {
-          setMemberFilter(listUserData.member_filter)
-          setCachedPrefs(listId, { memberFilter: listUserData.member_filter }, userId)
-        }
-        if (listUserData.item_text_width && listUserData.item_text_width >= 80) {
-          setItemTextWidth(listUserData.item_text_width)
-          setCachedPrefs(listId, { itemTextWidth: listUserData.item_text_width }, userId)
+        if (listUserData) {
+          if (listUserData.member_filter === 'all' || listUserData.member_filter === 'mine') {
+            setMemberFilter(listUserData.member_filter)
+            setCachedPrefs(listId, { memberFilter: listUserData.member_filter }, userId)
+          }
+          if (listUserData.item_text_width && listUserData.item_text_width >= 80) {
+            setItemTextWidth(listUserData.item_text_width)
+            setCachedPrefs(listId, { itemTextWidth: listUserData.item_text_width }, userId)
+          }
         }
       }
       setFetchTimedOut(false)
@@ -840,33 +845,41 @@ export function useList(listId: string) {
   }
 
   const updateMemberFilter = async (filter: 'all' | 'mine') => {
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    const prev = memberFilter
     setMemberFilter(filter)
     setCachedPrefs(listId, { memberFilter: filter }, userId)
     if (userId) {
-      await trackSaveOperation(
+      const { error } = await trackSaveOperation(
         supabase
           .from('list_users')
           .update({ member_filter: filter })
           .eq('list_id', listId)
           .eq('user_id', userId)
       )
+      if (error) {
+        setMemberFilter(prev)
+        setCachedPrefs(listId, { memberFilter: prev }, userId)
+      }
     }
   }
 
   const updateItemTextWidth = async (width: number) => {
     const newWidth = Math.max(80, width)
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    const prev = itemTextWidth
     setItemTextWidth(newWidth)
     setCachedPrefs(listId, { itemTextWidth: newWidth }, userId)
     if (userId) {
-      await trackSaveOperation(
+      const { error } = await trackSaveOperation(
         supabase
           .from('list_users')
           .update({ item_text_width: newWidth })
           .eq('list_id', listId)
           .eq('user_id', userId)
       )
+      if (error) {
+        setItemTextWidth(prev)
+        setCachedPrefs(listId, { itemTextWidth: prev }, userId)
+      }
     }
   }
 

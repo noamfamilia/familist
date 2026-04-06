@@ -506,20 +506,25 @@ export function useLists() {
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
     if (!user) return
 
+    const previousLists = lists
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(reorderedLists)
 
-    const updates = reorderedLists.map((list, index) => 
-      trackSaveOperation(
-        supabase
-          .from('list_users')
-          .update({ sort_order: index })
-          .eq('list_id', list.id)
-          .eq('user_id', user.id)
+    const results = await Promise.all(
+      reorderedLists.map((list, index) => 
+        trackSaveOperation(
+          supabase
+            .from('list_users')
+            .update({ sort_order: index })
+            .eq('list_id', list.id)
+            .eq('user_id', user.id)
+        )
       )
     )
 
-    await Promise.all(updates)
+    if (results.some(r => (r as { error?: unknown }).error)) {
+      setLists(previousLists)
+    }
   }
 
   return {
