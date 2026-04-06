@@ -20,7 +20,7 @@ const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod =
 const homeTourSteps: Step[] = [
   {
     target: '[data-tour="home-profile-menu"]',
-    content: 'App menu and Profile settings',
+    content: 'App settings',
     disableBeacon: true,
   },
   {

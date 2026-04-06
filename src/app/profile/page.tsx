@@ -85,8 +85,7 @@ export default function ProfilePage() {
       </div>
 
       <div>
-        <h1 className="text-lg font-semibold text-gray-900">Account</h1>
-        <p className="text-sm text-gray-500 mt-1">Email, nickname, install the app, and sign out.</p>
+        <h1 className="text-lg font-semibold text-gray-900">Account settings</h1>
       </div>
 
       <div className="space-y-4">
