@@ -38,6 +38,7 @@ const homeTourSteps: Step[] = [
   {
     target: '[data-tour="list-drag-handle"]',
     content: 'Drag to re-arrange lists.',
+    spotlightPadding: 2,
   },
   // List-specific steps - only shown when list targets exist
   {

@@ -62,6 +62,7 @@ const listTourSteps: Step[] = [
   {
     target: '[data-tour="drag-handle"]',
     content: 'Drag to re-arrange items.',
+    spotlightPadding: 2,
   },
   {
     target: '[data-tour="item-menu"]',
