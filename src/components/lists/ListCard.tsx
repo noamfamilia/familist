@@ -227,9 +227,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {isOwner && (
         list.userArchived ? (
           <span
-            className="text-gray-500 flex-shrink-0 opacity-40"
+            className={`flex-shrink-0 opacity-40 ${list.visibility === 'link' ? 'text-cyan' : 'text-gray-500'}`}
           >
-            <ShareCardIcon />
+            <ShareCardIcon emphasized={list.visibility === 'link'} />
           </span>
         ) : (
           <button
