@@ -1,6 +1,7 @@
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
+import { navigateBackToHome } from '@/lib/navigation/backToHome'
 import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -142,12 +143,7 @@ export default function ListPage() {
   const addItemFormRef = useRef<HTMLFormElement>(null)
 
   const handleBackToLists = () => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back()
-      return
-    }
-
-    router.replace('/')
+    navigateBackToHome(router)
   }
 
   const handleWidthChange = (delta: number) => {

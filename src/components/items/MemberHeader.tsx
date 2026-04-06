@@ -298,9 +298,8 @@ export function MemberHeader({
                 void onCategorySortClick()
               }}
               className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
-              aria-label="Sort items by category"
-              title="Sort by category (updates order once)"
             >
+              <span className="sr-only">Sort items by category</span>
               <SortAmountDownIcon className="w-5 h-5" />
             </button>
           )}

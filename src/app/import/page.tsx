@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
@@ -12,6 +11,7 @@ import { Input } from '@/components/ui/Input'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import { parseSheetCsv, resolveImportListName } from '@/lib/sheetImport/parseSheetCsv'
 import type { Json } from '@/lib/supabase/types'
+import { BackToHomeButton } from '@/components/navigation/BackToHomeButton'
 
 function ImportContent() {
   const router = useRouter()
@@ -99,7 +99,7 @@ function ImportContent() {
         .eq('list_id', newList.id)
         .eq('user_id', user.id)
 
-      router.push('/')
+      router.replace('/')
     } finally {
       setBusy(false)
     }
@@ -121,9 +121,9 @@ function ImportContent() {
         </div>
         <p className="text-center text-gray-600 mb-6">Sign in from the home page to import a Google Sheet.</p>
         <div className="flex justify-center">
-          <Link href="/" className="text-teal font-medium hover:underline">
+          <BackToHomeButton className="text-teal font-medium hover:underline bg-transparent border-0 p-0 cursor-pointer font-inherit">
             Back to lists
-          </Link>
+          </BackToHomeButton>
         </div>
       </div>
     )
@@ -132,9 +132,9 @@ function ImportContent() {
   return (
     <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <Link href="/" className="text-sm text-teal font-medium hover:underline">
+        <BackToHomeButton className="text-sm text-teal font-medium hover:underline bg-transparent border-0 p-0 cursor-pointer font-inherit text-left">
           ← Back
-        </Link>
+        </BackToHomeButton>
         <Image src="/logo.png" alt="MyFamiList" width={180} height={48} className="h-10 w-auto" />
         <span className="w-12" aria-hidden />
       </div>

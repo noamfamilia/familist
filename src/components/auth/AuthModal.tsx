@@ -1,79 +1,10 @@
 'use client'
 
-import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
-import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
-}
-
-function InstallAppButton() {
-  const [canInstall, setCanInstall] = useState(false)
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [isIOS, setIsIOS] = useState(false)
-  const [isInstalled, setIsInstalled] = useState(false)
-
-  useEffect(() => {
-    // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setIsInstalled(true)
-      return
-    }
-
-    // Check for iOS
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
-    setIsIOS(isIOSDevice)
-
-    if (isIOSDevice) {
-      const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator as any).standalone
-      if (!isInStandaloneMode) {
-        setCanInstall(true)
-      }
-    } else {
-      const handler = (e: Event) => {
-        e.preventDefault()
-        setDeferredPrompt(e as BeforeInstallPromptEvent)
-        setCanInstall(true)
-      }
-      window.addEventListener('beforeinstallprompt', handler)
-      return () => window.removeEventListener('beforeinstallprompt', handler)
-    }
-  }, [])
-
-  const handleInstall = async () => {
-    if (isIOS) {
-      alert('To install MyFamiList:\n\n1. Tap the Share button (□↑) at the bottom of Safari\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" to confirm')
-      return
-    }
-
-    if (!deferredPrompt) return
-
-    await deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
-    if (outcome === 'accepted') {
-      setCanInstall(false)
-      setIsInstalled(true)
-    }
-    setDeferredPrompt(null)
-  }
-
-  if (isInstalled || !canInstall) {
-    return null
-  }
-
-  return (
-    <Button variant="secondary" className="w-full" onClick={handleInstall}>
-      Install App
-    </Button>
-  )
-}
 
 interface AuthModalProps {
   isOpen: boolean
@@ -81,8 +12,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  const { user, profile, signIn, signUp, signOut, updateProfile, resetPassword } = useAuth()
-  const { success } = useToast()
+  const { signIn, signUp, resetPassword } = useAuth()
   const [mode, setMode] = useState<'signIn' | 'signUp' | 'forgotPassword'>('signIn')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -152,126 +82,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleSignOut = async () => {
-    const { error } = await signOut()
-    if (error) {
-      setError(error.message || 'Failed to sign out')
-      return
-    }
-    handleClose()
-  }
-
-  // If user is logged in and not in the middle of auth transition, show account info
-  // Use profile data, or fall back to user metadata if profile not loaded
-  const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
-  
-  const [isEditingNickname, setIsEditingNickname] = useState(false)
-  const [editNickname, setEditNickname] = useState(displayNickname)
-  const [savingNickname, setSavingNickname] = useState(false)
-
-  const handleSaveNickname = async () => {
-    if (!editNickname.trim() || editNickname === displayNickname) {
-      setIsEditingNickname(false)
-      return
-    }
-    setSavingNickname(true)
-    const { error } = await updateProfile({ nickname: editNickname.trim() })
-    if (error) {
-      setError(error.message)
-    }
-    setSavingNickname(false)
-    setIsEditingNickname(false)
-  }
-
-  if (user && !loading) {
-    return (
-      <Modal isOpen={isOpen} onClose={handleClose} title="Account">
-        <div className="space-y-4">
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
-              <p className="text-gray-800 break-all">{user.email}</p>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nickname</label>
-              {isEditingNickname ? (
-                <div className="flex gap-2 mt-1">
-                  <input
-                    type="text"
-                    value={editNickname}
-                    onChange={(e) => setEditNickname(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveNickname()
-                      if (e.key === 'Escape') {
-                        setEditNickname(displayNickname)
-                        setIsEditingNickname(false)
-                      }
-                    }}
-                    className="flex-1 px-3 py-1.5 border border-teal rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal/20"
-                    autoFocus
-                    disabled={savingNickname}
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handleSaveNickname}
-                    loading={savingNickname}
-                  >
-                    Save
-                  </Button>
-                </div>
-              ) : (
-                <p 
-                  className="text-gray-800 cursor-pointer hover:text-teal"
-                  onClick={() => {
-                    setEditNickname(displayNickname)
-                    setIsEditingNickname(true)
-                  }}
-                  title="Click to edit"
-                >
-                  {displayNickname} <span className="text-gray-400 text-sm">✎</span>
-                </p>
-              )}
-            </div>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <InstallAppButton />
-
-          <Button
-            variant="danger"
-            className="w-full mt-6"
-            onClick={handleSignOut}
-          >
-            Sign Out
-          </Button>
-
-          <div className="flex justify-center items-center mt-2">
-            <button
-              className="hover:opacity-80"
-              onClick={async () => {
-                await copyTextToClipboard('https://myfamilist.com/?v1')
-                if (!isMobileDevice()) {
-                  success('Copied to clipboard')
-                }
-              }}
-            >
-              <Image src="/share.png" alt="Share MyFamiList" width={48} height={48} className="h-12 w-auto" />
-            </button>
-          </div>
-
-          <div className="text-center text-xs text-gray-400 mt-2">
-            All rights reserved: Noam Familia
-          </div>
-        </div>
-      </Modal>
-    )
   }
 
   // Get modal title based on mode

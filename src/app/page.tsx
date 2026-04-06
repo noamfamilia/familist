@@ -158,17 +158,14 @@ function HomeContent() {
                 className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
                 role="menu"
               >
-                <button
-                  type="button"
+                <Link
+                  href="/profile"
+                  className="block px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                   role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
-                  onClick={() => {
-                    setProfileMenuOpen(false)
-                    setShowAuthModal(true)
-                  }}
+                  onClick={() => setProfileMenuOpen(false)}
                 >
                   Profile settings
-                </button>
+                </Link>
                 <Link
                   href="/import"
                   className="block px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
@@ -249,9 +246,9 @@ function HomeContent() {
       )}
 
       {/* Auth modal */}
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={() => setShowAuthModal(false)} 
+      <AuthModal
+        isOpen={showAuthModal && !user}
+        onClose={() => setShowAuthModal(false)}
       />
     </div>
   )
