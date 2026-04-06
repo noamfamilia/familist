@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
-import { resetTutorial } from '@/components/ui/TutorialTour'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 
 interface BeforeInstallPromptEvent extends Event {
@@ -253,7 +252,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             Sign Out
           </Button>
 
-          <div className="relative flex justify-center items-center mt-2">
+          <div className="flex justify-center items-center mt-2">
             <button
               className="hover:opacity-80"
               onClick={async () => {
@@ -264,19 +263,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               }}
             >
               <Image src="/share.png" alt="Share MyFamiList" width={48} height={48} className="h-12 w-auto" />
-            </button>
-
-            <button
-              className="absolute right-0 text-sm text-teal hover:underline flex flex-col items-end"
-              onClick={() => {
-                resetTutorial('home')
-                resetTutorial('list')
-                handleClose()
-                window.location.reload()
-              }}
-            >
-              <span>Replay</span>
-              <span>Tutorial</span>
             </button>
           </div>
 

@@ -10,6 +10,7 @@ import { Suspense, useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
+import { resetTutorial } from '@/components/ui/TutorialTour'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -19,7 +20,7 @@ const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod =
 const homeTourSteps: Step[] = [
   {
     target: '[data-tour="home-profile-menu"]',
-    content: 'Tap your profile picture for account settings or to import a Google Sheet.',
+    content: 'App menu and Profile settings',
     disableBeacon: true,
   },
   {
@@ -176,6 +177,19 @@ function HomeContent() {
                 >
                   Import from Google Sheet
                 </Link>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                  onClick={() => {
+                    setProfileMenuOpen(false)
+                    resetTutorial('home')
+                    resetTutorial('list')
+                    window.location.reload()
+                  }}
+                >
+                  Replay tutorial
+                </button>
               </div>
             )}
           </div>
