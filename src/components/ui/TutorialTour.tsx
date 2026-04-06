@@ -141,14 +141,8 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       }
 
       setStepIndex(0)
-      const timer = setTimeout(() => {
-        hasStartedRef.current = true
-        setRun(true)
-      }, 500)
-      return () => {
-        clearTimeout(timer)
-        clearWaitTimer()
-      }
+      hasStartedRef.current = true
+      setRun(true)
     }
   }, [tourId, runProp, steps, contentKey])
 
