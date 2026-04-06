@@ -128,6 +128,14 @@ function HomeContent() {
     updateProfile({ list_filter: mode })
   }
 
+  if (loading) {
+    return (
+      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
       {/* Top bar */}
@@ -183,7 +191,7 @@ function HomeContent() {
               </div>
             )}
           </div>
-        ) : !loading ? (
+        ) : (
           <button
             onClick={() => setShowAuthModal(true)}
             className="h-8 flex items-center text-sm text-teal font-medium hover:bg-teal-light px-2 py-1 rounded"
@@ -191,12 +199,10 @@ function HomeContent() {
           >
             Sign in
           </button>
-        ) : (
-          <div className="h-8" />
         )}
         
         {/* View toggle - top right */}
-        {user ? (
+        {user && (
           <div data-tour="home-view-toggle">
             <Toggle
               options={[
@@ -207,22 +213,24 @@ function HomeContent() {
               onChange={handleViewModeChange}
             />
           </div>
-        ) : (
-          <div />
         )}
+        {!user && <div />}
       </div>
 
       {/* Header */}
       <header className="text-center mb-6 sm:mb-8">
-        <Image src="/logo.png" alt="MyFamiList" width={256} height={64} className="h-12 sm:h-16 w-auto mx-auto" priority />
+        <Image
+          src="/logo.png"
+          alt="MyFamiList"
+          width={256}
+          height={64}
+          className="h-12 sm:h-16 w-auto mx-auto"
+          priority
+        />
       </header>
 
       {/* Main content */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal" />
-        </div>
-      ) : user ? (
+      {user ? (
         <>
           <ListsView 
             viewMode={viewMode} 
