@@ -166,7 +166,7 @@ export function MemberHeader({
         <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap">
           <div className="w-5 flex-shrink-0 h-[40px]" />
           <div
-            className="flex-shrink-0 h-[40px] flex items-center justify-between gap-1 px-0.5"
+            className="flex-shrink-0 h-[40px] flex items-center justify-between"
             style={{ width: itemTextWidth }}
             data-tour="item-text-width"
           >
@@ -178,7 +178,7 @@ export function MemberHeader({
                 onWidthChange?.(-20)
               }}
               disabled={itemTextWidthMode === 'auto' || itemTextWidth <= 80}
-              className="min-w-[28px] min-h-[32px] flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm rounded"
+              className="h-[32px] px-1 flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm rounded"
               aria-label="Narrow item name column"
             >
               ◀
@@ -202,7 +202,7 @@ export function MemberHeader({
                 onWidthChange?.(20)
               }}
               disabled={itemTextWidthMode === 'auto'}
-              className="min-w-[28px] min-h-[32px] flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm rounded"
+              className="h-[32px] px-1 flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm rounded"
               aria-label="Widen item name column"
             >
               ▶
