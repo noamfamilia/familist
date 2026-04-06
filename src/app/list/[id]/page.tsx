@@ -89,7 +89,7 @@ const listTourSteps: Step[] = [
 export default function ListPage() {
   const params = useParams()
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const listId = params.id as string
   const { error: showError, success: showSuccess } = useToast()
   
@@ -164,15 +164,7 @@ export default function ListPage() {
     return () => document.removeEventListener('click', handleClick)
   }, [newItemText])
 
-  if (!user) {
-    return (
-      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
-        <p className="text-center text-gray-500">Please sign in to view this list</p>
-      </div>
-    )
-  }
-
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />
