@@ -41,7 +41,6 @@ function isTargetReady(target: string) {
 
 const delayedAdvanceTargets: Record<string, string> = {
   '[data-tour="create-list"]': '[data-tour="list-card"]',
-  '[data-tour="add-item"]': '[data-tour="item-name"]',
   '[data-tour="add-member"]': '[data-tour="member-chip"]',
 }
 
@@ -229,6 +228,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       continuous
       showSkipButton
       disableScrollParentFix
+      disableScrolling
       callback={handleCallback}
       styles={{
         options: {

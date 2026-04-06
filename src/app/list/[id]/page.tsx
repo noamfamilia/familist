@@ -39,8 +39,8 @@ const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(m
   ssr: false,
 })
 
-// All list tour steps - shown progressively as targets become available.
-// view-toggle must be before add-item: delayedAdvance jumps add-item -> item-name and skips steps in between.
+// All list tour steps - shown progressively as targets become available (filtered by DOM).
+// Order: add-item → item-text-width → row controls; category-sort immediately before +Goal.
 const listTourSteps: Step[] = [
   {
     target: '[data-tour="view-toggle"]',
@@ -48,12 +48,12 @@ const listTourSteps: Step[] = [
     disableBeacon: true,
   },
   {
-    target: '[data-tour="category-sort"]',
-    content: 'Sort items by category.',
-  },
-  {
     target: '[data-tour="add-item"]',
     content: 'Add items to your list',
+  },
+  {
+    target: '[data-tour="item-text-width"]',
+    content: 'Use ◀ and ▶ to give item names more or less space.',
   },
   {
     target: '[data-tour="item-name"]',
@@ -72,8 +72,8 @@ const listTourSteps: Step[] = [
     content: 'Edit quantity and status.',
   },
   {
-    target: '[data-tour="item-text-width"]',
-    content: 'Use ◀ and ▶ to give item names more or less space.',
+    target: '[data-tour="category-sort"]',
+    content: 'Sort items by category.',
   },
   {
     target: '[data-tour="add-member"]',
