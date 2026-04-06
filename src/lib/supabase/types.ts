@@ -6,12 +6,15 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-/** Allowed values for public.items.card_color (app palette + DB check). */
-export const ITEM_CARD_COLORS = ['default', 'mint', 'coral', 'sand', 'lilac', 'slate'] as const
-export type ItemCardColor = (typeof ITEM_CARD_COLORS)[number]
+/** public.items.category: 1–6 (UI maps each to a tint). Default is 1. */
+export type ItemCategory = 1 | 2 | 3 | 4 | 5 | 6
 
-export function normalizeItemCardColor(value: string | null | undefined): ItemCardColor {
-  return ITEM_CARD_COLORS.includes(value as ItemCardColor) ? (value as ItemCardColor) : 'default'
+export const ITEM_CATEGORIES: readonly ItemCategory[] = [1, 2, 3, 4, 5, 6]
+
+export function normalizeItemCategory(value: unknown): ItemCategory {
+  const n = typeof value === 'string' ? parseInt(value, 10) : Number(value)
+  if (n === 1 || n === 2 || n === 3 || n === 4 || n === 5 || n === 6) return n
+  return 1
 }
 
 export interface Database {
@@ -160,7 +163,7 @@ export interface Database {
           archived: boolean
           archived_at: string | null
           sort_order: number | null
-          card_color: ItemCardColor
+          category: number
           created_at: string
           updated_at: string
         }
@@ -172,7 +175,7 @@ export interface Database {
           archived?: boolean
           archived_at?: string | null
           sort_order?: number | null
-          card_color?: ItemCardColor
+          category?: number
           created_at?: string
           updated_at?: string
         }
@@ -184,7 +187,7 @@ export interface Database {
           archived?: boolean
           archived_at?: string | null
           sort_order?: number | null
-          card_color?: ItemCardColor
+          category?: number
           created_at?: string
           updated_at?: string
         }

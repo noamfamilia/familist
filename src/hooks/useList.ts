@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import {
-  normalizeItemCardColor,
+  normalizeItemCategory,
   type Database,
   type Item,
   type ItemMemberState,
@@ -61,11 +61,27 @@ function createTempId(prefix: string) {
   return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function normalizeItemsCardColor(items: ItemWithState[]): ItemWithState[] {
-  return items.map(item => ({
-    ...item,
-    card_color: normalizeItemCardColor(item.card_color),
-  }))
+const LEGACY_CARD_COLOR_TO_CATEGORY: Record<string, number> = {
+  default: 1,
+  mint: 2,
+  coral: 3,
+  sand: 4,
+  lilac: 5,
+  slate: 6,
+}
+
+function normalizeItemsCategory(items: ItemWithState[]): ItemWithState[] {
+  return items.map(item => {
+    const legacy = item as ItemWithState & { card_color?: string }
+    const fromLegacy =
+      item.category == null && legacy.card_color != null
+        ? LEGACY_CARD_COLOR_TO_CATEGORY[legacy.card_color.trim()] ?? 1
+        : item.category
+    return {
+      ...item,
+      category: normalizeItemCategory(fromLegacy),
+    }
+  })
 }
 
 function rpcFailureMessage(err: unknown): string {
@@ -83,7 +99,7 @@ export function useList(listId: string) {
   
   // Initialize from cache for instant load
   const [list, setList] = useState<List | null>(cached?.list || null)
-  const [items, setItems] = useState<ItemWithState[]>(() => normalizeItemsCardColor(cached?.items || []))
+  const [items, setItems] = useState<ItemWithState[]>(() => normalizeItemsCategory(cached?.items || []))
   const [members, setMembers] = useState<MemberWithCreator[]>(cached?.members || [])
   const [loading, setLoading] = useState(!cached?.list)
   const [isFetching, setIsFetching] = useState(true)
@@ -111,7 +127,7 @@ export function useList(listId: string) {
     const cachedPrefs = getCachedPrefs(listId, userId)
 
     setList(cachedData?.list || null)
-    setItems(normalizeItemsCardColor(cachedData?.items || []))
+    setItems(normalizeItemsCategory(cachedData?.items || []))
     setMembers(cachedData?.members || [])
     setMemberFilter(cachedPrefs.memberFilter)
     setItemTextWidth(cachedPrefs.itemTextWidth)
@@ -220,7 +236,7 @@ export function useList(listId: string) {
       hadAccessRef.current = true
       setList(data.list)
       setMembers(data.members || [])
-      const nextItems = normalizeItemsCardColor(data.items || [])
+      const nextItems = normalizeItemsCategory(data.items || [])
       setItems(nextItems)
       hasInitialDataRef.current = true
 
@@ -413,7 +429,7 @@ export function useList(listId: string) {
       archived: false,
       archived_at: null,
       sort_order: newSortOrder,
-      card_color: 'default',
+      category: 1,
       created_at: now,
       updated_at: now,
       memberStates: {},
@@ -476,7 +492,11 @@ export function useList(listId: string) {
       persistedUpdates.sort_order = maxActiveSortOrder + 1
     }
 
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    const skipMs = 'category' in persistedUpdates ? 4500 : 2000
+    skipRealtimeUntilRef.current = Math.max(
+      skipRealtimeUntilRef.current,
+      Date.now() + skipMs
+    )
     setItems(prev => prev.map(item =>
       item.id === itemId ? { ...item, ...persistedUpdates } : item
     ))

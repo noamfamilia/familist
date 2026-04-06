@@ -31,7 +31,7 @@ begin
   values (v_trimmed_name, v_user_id)
   returning * into v_new_list;
 
-  insert into public.items (list_id, text, comment, archived, archived_at, sort_order, card_color)
+  insert into public.items (list_id, text, comment, archived, archived_at, sort_order, category)
   select
     v_new_list.id,
     i.text,
@@ -39,7 +39,7 @@ begin
     i.archived,
     i.archived_at,
     i.sort_order,
-    i.card_color
+    i.category
   from public.items i
   where i.list_id = p_source_list_id
   order by i.archived, i.sort_order nulls last, i.created_at, i.id;

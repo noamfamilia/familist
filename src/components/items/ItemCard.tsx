@@ -4,34 +4,35 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
-import type { Item, ItemCardColor, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
-import { ITEM_CARD_COLORS, normalizeItemCardColor } from '@/lib/supabase/types'
+import type { Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
+import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
 
-const ITEM_CARD_SHELL: Record<ItemCardColor, string> = {
-  default: 'bg-gray-50 hover:bg-gray-100',
-  mint: 'bg-teal/10 hover:bg-teal/[0.18]',
-  coral: 'bg-coral/10 hover:bg-coral/[0.18]',
-  sand: 'bg-orange/10 hover:bg-orange/20',
-  lilac: 'bg-violet-100/90 hover:bg-violet-100',
-  slate: 'bg-slate-200/60 hover:bg-slate-200/80',
-}
-
-const SWATCH_FILL: Record<ItemCardColor, string> = {
-  default: 'bg-gray-300',
-  mint: 'bg-teal',
-  coral: 'bg-coral',
-  sand: 'bg-orange',
-  lilac: 'bg-violet-500',
-  slate: 'bg-slate-500',
-}
-
-const SWATCH_LABEL: Record<ItemCardColor, string> = {
-  default: 'Default card color',
-  mint: 'Mint',
-  coral: 'Coral',
-  sand: 'Sand',
-  lilac: 'Lilac',
-  slate: 'Slate',
+/** Category 1–6: same shell + swatch tint; swatch border helps pale fills read in the menu. */
+const ITEM_CATEGORY_STYLES: Record<ItemCategory, { shell: string; swatch: string }> = {
+  1: {
+    shell: 'bg-gray-50 hover:bg-gray-100',
+    swatch: 'border border-gray-300 bg-gray-50',
+  },
+  2: {
+    shell: 'bg-teal/10 hover:bg-teal/[0.18]',
+    swatch: 'border border-teal/40 bg-teal/10',
+  },
+  3: {
+    shell: 'bg-coral/10 hover:bg-coral/[0.18]',
+    swatch: 'border border-coral/40 bg-coral/10',
+  },
+  4: {
+    shell: 'bg-orange/10 hover:bg-orange/20',
+    swatch: 'border border-orange/45 bg-orange/10',
+  },
+  5: {
+    shell: 'bg-violet-100/90 hover:bg-violet-100',
+    swatch: 'border border-violet-300/55 bg-violet-100/90',
+  },
+  6: {
+    shell: 'bg-slate-200/60 hover:bg-slate-200/80',
+    swatch: 'border border-slate-400/55 bg-slate-200/60',
+  },
 }
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
@@ -169,14 +170,14 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const hasComment = item.comment && item.comment.trim().length > 0
-  const cardColor = normalizeItemCardColor(item.card_color)
-  const shellClass = ITEM_CARD_SHELL[cardColor]
+  const category = normalizeItemCategory(item.category)
+  const shellClass = ITEM_CATEGORY_STYLES[category].shell
 
-  const handlePickCardColor = async (next: ItemCardColor) => {
-    if (next === cardColor) return
-    const { error } = await onUpdateItem(item.id, { card_color: next })
+  const handlePickCategory = async (next: ItemCategory) => {
+    if (next === category) return
+    const { error } = await onUpdateItem(item.id, { category: next })
     if (error) {
-      showError(error.message || 'Failed to update card color')
+      showError(error.message || 'Failed to update category')
     }
   }
 
@@ -346,24 +347,26 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
-            {/* Card color swatches + Rename / Delete */}
+            {/* Category 1–6 swatches + Rename / Delete */}
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-shrink-0" role="group" aria-label="Card color">
-                {ITEM_CARD_COLORS.map(c => (
+              <div className="flex items-center gap-1.5 flex-shrink-0" role="group" aria-label="Item category">
+                {ITEM_CATEGORIES.map(c => (
                   <button
                     key={c}
                     type="button"
-                    aria-label={SWATCH_LABEL[c]}
-                    aria-pressed={c === cardColor}
+                    aria-label={`Category ${c}`}
+                    aria-pressed={c === category}
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
-                      void handlePickCardColor(c)
+                      void handlePickCategory(c)
                     }}
-                    className={`h-7 w-7 rounded-full border border-black/15 flex-shrink-0 touch-manipulation transition-shadow ${SWATCH_FILL[c]} ${
-                      c === cardColor ? 'ring-2 ring-teal ring-offset-2 ring-offset-white shadow-sm' : 'hover:brightness-95'
+                    className={`h-8 w-8 rounded-full flex-shrink-0 touch-manipulation transition-shadow flex items-center justify-center text-xs font-semibold text-primary leading-none ${ITEM_CATEGORY_STYLES[c].swatch} ${
+                      c === category ? 'ring-2 ring-teal ring-offset-2 ring-offset-white shadow-sm' : 'hover:opacity-90'
                     }`}
-                  />
+                  >
+                    {c}
+                  </button>
                 ))}
               </div>
               <div className="flex items-center justify-end gap-2 flex-shrink-0">

@@ -5,7 +5,7 @@ import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
 import type { Database, ItemWithState, ListWithRole } from '@/lib/supabase/types'
-import { normalizeItemCardColor } from '@/lib/supabase/types'
+import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const supabase = createClient()
@@ -479,7 +479,7 @@ export function useLists() {
     const rawDupItems = (data.items ?? []) as ItemWithState[]
     const dupItems: ItemWithState[] = rawDupItems.map(item => ({
       ...item,
-      card_color: normalizeItemCardColor(item.card_color),
+      category: normalizeItemCategory(item.category),
     }))
 
     setCachedList(userId, duplicatedList.id, {
