@@ -61,6 +61,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preload" href="/logo.png" as="image" />
+      </head>
       <body className={inter.className}>
         <AuthProvider>
           <ToastProvider>

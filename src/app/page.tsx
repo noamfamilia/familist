@@ -219,14 +219,8 @@ function HomeContent() {
 
       {/* Header */}
       <header className="text-center mb-6 sm:mb-8">
-        <Image
-          src="/logo.png"
-          alt="MyFamiList"
-          width={256}
-          height={64}
-          className="h-12 sm:h-16 w-auto mx-auto"
-          priority
-        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="MyFamiList" className="h-12 sm:h-16 w-auto mx-auto" />
       </header>
 
       {/* Main content */}
