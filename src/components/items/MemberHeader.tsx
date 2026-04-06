@@ -26,8 +26,8 @@ interface MemberHeaderProps {
   itemTextWidth?: number
   onWidthChange?: (delta: number) => void
   showCategorySort?: boolean
-  sortByCategory?: boolean
-  onCategorySortClick?: () => void
+  categorySortLoading?: boolean
+  onCategorySortClick?: () => void | Promise<void>
 }
 
 export function MemberHeader({
@@ -44,7 +44,7 @@ export function MemberHeader({
   itemTextWidth = 80,
   onWidthChange,
   showCategorySort = false,
-  sortByCategory = false,
+  categorySortLoading = false,
   onCategorySortClick,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
@@ -291,17 +291,15 @@ export function MemberHeader({
             <button
               type="button"
               data-tour="category-sort"
+              disabled={categorySortLoading}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                onCategorySortClick()
+                void onCategorySortClick()
               }}
-              className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 ${
-                sortByCategory ? 'ring-2 ring-offset-2 ring-teal ring-offset-white' : ''
-              }`}
+              className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
               aria-label="Sort items by category"
-              aria-pressed={sortByCategory}
-              title="Sort by category"
+              title="Sort by category (updates order once)"
             >
               <SortAmountDownIcon className="w-5 h-5" />
             </button>
