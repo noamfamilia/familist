@@ -178,7 +178,7 @@ export function MemberHeader({
                 onWidthChange?.(-20)
               }}
               disabled={itemTextWidthMode === 'auto' || itemTextWidth <= 80}
-              className="h-[32px] px-1 flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm rounded"
+              className="h-[32px] flex items-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm"
               aria-label="Narrow item name column"
             >
               ◀
@@ -202,7 +202,7 @@ export function MemberHeader({
                 onWidthChange?.(20)
               }}
               disabled={itemTextWidthMode === 'auto'}
-              className="h-[32px] px-1 flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm rounded"
+              className="h-[32px] flex items-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm"
               aria-label="Widen item name column"
             >
               ▶
