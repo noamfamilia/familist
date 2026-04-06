@@ -270,9 +270,14 @@ export default function ListPage() {
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-3 mb-4">
-          <span>Can&apos;t refresh this list right now.</span>
-          <Button type="button" size="sm" variant="secondary" onClick={refresh}>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start justify-between gap-3 mb-4">
+          <span className="min-w-0 flex-1">
+            <span className="font-medium block">Can&apos;t refresh this list right now.</span>
+            <span className="block text-xs text-red-600/90 mt-1.5 break-words font-mono leading-snug">
+              {error}
+            </span>
+          </span>
+          <Button type="button" size="sm" variant="secondary" onClick={refresh} className="flex-shrink-0">
             Retry
           </Button>
         </div>

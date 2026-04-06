@@ -68,6 +68,15 @@ function normalizeItemsCardColor(items: ItemWithState[]): ItemWithState[] {
   }))
 }
 
+function rpcFailureMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    const m = (err as { message: unknown }).message
+    if (typeof m === 'string' && m.length > 0) return m
+  }
+  return 'Unknown error'
+}
+
 export function useList(listId: string) {
   const { user } = useAuth()
   const cached = getCachedList(undefined, listId)
@@ -242,7 +251,7 @@ export function useList(listId: string) {
       }
       setFetchTimedOut(false)
     } catch (err) {
-      setError((err as Error).message)
+      setError(rpcFailureMessage(err))
     } finally {
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setLoading(false)
