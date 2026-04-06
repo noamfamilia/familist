@@ -219,15 +219,14 @@ function HomeContent() {
 
       {/* Header */}
       <header className="text-center mb-6 sm:mb-8">
-        <div className="relative h-12 sm:h-16 w-48 sm:w-64 mx-auto">
-          <Image
-            src="/logo.png"
-            alt="MyFamiList"
-            fill
-            className="object-contain"
-            priority
-          />
-        </div>
+        <Image
+          src="/logo.png"
+          alt="MyFamiList"
+          width={256}
+          height={64}
+          className="h-12 sm:h-16 w-auto mx-auto"
+          priority
+        />
       </header>
 
       {/* Main content */}
