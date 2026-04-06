@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
+import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
   normalizeItemCategory,
   type Database,
@@ -24,10 +25,12 @@ function getPrefsKey(listId: string, userId?: string) {
   return scopedUserId ? `list_${scopedUserId}_${listId}_prefs` : null
 }
 
+type WidthMode = 'auto' | 'manual'
+
 function getCachedPrefs(listId: string, userId?: string) {
-  if (typeof window === 'undefined') return { memberFilter: 'all' as const, itemTextWidth: 80 }
+  if (typeof window === 'undefined') return { memberFilter: 'all' as const, itemTextWidth: 80, itemTextWidthMode: 'auto' as WidthMode }
   const prefsKey = getPrefsKey(listId, userId)
-  if (!prefsKey) return { memberFilter: 'all' as const, itemTextWidth: 80 }
+  if (!prefsKey) return { memberFilter: 'all' as const, itemTextWidth: 80, itemTextWidthMode: 'auto' as WidthMode }
 
   const cached = localStorage.getItem(prefsKey)
   if (cached) {
@@ -35,15 +38,16 @@ function getCachedPrefs(listId: string, userId?: string) {
       const parsed = JSON.parse(cached)
       return {
         memberFilter: (parsed.memberFilter === 'mine' || parsed.memberFilter === 'all') ? parsed.memberFilter : 'all' as const,
-        itemTextWidth: typeof parsed.itemTextWidth === 'number' && parsed.itemTextWidth >= 80 ? parsed.itemTextWidth : 80
+        itemTextWidth: typeof parsed.itemTextWidth === 'number' && parsed.itemTextWidth >= 80 ? parsed.itemTextWidth : 80,
+        itemTextWidthMode: (parsed.itemTextWidthMode === 'auto' || parsed.itemTextWidthMode === 'manual') ? parsed.itemTextWidthMode as WidthMode : 'auto' as WidthMode,
       }
     } catch { /* ignore */ }
   }
-  return { memberFilter: 'all' as const, itemTextWidth: 80 }
+  return { memberFilter: 'all' as const, itemTextWidth: 80, itemTextWidthMode: 'auto' as WidthMode }
 }
 
 // Helper to save preferences to localStorage
-function setCachedPrefs(listId: string, prefs: { memberFilter?: 'all' | 'mine', itemTextWidth?: number }, userId?: string) {
+function setCachedPrefs(listId: string, prefs: { memberFilter?: 'all' | 'mine', itemTextWidth?: number, itemTextWidthMode?: WidthMode }, userId?: string) {
   if (typeof window === 'undefined') return
   const prefsKey = getPrefsKey(listId, userId)
   if (!prefsKey) return
@@ -110,6 +114,7 @@ export function useList(listId: string) {
   const [accessDenied, setAccessDenied] = useState(false)
   const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>(() => getCachedPrefs(listId).memberFilter)
   const [itemTextWidth, setItemTextWidth] = useState(() => getCachedPrefs(listId).itemTextWidth)
+  const [itemTextWidthMode, setItemTextWidthMode] = useState<WidthMode>(() => getCachedPrefs(listId).itemTextWidthMode)
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -132,6 +137,7 @@ export function useList(listId: string) {
     setMembers(cachedData?.members || [])
     setMemberFilter(cachedPrefs.memberFilter)
     setItemTextWidth(cachedPrefs.itemTextWidth)
+    setItemTextWidthMode(cachedPrefs.itemTextWidthMode)
     setLoading(!!userId && !cachedData?.list)
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
@@ -254,7 +260,7 @@ export function useList(listId: string) {
         prefsFetchedRef.current = true
         const { data: listUserData } = await supabase
           .from('list_users')
-          .select('member_filter, item_text_width')
+          .select('member_filter, item_text_width, item_text_width_mode')
           .eq('list_id', listId)
           .eq('user_id', userId)
           .single()
@@ -264,7 +270,10 @@ export function useList(listId: string) {
             setMemberFilter(listUserData.member_filter)
             setCachedPrefs(listId, { memberFilter: listUserData.member_filter }, userId)
           }
-          if (listUserData.item_text_width && listUserData.item_text_width >= 80) {
+          const serverMode: WidthMode = listUserData.item_text_width_mode === 'manual' ? 'manual' : 'auto'
+          setItemTextWidthMode(serverMode)
+          setCachedPrefs(listId, { itemTextWidthMode: serverMode }, userId)
+          if (serverMode === 'manual' && listUserData.item_text_width && listUserData.item_text_width >= 80) {
             setItemTextWidth(listUserData.item_text_width)
             setCachedPrefs(listId, { itemTextWidth: listUserData.item_text_width }, userId)
           }
@@ -883,6 +892,34 @@ export function useList(listId: string) {
     }
   }
 
+  const updateItemTextWidthMode = async (mode: WidthMode) => {
+    const prev = itemTextWidthMode
+    setItemTextWidthMode(mode)
+    setCachedPrefs(listId, { itemTextWidthMode: mode }, userId)
+    if (userId) {
+      const { error } = await trackSaveOperation(
+        supabase
+          .from('list_users')
+          .update({ item_text_width_mode: mode })
+          .eq('list_id', listId)
+          .eq('user_id', userId)
+      )
+      if (error) {
+        setItemTextWidthMode(prev)
+        setCachedPrefs(listId, { itemTextWidthMode: prev }, userId)
+      }
+    }
+  }
+
+  // Auto-fit width when mode is 'auto' and items change
+  useEffect(() => {
+    if (itemTextWidthMode !== 'auto') return
+    const texts = items.filter(i => !i.archived).map(i => i.text ?? '')
+    const fitWidth = measureFitItemTextWidthPx(texts)
+    setItemTextWidth(fitWidth)
+    setCachedPrefs(listId, { itemTextWidth: fitWidth }, userId)
+  }, [itemTextWidthMode, items, listId, userId])
+
   return {
     list,
     items,
@@ -896,6 +933,7 @@ export function useList(listId: string) {
     accessDenied,
     memberFilter,
     itemTextWidth,
+    itemTextWidthMode,
     refresh: fetchList,
     addItem,
     updateItem,
@@ -908,5 +946,6 @@ export function useList(listId: string) {
     reorderItems,
     updateMemberFilter,
     updateItemTextWidth,
+    updateItemTextWidthMode,
   }
 }

@@ -92,7 +92,7 @@ export default function ListPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const listId = params.id as string
-  const { error: showError, success: showSuccess } = useToast()
+  const { error: showError, success: showSuccess, info: showInfo } = useToast()
   
   const {
     list,
@@ -105,6 +105,7 @@ export default function ListPage() {
     accessDenied,
     memberFilter,
     itemTextWidth,
+    itemTextWidthMode,
     refresh,
     addItem,
     addMember,
@@ -117,6 +118,7 @@ export default function ListPage() {
     reorderItems,
     updateMemberFilter,
     updateItemTextWidth,
+    updateItemTextWidthMode,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -150,6 +152,16 @@ export default function ListPage() {
 
   const handleWidthChange = (delta: number) => {
     updateItemTextWidth(itemTextWidth + delta)
+  }
+
+  const handleWidthModeToggle = () => {
+    const next = itemTextWidthMode === 'auto' ? 'manual' : 'auto'
+    updateItemTextWidthMode(next)
+    showInfo(
+      next === 'auto'
+        ? 'Auto: width adjusts to fit the longest item'
+        : 'Manual: use ◀ ▶ to adjust width'
+    )
   }
 
   useEffect(() => {
@@ -392,7 +404,9 @@ export default function ListPage() {
               listId={listId}
               showAddMember={memberFilter === 'all'}
               itemTextWidth={itemTextWidth}
+              itemTextWidthMode={itemTextWidthMode}
               onWidthChange={handleWidthChange}
+              onWidthModeToggle={handleWidthModeToggle}
               showCategorySort
               categorySortLoading={categorySortLoading}
               onCategorySortClick={handleCategorySortClick}

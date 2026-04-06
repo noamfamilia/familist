@@ -24,7 +24,9 @@ interface MemberHeaderProps {
   listId: string
   showAddMember?: boolean
   itemTextWidth?: number
+  itemTextWidthMode?: 'auto' | 'manual'
   onWidthChange?: (delta: number) => void
+  onWidthModeToggle?: () => void
   showCategorySort?: boolean
   categorySortLoading?: boolean
   onCategorySortClick?: () => void | Promise<void>
@@ -42,7 +44,9 @@ export function MemberHeader({
   listId,
   showAddMember = true,
   itemTextWidth = 80,
+  itemTextWidthMode = 'auto',
   onWidthChange,
+  onWidthModeToggle,
   showCategorySort = false,
   categorySortLoading = false,
   onCategorySortClick,
@@ -173,7 +177,7 @@ export function MemberHeader({
                 e.stopPropagation()
                 onWidthChange?.(-20)
               }}
-              disabled={itemTextWidth <= 80}
+              disabled={itemTextWidthMode === 'auto' || itemTextWidth <= 80}
               className="min-w-[28px] min-h-[32px] flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm rounded"
               aria-label="Narrow item name column"
             >
@@ -184,9 +188,21 @@ export function MemberHeader({
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
+                onWidthModeToggle?.()
+              }}
+              className="text-[11px] font-medium leading-none touch-manipulation text-gray-400 hover:text-teal select-none"
+            >
+              {itemTextWidthMode === 'auto' ? 'Auto' : 'Manual'}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
                 onWidthChange?.(20)
               }}
-              className="min-w-[28px] min-h-[32px] flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal text-sm rounded"
+              disabled={itemTextWidthMode === 'auto'}
+              className="min-w-[28px] min-h-[32px] flex items-center justify-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm rounded"
               aria-label="Widen item name column"
             >
               ▶

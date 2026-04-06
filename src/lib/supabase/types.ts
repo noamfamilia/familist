@@ -99,6 +99,7 @@ export interface Database {
           sort_order: number | null
           member_filter: string | null
           item_text_width: number | null
+          item_text_width_mode: string | null
           created_at: string
         }
         Insert: {
@@ -109,6 +110,7 @@ export interface Database {
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: number | null
+          item_text_width_mode?: string | null
           created_at?: string
         }
         Update: {
@@ -119,6 +121,7 @@ export interface Database {
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: number | null
+          item_text_width_mode?: string | null
           created_at?: string
         }
       }
