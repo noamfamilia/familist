@@ -187,39 +187,41 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         {list.userArchived ? '▲' : '▼'}
       </button>
 
-      {/* Tour spotlight: name / open list — between archive and share (not whole row) */}
-      <div className="flex-1 min-w-0 flex items-center" data-tour="list-card">
-        {isRenaming ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onBlur={handleCancelRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleRename()
-              if (e.key === 'Escape') {
-                handleCancelRename()
-              }
-            }}
-            className="flex-1 min-w-0 px-2 py-1 border border-teal rounded text-lg font-medium"
-            aria-label="List name"
-          />
-        ) : list.userArchived ? (
-          <span className="flex-1 min-w-0 font-medium truncate text-lg text-gray-400 line-through">
-            {list.name}
-            {ownerBadge}
-          </span>
-        ) : (
-          <Link
-            href={`/list/${list.id}`}
-            className="flex-1 min-w-0 font-medium truncate text-lg text-primary hover:text-teal"
-          >
-            {list.name}
-            {ownerBadge}
-          </Link>
-        )}
-      </div>
+      {/* List name — tour highlights just the text */}
+      {isRenaming ? (
+        <input
+          ref={inputRef}
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onBlur={handleCancelRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleRename()
+            if (e.key === 'Escape') {
+              handleCancelRename()
+            }
+          }}
+          className="flex-1 min-w-0 px-2 py-1 border border-teal rounded text-lg font-medium"
+          aria-label="List name"
+        />
+      ) : list.userArchived ? (
+        <span
+          className="flex-1 min-w-0 font-medium truncate text-lg text-gray-400 line-through"
+          data-tour="list-card"
+        >
+          {list.name}
+          {ownerBadge}
+        </span>
+      ) : (
+        <Link
+          href={`/list/${list.id}`}
+          className="flex-1 min-w-0 font-medium truncate text-lg text-primary hover:text-teal"
+          data-tour="list-card"
+        >
+          {list.name}
+          {ownerBadge}
+        </Link>
+      )}
 
       {/* Visibility icon - only for owned lists, clickable to open share modal (except archived) */}
       {isOwner && (

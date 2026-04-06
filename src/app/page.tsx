@@ -53,6 +53,7 @@ const homeTourSteps: Step[] = [
   {
     target: '[data-tour="list-menu"]',
     content: 'List menu options',
+    spotlightPadding: 2,
   },
 ]
 
