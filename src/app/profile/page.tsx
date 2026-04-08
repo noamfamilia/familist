@@ -13,7 +13,7 @@ import { BackToHomeButton } from '@/components/navigation/BackToHomeButton'
 export default function ProfilePage() {
   const router = useRouter()
   const { user, profile, loading, signOut, updateProfile } = useAuth()
-  const { success } = useToast()
+  const { success, error: showError } = useToast()
   const [error, setError] = useState('')
 
   const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
@@ -145,9 +145,37 @@ export default function ProfilePage() {
             type="button"
             className="hover:opacity-80"
             onClick={async () => {
-              await copyTextToClipboard('https://myfamilist.com/?v1')
-              if (!isMobileDevice()) {
-                success('Copied to clipboard')
+              const url = 'https://myfamilist.com/'
+
+              const canUseNativeShare =
+                typeof navigator !== 'undefined' &&
+                typeof navigator.share === 'function' &&
+                isMobileDevice()
+
+              const copyOnly = async () => {
+                await copyTextToClipboard(url)
+                if (!isMobileDevice()) {
+                  success('Copied to clipboard')
+                }
+              }
+
+              if (!canUseNativeShare) {
+                await copyOnly()
+                return
+              }
+
+              try {
+                await navigator.share({
+                  title: 'MyFamiList',
+                  text: 'Try MyFamiList — shared lists for your family',
+                  url,
+                })
+              } catch (err) {
+                const shareError = err as Error & { name?: string }
+                if (shareError.name === 'AbortError') return
+                console.error('Error sharing app link:', err)
+                showError('Failed to share')
+                await copyOnly()
               }
             }}
           >
