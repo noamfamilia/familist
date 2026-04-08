@@ -165,11 +165,7 @@ export default function ProfilePage() {
               }
 
               try {
-                await navigator.share({
-                  title: 'MyFamiList',
-                  text: 'Try MyFamiList — shared lists for your family',
-                  url,
-                })
+                await navigator.share({ url })
               } catch (err) {
                 const shareError = err as Error & { name?: string }
                 if (shareError.name === 'AbortError') return
