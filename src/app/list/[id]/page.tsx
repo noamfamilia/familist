@@ -549,7 +549,7 @@ export default function ListPage() {
         title="Restore all archived"
         message={`Restore all ${archivedItems.length} archived item${archivedItems.length === 1 ? '' : 's'} back to the active list?`}
         confirmText="Restore all"
-        variant="primary"
+        variant="danger"
         loading={bulkLoading}
       />
     </div>
