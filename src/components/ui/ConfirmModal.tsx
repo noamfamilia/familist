@@ -34,7 +34,7 @@ export function ConfirmModal({
         <div className="flex gap-3">
           <Button
             variant="secondary"
-            className="flex-1"
+            className="flex-1 whitespace-nowrap"
             onClick={onClose}
             disabled={loading}
           >
@@ -42,7 +42,7 @@ export function ConfirmModal({
           </Button>
           <Button
             variant={variant === 'danger' ? 'danger' : 'primary'}
-            className="flex-1"
+            className="flex-1 whitespace-nowrap"
             onClick={onConfirm}
             loading={loading}
           >
