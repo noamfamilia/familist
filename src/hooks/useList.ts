@@ -993,7 +993,7 @@ export function useList(listId: string) {
   // Auto-fit width when mode is 'auto' and items change
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
-    const texts = items.filter(i => !i.archived).map(i => i.text ?? '')
+    const texts = items.map(i => i.text ?? '')
     const fitWidth = measureFitItemTextWidthPx(texts)
     setItemTextWidth(fitWidth)
   }, [itemTextWidthMode, items])
