@@ -23,6 +23,9 @@ import type { Step } from 'react-joyride'
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
 })
+const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
+  ssr: false,
+})
 
 function compareItemsByCategoryThenOrder(a: ItemWithState, b: ItemWithState) {
   const ac = normalizeItemCategory(a.category)
@@ -155,6 +158,7 @@ export default function ListPage() {
   const [confirmDeleteArchived, setConfirmDeleteArchived] = useState(false)
   const [confirmRestoreArchived, setConfirmRestoreArchived] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [showDenote, setShowDenote] = useState(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
 
   const handleBackToLists = () => {
@@ -453,6 +457,7 @@ export default function ListPage() {
               onCollapseAll={handleCollapseAll}
               onDeleteAllArchived={() => setConfirmDeleteArchived(true)}
               onRestoreAllArchived={() => setConfirmRestoreArchived(true)}
+              onDenote={() => setShowDenote(true)}
             />
           </div>
 
@@ -552,6 +557,10 @@ export default function ListPage() {
         variant="danger"
         loading={bulkLoading}
       />
+
+      <Modal isOpen={showDenote} onClose={() => setShowDenote(false)} size="md">
+        <img src="/denote.png" alt="Denote" className="w-full rounded-lg" />
+      </Modal>
     </div>
   )
 }
