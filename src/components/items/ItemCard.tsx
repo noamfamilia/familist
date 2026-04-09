@@ -51,9 +51,11 @@ interface ItemCardProps {
   dragHandleProps?: Record<string, unknown>
   isDraggable?: boolean
   itemTextWidth?: number
+  expandSignal?: number
+  collapseSignal?: number
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80 }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0 }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -77,6 +79,14 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       setEditText(item.text)
     }
   }, [item.text, isEditing])
+
+  useEffect(() => {
+    if (expandSignal > 0) setShowMenu(true)
+  }, [expandSignal])
+
+  useEffect(() => {
+    if (collapseSignal > 0) setShowMenu(false)
+  }, [collapseSignal])
 
   // Check if item should be hidden based on member filters
   const shouldHide = members.some(member => {

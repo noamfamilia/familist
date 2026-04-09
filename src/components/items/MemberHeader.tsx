@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import { Toggle } from '@/components/ui/Toggle'
 import type { Member, MemberWithCreator } from '@/lib/supabase/types'
-import { SortAmountDownIcon } from '@/components/icons/SortAmountDownIcon'
+import { GearIcon } from '@/components/icons/GearIcon'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -27,9 +27,14 @@ interface MemberHeaderProps {
   itemTextWidthMode?: 'auto' | 'manual'
   onWidthChange?: (delta: number) => void
   onWidthModeToggle?: () => void
-  showCategorySort?: boolean
-  categorySortLoading?: boolean
+  showActionsMenu?: boolean
+  actionsMenuLoading?: boolean
+  hasArchivedItems?: boolean
   onCategorySortClick?: () => void | Promise<void>
+  onExpandAll?: () => void
+  onCollapseAll?: () => void
+  onDeleteAllArchived?: () => void
+  onRestoreAllArchived?: () => void
 }
 
 export function MemberHeader({
@@ -47,13 +52,39 @@ export function MemberHeader({
   itemTextWidthMode = 'auto',
   onWidthChange,
   onWidthModeToggle,
-  showCategorySort = false,
-  categorySortLoading = false,
+  showActionsMenu = false,
+  actionsMenuLoading = false,
+  hasArchivedItems = false,
   onCategorySortClick,
+  onExpandAll,
+  onCollapseAll,
+  onDeleteAllArchived,
+  onRestoreAllArchived,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
   const [isAdding, setIsAdding] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!actionsOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
+        setActionsOpen(false)
+      }
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActionsOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [actionsOpen])
+
   const [newMemberName, setNewMemberName] = useState('')
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -302,21 +333,96 @@ export function MemberHeader({
             </div>
           )}
 
-          {showCategorySort && onCategorySortClick && (
-            <button
-              type="button"
-              data-tour="category-sort"
-              disabled={categorySortLoading}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                void onCategorySortClick()
-              }}
-              className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              <span className="sr-only">Sort items by category</span>
-              <SortAmountDownIcon className="w-5 h-5" />
-            </button>
+          {showActionsMenu && (
+            <div className="relative" ref={actionsMenuRef}>
+              <button
+                type="button"
+                data-tour="category-sort"
+                disabled={actionsMenuLoading}
+                onClick={() => setActionsOpen(o => !o)}
+                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
+                aria-label="List actions"
+                aria-expanded={actionsOpen}
+                aria-haspopup="menu"
+              >
+                <GearIcon className="w-5 h-5" />
+              </button>
+              {actionsOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 min-w-[200px] rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
+                  role="menu"
+                >
+                  {onCategorySortClick && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      onClick={() => {
+                        setActionsOpen(false)
+                        void onCategorySortClick()
+                      }}
+                    >
+                      Sort by category
+                    </button>
+                  )}
+                  {onExpandAll && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      onClick={() => {
+                        setActionsOpen(false)
+                        onExpandAll()
+                      }}
+                    >
+                      Expand all items
+                    </button>
+                  )}
+                  {onCollapseAll && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      onClick={() => {
+                        setActionsOpen(false)
+                        onCollapseAll()
+                      }}
+                    >
+                      Collapse all items
+                    </button>
+                  )}
+                  {hasArchivedItems && (onRestoreAllArchived || onDeleteAllArchived) && (
+                    <div className="my-1 h-px bg-gray-200" role="separator" />
+                  )}
+                  {hasArchivedItems && onRestoreAllArchived && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      onClick={() => {
+                        setActionsOpen(false)
+                        onRestoreAllArchived()
+                      }}
+                    >
+                      Restore all archived
+                    </button>
+                  )}
+                  {hasArchivedItems && onDeleteAllArchived && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      onClick={() => {
+                        setActionsOpen(false)
+                        onDeleteAllArchived()
+                      }}
+                    >
+                      Delete all archived
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
           </div>
         </div>

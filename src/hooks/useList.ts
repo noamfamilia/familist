@@ -829,6 +829,70 @@ export function useList(listId: string) {
     return { data, error }
   }
 
+  const deleteArchivedItems = async () => {
+    const previousItems = items
+    const archivedIds = new Set(items.filter(i => i.archived).map(i => i.id))
+    if (archivedIds.size === 0) return { error: null, count: 0 }
+
+    skipRealtimeUntilRef.current = Date.now() + 3000
+    setItems(prev => prev.filter(i => !archivedIds.has(i.id)))
+
+    const { data, error } = await trackSaveOperation(
+      supabase.rpc('delete_archived_items', { p_list_id: listId })
+    )
+
+    if (error) {
+      setItems(previousItems)
+      return { error, count: 0 }
+    }
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'item_deleted',
+        payload: { listId, bulkDelete: true },
+      })
+    }
+
+    return { error: null, count: typeof data === 'number' ? data : archivedIds.size }
+  }
+
+  const restoreArchivedItems = async () => {
+    const previousItems = items
+    const hasArchived = items.some(i => i.archived)
+    if (!hasArchived) return { error: null, count: 0 }
+
+    const maxActive = items
+      .filter(i => !i.archived)
+      .reduce((max, i) => Math.max(max, i.sort_order ?? 0), -1)
+
+    skipRealtimeUntilRef.current = Date.now() + 3000
+    let idx = 1
+    setItems(prev => prev.map(i => {
+      if (!i.archived) return i
+      return { ...i, archived: false, archived_at: null, sort_order: maxActive + idx++ }
+    }))
+
+    const { data, error } = await trackSaveOperation(
+      supabase.rpc('restore_archived_items', { p_list_id: listId })
+    )
+
+    if (error) {
+      setItems(previousItems)
+      return { error, count: 0 }
+    }
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'item_updated',
+        payload: { listId, bulkRestore: true },
+      })
+    }
+
+    return { error: null, count: typeof data === 'number' ? data : 0 }
+  }
+
   const reorderItems = async (reorderedItems: ItemWithState[]) => {
     const previousItems = items
     skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
@@ -958,6 +1022,8 @@ export function useList(listId: string) {
     updateMemberState,
     changeQuantity,
     reorderItems,
+    deleteArchivedItems,
+    restoreArchivedItems,
     updateMemberFilter,
     updateItemTextWidth,
     updateItemTextWidthMode,

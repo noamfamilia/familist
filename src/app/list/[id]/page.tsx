@@ -20,6 +20,10 @@ import type { ItemWithState } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 
+const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
+  ssr: false,
+})
+
 function compareItemsByCategoryThenOrder(a: ItemWithState, b: ItemWithState) {
   const ac = normalizeItemCategory(a.category)
   const bc = normalizeItemCategory(b.category)
@@ -78,7 +82,7 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="category-sort"]',
-    content: 'Sort items by category.',
+    content: 'List actions: sort, expand/collapse, and manage archived items.',
   },
   {
     target: '[data-tour="member-kebab"]',
@@ -116,6 +120,8 @@ export default function ListPage() {
     updateMemberState,
     changeQuantity,
     reorderItems,
+    deleteArchivedItems,
+    restoreArchivedItems,
     updateMemberFilter,
     updateItemTextWidth,
     updateItemTextWidthMode,
@@ -144,6 +150,11 @@ export default function ListPage() {
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
   const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
   const [categorySortLoading, setCategorySortLoading] = useState(false)
+  const [expandSignal, setExpandSignal] = useState(0)
+  const [collapseSignal, setCollapseSignal] = useState(0)
+  const [confirmDeleteArchived, setConfirmDeleteArchived] = useState(false)
+  const [confirmRestoreArchived, setConfirmRestoreArchived] = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
 
   const handleBackToLists = () => {
@@ -286,6 +297,33 @@ export default function ListPage() {
     }
   }
 
+  const handleExpandAll = () => setExpandSignal(s => s + 1)
+  const handleCollapseAll = () => setCollapseSignal(s => s + 1)
+
+  const handleDeleteAllArchived = async () => {
+    setBulkLoading(true)
+    const { error, count } = await deleteArchivedItems()
+    setBulkLoading(false)
+    setConfirmDeleteArchived(false)
+    if (error) {
+      showError(error.message || 'Failed to delete archived items')
+    } else {
+      showSuccess(`Deleted ${count} archived item${count === 1 ? '' : 's'}`)
+    }
+  }
+
+  const handleRestoreAllArchived = async () => {
+    setBulkLoading(true)
+    const { error, count } = await restoreArchivedItems()
+    setBulkLoading(false)
+    setConfirmRestoreArchived(false)
+    if (error) {
+      showError(error.message || 'Failed to restore archived items')
+    } else {
+      showSuccess(`Restored ${count} archived item${count === 1 ? '' : 's'}`)
+    }
+  }
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
 
@@ -407,9 +445,14 @@ export default function ListPage() {
               itemTextWidthMode={itemTextWidthMode}
               onWidthChange={handleWidthChange}
               onWidthModeToggle={handleWidthModeToggle}
-              showCategorySort
-              categorySortLoading={categorySortLoading}
+              showActionsMenu
+              actionsMenuLoading={categorySortLoading || bulkLoading}
+              hasArchivedItems={archivedItems.length > 0}
               onCategorySortClick={handleCategorySortClick}
+              onExpandAll={handleExpandAll}
+              onCollapseAll={handleCollapseAll}
+              onDeleteAllArchived={() => setConfirmDeleteArchived(true)}
+              onRestoreAllArchived={() => setConfirmRestoreArchived(true)}
             />
           </div>
 
@@ -434,6 +477,8 @@ export default function ListPage() {
                       onChangeQuantity={changeQuantity}
                       onUpdateMemberState={updateMemberState}
                       itemTextWidth={itemTextWidth}
+                      expandSignal={expandSignal}
+                      collapseSignal={collapseSignal}
                     />
                   ))}
                 </SortableContext>
@@ -469,6 +514,8 @@ export default function ListPage() {
                     onUpdateMemberState={updateMemberState}
                     isDraggable={false}
                     itemTextWidth={itemTextWidth}
+                    expandSignal={expandSignal}
+                    collapseSignal={collapseSignal}
                   />
                 ))}
               </div>
@@ -482,6 +529,28 @@ export default function ListPage() {
         tourId="list" 
         steps={listTourSteps}
         contentKey={`${items.map(item => `${item.id}:${item.archived ? 'archived' : 'active'}`).join('|')}::${members.map(member => member.id).join('|')}`}
+      />
+
+      <ConfirmModal
+        isOpen={confirmDeleteArchived}
+        onClose={() => setConfirmDeleteArchived(false)}
+        onConfirm={handleDeleteAllArchived}
+        title="Delete All Archived"
+        message={`Delete all ${archivedItems.length} archived item${archivedItems.length === 1 ? '' : 's'}? This cannot be undone.`}
+        confirmText="Delete all"
+        variant="danger"
+        loading={bulkLoading}
+      />
+
+      <ConfirmModal
+        isOpen={confirmRestoreArchived}
+        onClose={() => setConfirmRestoreArchived(false)}
+        onConfirm={handleRestoreAllArchived}
+        title="Restore All Archived"
+        message={`Restore all ${archivedItems.length} archived item${archivedItems.length === 1 ? '' : 's'} back to the active list?`}
+        confirmText="Restore all"
+        variant="primary"
+        loading={bulkLoading}
       />
     </div>
   )
