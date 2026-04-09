@@ -227,7 +227,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {isOwner && (
         list.userArchived ? (
           <span
-            className={`flex-shrink-0 opacity-40 ${list.visibility === 'link' ? 'text-cyan' : 'text-gray-500'}`}
+            className={`flex-shrink-0 opacity-40 ${list.visibility === 'link' ? 'text-cyan' : 'text-red-500'}`}
           >
             <ShareCardIcon emphasized={list.visibility === 'link'} />
           </span>
@@ -238,7 +238,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               setShowShareModal(true)
             }}
             className={`flex-shrink-0 opacity-60 hover:opacity-100 ${
-              list.visibility === 'link' ? 'text-cyan' : 'text-gray-500'
+              list.visibility === 'link' ? 'text-cyan' : 'text-red-500'
             }`}
             data-tour="list-share"
           >
