@@ -194,7 +194,7 @@ export function MemberHeader({
       {/* Header card container */}
       <div className={`bg-gray-50 ${openMenuId ? 'rounded-t-lg' : 'rounded-lg'}`}>
         {/* Header row - matching item card styling */}
-        <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap">
+        <div className="flex items-center gap-0.5 pl-3 pr-1 py-1 whitespace-nowrap">
           <div className="w-5 flex-shrink-0 h-[40px]" />
           <div
             className="flex-shrink-0 h-[40px] flex items-center justify-between"
@@ -333,7 +333,7 @@ export function MemberHeader({
           )}
 
           {/* Gear menu - aligned to right edge matching item card trailing section */}
-          <div className="flex-shrink-0 flex items-center ml-auto pl-2">
+          <div className="flex-shrink-0 flex items-center ml-auto">
           {showActionsMenu && (
             <div className="relative" ref={actionsMenuRef}>
               <button
