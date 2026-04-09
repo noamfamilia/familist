@@ -290,10 +290,9 @@ export function MemberHeader({
             })}
           </div>
 
-          <div className="flex items-center ml-auto flex-shrink-0 gap-2.5">
-          {/* +Goal, then sort by category (to its right) */}
+          {/* +Goal button */}
           {showAddMember && (
-            <div className={`relative ${openMenuId ? 'invisible' : ''}`}>
+            <div className={`relative ml-2.5 flex-shrink-0 ${openMenuId ? 'invisible' : ''}`}>
               {isAdding ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -333,6 +332,8 @@ export function MemberHeader({
             </div>
           )}
 
+          {/* Gear menu - aligned to right edge matching item card trailing section */}
+          <div className="flex-shrink-0 flex items-center ml-auto pl-4">
           {showActionsMenu && (
             <div className="relative" ref={actionsMenuRef}>
               <button
@@ -349,14 +350,14 @@ export function MemberHeader({
               </button>
               {actionsOpen && (
                 <div
-                  className="absolute right-0 top-full mt-1 min-w-[200px] rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
+                  className="absolute right-0 top-full mt-1 w-max rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
                   role="menu"
                 >
                   {onCategorySortClick && (
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
                       onClick={() => {
                         setActionsOpen(false)
                         void onCategorySortClick()
@@ -369,7 +370,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
                       onClick={() => {
                         setActionsOpen(false)
                         onExpandAll()
@@ -382,7 +383,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
                       onClick={() => {
                         setActionsOpen(false)
                         onCollapseAll()
@@ -398,7 +399,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
                       onClick={() => {
                         setActionsOpen(false)
                         onRestoreAllArchived()
@@ -411,7 +412,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
                       onClick={() => {
                         setActionsOpen(false)
                         onDeleteAllArchived()
