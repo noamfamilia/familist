@@ -350,14 +350,14 @@ export function MemberHeader({
               </button>
               {actionsOpen && (
                 <div
-                  className="absolute right-0 top-full mt-1 w-max rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
+                  className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
                   role="menu"
                 >
                   {onCategorySortClick && (
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
                         setActionsOpen(false)
                         void onCategorySortClick()
@@ -370,7 +370,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
                         setActionsOpen(false)
                         onExpandAll()
@@ -383,7 +383,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
                         setActionsOpen(false)
                         onCollapseAll()
@@ -399,7 +399,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
                         setActionsOpen(false)
                         onRestoreAllArchived()
@@ -412,7 +412,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50 whitespace-nowrap"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
                         setActionsOpen(false)
                         onDeleteAllArchived()
