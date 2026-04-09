@@ -15,9 +15,6 @@ import { resetTutorial } from '@/components/ui/TutorialTour'
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
 })
-const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
-  ssr: false,
-})
 
 // All home tour steps - list steps only shown when lists exist
 const homeTourSteps: Step[] = [
@@ -269,9 +266,23 @@ function HomeContent() {
         onClose={() => setShowAuthModal(false)}
       />
 
-      <Modal isOpen={showDenote} onClose={() => setShowDenote(false)} size="md">
-        <img src="/denote.png" alt="Denote" className="w-full rounded-lg" />
-      </Modal>
+      {showDenote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDenote(false)} />
+          <div
+            className="relative w-full max-w-md aspect-square rounded-xl bg-cover bg-center shadow-xl"
+            style={{ backgroundImage: 'url(/denote.png)' }}
+          >
+            <button
+              onClick={() => setShowDenote(false)}
+              className="absolute top-3 right-3 text-white text-4xl font-bold leading-none drop-shadow-lg hover:opacity-80"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
