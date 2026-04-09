@@ -333,7 +333,7 @@ export function MemberHeader({
           )}
 
           {/* Gear menu - aligned to right edge matching item card trailing section */}
-          <div className="flex-shrink-0 flex items-center ml-auto">
+          <div className="flex-shrink-0 flex items-center ml-2.5">
           {showActionsMenu && (
             <div className="relative" ref={actionsMenuRef}>
               <button
