@@ -535,7 +535,7 @@ export default function ListPage() {
         isOpen={confirmDeleteArchived}
         onClose={() => setConfirmDeleteArchived(false)}
         onConfirm={handleDeleteAllArchived}
-        title="Delete all archived"
+        title="Delete all Archived"
         message={`Delete all ${archivedItems.length} archived item${archivedItems.length === 1 ? '' : 's'}? This cannot be undone.`}
         confirmText="Delete all"
         variant="danger"
@@ -546,7 +546,7 @@ export default function ListPage() {
         isOpen={confirmRestoreArchived}
         onClose={() => setConfirmRestoreArchived(false)}
         onConfirm={handleRestoreAllArchived}
-        title="Restore all archived"
+        title="Restore all Archived"
         message={`Restore all ${archivedItems.length} archived item${archivedItems.length === 1 ? '' : 's'} back to the active list?`}
         confirmText="Restore all"
         variant="danger"
