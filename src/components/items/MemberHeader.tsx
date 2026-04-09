@@ -350,7 +350,7 @@ export function MemberHeader({
               </button>
               {actionsOpen && (
                 <div
-                  className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
+                  className="absolute right-0 top-full mt-1 w-48 flex flex-col rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
                   role="menu"
                 >
                   {onCategorySortClick && (
