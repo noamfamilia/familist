@@ -35,7 +35,6 @@ interface MemberHeaderProps {
   onCollapseAll?: () => void
   onDeleteAllArchived?: () => void
   onRestoreAllArchived?: () => void
-  onDenote?: () => void
 }
 
 export function MemberHeader({
@@ -61,7 +60,6 @@ export function MemberHeader({
   onCollapseAll,
   onDeleteAllArchived,
   onRestoreAllArchived,
-  onDenote,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
@@ -392,19 +390,6 @@ export function MemberHeader({
                       }}
                     >
                       Collapse all items
-                    </button>
-                  )}
-                  {onDenote && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
-                      onClick={() => {
-                        setActionsOpen(false)
-                        onDenote()
-                      }}
-                    >
-                      Denote
                     </button>
                   )}
                   {hasArchivedItems && (onRestoreAllArchived || onDeleteAllArchived) && (

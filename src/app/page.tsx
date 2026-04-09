@@ -15,6 +15,9 @@ import { resetTutorial } from '@/components/ui/TutorialTour'
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
 })
+const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
+  ssr: false,
+})
 
 // All home tour steps - list steps only shown when lists exist
 const homeTourSteps: Step[] = [
@@ -64,6 +67,7 @@ function HomeContent() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [showDenote, setShowDenote] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
 
   const [viewMode, setViewMode] = useState<'all' | 'mine'>(() => {
@@ -190,6 +194,17 @@ function HomeContent() {
                 >
                   Replay tutorial
                 </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                  onClick={() => {
+                    setProfileMenuOpen(false)
+                    setShowDenote(true)
+                  }}
+                >
+                  Denote
+                </button>
               </div>
             )}
           </div>
@@ -253,6 +268,10 @@ function HomeContent() {
         isOpen={showAuthModal && !user}
         onClose={() => setShowAuthModal(false)}
       />
+
+      <Modal isOpen={showDenote} onClose={() => setShowDenote(false)} size="md">
+        <img src="/denote.png" alt="Denote" className="w-full rounded-lg" />
+      </Modal>
     </div>
   )
 }
