@@ -271,7 +271,7 @@ function HomeContent() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowDenote(false)} />
           <div
             className="relative w-full max-w-md aspect-square rounded-xl bg-cover bg-center shadow-xl"
-            style={{ backgroundImage: 'url(/denote.png)' }}
+            style={{ backgroundImage: 'url(/denote.jpg)' }}
           >
             <button
               onClick={() => setShowDenote(false)}
