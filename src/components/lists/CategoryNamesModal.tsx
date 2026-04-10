@@ -176,7 +176,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
             </div>
           </SortableContext>
         </DndContext>
-        <div className="flex justify-end gap-2 mt-2">
+        <div className="flex justify-end gap-2 mt-3">
           <button
             type="button"
             onMouseDown={e => e.preventDefault()}
