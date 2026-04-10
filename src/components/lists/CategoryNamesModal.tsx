@@ -156,7 +156,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Category Names" size="xs">
+    <Modal isOpen={isOpen} onClose={onClose} title="Set categories" size="xs">
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div onKeyDown={handleKeyDown}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
