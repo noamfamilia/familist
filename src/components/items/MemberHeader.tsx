@@ -192,33 +192,41 @@ export function MemberHeader({
 
   const memberMenuRef = useRef<HTMLDivElement>(null)
   const memberMenuContainerRef = useRef<HTMLDivElement>(null)
-  const [menuPaddingRight, setMenuPaddingRight] = useState<string>('0px')
+  const [menuPaddingRight, setMenuPaddingRight] = useState<number>(0)
 
   useEffect(() => {
     if (!openMenuId || openMemberIndex < 0) return
-    // Right edge of the selected member chip relative to card start
     const chipRightEdge = 12 + 20 + 2 + itemTextWidth + 2 + 8 + (openMemberIndex + 1) * 90 + openMemberIndex * 10
-    // Set initial padding, then measure and clamp
-    setMenuPaddingRight(`calc(100% - ${chipRightEdge}px)`)
+
+    // First render with ideal alignment, then measure and clamp
+    setMenuPaddingRight(-1) // sentinel to trigger measurement
 
     requestAnimationFrame(() => {
       const container = memberMenuContainerRef.current
       const row = memberMenuRef.current
       if (!container || !row) return
-      const containerRect = container.getBoundingClientRect()
-      // Get the bounding rect of actual content children
+
+      // Temporarily set ideal padding to measure
+      const containerWidth = container.offsetWidth
+      const idealPR = Math.max(0, containerWidth - chipRightEdge)
+      row.style.paddingRight = `${idealPR}px`
+
+      // Measure content width (sum of children + gaps)
       const children = row.children
-      if (children.length === 0) return
-      let minLeft = Infinity
+      let contentWidth = 0
       for (let i = 0; i < children.length; i++) {
-        const r = children[i].getBoundingClientRect()
-        if (r.width > 0) minLeft = Math.min(minLeft, r.left)
+        contentWidth += (children[i] as HTMLElement).offsetWidth
       }
-      if (minLeft < containerRect.left) {
-        // Content overflows left — shift right by reducing paddingRight
-        const overflow = containerRect.left - minLeft
-        const currentPR = parseFloat(getComputedStyle(row).paddingRight) || 0
-        setMenuPaddingRight(`${Math.max(0, currentPR - overflow)}px`)
+      const gap = 12 // gap-3 = 12px
+      contentWidth += Math.max(0, children.length - 1) * gap
+
+      // If content + idealPR exceeds container, reduce paddingRight
+      const available = containerWidth
+      const needed = contentWidth + idealPR
+      if (needed > available) {
+        setMenuPaddingRight(Math.max(0, idealPR - (needed - available)))
+      } else {
+        setMenuPaddingRight(idealPR)
       }
     })
   }, [openMenuId, openMemberIndex, itemTextWidth])
@@ -467,8 +475,8 @@ export function MemberHeader({
           <div ref={memberMenuContainerRef} className="py-2 bg-gray-50 rounded-b-lg overflow-hidden">
             <div
               ref={memberMenuRef}
-              className="flex flex-row-reverse items-center gap-3 flex-wrap"
-              style={{ paddingRight: menuPaddingRight }}
+              className="flex flex-row-reverse items-center gap-3"
+              style={{ paddingRight: menuPaddingRight >= 0 ? menuPaddingRight : undefined }}
             >
               {isOpenMemberOwner && (
                 <>
