@@ -404,6 +404,11 @@ export function useList(listId: string) {
       .channel(`list-${listId}`)
       .on(
         'postgres_changes',
+        { event: '*', schema: 'public', table: 'lists', filter: `id=eq.${listId}` },
+        handleRealtimeChange
+      )
+      .on(
+        'postgres_changes',
         { event: '*', schema: 'public', table: 'items', filter: `list_id=eq.${listId}` },
         handleRealtimeChange
       )
