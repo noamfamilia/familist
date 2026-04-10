@@ -250,7 +250,7 @@ export function MemberHeader({
                 e.stopPropagation()
                 onWidthChange?.(-20)
               }}
-              disabled={itemTextWidthMode === 'auto' || itemTextWidth <= 80}
+              disabled={itemTextWidth <= 80}
               className="h-[32px] flex items-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm"
               aria-label="Narrow item name column"
             >
@@ -261,11 +261,13 @@ export function MemberHeader({
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                onWidthModeToggle?.()
+                if (itemTextWidthMode !== 'auto') onWidthModeToggle?.()
               }}
-              className="text-[11px] font-medium leading-none touch-manipulation text-gray-400 hover:text-teal select-none"
+              className={`text-[11px] font-medium leading-none touch-manipulation select-none ${
+                itemTextWidthMode === 'auto' ? 'text-teal' : 'text-gray-400 hover:text-teal'
+              }`}
             >
-              {itemTextWidthMode === 'auto' ? 'Auto' : 'Manual'}
+              Auto
             </button>
             <button
               type="button"
@@ -274,7 +276,6 @@ export function MemberHeader({
                 e.stopPropagation()
                 onWidthChange?.(20)
               }}
-              disabled={itemTextWidthMode === 'auto'}
               className="h-[32px] flex items-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm"
               aria-label="Widen item name column"
             >

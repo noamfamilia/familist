@@ -173,17 +173,15 @@ export default function ListPage() {
   }
 
   const handleWidthChange = (delta: number) => {
+    if (itemTextWidthMode === 'auto') {
+      updateItemTextWidthMode('manual')
+    }
     updateItemTextWidth(itemTextWidth + delta)
   }
 
   const handleWidthModeToggle = () => {
-    const next = itemTextWidthMode === 'auto' ? 'manual' : 'auto'
-    updateItemTextWidthMode(next)
-    showInfo(
-      next === 'auto'
-        ? 'Auto: width adjusts to fit the longest item'
-        : 'Manual: use ◀ ▶ to adjust width'
-    )
+    updateItemTextWidthMode('auto')
+    showInfo('Auto: width adjusts to fit the longest item')
   }
 
   useEffect(() => {
