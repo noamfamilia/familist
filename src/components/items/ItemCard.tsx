@@ -301,8 +301,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             <span className="text-teal text-sm opacity-80" title="Has comment">💬</span>
           )}
 
-          {/* Category name label (collapsed only, non-empty names) */}
-          {!showMenu && categoryNames?.[String(category)] ? (
+          {/* Category name label (non-empty names only) */}
+          {categoryNames?.[String(category)] ? (
             <span className="text-[10px] text-gray-400 truncate max-w-[60px]">
               {categoryNames[String(category)]}
             </span>
@@ -338,8 +338,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
-            {/* Category 1–6 labeled rectangles */}
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Item category">
+            {/* Category 1–6 labeled rectangles — grid keeps all buttons equal width */}
+            <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
               {ITEM_CATEGORIES.map(c => {
                 const label = categoryNames?.[String(c)] || ''
                 return (
@@ -353,7 +353,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       e.stopPropagation()
                       void handlePickCategory(c)
                     }}
-                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center text-xs leading-none truncate max-w-[45%] ${ITEM_CATEGORY_STYLES[c].swatch} ${
+                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[c].swatch} ${
                       c === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500'
                     }`}
                   >
