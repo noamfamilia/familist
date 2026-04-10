@@ -158,7 +158,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xs">
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div onKeyDown={handleKeyDown}>
+      <div onKeyDown={handleKeyDown} className="mt-5">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
