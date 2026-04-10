@@ -415,7 +415,7 @@ export function MemberHeader({
                   className="absolute right-0 top-full mt-1 w-48 flex flex-col rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
                   role="menu"
                 >
-                  {isOwner && onUpdateCategoryNames && (
+                  {onUpdateCategoryNames && (
                     <button
                       type="button"
                       role="menuitem"
@@ -441,7 +441,7 @@ export function MemberHeader({
                       Sort by category
                     </button>
                   )}
-                  {(isOwner || onCategorySortClick) && (
+                  {(onUpdateCategoryNames || onCategorySortClick) && (
                     <div className="my-1 h-px bg-gray-200" role="separator" />
                   )}
                   {onExpandAll && (
@@ -597,7 +597,7 @@ export function MemberHeader({
         loading={deleteLoading}
       />
 
-      {isOwner && onUpdateCategoryNames && onUpdateCategoryOrder && categoryNames && (
+      {onUpdateCategoryNames && onUpdateCategoryOrder && categoryNames && (
         <CategoryNamesModal
           isOpen={showCategoryModal}
           onClose={() => setShowCategoryModal(false)}
