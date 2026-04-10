@@ -428,10 +428,10 @@ export function MemberHeader({
           </div>
         </div>
 
-        {/* Expanded menu - full width of header card */}
+        {/* Expanded menu - centered under member chip */}
         {openMenuId && openMember && (
           <div className="px-3 py-2 bg-gray-50 rounded-b-lg">
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center justify-center gap-3 flex-wrap">
               {/* Private/Public status icon - clickable for owner */}
               {isOpenMemberOwner ? (
                 <button
