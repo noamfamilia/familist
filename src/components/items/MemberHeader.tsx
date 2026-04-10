@@ -190,6 +190,39 @@ export function MemberHeader({
   const openMemberIndex = openMenuId ? members.findIndex(m => m.id === openMenuId) : -1
   const isOpenMemberOwner = openMember?.created_by === user?.id
 
+  const memberMenuRef = useRef<HTMLDivElement>(null)
+  const memberMenuContainerRef = useRef<HTMLDivElement>(null)
+  const [menuPaddingRight, setMenuPaddingRight] = useState<string>('0px')
+
+  useEffect(() => {
+    if (!openMenuId || openMemberIndex < 0) return
+    // Right edge of the selected member chip relative to card start
+    const chipRightEdge = 12 + 20 + 2 + itemTextWidth + 2 + 8 + (openMemberIndex + 1) * 90 + openMemberIndex * 10
+    // Set initial padding, then measure and clamp
+    setMenuPaddingRight(`calc(100% - ${chipRightEdge}px)`)
+
+    requestAnimationFrame(() => {
+      const container = memberMenuContainerRef.current
+      const row = memberMenuRef.current
+      if (!container || !row) return
+      const containerRect = container.getBoundingClientRect()
+      // Get the bounding rect of actual content children
+      const children = row.children
+      if (children.length === 0) return
+      let minLeft = Infinity
+      for (let i = 0; i < children.length; i++) {
+        const r = children[i].getBoundingClientRect()
+        if (r.width > 0) minLeft = Math.min(minLeft, r.left)
+      }
+      if (minLeft < containerRect.left) {
+        // Content overflows left — shift right by reducing paddingRight
+        const overflow = containerRect.left - minLeft
+        const currentPR = parseFloat(getComputedStyle(row).paddingRight) || 0
+        setMenuPaddingRight(`${Math.max(0, currentPR - overflow)}px`)
+      }
+    })
+  }, [openMenuId, openMemberIndex, itemTextWidth])
+
   return (
     <div className="mb-3 min-w-full w-max">
       {/* Header card container */}
@@ -431,10 +464,11 @@ export function MemberHeader({
 
         {/* Expanded menu - right-aligned to selected member chip, items flow right-to-left */}
         {openMenuId && openMember && openMemberIndex >= 0 && (
-          <div className="py-2 bg-gray-50 rounded-b-lg">
+          <div ref={memberMenuContainerRef} className="py-2 bg-gray-50 rounded-b-lg overflow-hidden">
             <div
+              ref={memberMenuRef}
               className="flex flex-row-reverse items-center gap-3 flex-wrap"
-              style={{ paddingRight: `calc(100% - ${12 + 20 + 2 + itemTextWidth + 2 + 8 + (openMemberIndex + 1) * 90 + openMemberIndex * 10}px)` }}
+              style={{ paddingRight: menuPaddingRight }}
             >
               {isOpenMemberOwner && (
                 <>
