@@ -187,6 +187,7 @@ export function MemberHeader({
   }
 
   const openMember = openMenuId ? members.find(m => m.id === openMenuId) : null
+  const openMemberIndex = openMenuId ? members.findIndex(m => m.id === openMenuId) : -1
   const isOpenMemberOwner = openMember?.created_by === user?.id
 
   return (
@@ -428,10 +429,12 @@ export function MemberHeader({
           </div>
         </div>
 
-        {/* Expanded menu - centered under member chip */}
-        {openMenuId && openMember && (
-          <div className="px-3 py-2 bg-gray-50 rounded-b-lg">
-            <div className="flex items-center justify-center gap-3 flex-wrap">
+        {/* Expanded menu - aligned under selected member chip */}
+        {openMenuId && openMember && openMemberIndex >= 0 && (
+          <div className="py-2 bg-gray-50 rounded-b-lg">
+            <div
+              className="flex items-center gap-3 flex-wrap"
+              style={{ paddingLeft: 12 + 20 + 2 + itemTextWidth + 2 + 8 + openMemberIndex * (90 + 10) }}
               {/* Private/Public status icon - clickable for owner */}
               {isOpenMemberOwner ? (
                 <button
