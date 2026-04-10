@@ -429,45 +429,25 @@ export function MemberHeader({
           </div>
         </div>
 
-        {/* Expanded menu - aligned under selected member chip */}
+        {/* Expanded menu - right-aligned to selected member chip, items flow right-to-left */}
         {openMenuId && openMember && openMemberIndex >= 0 && (
           <div className="py-2 bg-gray-50 rounded-b-lg">
             <div
-              className="flex items-center gap-3 flex-wrap"
-              style={{ paddingLeft: 12 + 20 + 2 + itemTextWidth + 2 + 8 + openMemberIndex * (90 + 10) }}
+              className="flex flex-row-reverse items-center gap-3 flex-wrap"
+              style={{ paddingRight: `calc(100% - ${12 + 20 + 2 + itemTextWidth + 2 + 8 + (openMemberIndex + 1) * 90 + openMemberIndex * 10}px)` }}
             >
-              {/* Private/Public status icon - clickable for owner */}
-              {isOpenMemberOwner ? (
-                <button
-                  onClick={() => handleTogglePublic(openMember)}
-                  className="text-lg hover:opacity-70"
-                  title={openMember.is_public ? 'Public - Click to make private' : 'Private - Click to make public'}
-                >
-                  {openMember.is_public ? '🔓' : '🔒'}
-                </button>
-              ) : (
-                <span className="text-lg opacity-60" title={openMember.is_public ? 'Public member' : 'Private member'}>
-                  {openMember.is_public ? '🔓' : '🔒'}
-                </span>
-              )}
-              
-              {/* Show all / Show to-do toggle */}
-              <Toggle
-                options={[
-                  { value: 'all', label: 'All' },
-                  { value: 'todo', label: 'To do' },
-                ]}
-                value={hideDone[openMember.id] && hideNotRelevant[openMember.id] ? 'todo' : 'all'}
-                onChange={(v) => {
-                  const showTodo = v === 'todo'
-                  if (showTodo !== hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                  if (showTodo !== hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                }}
-                variant="menu"
-              />
-              
               {isOpenMemberOwner && (
                 <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteClick(openMember)
+                    }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                  >
+                    Delete
+                  </button>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -487,19 +467,37 @@ export function MemberHeader({
                   >
                     {editingMemberId === openMember.id ? 'Done' : 'Rename'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteClick(openMember)
-                    }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-                  >
-                    Delete
-                  </button>
                 </>
               )}
-              
+
+              <Toggle
+                options={[
+                  { value: 'all', label: 'All' },
+                  { value: 'todo', label: 'To do' },
+                ]}
+                value={hideDone[openMember.id] && hideNotRelevant[openMember.id] ? 'todo' : 'all'}
+                onChange={(v) => {
+                  const showTodo = v === 'todo'
+                  if (showTodo !== hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                  if (showTodo !== hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                }}
+                variant="menu"
+              />
+
+              {isOpenMemberOwner ? (
+                <button
+                  onClick={() => handleTogglePublic(openMember)}
+                  className="text-lg hover:opacity-70"
+                  title={openMember.is_public ? 'Public - Click to make private' : 'Private - Click to make public'}
+                >
+                  {openMember.is_public ? '🔓' : '🔒'}
+                </button>
+              ) : (
+                <span className="text-lg opacity-60" title={openMember.is_public ? 'Public member' : 'Private member'}>
+                  {openMember.is_public ? '🔓' : '🔒'}
+                </span>
+              )}
+
               {!isOpenMemberOwner && openMember.creator?.nickname && (
                 <span className="px-3 py-1.5 text-sm text-gray-500">
                   Created by: {openMember.creator.nickname}
