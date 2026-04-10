@@ -164,7 +164,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   return (
     <>
     {/* Main card content */}
-    <div className="bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+    <div className="group bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle - only for active lists */}
@@ -259,7 +259,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
       {/* Expanded menu with comment field and action buttons */}
       {menuOpen && (
-        <div className="px-3 py-2 bg-gray-100 border-t border-gray-200 space-y-2">
+        <div className="px-3 py-2 bg-gray-50 group-hover:bg-gray-100 transition-colors border-t border-gray-200 space-y-2">
           {/* Comment field */}
           <div className="flex gap-2 items-center">
             <input
