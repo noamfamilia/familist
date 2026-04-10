@@ -315,7 +315,7 @@ export function ListCard({ list, existingListNames, categoryNames, categoryOrder
                   e.stopPropagation()
                   setShowCategoryNamesModal(true)
                 }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
               >
                 Categories
               </button>
@@ -341,7 +341,7 @@ export function ListCard({ list, existingListNames, categoryNames, categoryOrder
                   e.stopPropagation()
                   handleDeleteClick()
                 }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
               >
                 Delete
               </button>
@@ -352,7 +352,7 @@ export function ListCard({ list, existingListNames, categoryNames, categoryOrder
                   e.stopPropagation()
                   handleLeaveClick()
                 }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
               >
                 Leave
               </button>
