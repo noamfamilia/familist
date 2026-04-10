@@ -5,8 +5,12 @@ import dynamic from 'next/dynamic'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import { Toggle } from '@/components/ui/Toggle'
-import type { Member, MemberWithCreator } from '@/lib/supabase/types'
+import type { CategoryNames, Member, MemberWithCreator } from '@/lib/supabase/types'
 import { GearIcon } from '@/components/icons/GearIcon'
+
+const CategoryNamesModal = dynamic(() => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
+  ssr: false,
+})
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -35,6 +39,11 @@ interface MemberHeaderProps {
   onCollapseAll?: () => void
   onDeleteAllArchived?: () => void
   onRestoreAllArchived?: () => void
+  isOwner?: boolean
+  categoryNames?: CategoryNames
+  categoryOrder?: number[]
+  onUpdateCategoryNames?: (names: CategoryNames) => Promise<{ error: unknown }>
+  onUpdateCategoryOrder?: (order: number[]) => Promise<{ error: unknown }>
 }
 
 export function MemberHeader({
@@ -60,11 +69,17 @@ export function MemberHeader({
   onCollapseAll,
   onDeleteAllArchived,
   onRestoreAllArchived,
+  isOwner = false,
+  categoryNames,
+  categoryOrder,
+  onUpdateCategoryNames,
+  onUpdateCategoryOrder,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
   const [isAdding, setIsAdding] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -400,6 +415,19 @@ export function MemberHeader({
                   className="absolute right-0 top-full mt-1 w-48 flex flex-col rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
                   role="menu"
                 >
+                  {isOwner && onUpdateCategoryNames && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full text-left px-4 py-2.5 text-sm text-cyan font-medium hover:bg-gray-50"
+                      onClick={() => {
+                        setActionsOpen(false)
+                        setShowCategoryModal(true)
+                      }}
+                    >
+                      Categories
+                    </button>
+                  )}
                   {onCategorySortClick && (
                     <button
                       type="button"
@@ -565,6 +593,20 @@ export function MemberHeader({
         variant="danger"
         loading={deleteLoading}
       />
+
+      {isOwner && onUpdateCategoryNames && onUpdateCategoryOrder && categoryNames && (
+        <CategoryNamesModal
+          isOpen={showCategoryModal}
+          onClose={() => setShowCategoryModal(false)}
+          categoryNames={categoryNames}
+          categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
+          onSave={async (names, order) => {
+            const r1 = await onUpdateCategoryNames(names)
+            const r2 = await onUpdateCategoryOrder(order)
+            return { error: r1.error || r2.error }
+          }}
+        />
+      )}
     </div>
   )
 }

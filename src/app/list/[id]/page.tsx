@@ -136,6 +136,8 @@ export default function ListPage() {
     updateMemberFilter,
     updateItemTextWidth,
     updateItemTextWidthMode,
+    updateCategoryNames,
+    updateCategoryOrder,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -463,6 +465,11 @@ export default function ListPage() {
               onCollapseAll={handleCollapseAll}
               onDeleteAllArchived={() => setConfirmDeleteArchived(true)}
               onRestoreAllArchived={() => setConfirmRestoreArchived(true)}
+              isOwner={list?.owner_id === user?.id}
+              categoryNames={categoryNames}
+              categoryOrder={categoryOrder}
+              onUpdateCategoryNames={updateCategoryNames}
+              onUpdateCategoryOrder={updateCategoryOrder}
             />
           </div>
 
