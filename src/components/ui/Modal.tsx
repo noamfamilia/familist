@@ -75,7 +75,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
   if (!isOpen) return null
 
   const sizeClasses = {
-    xs: 'max-w-[288px] p-4 sm:p-4',
+    xs: 'max-w-[288px] px-1.5 py-4',
     sm: 'max-w-xs',
     md: 'max-w-md',
     lg: 'max-w-lg',
