@@ -340,7 +340,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </div>
             {/* Category 1–6 labeled rectangles + Rename / Delete */}
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap" role="group" aria-label="Item category">
+              <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden" role="group" aria-label="Item category">
                 {ITEM_CATEGORIES.map(c => {
                   const label = categoryNames?.[String(c)] || ''
                   return (
@@ -354,11 +354,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         e.stopPropagation()
                         void handlePickCategory(c)
                       }}
-                      className={`h-8 px-2 rounded-lg flex-shrink-0 touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none ${ITEM_CATEGORY_STYLES[c].swatch} ${
-                        c === category ? 'ring-2 ring-teal ring-offset-2 ring-offset-white shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500'
+                      className={`h-6 px-1.5 rounded min-w-0 flex-1 touch-manipulation transition-shadow flex items-center justify-center text-[10px] leading-none truncate ${ITEM_CATEGORY_STYLES[c].swatch} ${
+                        c === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500'
                       }`}
                     >
-                      {label || <span className="text-gray-400/70">&lt;empty&gt;</span>}
+                      <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>
                     </button>
                   )
                 })}
