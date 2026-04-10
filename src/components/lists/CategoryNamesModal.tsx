@@ -31,7 +31,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, onSave }: C
         {ITEM_CATEGORIES.map(c => (
           <div
             key={c}
-            className={`flex items-center rounded-lg px-3 py-2.5 ${ITEM_CATEGORY_STYLES[c].swatch}`}
+            className={`flex items-center rounded-lg px-3 py-2.5 ${ITEM_CATEGORY_STYLES[c].modal}`}
           >
             <input
               type="text"
