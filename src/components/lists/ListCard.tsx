@@ -284,7 +284,29 @@ export function ListCard({ list, existingListNames, categoryNames, categoryOrder
           </div>
           {/* Action buttons - styled like member menu */}
           <div className="flex items-center justify-end gap-2 flex-wrap">
-            {/* Rename - only for active lists, owner only */}
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeleteClick()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+              >
+                Delete
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleLeaveClick()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+              >
+                Leave
+              </button>
+            )}
             {isOwner && !list.userArchived && (
               <button
                 type="button"
@@ -307,20 +329,6 @@ export function ListCard({ list, existingListNames, categoryNames, categoryOrder
                 {isRenaming ? 'Done' : 'Rename'}
               </button>
             )}
-            {/* Categories - owner only, active lists */}
-            {isOwner && !list.userArchived && onUpdateCategoryNames && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowCategoryNamesModal(true)
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
-              >
-                Categories
-              </button>
-            )}
-            {/* Duplicate - only for active lists */}
             {!list.userArchived && (
               <button
                 type="button"
@@ -333,28 +341,16 @@ export function ListCard({ list, existingListNames, categoryNames, categoryOrder
                 Duplicate
               </button>
             )}
-            {/* Delete/Leave - always show */}
-            {isOwner ? (
+            {isOwner && !list.userArchived && onUpdateCategoryNames && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleDeleteClick()
+                  setShowCategoryNamesModal(true)
                 }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
               >
-                Delete
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleLeaveClick()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Leave
+                Categories
               </button>
             )}
           </div>
