@@ -50,7 +50,7 @@ function SortableCategoryRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center rounded-lg px-2 py-1.5 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
+      className={`flex items-center rounded-lg px-2 py-1 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
       onClick={!isEditing ? onTap : undefined}
     >
       <div
@@ -161,7 +161,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
       <div onKeyDown={handleKeyDown}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {order.map(c => (
                 <SortableCategoryRow
                   key={c}
@@ -177,7 +177,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
           </SortableContext>
         </DndContext>
         {editingId !== null && (
-          <div className="flex justify-end gap-2 mt-3">
+          <div className="flex justify-end gap-2 mt-2">
             <button
               type="button"
               onMouseDown={e => e.preventDefault()}
