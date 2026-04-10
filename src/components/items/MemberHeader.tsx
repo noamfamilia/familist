@@ -435,6 +435,7 @@ export function MemberHeader({
             <div
               className="flex items-center gap-3 flex-wrap"
               style={{ paddingLeft: 12 + 20 + 2 + itemTextWidth + 2 + 8 + openMemberIndex * (90 + 10) }}
+            >
               {/* Private/Public status icon - clickable for owner */}
               {isOpenMemberOwner ? (
                 <button
