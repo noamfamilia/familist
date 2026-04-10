@@ -419,7 +419,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-cyan font-medium hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
                         setActionsOpen(false)
                         setShowCategoryModal(true)
