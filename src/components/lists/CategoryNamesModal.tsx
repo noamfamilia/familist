@@ -156,9 +156,9 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xs">
+    <Modal isOpen={isOpen} onClose={onClose} size="xs" hideClose>
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div onKeyDown={handleKeyDown} className="mt-5">
+      <div onKeyDown={handleKeyDown}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
@@ -176,26 +176,24 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
             </div>
           </SortableContext>
         </DndContext>
-        {editingId !== null && (
-          <div className="flex justify-end gap-2 mt-2">
-            <button
-              type="button"
-              onMouseDown={e => e.preventDefault()}
-              onClick={cancelEdit}
-              className="text-xs font-medium text-gray-500 bg-gray-200 rounded px-3 py-1 hover:bg-gray-300"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onMouseDown={e => e.preventDefault()}
-              onClick={commitEdit}
-              className="text-xs font-medium text-white bg-teal rounded px-3 py-1 hover:opacity-80"
-            >
-              Done
-            </button>
-          </div>
-        )}
+        <div className="flex justify-end gap-2 mt-2">
+          <button
+            type="button"
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => { cancelEdit(); onClose() }}
+            className="text-xs font-medium text-gray-500 bg-gray-200 rounded px-3 py-1 hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => { commitEdit(); onClose() }}
+            className="text-xs font-medium text-white bg-teal rounded px-3 py-1 hover:opacity-80"
+          >
+            Done
+          </button>
+        </div>
       </div>
     </Modal>
   )

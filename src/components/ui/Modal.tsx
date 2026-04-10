@@ -9,9 +9,10 @@ interface ModalProps {
   children: React.ReactNode
   size?: 'xs' | 'sm' | 'md' | 'lg'
   manageHistory?: boolean
+  hideClose?: boolean
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md', manageHistory = true }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size = 'md', manageHistory = true, hideClose = false }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
@@ -102,13 +103,15 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
         className={`relative mx-auto my-4 bg-white rounded-xl shadow-xl p-6 sm:p-8 w-full max-h-[calc(100vh-2rem)] overflow-y-auto ${sizeClasses[size]} animate-in fade-in zoom-in-95 duration-200`}
       >
         {/* Close button */}
-        <button
-          onClick={onClose}
-          className={`absolute text-gray-400 hover:text-gray-600 text-2xl leading-none p-1 rounded hover:bg-gray-100 ${size === 'xs' ? 'top-1 right-1' : 'top-4 right-4'}`}
-          aria-label="Close modal"
-        >
-          &times;
-        </button>
+        {!hideClose && (
+          <button
+            onClick={onClose}
+            className={`absolute text-gray-400 hover:text-gray-600 text-2xl leading-none p-1 rounded hover:bg-gray-100 ${size === 'xs' ? 'top-1 right-1' : 'top-4 right-4'}`}
+            aria-label="Close modal"
+          >
+            &times;
+          </button>
+        )}
 
         {/* Title */}
         {title && (
