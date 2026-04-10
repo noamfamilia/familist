@@ -183,7 +183,6 @@ export default function ListPage() {
 
   const handleWidthModeToggle = () => {
     updateItemTextWidthMode('auto')
-    showInfo('Auto: width adjusts to fit the longest item')
   }
 
   useEffect(() => {
