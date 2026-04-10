@@ -85,6 +85,17 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   const [editingId, setEditingId] = useState<number | null>(null)
   const [draft, setDraft] = useState('')
 
+  // Re-sync from props when they change (e.g. realtime update from another session)
+  useEffect(() => {
+    if (editingId === null) {
+      setNames({ ...categoryNames })
+    }
+  }, [categoryNames, editingId])
+
+  useEffect(() => {
+    setOrder([...categoryOrder])
+  }, [categoryOrder])
+
   const namesRef = useRef(names)
   namesRef.current = names
   const orderRef = useRef(order)
