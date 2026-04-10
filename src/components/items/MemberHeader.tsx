@@ -425,7 +425,7 @@ export function MemberHeader({
                         setShowCategoryModal(true)
                       }}
                     >
-                      Categories
+                      Set categories
                     </button>
                   )}
                   {onCategorySortClick && (
