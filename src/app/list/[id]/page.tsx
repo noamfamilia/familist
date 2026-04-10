@@ -304,8 +304,6 @@ export default function ListPage() {
     setCategorySortLoading(false)
     if (reorderError) {
       showError(reorderError.message || 'Failed to sort by category')
-    } else {
-      showSuccess('Sorted items by category')
     }
   }
 
@@ -314,25 +312,21 @@ export default function ListPage() {
 
   const handleDeleteAllArchived = async () => {
     setBulkLoading(true)
-    const { error, count } = await deleteArchivedItems()
+    const { error } = await deleteArchivedItems()
     setBulkLoading(false)
     setConfirmDeleteArchived(false)
     if (error) {
       showError(error.message || 'Failed to delete archived items')
-    } else {
-      showSuccess(`Deleted ${count} archived item${count === 1 ? '' : 's'}`)
     }
   }
 
   const handleRestoreAllArchived = async () => {
     setBulkLoading(true)
-    const { error, count } = await restoreArchivedItems()
+    const { error } = await restoreArchivedItems()
     setBulkLoading(false)
     setConfirmRestoreArchived(false)
     if (error) {
       showError(error.message || 'Failed to restore archived items')
-    } else {
-      showSuccess(`Restored ${count} archived item${count === 1 ? '' : 's'}`)
     }
   }
 
