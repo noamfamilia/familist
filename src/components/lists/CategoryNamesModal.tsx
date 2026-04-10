@@ -20,27 +20,25 @@ function SortableCategoryRow({
   catId,
   name,
   isEditing,
+  draftValue,
+  onDraftChange,
   onTap,
-  onCommit,
-  onCancel,
 }: {
   catId: number
   name: string
   isEditing: boolean
+  draftValue: string
+  onDraftChange: (value: string) => void
   onTap: () => void
-  onCommit: (value: string) => void
-  onCancel: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: catId })
   const inputRef = useRef<HTMLInputElement>(null)
-  const [draft, setDraft] = useState(name)
 
   useEffect(() => {
     if (isEditing) {
-      setDraft(name)
       setTimeout(() => inputRef.current?.focus(), 0)
     }
-  }, [isEditing, name])
+  }, [isEditing])
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -63,32 +61,17 @@ function SortableCategoryRow({
         ⋮⋮
       </div>
       {isEditing ? (
-        <div className="flex-1 flex items-center gap-2">
-          <input
-            ref={inputRef}
-            type="text"
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') onCommit(draft)
-              else if (e.key === 'Escape') onCancel()
-            }}
-            onBlur={onCancel}
-            placeholder="<empty>"
-            className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-gray-400/70"
-            maxLength={30}
-          />
-          <button
-            type="button"
-            onMouseDown={e => e.preventDefault()}
-            onClick={() => onCommit(draft)}
-            className="text-xs font-medium text-white bg-white/20 rounded px-2 py-0.5 hover:bg-white/30 flex-shrink-0"
-          >
-            Done
-          </button>
-        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={draftValue}
+          onChange={e => onDraftChange(e.target.value)}
+          placeholder="<empty>"
+          className="flex-1 bg-transparent text-sm text-black focus:outline-none placeholder:text-gray-400/70"
+          maxLength={30}
+        />
       ) : (
-        <span className="flex-1 text-sm text-gray-200 truncate">
+        <span className="flex-1 text-sm text-black truncate">
           {name || <span className="text-gray-400/70">&lt;empty&gt;</span>}
         </span>
       )}
@@ -100,6 +83,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   const [names, setNames] = useState<CategoryNames>({ ...categoryNames })
   const [order, setOrder] = useState<number[]>([...categoryOrder])
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [draft, setDraft] = useState('')
 
   const namesRef = useRef(names)
   namesRef.current = names
@@ -131,35 +115,77 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
     }
   }
 
-  const handleCommitName = (catId: number, value: string) => {
-    const trimmed = value.trim()
-    const updated = { ...namesRef.current, [String(catId)]: trimmed }
+  const startEditing = (catId: number) => {
+    setEditingId(catId)
+    setDraft(names[String(catId)] ?? '')
+  }
+
+  const commitEdit = () => {
+    if (editingId === null) return
+    const trimmed = draft.trim()
+    const updated = { ...namesRef.current, [String(editingId)]: trimmed }
     setNames(updated)
+    const changed = trimmed !== (categoryNames[String(editingId)] ?? '')
     setEditingId(null)
-    if (trimmed !== (categoryNames[String(catId)] ?? '')) {
+    setDraft('')
+    if (changed) {
       persistNow(updated, orderRef.current)
     }
   }
 
+  const cancelEdit = () => {
+    setEditingId(null)
+    setDraft('')
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (editingId === null) return
+    if (e.key === 'Enter') commitEdit()
+    else if (e.key === 'Escape') cancelEdit()
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Category Names" size="sm">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={order} strategy={verticalListSortingStrategy}>
-          <div className="space-y-3">
-            {order.map(c => (
-              <SortableCategoryRow
-                key={c}
-                catId={c}
-                name={names[String(c)] ?? ''}
-                isEditing={editingId === c}
-                onTap={() => setEditingId(c)}
-                onCommit={value => handleCommitName(c, value)}
-                onCancel={() => setEditingId(null)}
-              />
-            ))}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div onKeyDown={handleKeyDown}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={order} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {order.map(c => (
+                <SortableCategoryRow
+                  key={c}
+                  catId={c}
+                  name={names[String(c)] ?? ''}
+                  isEditing={editingId === c}
+                  draftValue={editingId === c ? draft : ''}
+                  onDraftChange={setDraft}
+                  onTap={() => startEditing(c)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        {editingId !== null && (
+          <div className="flex justify-end gap-2 mt-3">
+            <button
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={cancelEdit}
+              className="text-xs font-medium text-gray-500 bg-gray-200 rounded px-3 py-1 hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={commitEdit}
+              className="text-xs font-medium text-white bg-teal rounded px-3 py-1 hover:opacity-80"
+            >
+              Done
+            </button>
           </div>
-        </SortableContext>
-      </DndContext>
+        )}
+      </div>
     </Modal>
   )
 }
