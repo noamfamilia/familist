@@ -4,36 +4,9 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
-import type { Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
+import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
-
-/** Category 1–6: same shell + swatch tint; swatch border helps pale fills read in the menu. */
-const ITEM_CATEGORY_STYLES: Record<ItemCategory, { shell: string; swatch: string }> = {
-  1: {
-    shell: 'bg-gray-50 hover:bg-gray-100',
-    swatch: 'border border-gray-300 bg-gray-50',
-  },
-  2: {
-    shell: 'bg-teal/10 hover:bg-teal/[0.18]',
-    swatch: 'border border-teal/40 bg-teal/10',
-  },
-  3: {
-    shell: 'bg-coral/10 hover:bg-coral/[0.18]',
-    swatch: 'border border-coral/40 bg-coral/10',
-  },
-  4: {
-    shell: 'bg-orange/10 hover:bg-orange/20',
-    swatch: 'border border-orange/45 bg-orange/10',
-  },
-  5: {
-    shell: 'bg-violet-100/90 hover:bg-violet-100',
-    swatch: 'border border-violet-300/55 bg-violet-100/90',
-  },
-  6: {
-    shell: 'bg-slate-200/60 hover:bg-slate-200/80',
-    swatch: 'border border-slate-400/55 bg-slate-200/60',
-  },
-}
+import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -53,9 +26,10 @@ interface ItemCardProps {
   itemTextWidth?: number
   expandSignal?: number
   collapseSignal?: number
+  categoryNames?: CategoryNames
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0 }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -327,6 +301,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             <span className="text-teal text-sm opacity-80" title="Has comment">💬</span>
           )}
 
+          {/* Category name label (collapsed only, non-empty names) */}
+          {!showMenu && categoryNames?.[String(category)] ? (
+            <span className="text-[10px] text-gray-400 truncate max-w-[60px]">
+              {categoryNames[String(category)]}
+            </span>
+          ) : null}
+
           {/* Kebab menu button */}
           <button
             onClick={() => setShowMenu(!showMenu)}
@@ -357,27 +338,30 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
-            {/* Category 1–6 swatches + Rename / Delete */}
+            {/* Category 1–6 labeled rectangles + Rename / Delete */}
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-shrink-0" role="group" aria-label="Item category">
-                {ITEM_CATEGORIES.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    aria-label={`Category ${c}`}
-                    aria-pressed={c === category}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      void handlePickCategory(c)
-                    }}
-                    className={`h-8 w-8 rounded-full flex-shrink-0 touch-manipulation transition-shadow flex items-center justify-center text-xs font-semibold text-primary leading-none ${ITEM_CATEGORY_STYLES[c].swatch} ${
-                      c === category ? 'ring-2 ring-teal ring-offset-2 ring-offset-white shadow-sm' : 'hover:opacity-90'
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
+              <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap" role="group" aria-label="Item category">
+                {ITEM_CATEGORIES.map(c => {
+                  const label = categoryNames?.[String(c)] || ''
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      aria-label={`Category ${c}`}
+                      aria-pressed={c === category}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        void handlePickCategory(c)
+                      }}
+                      className={`h-8 px-2 rounded-lg flex-shrink-0 touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none ${ITEM_CATEGORY_STYLES[c].swatch} ${
+                        c === category ? 'ring-2 ring-teal ring-offset-2 ring-offset-white shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500'
+                      }`}
+                    >
+                      {label || <span className="text-gray-400/70">&lt;empty&gt;</span>}
+                    </button>
+                  )
+                })}
               </div>
               <div className="flex items-center justify-end gap-2 flex-shrink-0">
                 <button

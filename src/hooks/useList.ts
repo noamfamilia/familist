@@ -7,6 +7,7 @@ import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } 
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
   normalizeItemCategory,
+  type CategoryNames,
   type Database,
   type Item,
   type ItemMemberState,
@@ -32,6 +33,22 @@ function parseWidthValue(raw: string | number | null | undefined): { mode: Width
   const num = parseInt(raw, 10)
   if (isNaN(num) || num < 80) return { mode: 'auto', width: 80 }
   return { mode: 'manual', width: num }
+}
+
+const EMPTY_CATEGORY_NAMES: CategoryNames = { '1': '', '2': '', '3': '', '4': '', '5': '', '6': '' }
+
+function parseCategoryNames(raw: string | null | undefined): CategoryNames {
+  if (!raw) return { ...EMPTY_CATEGORY_NAMES }
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string>
+    const result = { ...EMPTY_CATEGORY_NAMES }
+    for (const k of Object.keys(result)) {
+      if (typeof parsed[k] === 'string') result[k] = parsed[k]
+    }
+    return result
+  } catch {
+    return { ...EMPTY_CATEGORY_NAMES }
+  }
 }
 
 function getCachedPrefs(listId: string, userId?: string) {
@@ -122,6 +139,7 @@ export function useList(listId: string) {
   const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>(() => getCachedPrefs(listId).memberFilter)
   const [itemTextWidthMode, setItemTextWidthMode] = useState<WidthMode>(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).mode)
   const [itemTextWidth, setItemTextWidth] = useState(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).width)
+  const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -146,6 +164,7 @@ export function useList(listId: string) {
     const parsed = parseWidthValue(cachedPrefs.itemTextWidth)
     setItemTextWidthMode(parsed.mode)
     setItemTextWidth(parsed.width)
+    setCategoryNames(parseCategoryNames(cachedData?.list?.category_names))
     setLoading(!!userId && !cachedData?.list)
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
@@ -254,6 +273,7 @@ export function useList(listId: string) {
       setMembers(data.members || [])
       const nextItems = normalizeItemsCategory(data.items || [])
       setItems(nextItems)
+      setCategoryNames(parseCategoryNames(data.list.category_names))
       hasInitialDataRef.current = true
 
       // Cache the list data for instant load next time
@@ -990,6 +1010,31 @@ export function useList(listId: string) {
     }
   }
 
+  const updateCategoryNames = async (names: CategoryNames) => {
+    const prev = categoryNames
+    const prevList = list
+    const nonEmpty: Record<string, string> = {}
+    for (const [k, v] of Object.entries(names)) {
+      if (v) nonEmpty[k] = v
+    }
+    const serialized = Object.keys(nonEmpty).length > 0 ? JSON.stringify(nonEmpty) : '{}'
+    setCategoryNames({ ...EMPTY_CATEGORY_NAMES, ...names })
+    setList(l => l ? { ...l, category_names: serialized } : l)
+
+    const { error } = await trackSaveOperation(
+      supabase
+        .from('lists')
+        .update({ category_names: serialized })
+        .eq('id', listId)
+    )
+    if (error) {
+      setCategoryNames(prev)
+      setList(prevList)
+      return { error }
+    }
+    return { error: null }
+  }
+
   // Auto-fit width when mode is 'auto' and items change
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
@@ -1012,6 +1057,7 @@ export function useList(listId: string) {
     memberFilter,
     itemTextWidth,
     itemTextWidthMode,
+    categoryNames,
     refresh: fetchList,
     addItem,
     updateItem,
@@ -1027,5 +1073,6 @@ export function useList(listId: string) {
     updateMemberFilter,
     updateItemTextWidth,
     updateItemTextWidthMode,
+    updateCategoryNames,
   }
 }

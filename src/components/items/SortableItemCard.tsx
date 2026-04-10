@@ -3,7 +3,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ItemCard } from './ItemCard'
-import type { Item, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
+import type { CategoryNames, Item, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 
 interface SortableItemCardProps {
   item: ItemWithState
@@ -17,9 +17,10 @@ interface SortableItemCardProps {
   itemTextWidth?: number
   expandSignal?: number
   collapseSignal?: number
+  categoryNames?: CategoryNames
 }
 
-export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -51,6 +52,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
         itemTextWidth={itemTextWidth}
         expandSignal={expandSignal}
         collapseSignal={collapseSignal}
+        categoryNames={categoryNames}
       />
     </div>
   )

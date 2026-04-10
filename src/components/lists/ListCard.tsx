@@ -5,7 +5,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
-import type { ListWithRole } from '@/lib/supabase/types'
+import type { CategoryNames, ListWithRole } from '@/lib/supabase/types'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -13,20 +13,25 @@ const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(m
 const ShareModal = dynamic(() => import('./ShareModal').then(mod => mod.ShareModal), {
   ssr: false,
 })
+const CategoryNamesModal = dynamic(() => import('./CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
+  ssr: false,
+})
 
 interface ListCardProps {
   list: ListWithRole
   existingListNames: string[]
+  categoryNames?: CategoryNames
   onUpdate: (listId: string, updates: { name?: string; archived?: boolean; comment?: string }) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
   onArchive: (listId: string, updates: { archived?: boolean }) => Promise<{ error: Error | null }>
   onDuplicate: (listId: string, newName: string) => Promise<{ error: Error | null; warning?: string | null }>
   onLeave: (listId: string) => Promise<{ error: Error | null }>
+  onUpdateCategoryNames?: (listId: string, names: CategoryNames) => Promise<{ error: unknown }>
   onRefresh?: () => void
   dragHandleProps?: Record<string, unknown>
 }
 
-export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, dragHandleProps }: ListCardProps) {
+export function ListCard({ list, existingListNames, categoryNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onUpdateCategoryNames, onRefresh, dragHandleProps }: ListCardProps) {
   const { error: showError } = useToast()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -34,6 +39,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [showCategoryNamesModal, setShowCategoryNamesModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -300,6 +306,19 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 {isRenaming ? 'Done' : 'Rename'}
               </button>
             )}
+            {/* Categories - owner only, active lists */}
+            {isOwner && !list.userArchived && onUpdateCategoryNames && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowCategoryNamesModal(true)
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+              >
+                Categories
+              </button>
+            )}
             {/* Duplicate - only for active lists */}
             {!list.userArchived && (
               <button
@@ -372,6 +391,15 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         onClose={() => setShowShareModal(false)}
         list={list}
         onUpdate={() => onRefresh?.()}
+      />
+    )}
+
+    {isOwner && onUpdateCategoryNames && categoryNames && (
+      <CategoryNamesModal
+        isOpen={showCategoryNamesModal}
+        onClose={() => setShowCategoryNamesModal(false)}
+        categoryNames={categoryNames}
+        onSave={(names) => onUpdateCategoryNames(list.id, names)}
       />
     )}
   </>

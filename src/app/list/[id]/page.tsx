@@ -110,6 +110,7 @@ export default function ListPage() {
     memberFilter,
     itemTextWidth,
     itemTextWidthMode,
+    categoryNames,
     refresh,
     addItem,
     addMember,
@@ -479,6 +480,7 @@ export default function ListPage() {
                       itemTextWidth={itemTextWidth}
                       expandSignal={expandSignal}
                       collapseSignal={collapseSignal}
+                      categoryNames={categoryNames}
                     />
                   ))}
                 </SortableContext>
@@ -516,6 +518,7 @@ export default function ListPage() {
                     itemTextWidth={itemTextWidth}
                     expandSignal={expandSignal}
                     collapseSignal={collapseSignal}
+                    categoryNames={categoryNames}
                   />
                 ))}
               </div>

@@ -51,6 +51,7 @@ export interface Database {
           visibility: 'private' | 'link'
           archived: boolean
           comment: string | null
+          category_names: string | null
           join_token: string | null
           join_role_granted: 'viewer' | 'editor'
           join_expires_at: string | null
@@ -66,6 +67,7 @@ export interface Database {
           visibility?: 'private' | 'link'
           archived?: boolean
           comment?: string | null
+          category_names?: string | null
           join_token?: string | null
           join_role_granted?: 'viewer' | 'editor'
           join_expires_at?: string | null
@@ -81,6 +83,7 @@ export interface Database {
           visibility?: 'private' | 'link'
           archived?: boolean
           comment?: string | null
+          category_names?: string | null
           join_token?: string | null
           join_role_granted?: 'viewer' | 'editor'
           join_expires_at?: string | null
@@ -237,6 +240,7 @@ export interface Database {
           activeItemCount: number
           ownerNickname: string | null
           comment: string | null
+          category_names: string | null
         }[]
       }
       get_list_data: {
@@ -334,3 +338,6 @@ export type ListWithRole = List & {
 }
 
 export type ItemWithState = Database['public']['Functions']['get_list_data']['Returns']['items'][number]
+
+/** Keys "1"-"6", values are user-defined category names (empty string = unnamed). */
+export type CategoryNames = Record<string, string>
