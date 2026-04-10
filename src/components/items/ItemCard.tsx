@@ -338,31 +338,32 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
-            {/* Category 1–6 labeled rectangles + Rename / Delete */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden" role="group" aria-label="Item category">
-                {ITEM_CATEGORIES.map(c => {
-                  const label = categoryNames?.[String(c)] || ''
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      aria-label={`Category ${c}`}
-                      aria-pressed={c === category}
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        void handlePickCategory(c)
-                      }}
-                      className={`h-6 px-1.5 rounded min-w-0 flex-1 touch-manipulation transition-shadow flex items-center justify-center text-[10px] leading-none truncate ${ITEM_CATEGORY_STYLES[c].swatch} ${
-                        c === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500'
-                      }`}
-                    >
-                      <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>
-                    </button>
-                  )
-                })}
-              </div>
+            {/* Category 1–6 labeled rectangles */}
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Item category">
+              {ITEM_CATEGORIES.map(c => {
+                const label = categoryNames?.[String(c)] || ''
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={`Category ${c}`}
+                    aria-pressed={c === category}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      void handlePickCategory(c)
+                    }}
+                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center text-xs leading-none truncate max-w-[45%] ${ITEM_CATEGORY_STYLES[c].swatch} ${
+                      c === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500'
+                    }`}
+                  >
+                    <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {/* Rename / Delete */}
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <div className="flex items-center justify-end gap-2 flex-shrink-0">
                 <button
                   type="button"
