@@ -27,9 +27,10 @@ interface ItemCardProps {
   expandSignal?: number
   collapseSignal?: number
   categoryNames?: CategoryNames
+  categoryOrder?: number[]
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -340,21 +341,22 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </div>
             {/* Category 1–6 labeled rectangles — grid keeps all buttons equal width */}
             <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
-              {ITEM_CATEGORIES.map(c => {
-                const label = categoryNames?.[String(c)] || ''
+              {(categoryOrder || ITEM_CATEGORIES).map(c => {
+                const catId = c as ItemCategory
+                const label = categoryNames?.[String(catId)] || ''
                 return (
                   <button
-                    key={c}
+                    key={catId}
                     type="button"
-                    aria-label={`Category ${c}`}
-                    aria-pressed={c === category}
+                    aria-label={`Category ${catId}`}
+                    aria-pressed={catId === category}
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
-                      void handlePickCategory(c)
+                      void handlePickCategory(catId)
                     }}
-                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[c].swatch} ${
-                      c === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500'
+                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
+                      catId === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500'
                     }`}
                   >
                     <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>

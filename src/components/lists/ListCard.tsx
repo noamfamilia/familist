@@ -21,17 +21,18 @@ interface ListCardProps {
   list: ListWithRole
   existingListNames: string[]
   categoryNames?: CategoryNames
+  categoryOrder?: number[]
   onUpdate: (listId: string, updates: { name?: string; archived?: boolean; comment?: string }) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
   onArchive: (listId: string, updates: { archived?: boolean }) => Promise<{ error: Error | null }>
   onDuplicate: (listId: string, newName: string) => Promise<{ error: Error | null; warning?: string | null }>
   onLeave: (listId: string) => Promise<{ error: Error | null }>
-  onUpdateCategoryNames?: (listId: string, names: CategoryNames) => Promise<{ error: unknown }>
+  onUpdateCategoryNames?: (listId: string, names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
   onRefresh?: () => void
   dragHandleProps?: Record<string, unknown>
 }
 
-export function ListCard({ list, existingListNames, categoryNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onUpdateCategoryNames, onRefresh, dragHandleProps }: ListCardProps) {
+export function ListCard({ list, existingListNames, categoryNames, categoryOrder, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onUpdateCategoryNames, onRefresh, dragHandleProps }: ListCardProps) {
   const { error: showError } = useToast()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -399,7 +400,8 @@ export function ListCard({ list, existingListNames, categoryNames, onUpdate, onD
         isOpen={showCategoryNamesModal}
         onClose={() => setShowCategoryNamesModal(false)}
         categoryNames={categoryNames}
-        onSave={(names) => onUpdateCategoryNames(list.id, names)}
+        categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
+        onSave={(names, order) => onUpdateCategoryNames(list.id, names, order)}
       />
     )}
   </>

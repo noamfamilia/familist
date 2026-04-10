@@ -24,19 +24,28 @@ const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(m
   ssr: false,
 })
 
-function compareItemsByCategoryThenOrder(a: ItemWithState, b: ItemWithState) {
-  const ac = normalizeItemCategory(a.category)
-  const bc = normalizeItemCategory(b.category)
-  if (ac !== bc) return ac - bc
-  return (a.sort_order || 0) - (b.sort_order || 0)
-}
+function makeCategoryComparators(order: number[]) {
+  const positionOf = (cat: number) => {
+    const idx = order.indexOf(cat)
+    return idx === -1 ? order.length : idx
+  }
 
-function compareArchivedByCategoryThenTime(a: ItemWithState, b: ItemWithState) {
-  const byCat = compareItemsByCategoryThenOrder(a, b)
-  if (byCat !== 0) return byCat
-  const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
-  const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
-  return bTime - aTime
+  const byCategory = (a: ItemWithState, b: ItemWithState) => {
+    const ac = positionOf(normalizeItemCategory(a.category))
+    const bc = positionOf(normalizeItemCategory(b.category))
+    if (ac !== bc) return ac - bc
+    return (a.sort_order || 0) - (b.sort_order || 0)
+  }
+
+  const archivedByCategory = (a: ItemWithState, b: ItemWithState) => {
+    const byCat = byCategory(a, b)
+    if (byCat !== 0) return byCat
+    const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
+    const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
+    return bTime - aTime
+  }
+
+  return { byCategory, archivedByCategory }
 }
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
@@ -111,6 +120,7 @@ export default function ListPage() {
     itemTextWidth,
     itemTextWidthMode,
     categoryNames,
+    categoryOrder,
     refresh,
     addItem,
     addMember,
@@ -284,10 +294,11 @@ export default function ListPage() {
 
   const handleCategorySortClick = async () => {
     if (categorySortLoading || items.length === 0) return
+    const { byCategory, archivedByCategory } = makeCategoryComparators(categoryOrder)
     const active = items.filter(i => !i.archived)
     const archived = items.filter(i => i.archived)
-    const sortedActive = [...active].sort(compareItemsByCategoryThenOrder)
-    const sortedArchived = [...archived].sort(compareArchivedByCategoryThenTime)
+    const sortedActive = [...active].sort(byCategory)
+    const sortedArchived = [...archived].sort(archivedByCategory)
     setCategorySortLoading(true)
     const { error: reorderError } = await reorderItems([...sortedActive, ...sortedArchived])
     setCategorySortLoading(false)
@@ -481,6 +492,7 @@ export default function ListPage() {
                       expandSignal={expandSignal}
                       collapseSignal={collapseSignal}
                       categoryNames={categoryNames}
+                      categoryOrder={categoryOrder}
                     />
                   ))}
                 </SortableContext>
@@ -519,6 +531,7 @@ export default function ListPage() {
                     expandSignal={expandSignal}
                     collapseSignal={collapseSignal}
                     categoryNames={categoryNames}
+                    categoryOrder={categoryOrder}
                   />
                 ))}
               </div>

@@ -27,6 +27,7 @@ interface ListsViewProps {
   onInviteHandled?: () => void
 }
 
+const DEFAULT_CAT_ORDER = [1, 2, 3, 4, 5, 6]
 const EMPTY_CAT_NAMES: CategoryNames = { '1': '', '2': '', '3': '', '4': '', '5': '', '6': '' }
 
 function parseCategoryNames(raw: string | null | undefined): CategoryNames {
@@ -41,6 +42,17 @@ function parseCategoryNames(raw: string | null | undefined): CategoryNames {
   } catch {
     return { ...EMPTY_CAT_NAMES }
   }
+}
+
+function parseCategoryOrder(raw: string | null | undefined): number[] {
+  if (!raw) return [...DEFAULT_CAT_ORDER]
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (Array.isArray(parsed) && parsed.length === 6 && parsed.every((v: unknown) => typeof v === 'number' && v >= 1 && v <= 6)) {
+      return parsed as number[]
+    }
+  } catch { /* ignore */ }
+  return [...DEFAULT_CAT_ORDER]
 }
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled }: ListsViewProps) {
@@ -64,13 +76,14 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const [error, setError] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
   
-  const handleUpdateCategoryNames = async (listId: string, names: CategoryNames) => {
+  const handleUpdateCategoryNames = async (listId: string, names: CategoryNames, order: number[]) => {
     const nonEmpty: Record<string, string> = {}
     for (const [k, v] of Object.entries(names)) {
       if (v) nonEmpty[k] = v
     }
-    const serialized = Object.keys(nonEmpty).length > 0 ? JSON.stringify(nonEmpty) : '{}'
-    return updateList(listId, { category_names: serialized })
+    const serializedNames = Object.keys(nonEmpty).length > 0 ? JSON.stringify(nonEmpty) : '{}'
+    const serializedOrder = JSON.stringify(order)
+    return updateList(listId, { category_names: serializedNames, category_order: serializedOrder })
   }
 
   const isJoinMode = inputValue.startsWith('@')
@@ -285,6 +298,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     list={list}
                     existingListNames={ownedListNames}
                     categoryNames={parseCategoryNames(list.category_names)}
+                    categoryOrder={parseCategoryOrder(list.category_order)}
                     onUpdate={updateList}
                     onDelete={deleteList}
                     onArchive={updateUserListState}
@@ -317,6 +331,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                 list={list}
                 existingListNames={ownedListNames}
                 categoryNames={parseCategoryNames(list.category_names)}
+                categoryOrder={parseCategoryOrder(list.category_order)}
                 onUpdate={updateList}
                 onDelete={deleteList}
                 onArchive={updateUserListState}

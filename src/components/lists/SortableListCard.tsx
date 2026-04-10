@@ -9,16 +9,17 @@ interface SortableListCardProps {
   list: ListWithRole
   existingListNames: string[]
   categoryNames?: CategoryNames
+  categoryOrder?: number[]
   onUpdate: (listId: string, updates: { name?: string; archived?: boolean }) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
   onArchive: (listId: string, updates: { archived?: boolean }) => Promise<{ error: Error | null }>
   onDuplicate: (listId: string, newName: string) => Promise<{ error: Error | null; warning?: string | null }>
   onLeave: (listId: string) => Promise<{ error: Error | null }>
-  onUpdateCategoryNames?: (listId: string, names: CategoryNames) => Promise<{ error: unknown }>
+  onUpdateCategoryNames?: (listId: string, names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
   onRefresh?: () => void
 }
 
-export function SortableListCard({ list, existingListNames, categoryNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onUpdateCategoryNames, onRefresh }: SortableListCardProps) {
+export function SortableListCard({ list, existingListNames, categoryNames, categoryOrder, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onUpdateCategoryNames, onRefresh }: SortableListCardProps) {
   const {
     attributes,
     listeners,
@@ -40,6 +41,7 @@ export function SortableListCard({ list, existingListNames, categoryNames, onUpd
         list={list}
         existingListNames={existingListNames}
         categoryNames={categoryNames}
+        categoryOrder={categoryOrder}
         onUpdate={onUpdate}
         onDelete={onDelete}
         onArchive={onArchive}

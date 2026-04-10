@@ -52,6 +52,7 @@ export interface Database {
           archived: boolean
           comment: string | null
           category_names: string | null
+          category_order: string | null
           join_token: string | null
           join_role_granted: 'viewer' | 'editor'
           join_expires_at: string | null
@@ -68,6 +69,7 @@ export interface Database {
           archived?: boolean
           comment?: string | null
           category_names?: string | null
+          category_order?: string | null
           join_token?: string | null
           join_role_granted?: 'viewer' | 'editor'
           join_expires_at?: string | null
@@ -84,6 +86,7 @@ export interface Database {
           archived?: boolean
           comment?: string | null
           category_names?: string | null
+          category_order?: string | null
           join_token?: string | null
           join_role_granted?: 'viewer' | 'editor'
           join_expires_at?: string | null
@@ -241,6 +244,7 @@ export interface Database {
           ownerNickname: string | null
           comment: string | null
           category_names: string | null
+          category_order: string | null
         }[]
       }
       get_list_data: {

@@ -151,6 +151,7 @@ export function useLists() {
         ownerNickname: item.ownerNickname,
         comment: item.comment,
         category_names: item.category_names ?? null,
+        category_order: item.category_order ?? null,
       }))
 
       setLists(listsData)
@@ -282,6 +283,7 @@ export function useLists() {
       archived: false,
       comment: null,
       category_names: null,
+      category_order: null,
       join_token: null,
       join_role_granted: 'editor',
       join_expires_at: null,
@@ -328,7 +330,7 @@ export function useLists() {
     return { data, error: null }
   }
 
-  const updateList = async (listId: string, updates: { name?: string; archived?: boolean; comment?: string | null; category_names?: string | null }) => {
+  const updateList = async (listId: string, updates: { name?: string; archived?: boolean; comment?: string | null; category_names?: string | null; category_order?: string | null }) => {
     const previousList = lists.find(list => list.id === listId)
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => prev.map(list => 

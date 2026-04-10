@@ -51,6 +51,19 @@ function parseCategoryNames(raw: string | null | undefined): CategoryNames {
   }
 }
 
+const DEFAULT_CATEGORY_ORDER: number[] = [1, 2, 3, 4, 5, 6]
+
+function parseCategoryOrder(raw: string | null | undefined): number[] {
+  if (!raw) return [...DEFAULT_CATEGORY_ORDER]
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (Array.isArray(parsed) && parsed.length === 6 && parsed.every((v: unknown) => typeof v === 'number' && v >= 1 && v <= 6)) {
+      return parsed as number[]
+    }
+  } catch { /* ignore */ }
+  return [...DEFAULT_CATEGORY_ORDER]
+}
+
 function getCachedPrefs(listId: string, userId?: string) {
   const defaults = { memberFilter: 'all' as const, itemTextWidth: 'auto' as string }
   if (typeof window === 'undefined') return defaults
@@ -140,6 +153,7 @@ export function useList(listId: string) {
   const [itemTextWidthMode, setItemTextWidthMode] = useState<WidthMode>(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).mode)
   const [itemTextWidth, setItemTextWidth] = useState(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).width)
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
+  const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -165,6 +179,7 @@ export function useList(listId: string) {
     setItemTextWidthMode(parsed.mode)
     setItemTextWidth(parsed.width)
     setCategoryNames(parseCategoryNames(cachedData?.list?.category_names))
+    setCategoryOrder(parseCategoryOrder(cachedData?.list?.category_order))
     setLoading(!!userId && !cachedData?.list)
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
@@ -274,6 +289,7 @@ export function useList(listId: string) {
       const nextItems = normalizeItemsCategory(data.items || [])
       setItems(nextItems)
       setCategoryNames(parseCategoryNames(data.list.category_names))
+      setCategoryOrder(parseCategoryOrder(data.list.category_order))
       hasInitialDataRef.current = true
 
       // Cache the list data for instant load next time
@@ -1035,6 +1051,27 @@ export function useList(listId: string) {
     return { error: null }
   }
 
+  const updateCategoryOrder = async (order: number[]) => {
+    const prev = categoryOrder
+    const prevList = list
+    const serialized = JSON.stringify(order)
+    setCategoryOrder(order)
+    setList(l => l ? { ...l, category_order: serialized } : l)
+
+    const { error } = await trackSaveOperation(
+      supabase
+        .from('lists')
+        .update({ category_order: serialized })
+        .eq('id', listId)
+    )
+    if (error) {
+      setCategoryOrder(prev)
+      setList(prevList)
+      return { error }
+    }
+    return { error: null }
+  }
+
   // Auto-fit width when mode is 'auto' and items change
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
@@ -1058,6 +1095,7 @@ export function useList(listId: string) {
     itemTextWidth,
     itemTextWidthMode,
     categoryNames,
+    categoryOrder,
     refresh: fetchList,
     addItem,
     updateItem,
@@ -1074,5 +1112,6 @@ export function useList(listId: string) {
     updateItemTextWidth,
     updateItemTextWidthMode,
     updateCategoryNames,
+    updateCategoryOrder,
   }
 }
