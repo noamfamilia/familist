@@ -104,7 +104,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl leading-none p-1 rounded hover:bg-gray-100"
+          className="absolute top-1.5 right-1.5 text-gray-400 hover:text-gray-600 text-2xl leading-none p-1 rounded hover:bg-gray-100"
           aria-label="Close modal"
         >
           &times;
