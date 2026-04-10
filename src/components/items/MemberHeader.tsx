@@ -251,7 +251,9 @@ export function MemberHeader({
                 onWidthChange?.(-20)
               }}
               disabled={itemTextWidth <= 80}
-              className="h-[32px] flex items-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm"
+              className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
+                itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 hover:text-teal'
+              }`}
               aria-label="Narrow item name column"
             >
               ◀
@@ -276,7 +278,9 @@ export function MemberHeader({
                 e.stopPropagation()
                 onWidthChange?.(20)
               }}
-              className="h-[32px] flex items-center touch-manipulation text-gray-400 hover:text-teal disabled:opacity-30 text-sm"
+              className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
+                itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 hover:text-teal'
+              }`}
               aria-label="Widen item name column"
             >
               ▶
