@@ -50,7 +50,7 @@ function SortableCategoryRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center rounded-lg px-3 py-2.5 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
+      className={`flex items-center rounded-lg px-2 py-1.5 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
       onClick={!isEditing ? onTap : undefined}
     >
       <div
@@ -156,12 +156,12 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Category Names" size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title="Category Names" size="xs">
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div onKeyDown={handleKeyDown}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {order.map(c => (
                 <SortableCategoryRow
                   key={c}

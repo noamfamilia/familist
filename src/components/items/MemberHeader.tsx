@@ -441,6 +441,9 @@ export function MemberHeader({
                       Sort by category
                     </button>
                   )}
+                  {(isOwner || onCategorySortClick) && (
+                    <div className="my-1 h-px bg-gray-200" role="separator" />
+                  )}
                   {onExpandAll && (
                     <button
                       type="button"

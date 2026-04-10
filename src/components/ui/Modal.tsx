@@ -7,7 +7,7 @@ interface ModalProps {
   onClose: () => void
   title?: string
   children: React.ReactNode
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   manageHistory?: boolean
 }
 
@@ -75,6 +75,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
   if (!isOpen) return null
 
   const sizeClasses = {
+    xs: 'max-w-[240px]',
     sm: 'max-w-xs',
     md: 'max-w-md',
     lg: 'max-w-lg',
