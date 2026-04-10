@@ -67,11 +67,11 @@ function SortableCategoryRow({
           value={draftValue}
           onChange={e => onDraftChange(e.target.value)}
           placeholder="<empty>"
-          className="flex-1 bg-transparent text-sm text-black focus:outline-none placeholder:text-gray-400/70"
+          className="flex-1 min-w-0 bg-transparent text-sm text-black focus:outline-none placeholder:text-gray-400/70 h-5 p-0"
           maxLength={30}
         />
       ) : (
-        <span className="flex-1 text-sm text-black truncate">
+        <span className="flex-1 min-w-0 text-sm text-black truncate h-5 leading-5">
           {name || <span className="text-gray-400/70">&lt;empty&gt;</span>}
         </span>
       )}
@@ -156,7 +156,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Set categories" size="xs">
+    <Modal isOpen={isOpen} onClose={onClose} size="xs">
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div onKeyDown={handleKeyDown}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
