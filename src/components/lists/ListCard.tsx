@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
@@ -38,12 +38,21 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [duplicating, setDuplicating] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [comment, setComment] = useState(list.comment || '')
+  const [editingComment, setEditingComment] = useState(false)
+  const [draftComment, setDraftComment] = useState('')
+  const commentRef = useRef<HTMLTextAreaElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Sync comment state when list updates from realtime
   useEffect(() => {
     setComment(list.comment || '')
   }, [list.comment])
+
+  const autoGrow = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [])
 
   const isOwner = list.role === 'owner'
 
@@ -52,15 +61,25 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     setIsRenaming(false)
   }
 
+  const handleStartEditComment = () => {
+    setDraftComment(comment)
+    setEditingComment(true)
+  }
+
   const handleSaveComment = async () => {
-    const trimmed = comment.trim()
-    if (trimmed !== (list.comment || '')) {
-      const { error } = await onUpdate(list.id, { comment: trimmed || null })
-      if (error) {
-        showError('Failed to save comment')
-        setComment(list.comment || '')
-      }
+    const trimmed = draftComment.trim()
+    setComment(trimmed)
+    setEditingComment(false)
+    const { error } = await onUpdate(list.id, { comment: trimmed || null })
+    if (error) {
+      showError('Failed to save comment')
+      setComment(list.comment || '')
     }
+  }
+
+  const handleCancelComment = () => {
+    setDraftComment(comment)
+    setEditingComment(false)
   }
 
 
@@ -261,78 +280,99 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {menuOpen && (
         <div className="px-3 py-2 bg-gray-50 group-hover:bg-gray-100 transition-colors border-t border-gray-200 space-y-2">
           {/* Comment field */}
-          <div className="flex gap-2 items-center">
-            <input
-              type="text"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              onBlur={handleSaveComment}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveComment()
-              }}
+          <div className="flex gap-2 items-start">
+            <textarea
+              ref={commentRef}
+              rows={1}
+              value={editingComment ? draftComment : comment}
+              onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
+              onFocus={() => { if (!editingComment) handleStartEditComment() }}
               placeholder="Add a comment..."
-              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal resize-none overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             />
           </div>
-          {/* Action buttons - styled like member menu */}
+          {/* Action buttons */}
           <div className="flex items-center justify-end gap-2 flex-wrap">
-            {isOwner ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDeleteClick()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Delete
-              </button>
+            {editingComment ? (
+              <>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => { e.stopPropagation(); handleCancelComment() }}
+                  className="px-3 py-1.5 text-sm text-white rounded-lg bg-gray-400 hover:bg-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => { e.stopPropagation(); void handleSaveComment() }}
+                  className="px-3 py-1.5 text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
+                >
+                  Done
+                </button>
+              </>
             ) : (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleLeaveClick()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Leave
-              </button>
-            )}
-            {isOwner && !list.userArchived && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (isRenaming) {
-                    void handleRename()
-                    return
-                  }
-                  setNewName(list.name)
-                  setIsRenaming(true)
-                }}
-                onMouseDown={(e) => {
-                  if (isRenaming) e.preventDefault()
-                }}
-                className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-                  isRenaming ? 'bg-red-500 hover:bg-red-600' : 'bg-cyan hover:opacity-80'
-                }`}
-              >
-                {isRenaming ? 'Done' : 'Rename'}
-              </button>
-            )}
-            {!list.userArchived && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void handleDuplicate()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-              >
-                Duplicate
-              </button>
+              <>
+                {isOwner ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteClick()
+                    }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+                  >
+                    Delete
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleLeaveClick()
+                    }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+                  >
+                    Leave
+                  </button>
+                )}
+                {isOwner && !list.userArchived && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (isRenaming) {
+                        void handleRename()
+                        return
+                      }
+                      setNewName(list.name)
+                      setIsRenaming(true)
+                    }}
+                    onMouseDown={(e) => {
+                      if (isRenaming) e.preventDefault()
+                    }}
+                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
+                      isRenaming ? 'bg-red-500 hover:bg-red-600' : 'bg-cyan hover:opacity-80'
+                    }`}
+                  >
+                    {isRenaming ? 'Done' : 'Rename'}
+                  </button>
+                )}
+                {!list.userArchived && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void handleDuplicate()
+                    }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                  >
+                    Duplicate
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

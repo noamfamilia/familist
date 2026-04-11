@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
@@ -36,12 +36,21 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(item.text)
   const [comment, setComment] = useState(item.comment || '')
+  const [editingComment, setEditingComment] = useState(false)
+  const [draftComment, setDraftComment] = useState('')
+  const commentRef = useRef<HTMLTextAreaElement>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Sync comment state when item updates from realtime
   useEffect(() => {
     setComment(item.comment || '')
   }, [item.comment])
+
+  const autoGrow = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [])
   const [deleting, setDeleting] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [editingQuantityMember, setEditingQuantityMember] = useState<string | null>(null)
@@ -136,12 +145,25 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     }
   }
 
+  const handleStartEditComment = () => {
+    setDraftComment(comment)
+    setEditingComment(true)
+  }
+
   const handleSaveComment = async () => {
-    const { error } = await onUpdateItem(item.id, { comment: comment.trim() || null })
+    const trimmed = draftComment.trim()
+    setComment(trimmed)
+    setEditingComment(false)
+    const { error } = await onUpdateItem(item.id, { comment: trimmed || null })
     if (error) {
       showError(error.message || 'Failed to save comment')
       setComment(item.comment || '')
     }
+  }
+
+  const handleCancelComment = () => {
+    setDraftComment(comment)
+    setEditingComment(false)
   }
 
   const handleDeleteConfirm = async () => {
@@ -325,17 +347,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         {showMenu && (
           <div className="px-3 py-2 space-y-2 border-t border-black/10">
             {/* Comment field */}
-            <div className="flex gap-2 items-center">
-              <input
-                type="text"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                onBlur={handleSaveComment}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveComment()
-                }}
+            <div className="flex gap-2 items-start">
+              <textarea
+                ref={commentRef}
+                rows={1}
+                value={editingComment ? draftComment : comment}
+                onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
+                onFocus={() => { if (!editingComment) handleStartEditComment() }}
                 placeholder="Add a comment..."
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal bg-white/80"
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal bg-white/80 resize-none overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
@@ -364,41 +384,62 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 )
               })}
             </div>
-            {/* Rename / Delete */}
+            {/* Action buttons */}
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <div className="flex items-center justify-end gap-2 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (isEditing) {
-                      void handleSaveText()
-                      return
-                    }
-                    setEditText(item.text)
-                    setIsEditing(true)
-                  }}
-                  onMouseDown={(e) => {
-                    if (isEditing) e.preventDefault()
-                  }}
-                  className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-                    isEditing ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
-                  }`}
-                >
-                  {isEditing ? 'Done' : 'Rename'}
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setShowDeleteConfirm(true)
-                    setShowMenu(false)
-                  }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-                >
-                  Delete
-                </button>
-              </div>
+              {editingComment ? (
+                <div className="flex items-center justify-end gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => { e.stopPropagation(); handleCancelComment() }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-gray-400 hover:bg-gray-500"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => { e.stopPropagation(); void handleSaveComment() }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-end gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (isEditing) {
+                        void handleSaveText()
+                        return
+                      }
+                      setEditText(item.text)
+                      setIsEditing(true)
+                    }}
+                    onMouseDown={(e) => {
+                      if (isEditing) e.preventDefault()
+                    }}
+                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
+                      isEditing ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
+                    }`}
+                  >
+                    {isEditing ? 'Done' : 'Rename'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowDeleteConfirm(true)
+                      setShowMenu(false)
+                    }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
