@@ -309,10 +309,10 @@ export function MemberHeader({
               const isHidden = openMenuId && !isMenuOpen
               
               return (
-                <div key={member.id} className={`relative ${isHidden ? 'opacity-40 blur-[1px] pointer-events-none' : ''}`}>
+                <div key={member.id} className={isHidden ? 'opacity-40 pointer-events-none' : ''}>
                   {/* Member container - fixed size to match item state containers */}
                   <div
-                    className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
+                    className={`flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
                     data-tour="member-chip"
                     onClick={() => {
                       if (editingMemberId !== member.id) setOpenMenuId(isMenuOpen ? null : member.id)
@@ -335,14 +335,14 @@ export function MemberHeader({
                         onClick={e => e.stopPropagation()}
                       />
                     ) : (
-                      <span className="text-lg truncate flex-1 text-center">
+                      <span className={`text-lg truncate ${isMenuOpen ? '' : 'flex-1'} text-center`}>
                         {member.name}
                       </span>
                     )}
+                    {isMenuOpen && editingMemberId !== member.id && (
+                      <span className="text-gray-400 text-lg leading-none ml-1">✕</span>
+                    )}
                   </div>
-                  {isMenuOpen && (
-                    <span className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-gray-400 text-white text-xs leading-none pointer-events-none">✕</span>
-                  )}
                 </div>
               )
             })}
@@ -350,7 +350,7 @@ export function MemberHeader({
 
           {/* +Goal button */}
           {showAddMember && (
-            <div className={`relative ml-2.5 flex-shrink-0 ${openMenuId ? 'opacity-40 blur-[1px] pointer-events-none' : ''}`}>
+            <div className={`relative ml-2.5 flex-shrink-0 ${openMenuId ? 'opacity-40 pointer-events-none' : ''}`}>
               {isAdding ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -391,7 +391,7 @@ export function MemberHeader({
           )}
 
           {/* Gear menu - aligned to right edge matching item card trailing section */}
-          <div className="flex-shrink-0 flex items-center ml-auto pl-2.5">
+          <div className={`flex-shrink-0 flex items-center ml-auto pl-2.5 ${openMenuId ? 'opacity-40 pointer-events-none' : ''}`}>
           {showActionsMenu && (
             <div className="relative" ref={actionsMenuRef}>
               <button
