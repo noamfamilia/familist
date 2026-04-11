@@ -309,7 +309,7 @@ export function MemberHeader({
               const isHidden = openMenuId && !isMenuOpen
               
               return (
-                <div key={member.id} className={isHidden ? 'invisible' : ''}>
+                <div key={member.id} className={`relative ${isHidden ? 'opacity-40 blur-[1px] pointer-events-none' : ''}`}>
                   {/* Member container - fixed size to match item state containers */}
                   <div
                     className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
@@ -340,6 +340,9 @@ export function MemberHeader({
                       </span>
                     )}
                   </div>
+                  {isMenuOpen && (
+                    <span className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-gray-400 text-white text-xs leading-none pointer-events-none">✕</span>
+                  )}
                 </div>
               )
             })}
@@ -347,7 +350,7 @@ export function MemberHeader({
 
           {/* +Goal button */}
           {showAddMember && (
-            <div className={`relative ml-2.5 flex-shrink-0 ${openMenuId ? 'invisible' : ''}`}>
+            <div className={`relative ml-2.5 flex-shrink-0 ${openMenuId ? 'opacity-40 blur-[1px] pointer-events-none' : ''}`}>
               {isAdding ? (
                 <div className="flex items-center gap-2">
                   <input
