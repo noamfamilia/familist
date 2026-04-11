@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
-import { Toggle } from '@/components/ui/Toggle'
+
 import Link from 'next/link'
 import { Suspense, useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
@@ -22,10 +22,6 @@ const homeTourSteps: Step[] = [
     target: '[data-tour="home-profile-menu"]',
     content: 'App settings',
     disableBeacon: true,
-  },
-  {
-    target: '[data-tour="home-view-toggle"]',
-    content: 'Show all lists or just the ones you own.',
   },
   {
     target: '[data-tour="create-list"]',
@@ -67,22 +63,6 @@ function HomeContent() {
   const [showDenote, setShowDenote] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
 
-  const [viewMode, setViewMode] = useState<'all' | 'mine'>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('home_list_filter')
-      if (cached === 'all' || cached === 'mine') return cached
-    }
-    return 'all'
-  })
-
-  // Sync viewMode from profile (for cross-device consistency)
-  useEffect(() => {
-    if (profile?.list_filter === 'mine' || profile?.list_filter === 'all') {
-      setViewMode(profile.list_filter)
-      localStorage.setItem('home_list_filter', profile.list_filter)
-    }
-  }, [profile?.list_filter])
-
   useEffect(() => {
     if (!inviteToken) return
     setPendingInviteToken(inviteToken)
@@ -122,13 +102,6 @@ function HomeContent() {
     url.searchParams.delete('invite')
     const search = url.searchParams.toString()
     router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
-  }
-
-  // Save viewMode to localStorage and profile when changed
-  const handleViewModeChange = (mode: 'all' | 'mine') => {
-    setViewMode(mode)
-    localStorage.setItem('home_list_filter', mode)
-    updateProfile({ list_filter: mode })
   }
 
   if (loading) {
@@ -215,19 +188,7 @@ function HomeContent() {
           </button>
         )}
         
-        {/* View toggle - top right */}
-        {user && (
-          <div data-tour="home-view-toggle">
-            <Toggle
-              options={[
-                { value: 'all', label: 'All' },
-                { value: 'mine', label: 'Owned' },
-              ]}
-              value={viewMode}
-              onChange={handleViewModeChange}
-            />
-          </div>
-        )}
+        <div />
         {!user && <div />}
       </div>
 
@@ -247,7 +208,7 @@ function HomeContent() {
       {user ? (
         <>
           <ListsView 
-            viewMode={viewMode} 
+            viewMode="all" 
             homeTourSteps={homeTourSteps}
             showTutorial={!showAuthModal} 
             inviteToken={inviteToken}

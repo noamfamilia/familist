@@ -64,8 +64,12 @@ function parseCategoryOrder(raw: string | null | undefined): number[] {
   return [...DEFAULT_CATEGORY_ORDER]
 }
 
+type MemberFilter = 'all' | 'mine' | 'hide'
+
+const VALID_MEMBER_FILTERS: MemberFilter[] = ['all', 'mine', 'hide']
+
 function getCachedPrefs(listId: string, userId?: string) {
-  const defaults = { memberFilter: 'all' as const, itemTextWidth: 'auto' as string }
+  const defaults = { memberFilter: 'all' as MemberFilter, itemTextWidth: 'auto' as string }
   if (typeof window === 'undefined') return defaults
   const prefsKey = getPrefsKey(listId, userId)
   if (!prefsKey) return defaults
@@ -75,7 +79,7 @@ function getCachedPrefs(listId: string, userId?: string) {
     try {
       const parsed = JSON.parse(cached)
       return {
-        memberFilter: (parsed.memberFilter === 'mine' || parsed.memberFilter === 'all') ? parsed.memberFilter : 'all' as const,
+        memberFilter: VALID_MEMBER_FILTERS.includes(parsed.memberFilter) ? parsed.memberFilter as MemberFilter : 'all' as MemberFilter,
         itemTextWidth: typeof parsed.itemTextWidth === 'string' ? parsed.itemTextWidth : 'auto',
       }
     } catch { /* ignore */ }
@@ -83,8 +87,7 @@ function getCachedPrefs(listId: string, userId?: string) {
   return defaults
 }
 
-// Helper to save preferences to localStorage
-function setCachedPrefs(listId: string, prefs: { memberFilter?: 'all' | 'mine', itemTextWidth?: string }, userId?: string) {
+function setCachedPrefs(listId: string, prefs: { memberFilter?: MemberFilter, itemTextWidth?: string }, userId?: string) {
   if (typeof window === 'undefined') return
   const prefsKey = getPrefsKey(listId, userId)
   if (!prefsKey) return
@@ -149,7 +152,7 @@ export function useList(listId: string) {
   const [saveTimedOut, setSaveTimedOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
-  const [memberFilter, setMemberFilter] = useState<'all' | 'mine'>(() => getCachedPrefs(listId).memberFilter)
+  const [memberFilter, setMemberFilter] = useState<MemberFilter>(() => getCachedPrefs(listId).memberFilter)
   const [itemTextWidthMode, setItemTextWidthMode] = useState<WidthMode>(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).mode)
   const [itemTextWidth, setItemTextWidth] = useState(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).width)
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
@@ -310,9 +313,9 @@ export function useList(listId: string) {
           .single()
 
         if (listUserData) {
-          if (listUserData.member_filter === 'all' || listUserData.member_filter === 'mine') {
-            setMemberFilter(listUserData.member_filter)
-            setCachedPrefs(listId, { memberFilter: listUserData.member_filter }, userId)
+          if (VALID_MEMBER_FILTERS.includes(listUserData.member_filter as MemberFilter)) {
+            setMemberFilter(listUserData.member_filter as MemberFilter)
+            setCachedPrefs(listId, { memberFilter: listUserData.member_filter as MemberFilter }, userId)
           }
           const serverVal = listUserData.item_text_width
           const parsed = parseWidthValue(serverVal)
@@ -966,7 +969,7 @@ export function useList(listId: string) {
     return { error: null }
   }
 
-  const updateMemberFilter = async (filter: 'all' | 'mine') => {
+  const updateMemberFilter = async (filter: MemberFilter) => {
     const prev = memberFilter
     setMemberFilter(filter)
     setCachedPrefs(listId, { memberFilter: filter }, userId)

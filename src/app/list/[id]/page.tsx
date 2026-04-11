@@ -9,7 +9,7 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { useAuth } from '@/providers/AuthProvider'
 import { useList } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
-import { Toggle } from '@/components/ui/Toggle'
+
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
@@ -57,7 +57,7 @@ const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(m
 const listTourSteps: Step[] = [
   {
     target: '[data-tour="view-toggle"]',
-    content: 'Show everyone\'s goals or just your own.',
+    content: 'Choose which goals to display: all, yours, or none.',
     disableBeacon: true,
   },
   {
@@ -273,9 +273,11 @@ export default function ListPage() {
     return bTime - aTime
   })
 
-  const filteredMembers = memberFilter === 'all' 
-    ? members 
-    : members.filter(m => m.created_by === user?.id)
+  const filteredMembers = memberFilter === 'all'
+    ? members
+    : memberFilter === 'mine'
+    ? members.filter(m => m.created_by === user?.id)
+    : []
 
   const toggleHideDone = (memberId: string) => {
     setHideDone(prev => ({
@@ -382,14 +384,16 @@ export default function ListPage() {
           ← Back to lists
         </button>
         <div data-tour="view-toggle">
-          <Toggle
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'mine', label: 'Owned' },
-            ]}
+          <select
             value={memberFilter}
-            onChange={updateMemberFilter}
-          />
+            onChange={e => updateMemberFilter(e.target.value as 'all' | 'mine' | 'hide')}
+            className="h-8 px-2 pr-7 rounded-lg border border-teal bg-white text-teal text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal/30 appearance-none"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%230d9488' d='M3 5l3 3 3-3'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center' }}
+          >
+            <option value="hide">Hide all Goals</option>
+            <option value="mine">Show my Goals</option>
+            <option value="all">Show all Goals</option>
+          </select>
         </div>
       </div>
 
@@ -445,7 +449,7 @@ export default function ListPage() {
               onUpdateMember={updateMember}
               onDeleteMember={deleteMember}
               listId={listId}
-              showAddMember={memberFilter === 'all'}
+              showAddMember={memberFilter !== 'hide'}
               itemTextWidth={itemTextWidth}
               itemTextWidthMode={itemTextWidthMode}
               onWidthChange={handleWidthChange}
