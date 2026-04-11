@@ -92,7 +92,7 @@ export default function ProfilePage() {
         <div className="space-y-3">
           <div>
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Email</label>
-            <p className="text-gray-800 break-all">{user.email}</p>
+            <p className="text-gray-800 dark:text-gray-200 break-all">{user.email}</p>
           </div>
           <div>
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Nickname</label>
@@ -119,7 +119,7 @@ export default function ProfilePage() {
               </div>
             ) : (
               <p
-                className="text-gray-800 cursor-pointer hover:text-teal"
+                className="text-gray-800 dark:text-gray-200 cursor-pointer hover:text-teal"
                 onClick={() => {
                   setEditNickname(displayNickname)
                   setIsEditingNickname(true)

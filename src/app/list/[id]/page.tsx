@@ -238,7 +238,7 @@ export default function ListPage() {
               </Button>
               <button
                 onClick={handleBackToLists}
-                className="text-primary hover:underline block"
+                className="text-primary dark:text-gray-100 hover:underline block"
               >
                 ← Back to lists
               </button>
@@ -249,7 +249,7 @@ export default function ListPage() {
             <p className="text-center text-gray-500 dark:text-gray-400">List not found or deleted</p>
             <button
               onClick={handleBackToLists}
-              className="mt-4 text-primary hover:underline block mx-auto"
+              className="mt-4 text-primary dark:text-gray-100 hover:underline block mx-auto"
             >
               ← Back to lists
             </button>
@@ -397,7 +397,7 @@ export default function ListPage() {
         <button
           type="button"
           onClick={handleBackToLists}
-          className="h-8 flex items-center text-primary hover:underline text-sm sm:text-base"
+          className="h-8 flex items-center text-primary dark:text-gray-100 hover:underline text-sm sm:text-base"
           aria-label="Go back to all lists"
         >
           ← Back to lists

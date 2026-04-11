@@ -45,7 +45,7 @@ function CallbackHandler() {
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-700 p-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-8 w-full max-w-md text-center">
           <div className="text-red-500 text-5xl mb-4">✕</div>
-          <h1 className="text-xl font-bold text-primary mb-2">Authentication Error</h1>
+          <h1 className="text-xl font-bold text-primary dark:text-gray-100 mb-2">Authentication Error</h1>
           <p className="text-red-600 dark:text-red-400 mb-6 text-sm break-words">{error}</p>
           <button
             onClick={() => router.push('/')}

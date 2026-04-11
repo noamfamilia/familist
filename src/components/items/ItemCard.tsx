@@ -39,6 +39,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [editingComment, setEditingComment] = useState(false)
   const [draftComment, setDraftComment] = useState('')
   const commentRef = useRef<HTMLTextAreaElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Sync comment state when item updates from realtime
@@ -91,6 +92,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const handleCancelEditText = () => {
     setEditText(item.text)
     setIsEditing(false)
+    nameInputRef.current?.blur()
+  }
+
+  const handleClearText = () => {
+    setEditText('')
+    nameInputRef.current?.focus()
   }
 
   const handleSaveText = async () => {
@@ -226,15 +233,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         >
           {isEditing ? (
             <input
+              ref={nameInputRef}
               type="text"
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
-              onBlur={handleCancelEditText}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveText()
-                if (e.key === 'Escape') {
-                  handleCancelEditText()
-                }
+                if (e.key === 'Enter') void handleSaveText()
+                if (e.key === 'Escape') handleCancelEditText()
               }}
               className="w-full px-2 py-0.5 border border-teal rounded text-lg"
               autoFocus
@@ -304,7 +309,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         handleStartEditQuantity(member.id, quantity)
                       }
                     }}
-                    className={`text-center text-lg font-semibold ${quantity === 0 ? 'text-gray-400 dark:text-gray-500' : 'text-primary'} ${quantity > 0 && canEdit ? 'cursor-pointer hover:text-teal w-8' : ''}`}
+                    className={`text-center text-lg font-semibold ${quantity === 0 ? 'text-gray-400 dark:text-gray-500' : 'text-primary dark:text-gray-100'} ${quantity > 0 && canEdit ? 'cursor-pointer hover:text-teal w-8' : ''}`}
                   >
                     {quantity}
                   </span>
@@ -320,7 +325,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     className={`w-6 h-6 rounded-md flex items-center justify-center text-base font-bold transition-colors ${
                       done 
                         ? 'bg-coral text-white' 
-                        : 'bg-gray-100 dark:bg-slate-700 text-primary'
+                        : 'bg-gray-100 dark:bg-slate-700 text-primary dark:text-gray-100'
                     } ${canEdit ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
                     disabled={!canEdit}
                   >
@@ -391,7 +396,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       void handlePickCategory(catId)
                     }}
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
-                      catId === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
+                      catId === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
                     }`}
                   >
                     <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>
@@ -401,12 +406,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </div>
             {/* Action buttons */}
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {editingComment ? (
+              {editingComment || isEditing ? (
                 <div className="flex items-center justify-end gap-2 flex-shrink-0">
                   <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => { e.stopPropagation(); handleCancelComment() }}
+                    onClick={(e) => { e.stopPropagation(); isEditing ? handleCancelEditText() : handleCancelComment() }}
                     className="px-3 py-1.5 text-sm text-white rounded-lg bg-gray-400 hover:bg-gray-500"
                   >
                     Cancel
@@ -414,7 +419,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => { e.stopPropagation(); handleClearComment() }}
+                    onClick={(e) => { e.stopPropagation(); isEditing ? handleClearText() : handleClearComment() }}
                     className="px-3 py-1.5 text-sm text-white rounded-lg bg-teal hover:opacity-80"
                   >
                     Clear
@@ -422,7 +427,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => { e.stopPropagation(); void handleSaveComment() }}
+                    onClick={(e) => { e.stopPropagation(); isEditing ? void handleSaveText() : void handleSaveComment() }}
                     className="px-3 py-1.5 text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
                   >
                     Done
@@ -434,21 +439,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (isEditing) {
-                        void handleSaveText()
-                        return
-                      }
                       setEditText(item.text)
                       setIsEditing(true)
                     }}
-                    onMouseDown={(e) => {
-                      if (isEditing) e.preventDefault()
-                    }}
-                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-                      isEditing ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
-                    }`}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-teal hover:opacity-80"
                   >
-                    {isEditing ? 'Done' : 'Rename'}
+                    Rename
                   </button>
                   <button
                     type="button"

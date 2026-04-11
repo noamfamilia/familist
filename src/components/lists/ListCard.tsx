@@ -59,6 +59,12 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const handleCancelRename = () => {
     setNewName(list.name)
     setIsRenaming(false)
+    inputRef.current?.blur()
+  }
+
+  const handleClearName = () => {
+    setNewName('')
+    inputRef.current?.focus()
   }
 
   const handleStartEditComment = () => {
@@ -228,12 +234,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           type="text"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          onBlur={handleCancelRename}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleRename()
-            if (e.key === 'Escape') {
-              handleCancelRename()
-            }
+            if (e.key === 'Enter') void handleRename()
+            if (e.key === 'Escape') handleCancelRename()
           }}
           className="flex-1 min-w-0 px-2 py-1 border border-teal rounded text-lg font-medium"
           aria-label="List name"
@@ -249,7 +252,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       ) : (
         <Link
           href={`/list/${list.id}`}
-          className="flex-1 min-w-0 font-medium truncate text-lg text-primary hover:text-teal"
+          className="flex-1 min-w-0 font-medium truncate text-lg text-primary dark:text-gray-100 hover:text-teal"
           data-tour="list-card"
         >
           {list.name}
@@ -314,12 +317,12 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           </div>
           {/* Action buttons */}
           <div className="flex items-center justify-end gap-2 flex-wrap">
-            {editingComment ? (
+            {editingComment || isRenaming ? (
               <>
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => { e.stopPropagation(); handleCancelComment() }}
+                  onClick={(e) => { e.stopPropagation(); isRenaming ? handleCancelRename() : handleCancelComment() }}
                   className="px-3 py-1.5 text-sm text-white rounded-lg bg-gray-400 hover:bg-gray-500"
                 >
                   Cancel
@@ -327,7 +330,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => { e.stopPropagation(); handleClearComment() }}
+                  onClick={(e) => { e.stopPropagation(); isRenaming ? handleClearName() : handleClearComment() }}
                   className="px-3 py-1.5 text-sm text-white rounded-lg bg-teal hover:opacity-80"
                 >
                   Clear
@@ -335,7 +338,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => { e.stopPropagation(); void handleSaveComment() }}
+                  onClick={(e) => { e.stopPropagation(); isRenaming ? void handleRename() : void handleSaveComment() }}
                   className="px-3 py-1.5 text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
                 >
                   Done
@@ -360,21 +363,12 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (isRenaming) {
-                        void handleRename()
-                        return
-                      }
                       setNewName(list.name)
                       setIsRenaming(true)
                     }}
-                    onMouseDown={(e) => {
-                      if (isRenaming) e.preventDefault()
-                    }}
-                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-                      isRenaming ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
-                    }`}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-teal hover:opacity-80"
                   >
-                    {isRenaming ? 'Done' : 'Rename'}
+                    Rename
                   </button>
                 )}
                 {isOwner ? (
