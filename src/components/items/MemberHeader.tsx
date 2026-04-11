@@ -254,7 +254,7 @@ export function MemberHeader({
         <div className="flex items-center gap-0.5 pl-3 pr-1 py-1 whitespace-nowrap">
           <div className="w-5 flex-shrink-0 h-[40px]" />
           <div
-            className="flex-shrink-0 h-[40px] flex items-center justify-between"
+            className={`flex-shrink-0 h-[40px] flex items-center justify-between ${openMenuId ? 'opacity-20 pointer-events-none' : ''}`}
             style={{ width: itemTextWidth }}
             data-tour="item-text-width"
           >
@@ -309,7 +309,7 @@ export function MemberHeader({
               const isHidden = openMenuId && !isMenuOpen
               
               return (
-                <div key={member.id} className={isHidden ? 'opacity-40 pointer-events-none' : ''}>
+                <div key={member.id} className={isHidden ? 'opacity-20 pointer-events-none' : ''}>
                   {/* Member container - fixed size to match item state containers */}
                   <div
                     className={`flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
@@ -350,7 +350,7 @@ export function MemberHeader({
 
           {/* +Goal button */}
           {showAddMember && (
-            <div className={`relative ml-2.5 flex-shrink-0 ${openMenuId ? 'opacity-40 pointer-events-none' : ''}`}>
+            <div className={`relative ml-2.5 flex-shrink-0 ${openMenuId ? 'opacity-20 pointer-events-none' : ''}`}>
               {isAdding ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -391,7 +391,7 @@ export function MemberHeader({
           )}
 
           {/* Gear menu - aligned to right edge matching item card trailing section */}
-          <div className={`flex-shrink-0 flex items-center ml-auto pl-2.5 ${openMenuId ? 'opacity-40 pointer-events-none' : ''}`}>
+          <div className={`flex-shrink-0 flex items-center ml-auto pl-2.5 ${openMenuId ? 'opacity-20 pointer-events-none' : ''}`}>
           {showActionsMenu && (
             <div className="relative" ref={actionsMenuRef}>
               <button
