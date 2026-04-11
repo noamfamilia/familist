@@ -100,8 +100,8 @@ const listTourSteps: Step[] = [
     content: 'List actions: sort, expand/collapse, and manage archived items.',
   },
   {
-    target: '[data-tour="member-kebab"]',
-    content: 'Member menu options',
+    target: '[data-tour="member-chip"]',
+    content: 'Tap a member to see menu options.',
     spotlightPadding: 2,
   },
 ]

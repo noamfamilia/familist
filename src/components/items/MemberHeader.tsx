@@ -312,8 +312,11 @@ export function MemberHeader({
                 <div key={member.id} className={isHidden ? 'invisible' : ''}>
                   {/* Member container - fixed size to match item state containers */}
                   <div
-                    className="flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px]"
+                    className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
                     data-tour="member-chip"
+                    onClick={() => {
+                      if (editingMemberId !== member.id) setOpenMenuId(isMenuOpen ? null : member.id)
+                    }}
                   >
                     {editingMemberId === member.id ? (
                       <input
@@ -329,22 +332,12 @@ export function MemberHeader({
                         }}
                         className="w-14 px-1 py-0.5 text-sm border border-teal rounded"
                         autoFocus
+                        onClick={e => e.stopPropagation()}
                       />
                     ) : (
                       <span className="text-lg truncate flex-1 text-center">
                         {member.name}
                       </span>
-                    )}
-                    
-                    {/* Kebab menu button */}
-                    {editingMemberId !== member.id && (
-                      <button
-                        onClick={() => setOpenMenuId(isMenuOpen ? null : member.id)}
-                        className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1"
-                        data-tour="member-kebab"
-                      >
-                        {isMenuOpen ? '✕' : '⋮'}
-                      </button>
                     )}
                   </div>
                 </div>
