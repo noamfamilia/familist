@@ -15,20 +15,20 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="text-sm font-medium text-gray-700">{label}</label>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">{label}</label>
         )}
         <div className="relative">
           <input
             ref={ref}
             type={isPassword && showPassword ? 'text' : type}
-            className={`w-full px-4 py-3 border border-gray-200 rounded-lg text-base text-primary transition-all duration-200 focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/20 ${error ? 'border-red-500' : ''} ${className}`}
+            className={`w-full px-4 py-3 border border-gray-200 dark:border-slate-600 rounded-lg text-base text-primary transition-all duration-200 focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/20 ${error ? 'border-red-500' : ''} ${className}`}
             {...props}
           />
           {isPassword && (
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? '🙈' : '👁'}

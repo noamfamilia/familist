@@ -11,6 +11,7 @@ import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
 import { resetTutorial } from '@/components/ui/TutorialTour'
+import { useTheme } from 'next-themes'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -57,6 +58,7 @@ function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, profile, loading, updateProfile } = useAuth()
+  const { theme, setTheme } = useTheme()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -106,14 +108,14 @@ function HomeContent() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
       {/* Top bar */}
       <div className="flex items-center justify-between mb-4">
         {/* Auth button - top left */}
@@ -128,16 +130,16 @@ function HomeContent() {
               aria-haspopup="menu"
               title={user.email}
             >
-              <Image src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
+              <Image src="/profile.png" alt="" width={32} height={32} className="w-8 h-8 dark:invert" />
             </button>
             {profileMenuOpen && (
               <div
-                className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
+                className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 py-1 z-50"
                 role="menu"
               >
                 <Link
                   href="/profile"
-                  className="block px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                  className="block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   role="menuitem"
                   onClick={() => setProfileMenuOpen(false)}
                 >
@@ -145,7 +147,7 @@ function HomeContent() {
                 </Link>
                 <Link
                   href="/import"
-                  className="block px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                  className="block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   role="menuitem"
                   onClick={() => setProfileMenuOpen(false)}
                 >
@@ -154,7 +156,7 @@ function HomeContent() {
                 <button
                   type="button"
                   role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   onClick={() => {
                     setProfileMenuOpen(false)
                     resetTutorial('home')
@@ -167,7 +169,18 @@ function HomeContent() {
                 <button
                   type="button"
                   role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  onClick={() => {
+                    setTheme(theme === 'dark' ? 'light' : 'dark')
+                    setProfileMenuOpen(false)
+                  }}
+                >
+                  {theme === 'dark' ? '☀️ Light mode' : '🌙 Dark mode'}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   onClick={() => {
                     setProfileMenuOpen(false)
                     setShowDenote(true)
@@ -199,7 +212,7 @@ function HomeContent() {
           alt="MyFamiList"
           width={256}
           height={64}
-          className="h-12 w-40 sm:h-16 sm:w-52 mx-auto"
+          className="h-12 w-40 sm:h-16 sm:w-52 mx-auto dark:invert"
           priority
         />
       </header>
@@ -216,7 +229,7 @@ function HomeContent() {
           />
         </>
       ) : (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
           <p>{inviteToken ? 'Sign in to join the shared list' : 'Sign in to view and manage your lists'}</p>
         </div>
       )}
@@ -250,7 +263,7 @@ function HomeContent() {
 
 function HomeFallback() {
   return (
-    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
     </div>
   )

@@ -52,7 +52,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg sm:dark:shadow-slate-900/50 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal" />
       </div>
     )
@@ -60,11 +60,11 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg sm:dark:shadow-slate-900/50 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
         <div className="flex justify-center mb-6">
-          <Image src="/logo.png" alt="MyFamiList" width={256} height={64} className="h-12 w-40 sm:h-16 sm:w-52 mx-auto" priority />
+          <Image src="/logo.png" alt="MyFamiList" width={256} height={64} className="h-12 w-40 sm:h-16 sm:w-52 mx-auto dark:invert" priority />
         </div>
-        <p className="text-center text-gray-600 mb-6">Sign in from the home page to view your account.</p>
+        <p className="text-center text-gray-600 dark:text-gray-300 mb-6">Sign in from the home page to view your account.</p>
         <div className="flex justify-center">
           <BackToHomeButton className="text-teal font-medium hover:underline bg-transparent border-0 p-0 cursor-pointer font-inherit">
             Back to lists
@@ -75,27 +75,27 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 space-y-6">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg sm:dark:shadow-slate-900/50 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 space-y-6">
       <div className="flex items-center justify-between gap-3">
         <BackToHomeButton className="text-sm text-teal font-medium hover:underline bg-transparent border-0 p-0 cursor-pointer font-inherit text-left">
           ← Back
         </BackToHomeButton>
-        <Image src="/logo.png" alt="MyFamiList" width={180} height={48} className="h-10 w-[132px]" />
+        <Image src="/logo.png" alt="MyFamiList" width={180} height={48} className="h-10 w-[132px] dark:invert" />
         <span className="w-12" aria-hidden />
       </div>
 
       <div>
-        <h1 className="text-lg font-semibold text-gray-900">Account settings</h1>
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Account settings</h1>
       </div>
 
       <div className="space-y-4">
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Email</label>
             <p className="text-gray-800 break-all">{user.email}</p>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nickname</label>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Nickname</label>
             {isEditingNickname ? (
               <div className="flex gap-2 mt-1">
                 <input
@@ -126,13 +126,13 @@ export default function ProfilePage() {
                 }}
                 title="Click to edit"
               >
-                {displayNickname} <span className="text-gray-400 text-sm">✎</span>
+                {displayNickname} <span className="text-gray-400 dark:text-gray-500 text-sm">✎</span>
               </p>
             )}
           </div>
         </div>
 
-        {error && <div className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm">{error}</div>}
+        {error && <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
 
         <InstallAppButton />
 
@@ -175,11 +175,11 @@ export default function ProfilePage() {
               }
             }}
           >
-            <Image src="/share.png" alt="Share MyFamiList" width={48} height={48} className="h-12 w-[92px]" />
+            <Image src="/share.png" alt="Share MyFamiList" width={48} height={48} className="h-12 w-[92px] dark:invert" />
           </button>
         </div>
 
-        <div className="text-center text-xs text-gray-400">All rights reserved: Noam Familia</div>
+        <div className="text-center text-xs text-gray-400 dark:text-gray-500">All rights reserved: Noam Familia</div>
       </div>
     </div>
   )

@@ -83,13 +83,13 @@ export function InstallBanner() {
   if (!showBanner) return null
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-teal text-white px-4 py-3 flex items-center justify-between gap-3 z-50 shadow-lg">
+    <div className="fixed bottom-0 left-0 right-0 bg-teal text-white px-4 py-3 flex items-center justify-between gap-3 z-50 shadow-lg dark:shadow-slate-900/50">
       <span className="text-sm flex-1">
         Install MyFamiList for quick access
       </span>
       <button
         onClick={handleInstall}
-        className="px-3 py-1.5 bg-white text-teal rounded-lg text-sm font-medium hover:bg-gray-100"
+        className="px-3 py-1.5 bg-white dark:bg-slate-800 text-teal rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-slate-600"
       >
         Install
       </button>

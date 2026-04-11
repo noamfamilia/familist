@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/providers/AuthProvider'
+import { ThemeProvider } from '@/providers/ThemeProvider'
 import { ToastProvider } from '@/components/ui/Toast'
 import { InstallBanner } from '@/components/ui/InstallBanner'
 
@@ -60,16 +61,18 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <AuthProvider>
-          <ToastProvider>
-            <main className="min-h-screen flex items-start justify-start sm:items-center sm:justify-center p-0 sm:p-5">
-              {children}
-            </main>
-            <InstallBanner />
-          </ToastProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <main className="min-h-screen flex items-start justify-start sm:items-center sm:justify-center p-0 sm:p-5">
+                {children}
+              </main>
+              <InstallBanner />
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

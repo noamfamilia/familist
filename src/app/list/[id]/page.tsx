@@ -219,7 +219,7 @@ export default function ListPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -227,7 +227,7 @@ export default function ListPage() {
 
   if (!list) {
     return (
-      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
+      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
         {error ? (
           <>
             <p className="text-center text-red-700 font-medium">Can&apos;t load this list right now.</p>
@@ -246,7 +246,7 @@ export default function ListPage() {
           </>
         ) : (
           <>
-            <p className="text-center text-gray-500">List not found or deleted</p>
+            <p className="text-center text-gray-500 dark:text-gray-400">List not found or deleted</p>
             <button
               onClick={handleBackToLists}
               className="mt-4 text-primary hover:underline block mx-auto"
@@ -370,7 +370,7 @@ export default function ListPage() {
   }
 
   return (
-    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:min-w-[400px] max-w-3xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full sm:min-w-[400px] max-w-3xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
@@ -379,10 +379,10 @@ export default function ListPage() {
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start justify-between gap-3 mb-4">
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start justify-between gap-3 mb-4">
           <span className="min-w-0 flex-1">
             <span className="font-medium block">Can&apos;t refresh this list right now.</span>
-            <span className="block text-xs text-red-600/90 mt-1.5 break-words font-mono leading-snug">
+            <span className="block text-xs text-red-600/90 dark:text-red-400 mt-1.5 break-words font-mono leading-snug">
               {error}
             </span>
           </span>
@@ -412,7 +412,7 @@ export default function ListPage() {
             <svg className="absolute right-2 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 12 12"><path fill="white" d="M3 5l3 3 3-3"/></svg>
           </button>
           {goalsDropdownOpen && (
-            <div className="absolute right-0 mt-1 rounded-lg border border-teal bg-white shadow-lg z-50 min-w-full overflow-hidden">
+            <div className="absolute right-0 mt-1 rounded-lg border border-teal bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 z-50 min-w-full overflow-hidden">
               {GOALS_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
@@ -459,7 +459,7 @@ export default function ListPage() {
         </form>
 
       {searchText && (
-        <p className="text-xs text-gray-400 px-1 -mt-4 mb-4 sm:mb-6">
+        <p className="text-xs text-gray-400 dark:text-gray-500 px-1 -mt-4 mb-4 sm:mb-6">
           {activeItems.length > 0 || archivedItems.length > 0
             ? 'Filtering...'
             : items.length > 0
@@ -473,7 +473,7 @@ export default function ListPage() {
         {/* Inner container that sizes based on content */}
         <div className="inline-block min-w-full">
           {/* Members header with hide done toggles */}
-          <div className="sticky top-0 z-10 bg-white" data-tour="members-header">
+          <div className="sticky top-0 z-10 bg-white dark:bg-slate-800" data-tour="members-header">
             <MemberHeader
               members={filteredMembers}
               hideDone={hideDone}
@@ -535,7 +535,7 @@ export default function ListPage() {
                 </SortableContext>
               </DndContext>
             ) : items.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 italic">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic">
                 No items yet. Add one above!
               </div>
             ) : null}
@@ -545,9 +545,9 @@ export default function ListPage() {
           {archivedItems.length > 0 && (
             <>
               <div className="flex items-center gap-3 my-6">
-                <div className="flex-1 h-px bg-gray-300" />
-                <span className="text-sm text-gray-500 font-medium">Archived</span>
-                <div className="flex-1 h-px bg-gray-300" />
+                <div className="flex-1 h-px bg-gray-300 dark:bg-slate-600" />
+                <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Archived</span>
+                <div className="flex-1 h-px bg-gray-300 dark:bg-slate-600" />
               </div>
 
               {/* Archived items list (no drag) */}

@@ -272,11 +272,11 @@ export function MemberHeader({
   return (
     <div className="mb-3 min-w-full w-max">
       {/* Header card container */}
-      <div className={`bg-gray-50 ${openMenuId ? 'rounded-t-lg' : 'rounded-lg'}`}>
+      <div className={`bg-gray-50 dark:bg-slate-900 ${openMenuId ? 'rounded-t-lg' : 'rounded-lg'}`}>
         {/* Header row - matching item card styling */}
         <div className="relative flex items-center gap-0.5 pl-3 pr-1 py-1 whitespace-nowrap">
           {openMenuId && (
-            <div className="absolute inset-0 bg-white/80 z-[5] rounded-t-lg pointer-events-none" />
+            <div className="absolute inset-0 bg-white/80 dark:bg-slate-800/80 z-[5] rounded-t-lg pointer-events-none" />
           )}
           <div className="w-5 flex-shrink-0 h-[40px]" />
           <div
@@ -293,7 +293,7 @@ export function MemberHeader({
               }}
               disabled={itemTextWidth <= 80}
               className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
-                itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 hover:text-teal'
+                itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
               }`}
               aria-label="Narrow item name column"
             >
@@ -307,7 +307,7 @@ export function MemberHeader({
                 if (itemTextWidthMode !== 'auto') onWidthModeToggle?.()
               }}
               className={`text-[11px] font-medium leading-none touch-manipulation select-none ${
-                itemTextWidthMode === 'auto' ? 'text-teal' : 'text-gray-400 hover:text-teal'
+                itemTextWidthMode === 'auto' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
               }`}
             >
               Auto
@@ -320,7 +320,7 @@ export function MemberHeader({
                 onWidthChange?.(20)
               }}
               className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
-                itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 hover:text-teal'
+                itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
               }`}
               aria-label="Widen item name column"
             >
@@ -338,7 +338,7 @@ export function MemberHeader({
                 <div key={member.id} className={isMenuOpen ? 'relative z-10' : ''}>
                   {/* Member container - fixed size to match item state containers */}
                   <div
-                    className={`relative flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
+                    className={`relative flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
                     data-tour="member-chip"
                     onClick={() => {
                       if (editingMemberId !== member.id) setOpenMenuId(isMenuOpen ? null : member.id)
@@ -366,7 +366,7 @@ export function MemberHeader({
                       </span>
                     )}
                     {isMenuOpen && editingMemberId !== member.id && (
-                      <span className="absolute top-0.5 right-1 text-gray-400 text-xs leading-none">✕</span>
+                      <span className="absolute top-0.5 right-1 text-gray-400 dark:text-gray-500 text-xs leading-none">✕</span>
                     )}
                   </div>
                 </div>
@@ -391,7 +391,7 @@ export function MemberHeader({
                       }
                     }}
                     placeholder={profile?.nickname || 'Name'}
-                    className="w-[90px] h-[40px] px-2 py-0.5 text-lg border border-teal rounded-lg bg-white"
+                    className="w-[90px] h-[40px] px-2 py-0.5 text-lg border border-teal rounded-lg bg-white dark:bg-slate-800"
                     autoFocus
                   />
                   <button
@@ -436,7 +436,7 @@ export function MemberHeader({
               {actionsOpen && actionsMenuPos && (
                 <div
                   ref={actionsMenuRef}
-                  className="fixed w-48 flex flex-col rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
+                  className="fixed w-48 flex flex-col rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 py-1 z-50"
                   role="menu"
                   style={{ top: actionsMenuPos.top, right: actionsMenuPos.right }}
                 >
@@ -444,7 +444,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                       onClick={() => {
                         closeActions()
                         setShowCategoryModal(true)
@@ -457,7 +457,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                       onClick={() => {
                         closeActions()
                         void onCategorySortClick()
@@ -473,7 +473,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                       onClick={() => {
                         closeActions()
                         onExpandAll()
@@ -486,7 +486,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                       onClick={() => {
                         closeActions()
                         onCollapseAll()
@@ -502,7 +502,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                       onClick={() => {
                         closeActions()
                         onRestoreAllArchived()
@@ -515,7 +515,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                       onClick={() => {
                         closeActions()
                         onDeleteAllArchived()
@@ -533,7 +533,7 @@ export function MemberHeader({
 
         {/* Expanded menu - right-aligned to selected member chip, items flow right-to-left */}
         {openMenuId && openMember && openMemberIndex >= 0 && (
-          <div ref={memberMenuContainerRef} className="py-2 bg-gray-50 rounded-b-lg overflow-hidden">
+          <div ref={memberMenuContainerRef} className="py-2 bg-gray-50 dark:bg-slate-900 rounded-b-lg overflow-hidden">
             <div
               ref={memberMenuRef}
               className="flex flex-row-reverse items-center gap-3"
@@ -602,7 +602,7 @@ export function MemberHeader({
               )}
 
               {!isOpenMemberOwner && openMember.creator?.nickname && (
-                <span className="px-3 py-1.5 text-sm text-gray-500">
+                <span className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
                   Created by: {openMember.creator.nickname}
                 </span>
               )}

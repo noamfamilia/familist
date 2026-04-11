@@ -42,11 +42,11 @@ export default function ResetPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-700 p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-8 w-full max-w-md text-center">
           <div className="text-green-500 text-5xl mb-4">✓</div>
           <h1 className="text-2xl font-bold text-primary mb-2">Password Updated</h1>
-          <p className="text-gray-600 mb-6">Your password has been successfully reset.</p>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">Your password has been successfully reset.</p>
           <Button onClick={() => router.push('/')} className="w-full">
             Go to Home
           </Button>
@@ -56,8 +56,8 @@ export default function ResetPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-8 w-full max-w-md">
         <h1 className="text-2xl font-bold text-primary text-center mb-6">Set New Password</h1>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -84,7 +84,7 @@ export default function ResetPage() {
           />
 
           {error && (
-            <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm text-center">
+            <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm text-center">
               {error}
             </div>
           )}
@@ -98,7 +98,7 @@ export default function ResetPage() {
           <button
             type="button"
             onClick={() => router.push('/')}
-            className="text-sm text-gray-500 hover:text-teal"
+            className="text-sm text-gray-500 dark:text-gray-400 hover:text-teal"
           >
             Back to Home
           </button>

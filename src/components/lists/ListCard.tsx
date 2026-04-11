@@ -189,7 +189,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   const ownerBadge = !isOwner && list.ownerNickname ? (
-    <span className="ml-1 inline-flex items-center gap-1 align-middle text-xs text-gray-400">
+    <span className="ml-1 inline-flex items-center gap-1 align-middle text-xs text-gray-400 dark:text-gray-500">
       <span aria-hidden="true">·</span>
       <bdi dir="auto">{list.ownerNickname}</bdi>
     </span>
@@ -198,13 +198,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   return (
     <>
     {/* Main card content */}
-    <div className="group bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+    <div className="group bg-gray-50 dark:bg-slate-900 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors">
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle - only for active lists */}
       {!list.userArchived && dragHandleProps && (
         <div 
-          className="text-gray-400 cursor-grab select-none text-lg tracking-tighter touch-none"
+          className="text-gray-400 dark:text-gray-500 cursor-grab select-none text-lg tracking-tighter touch-none"
           {...dragHandleProps}
           data-tour="list-drag-handle"
         >
@@ -240,7 +240,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         />
       ) : list.userArchived ? (
         <span
-          className="flex-1 min-w-0 font-medium truncate text-lg text-gray-400 line-through"
+          className="flex-1 min-w-0 font-medium truncate text-lg text-gray-400 dark:text-gray-500 line-through"
           data-tour="list-card"
         >
           {list.name}
@@ -289,7 +289,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {/* Kebab menu button */}
       <button
         onClick={() => setMenuOpen(!menuOpen)}
-        className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg leading-none"
+        className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-1 text-lg leading-none"
         data-tour="list-menu"
       >
         {menuOpen ? '✕' : '⋮'}
@@ -298,7 +298,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
       {/* Expanded menu with comment field and action buttons */}
       {menuOpen && (
-        <div className="px-3 py-2 bg-gray-50 group-hover:bg-gray-100 transition-colors border-t border-gray-200 space-y-2">
+        <div className="px-3 py-2 bg-gray-50 dark:bg-slate-900 group-hover:bg-gray-100 dark:group-hover:bg-slate-700 transition-colors border-t border-gray-200 dark:border-slate-600 space-y-2">
           {/* Comment field */}
           <div className="flex gap-2 items-start">
             <textarea
@@ -308,7 +308,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
               onFocus={() => { if (!editingComment) handleStartEditComment() }}
               placeholder="Add a comment..."
-              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal resize-none overflow-hidden"
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal resize-none overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             />
           </div>

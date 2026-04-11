@@ -209,7 +209,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       </form>
 
       {searchText && (
-        <p className="text-xs text-gray-400 px-1 -mt-4">
+        <p className="text-xs text-gray-400 dark:text-gray-500 px-1 -mt-4">
           {filteredLists.length > 0
             ? 'Filtering...'
             : lists.length > 0
@@ -219,13 +219,13 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       )}
 
       {error && (
-        <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
+        <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
 
       {fetchError && lists.length > 0 && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-3">
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-3">
           <span>Can&apos;t refresh your lists right now.</span>
           <Button type="button" size="sm" variant="secondary" onClick={refresh}>
             Retry
@@ -236,9 +236,9 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       {/* Lists */}
       <div className="space-y-2 min-h-[120px]">
         {fetchError && lists.length === 0 && (
-          <div className="text-center py-10 px-4 border border-red-200 bg-red-50 rounded-lg">
+          <div className="text-center py-10 px-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 rounded-lg">
             <p className="text-red-700 font-medium">Can&apos;t load your lists right now.</p>
-            <p className="text-sm text-red-600 mt-1">Please try again.</p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-1">Please try again.</p>
             <Button type="button" size="sm" variant="secondary" className="mt-4" onClick={refresh}>
               Retry
             </Button>
@@ -275,9 +275,9 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         {/* Separator between active and archived */}
         {archivedLists.length > 0 && (
           <div className="flex items-center gap-3 py-3">
-            <div className="flex-1 h-px bg-gray-300"></div>
-            <span className="text-sm text-gray-500 font-medium">Archived</span>
-            <div className="flex-1 h-px bg-gray-300"></div>
+            <div className="flex-1 h-px bg-gray-300 dark:bg-slate-600"></div>
+            <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Archived</span>
+            <div className="flex-1 h-px bg-gray-300 dark:bg-slate-600"></div>
           </div>
         )}
 
@@ -302,7 +302,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
         {/* Empty state - only show when truly no lists exist */}
         {lists.length === 0 && (
-          <div className="text-center py-12 text-gray-500 italic">
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400 italic">
             No lists yet. Create one above!
           </div>
         )}

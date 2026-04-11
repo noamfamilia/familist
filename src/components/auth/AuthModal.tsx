@@ -150,7 +150,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         )}
 
         {error && (
-          <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm text-center">
+          <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm text-center">
             {error}
           </div>
         )}
@@ -177,7 +177,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               setError('')
               setSuccessMessage('')
             }}
-            className="w-full text-sm text-gray-500 hover:text-teal"
+            className="w-full text-sm text-gray-500 dark:text-gray-400 hover:text-teal"
           >
             Forgot your password?
           </button>
@@ -185,7 +185,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       </form>
 
       <div className="mt-6 flex flex-col items-center gap-2">
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-500 dark:text-gray-400">
           {mode === 'signUp' ? "Already have an account?" : mode === 'forgotPassword' ? "Remember your password?" : "Don't have an account?"}
         </span>
         <Button

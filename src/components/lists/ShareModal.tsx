@@ -335,7 +335,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
         </div>
       ) : (
         <>
-      <p className="text-center text-gray-500 font-medium mb-5">{list.name}</p>
+      <p className="text-center text-gray-500 dark:text-gray-400 font-medium mb-5">{list.name}</p>
 
       <div className="space-y-3 mb-5">
         {/* Private option */}
@@ -352,12 +352,12 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           <div className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
             visibility === 'private' 
               ? 'border-teal bg-teal-light' 
-              : 'border-gray-200 hover:bg-gray-50'
+              : 'border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
           }`}>
             <span className="text-2xl">🔒</span>
             <div>
               <div className="font-semibold">Private</div>
-              <div className="text-sm text-gray-500">Only you can access this list</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Only you can access this list</div>
             </div>
           </div>
         </label>
@@ -376,12 +376,12 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           <div className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
             visibility === 'link' 
               ? 'border-teal bg-teal-light' 
-              : 'border-gray-200 hover:bg-gray-50'
+              : 'border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
           }`}>
             <span className="text-2xl">🔗</span>
             <div>
               <div className="font-semibold">Link-enabled</div>
-              <div className="text-sm text-gray-500">Anyone with the invite link can join</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Anyone with the invite link can join</div>
             </div>
           </div>
         </label>
@@ -389,7 +389,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
       {/* Invite link section */}
       {visibility === 'link' && (
-        <div className="pt-4 border-t border-gray-200">
+        <div className="pt-4 border-t border-gray-200 dark:border-slate-600">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -406,7 +406,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
               value={token ? buildInviteUrl(token) : ''}
               placeholder="Invite link"
               readOnly
-              className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm truncate"
+              className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-900 text-sm truncate"
             />
             <button
               type="button"
@@ -424,9 +424,9 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
 
       {/* Joined users section */}
       {visibility === 'link' && joinedUsers.length > 0 && (
-        <div className="pt-4 mt-4 border-t border-gray-200">
+        <div className="pt-4 mt-4 border-t border-gray-200 dark:border-slate-600">
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm text-gray-500">Users who joined:</label>
+            <label className="text-sm text-gray-500 dark:text-gray-400">Users who joined:</label>
           </div>
           
           {/* Header row with select all and remove button */}
@@ -442,7 +442,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
             )}
             {selectedUsersCount === 0 && <div />}
             <label className="flex items-center gap-2 cursor-pointer">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-gray-300">
                 {selectedUserIds.size === joinedUsers.length ? 'Deselect all' : 'Select all'}
               </span>
               <input
@@ -450,7 +450,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
                 checked={selectedUserIds.size === joinedUsers.length && joinedUsers.length > 0}
                 onChange={toggleSelectAll}
                 disabled={loading}
-                className="w-4 h-4 rounded border-gray-300 text-teal focus:ring-teal"
+                className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-teal focus:ring-teal"
               />
             </label>
           </div>
@@ -458,17 +458,17 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
           {/* User rows */}
           <div className="space-y-2">
             {joinedUsers.map(user => (
-              <label key={user.user_id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
+              <label key={user.user_id} className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-slate-900 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600">
                 <div className="flex items-center gap-1 text-sm">
                   <span dir="auto" className="font-medium">{user.nickname || 'Unknown user'}</span>
-                  <span dir="ltr" className="text-gray-400">· {user.member_count} member{user.member_count !== 1 ? 's' : ''}</span>
+                  <span dir="ltr" className="text-gray-400 dark:text-gray-500">· {user.member_count} member{user.member_count !== 1 ? 's' : ''}</span>
                 </div>
                 <input
                   type="checkbox"
                   checked={selectedUserIds.has(user.user_id)}
                   onChange={() => toggleUserSelection(user.user_id)}
                   disabled={loading}
-                  className="w-4 h-4 rounded border-gray-300 text-teal focus:ring-teal"
+                  className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-teal focus:ring-teal"
                 />
               </label>
             ))}
@@ -477,7 +477,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
       )}
 
       {visibility === 'link' && joinedUsers.length === 0 && (
-        <div className="pt-4 mt-4 border-t border-gray-200 text-center text-sm text-gray-500">
+        <div className="pt-4 mt-4 border-t border-gray-200 dark:border-slate-600 text-center text-sm text-gray-500 dark:text-gray-400">
           No one has joined this list yet.
         </div>
       )}

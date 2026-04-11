@@ -40,7 +40,7 @@ function SortableCategoryRow({
       className={`flex items-center rounded-lg px-2 py-1 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
     >
       <div
-        className="text-gray-400 cursor-grab select-none text-lg tracking-tighter touch-none mr-2 flex-shrink-0"
+        className="text-gray-400 dark:text-gray-500 cursor-grab select-none text-lg tracking-tighter touch-none mr-2 flex-shrink-0"
         {...attributes}
         {...listeners}
       >
@@ -130,7 +130,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
           <button
             type="button"
             onClick={handleCancel}
-            className="text-xs font-medium text-gray-500 bg-gray-200 rounded px-3 py-1 hover:bg-gray-300"
+            className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-slate-600 rounded px-3 py-1 hover:bg-gray-300"
           >
             Cancel
           </button>

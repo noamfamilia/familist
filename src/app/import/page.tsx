@@ -105,7 +105,7 @@ function ImportContent() {
 
   if (authLoading || (user && listsLoading)) {
     return (
-      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg sm:dark:shadow-slate-900/50 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal" />
       </div>
     )
@@ -113,11 +113,11 @@ function ImportContent() {
 
   if (!user) {
     return (
-      <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg sm:dark:shadow-slate-900/50 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
         <div className="flex justify-center mb-6">
-          <Image src="/logo.png" alt="MyFamiList" width={256} height={64} className="h-12 w-40 sm:h-16 sm:w-52" priority />
+          <Image src="/logo.png" alt="MyFamiList" width={256} height={64} className="h-12 w-40 sm:h-16 sm:w-52 dark:invert" priority />
         </div>
-        <p className="text-center text-gray-600 mb-6">Sign in from the home page to import a Google Sheet.</p>
+        <p className="text-center text-gray-600 dark:text-gray-300 mb-6">Sign in from the home page to import a Google Sheet.</p>
         <div className="flex justify-center">
           <BackToHomeButton className="text-teal font-medium hover:underline bg-transparent border-0 p-0 cursor-pointer font-inherit">
             Back to lists
@@ -128,25 +128,25 @@ function ImportContent() {
   }
 
   return (
-    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 space-y-6">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg sm:dark:shadow-slate-900/50 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 space-y-6">
       <div className="flex items-center justify-between gap-3">
         <BackToHomeButton className="text-sm text-teal font-medium hover:underline bg-transparent border-0 p-0 cursor-pointer font-inherit text-left">
           ← Back
         </BackToHomeButton>
-        <Image src="/logo.png" alt="MyFamiList" width={180} height={48} className="h-10 w-[132px]" />
+        <Image src="/logo.png" alt="MyFamiList" width={180} height={48} className="h-10 w-[132px] dark:invert" />
         <span className="w-12" aria-hidden />
       </div>
 
       <div>
-        <h1 className="text-lg font-semibold text-gray-900">Import from Google Sheet</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Import from Google Sheet</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           First row must include an <strong>Items</strong> column. Optional: <strong>archived</strong>,{' '}
           <strong>comments</strong>, <strong>category</strong>. Share the sheet so anyone with the link can view.
         </p>
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="sheet-url" className="text-sm font-medium text-gray-700">
+        <label htmlFor="sheet-url" className="text-sm font-medium text-gray-700 dark:text-gray-200">
           Sheet URL
         </label>
         <textarea
@@ -154,14 +154,14 @@ function ImportContent() {
           value={sheetUrl}
           onChange={e => setSheetUrl(e.target.value)}
           rows={3}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal focus:border-transparent"
+          className="w-full rounded-lg border border-gray-300 dark:border-slate-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal focus:border-transparent"
           placeholder="https://docs.google.com/spreadsheets/d/…"
           disabled={busy}
         />
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="list-name-override" className="text-sm font-medium text-gray-700">
+        <label htmlFor="list-name-override" className="text-sm font-medium text-gray-700 dark:text-gray-200">
           List name (optional)
         </label>
         <Input
@@ -173,7 +173,7 @@ function ImportContent() {
         />
       </div>
 
-      {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-900/30 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>}
 
       <Button type="button" className="w-full bg-red-500 hover:bg-red-600" loading={busy} onClick={() => void runImport()}>
         Import
@@ -184,7 +184,7 @@ function ImportContent() {
 
 function ImportFallback() {
   return (
-    <div className="bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-lg p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg sm:dark:shadow-slate-900/50 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal" />
     </div>
   )

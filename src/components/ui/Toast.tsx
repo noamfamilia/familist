@@ -82,17 +82,17 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   return (
     <div
       className={`
-        pointer-events-auto flex items-center gap-3 px-4 py-3 bg-white rounded-lg shadow-lg
+        pointer-events-auto flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50
         border-l-4 ${colors[toast.type]} max-w-[350px]
         transition-transform duration-300 ease-out
         ${isVisible ? 'translate-x-0' : 'translate-x-[120%]'}
       `}
     >
       <span className="text-lg flex-shrink-0">{icons[toast.type]}</span>
-      <span className="flex-1 text-sm text-gray-700">{toast.message}</span>
+      <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">{toast.message}</span>
       <button
         onClick={onDismiss}
-        className="text-gray-400 hover:text-gray-600 text-lg opacity-60 hover:opacity-100"
+        className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-lg opacity-60 hover:opacity-100"
       >
         ×
       </button>

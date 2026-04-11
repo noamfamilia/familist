@@ -29,7 +29,7 @@ export function ConfirmModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm" manageHistory={false}>
       <div className="space-y-6">
-        <p className="text-gray-600 text-center">{message}</p>
+        <p className="text-gray-600 dark:text-gray-300 text-center">{message}</p>
         
         <div className="flex gap-3">
           <Button

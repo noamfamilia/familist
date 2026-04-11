@@ -211,7 +211,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap" data-tour="item-row">
         {/* Drag handle - only shown for draggable (active) items */}
         <div 
-          className={`w-5 text-gray-400 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${isDraggable ? 'cursor-grab' : ''}`}
+          className={`w-5 text-gray-400 dark:text-gray-500 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${isDraggable ? 'cursor-grab' : ''}`}
           {...(isDraggable ? dragHandleProps : {})}
           data-tour="drag-handle"
         >
@@ -242,7 +242,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           ) : (
             <span
               onClick={handleArchive}
-              className={`block truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500' : ''}`}
+              className={`block truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
               data-tour="item-archive"
             >
@@ -267,7 +267,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             return (
               <div 
                 key={member.id} 
-                className={`flex items-center justify-center ${quantity > 0 ? 'gap-1' : ''} px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${!canEdit ? 'opacity-50' : ''} ${quantity === 0 && canEdit && !isEditingThis ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                className={`flex items-center justify-center ${quantity > 0 ? 'gap-1' : ''} px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] ${!canEdit ? 'opacity-50' : ''} ${quantity === 0 && canEdit && !isEditingThis ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700' : ''}`}
                 onClick={() => {
                   if (quantity === 0 && canEdit && !isEditingThis) {
                     void onUpdateMemberState(item.id, member.id, { quantity: 1 }).then(({ error }) => {
@@ -304,7 +304,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         handleStartEditQuantity(member.id, quantity)
                       }
                     }}
-                    className={`text-center text-lg font-semibold ${quantity === 0 ? 'text-gray-400' : 'text-primary'} ${quantity > 0 && canEdit ? 'cursor-pointer hover:text-teal w-8' : ''}`}
+                    className={`text-center text-lg font-semibold ${quantity === 0 ? 'text-gray-400 dark:text-gray-500' : 'text-primary'} ${quantity > 0 && canEdit ? 'cursor-pointer hover:text-teal w-8' : ''}`}
                   >
                     {quantity}
                   </span>
@@ -320,7 +320,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     className={`w-6 h-6 rounded-md flex items-center justify-center text-base font-bold transition-colors ${
                       done 
                         ? 'bg-coral text-white' 
-                        : 'bg-gray-100 text-primary'
+                        : 'bg-gray-100 dark:bg-slate-700 text-primary'
                     } ${canEdit ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
                     disabled={!canEdit}
                   >
@@ -341,7 +341,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
           {/* Category name label (non-empty names only) */}
           {categoryNames?.[String(category)] ? (
-            <span className="text-[10px] text-gray-400 truncate max-w-[60px]">
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[60px]">
               {categoryNames[String(category)]}
             </span>
           ) : null}
@@ -349,7 +349,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           {/* Kebab menu button */}
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="text-gray-400 hover:text-gray-600 px-1 py-0.5 rounded hover:bg-gray-200"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 px-1 py-0.5 rounded hover:bg-gray-200"
             title="More options"
             data-tour="item-menu"
           >
@@ -360,7 +360,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
-          <div className="px-3 py-2 space-y-2 border-t border-black/10">
+          <div className="px-3 py-2 space-y-2 border-t border-black/10 dark:border-white/10">
             {/* Comment field */}
             <div className="flex gap-2 items-start">
               <textarea
@@ -370,7 +370,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
                 onFocus={() => { if (!editingComment) handleStartEditComment() }}
                 placeholder="Add a comment..."
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal bg-white/80 resize-none overflow-hidden"
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white/80 dark:bg-slate-800/80 resize-none overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
@@ -391,7 +391,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       void handlePickCategory(catId)
                     }}
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
-                      catId === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500'
+                      catId === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
                     }`}
                   >
                     <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>
