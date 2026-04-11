@@ -338,6 +338,40 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               </>
             ) : (
               <>
+                {!list.userArchived && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void handleDuplicate()
+                    }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
+                  >
+                    Duplicate
+                  </button>
+                )}
+                {isOwner && !list.userArchived && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (isRenaming) {
+                        void handleRename()
+                        return
+                      }
+                      setNewName(list.name)
+                      setIsRenaming(true)
+                    }}
+                    onMouseDown={(e) => {
+                      if (isRenaming) e.preventDefault()
+                    }}
+                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
+                      isRenaming ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
+                    }`}
+                  >
+                    {isRenaming ? 'Done' : 'Rename'}
+                  </button>
+                )}
                 {isOwner ? (
                   <button
                     type="button"
@@ -359,40 +393,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
                   >
                     Leave
-                  </button>
-                )}
-                {isOwner && !list.userArchived && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (isRenaming) {
-                        void handleRename()
-                        return
-                      }
-                      setNewName(list.name)
-                      setIsRenaming(true)
-                    }}
-                    onMouseDown={(e) => {
-                      if (isRenaming) e.preventDefault()
-                    }}
-                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-                      isRenaming ? 'bg-red-500 hover:bg-red-600' : 'bg-cyan hover:opacity-80'
-                    }`}
-                  >
-                    {isRenaming ? 'Done' : 'Rename'}
-                  </button>
-                )}
-                {!list.userArchived && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void handleDuplicate()
-                    }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-                  >
-                    Duplicate
                   </button>
                 )}
               </>

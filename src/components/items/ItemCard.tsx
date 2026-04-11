@@ -457,7 +457,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       setShowDeleteConfirm(true)
                       setShowMenu(false)
                     }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
                   >
                     Delete
                   </button>
