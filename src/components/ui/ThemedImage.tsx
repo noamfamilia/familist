@@ -4,9 +4,9 @@ import Image, { type ImageProps } from 'next/image'
 import { useTheme } from 'next-themes'
 
 const DARK_VARIANTS: Record<string, string> = {
-  '/logo.png': '/logo_dark.jpg',
-  '/profile.png': '/profile_dark.jpg',
-  '/share.png': '/share_dark.jpg',
+  '/logo.png': '/logo_dark.png',
+  '/profile.png': '/profile_dark.png',
+  '/share.png': '/share_dark.png',
 }
 
 type ThemedImageProps = Omit<ImageProps, 'src'> & { src: string; alt: string }
