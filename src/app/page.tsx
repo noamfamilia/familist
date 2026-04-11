@@ -1,9 +1,9 @@
 'use client'
 
-import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
+import { ThemedImage } from '@/components/ui/ThemedImage'
 
 import Link from 'next/link'
 import { Suspense, useState, useEffect, useRef } from 'react'
@@ -130,7 +130,7 @@ function HomeContent() {
               aria-haspopup="menu"
               title={user.email}
             >
-              <Image src="/profile.png" alt="" width={32} height={32} className="w-8 h-8 dark:invert" />
+              <ThemedImage src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
             </button>
             {profileMenuOpen && (
               <div
@@ -207,12 +207,12 @@ function HomeContent() {
 
       {/* Header */}
       <header className="text-center mb-6 sm:mb-8">
-        <Image
+        <ThemedImage
           src="/logo.png"
           alt="MyFamiList"
           width={256}
           height={64}
-          className="h-12 w-40 sm:h-16 sm:w-52 mx-auto dark:invert"
+          className="h-12 w-40 sm:h-16 sm:w-52 mx-auto"
           priority
         />
       </header>
