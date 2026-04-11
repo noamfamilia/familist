@@ -313,10 +313,11 @@ export function useList(listId: string) {
           .single()
 
         if (listUserData) {
-          if (VALID_MEMBER_FILTERS.includes(listUserData.member_filter as MemberFilter)) {
-            setMemberFilter(listUserData.member_filter as MemberFilter)
-            setCachedPrefs(listId, { memberFilter: listUserData.member_filter as MemberFilter }, userId)
-          }
+          const serverFilter = VALID_MEMBER_FILTERS.includes(listUserData.member_filter as MemberFilter)
+            ? listUserData.member_filter as MemberFilter
+            : 'hide' as MemberFilter
+          setMemberFilter(serverFilter)
+          setCachedPrefs(listId, { memberFilter: serverFilter }, userId)
           const serverVal = listUserData.item_text_width
           const parsed = parseWidthValue(serverVal)
           setItemTextWidthMode(parsed.mode)

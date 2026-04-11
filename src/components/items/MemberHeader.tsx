@@ -79,18 +79,41 @@ export function MemberHeader({
   const { error: showError } = useToast()
   const [isAdding, setIsAdding] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [actionsMenuPos, setActionsMenuPos] = useState<{ top: number; right: number } | null>(null)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
+  const actionsButtonRef = useRef<HTMLButtonElement>(null)
+
+  const closeActions = () => {
+    setActionsOpen(false)
+    setActionsMenuPos(null)
+  }
+
+  const handleToggleActions = () => {
+    if (actionsOpen) {
+      closeActions()
+    } else {
+      if (actionsButtonRef.current) {
+        const rect = actionsButtonRef.current.getBoundingClientRect()
+        setActionsMenuPos({
+          top: rect.bottom + 4,
+          right: window.innerWidth - rect.right,
+        })
+      }
+      setActionsOpen(true)
+    }
+  }
 
   useEffect(() => {
     if (!actionsOpen) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
-        setActionsOpen(false)
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node) &&
+          actionsButtonRef.current && !actionsButtonRef.current.contains(e.target as Node)) {
+        closeActions()
       }
     }
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setActionsOpen(false)
+      if (e.key === 'Escape') closeActions()
     }
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
@@ -396,12 +419,13 @@ export function MemberHeader({
           {/* Gear menu - aligned to right edge matching item card trailing section */}
           <div className="flex-shrink-0 flex items-center ml-auto pl-2.5">
           {showActionsMenu && (
-            <div className="relative" ref={actionsMenuRef}>
+            <div className="relative">
               <button
+                ref={actionsButtonRef}
                 type="button"
                 data-tour="category-sort"
                 disabled={actionsMenuLoading}
-                onClick={() => setActionsOpen(o => !o)}
+                onClick={handleToggleActions}
                 className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
                 aria-label="List actions"
                 aria-expanded={actionsOpen}
@@ -409,10 +433,12 @@ export function MemberHeader({
               >
                 <GearIcon className="w-5 h-5" />
               </button>
-              {actionsOpen && (
+              {actionsOpen && actionsMenuPos && (
                 <div
-                  className="absolute right-0 top-full mt-1 w-48 flex flex-col rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
+                  ref={actionsMenuRef}
+                  className="fixed w-48 flex flex-col rounded-lg border border-gray-200 bg-white shadow-lg py-1 z-50"
                   role="menu"
+                  style={{ top: actionsMenuPos.top, right: actionsMenuPos.right }}
                 >
                   {onUpdateCategoryNames && (
                     <button
@@ -420,7 +446,7 @@ export function MemberHeader({
                       role="menuitem"
                       className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
-                        setActionsOpen(false)
+                        closeActions()
                         setShowCategoryModal(true)
                       }}
                     >
@@ -433,7 +459,7 @@ export function MemberHeader({
                       role="menuitem"
                       className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
-                        setActionsOpen(false)
+                        closeActions()
                         void onCategorySortClick()
                       }}
                     >
@@ -449,7 +475,7 @@ export function MemberHeader({
                       role="menuitem"
                       className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
-                        setActionsOpen(false)
+                        closeActions()
                         onExpandAll()
                       }}
                     >
@@ -462,7 +488,7 @@ export function MemberHeader({
                       role="menuitem"
                       className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
-                        setActionsOpen(false)
+                        closeActions()
                         onCollapseAll()
                       }}
                     >
@@ -478,7 +504,7 @@ export function MemberHeader({
                       role="menuitem"
                       className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
-                        setActionsOpen(false)
+                        closeActions()
                         onRestoreAllArchived()
                       }}
                     >
@@ -491,7 +517,7 @@ export function MemberHeader({
                       role="menuitem"
                       className="w-full text-left px-4 py-2.5 text-sm text-gray-900 hover:bg-gray-50"
                       onClick={() => {
-                        setActionsOpen(false)
+                        closeActions()
                         onDeleteAllArchived()
                       }}
                     >
