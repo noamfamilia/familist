@@ -175,7 +175,7 @@ function HomeContent() {
                     setProfileMenuOpen(false)
                   }}
                 >
-                  {theme === 'dark' ? '☀️ Light mode' : '🌙 Dark mode'}
+                  {theme === 'dark' ? 'Light mode' : 'Dark mode'}
                 </button>
                 <button
                   type="button"
