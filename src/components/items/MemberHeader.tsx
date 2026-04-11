@@ -315,7 +315,7 @@ export function MemberHeader({
                 <div key={member.id} className={isMenuOpen ? 'relative z-10' : ''}>
                   {/* Member container - fixed size to match item state containers */}
                   <div
-                    className={`flex items-center justify-between px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
+                    className={`relative flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 bg-white w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
                     data-tour="member-chip"
                     onClick={() => {
                       if (editingMemberId !== member.id) setOpenMenuId(isMenuOpen ? null : member.id)
@@ -338,12 +338,12 @@ export function MemberHeader({
                         onClick={e => e.stopPropagation()}
                       />
                     ) : (
-                      <span className={`text-lg truncate ${isMenuOpen ? '' : 'flex-1'} text-center`}>
+                      <span className="text-lg truncate flex-1 text-center">
                         {member.name}
                       </span>
                     )}
                     {isMenuOpen && editingMemberId !== member.id && (
-                      <span className="text-gray-400 text-lg leading-none ml-1">✕</span>
+                      <span className="absolute top-0.5 right-1 text-gray-400 text-xs leading-none">✕</span>
                     )}
                   </div>
                 </div>
