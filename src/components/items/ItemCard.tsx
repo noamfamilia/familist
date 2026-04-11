@@ -166,10 +166,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setDraftComment(comment)
     setEditingComment(false)
     commentRef.current?.blur()
-    if (commentRef.current) {
-      commentRef.current.style.height = 'auto'
-      commentRef.current.style.height = commentRef.current.scrollHeight + 'px'
-    }
+    requestAnimationFrame(() => {
+      if (commentRef.current) {
+        commentRef.current.style.height = 'auto'
+        commentRef.current.style.height = commentRef.current.scrollHeight + 'px'
+      }
+    })
   }
 
   const handleClearComment = () => {
