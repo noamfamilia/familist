@@ -257,6 +257,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         </Link>
       )}
 
+      {/* Comment indicator */}
+      {list.comment && list.comment.trim().length > 0 && (
+        <span className="text-teal text-sm opacity-80">💬</span>
+      )}
+
       {/* Visibility icon - only for owned lists, clickable to open share modal (except archived) */}
       {isOwner && (
         list.userArchived ? (
