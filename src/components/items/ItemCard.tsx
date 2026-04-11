@@ -154,6 +154,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     const trimmed = draftComment.trim()
     setComment(trimmed)
     setEditingComment(false)
+    commentRef.current?.blur()
     const { error } = await onUpdateItem(item.id, { comment: trimmed || null })
     if (error) {
       showError(error.message || 'Failed to save comment')
@@ -164,6 +165,18 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const handleCancelComment = () => {
     setDraftComment(comment)
     setEditingComment(false)
+    commentRef.current?.blur()
+    if (commentRef.current) {
+      commentRef.current.style.height = 'auto'
+      commentRef.current.style.height = commentRef.current.scrollHeight + 'px'
+    }
+  }
+
+  const handleClearComment = () => {
+    setDraftComment('')
+    if (commentRef.current) {
+      commentRef.current.style.height = 'auto'
+    }
   }
 
   const handleDeleteConfirm = async () => {
@@ -395,6 +408,14 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     className="px-3 py-1.5 text-sm text-white rounded-lg bg-gray-400 hover:bg-gray-500"
                   >
                     Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => { e.stopPropagation(); handleClearComment() }}
+                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-coral hover:opacity-80"
+                  >
+                    Clear
                   </button>
                   <button
                     type="button"
