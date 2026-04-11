@@ -321,7 +321,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={(e) => { e.stopPropagation(); handleClearComment() }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg bg-coral hover:opacity-80"
+                  className="px-3 py-1.5 text-sm text-white rounded-lg bg-teal hover:opacity-80"
                 >
                   Clear
                 </button>
