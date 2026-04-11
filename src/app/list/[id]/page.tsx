@@ -52,6 +52,12 @@ const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(m
   ssr: false,
 })
 
+const GOALS_OPTIONS: { value: 'hide' | 'mine' | 'all'; label: string }[] = [
+  { value: 'hide', label: 'Hide all Goals' },
+  { value: 'mine', label: 'Show my Goals' },
+  { value: 'all', label: 'Show all Goals' },
+]
+
 // All list tour steps - shown progressively as targets become available (filtered by DOM).
 // Order: add-item → item-text-width → row (name, drag, item menu, quantity); +Goal then sort; member kebab.
 const listTourSteps: Step[] = [
@@ -169,6 +175,19 @@ export default function ListPage() {
   const [confirmRestoreArchived, setConfirmRestoreArchived] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
+  const [goalsDropdownOpen, setGoalsDropdownOpen] = useState(false)
+  const goalsDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!goalsDropdownOpen) return
+    const close = (e: MouseEvent) => {
+      if (goalsDropdownRef.current && !goalsDropdownRef.current.contains(e.target as Node)) {
+        setGoalsDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [goalsDropdownOpen])
 
   const handleBackToLists = () => {
     navigateBackToHome(router)
@@ -383,17 +402,33 @@ export default function ListPage() {
         >
           ← Back to lists
         </button>
-        <div data-tour="view-toggle">
-          <select
-            value={memberFilter}
-            onChange={e => updateMemberFilter(e.target.value as 'all' | 'mine' | 'hide')}
-            className="h-8 px-2 pr-7 rounded-lg bg-white text-gray-900 text-sm font-medium focus:outline-none appearance-none"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23111827' d='M3 5l3 3 3-3'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center' }}
+        <div data-tour="view-toggle" className="relative" ref={goalsDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setGoalsDropdownOpen(o => !o)}
+            className="h-8 px-3 pr-7 rounded-lg bg-teal text-white text-sm font-medium focus:outline-none relative"
           >
-            <option value="hide">Hide all Goals</option>
-            <option value="mine">Show my Goals</option>
-            <option value="all">Show all Goals</option>
-          </select>
+            {GOALS_OPTIONS.find(o => o.value === memberFilter)?.label}
+            <svg className="absolute right-2 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 12 12"><path fill="white" d="M3 5l3 3 3-3"/></svg>
+          </button>
+          {goalsDropdownOpen && (
+            <div className="absolute right-0 mt-1 rounded-lg border border-teal bg-white shadow-lg z-50 min-w-full overflow-hidden">
+              {GOALS_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => { updateMemberFilter(opt.value); setGoalsDropdownOpen(false) }}
+                  className={`w-full text-left px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                    opt.value === memberFilter
+                      ? 'bg-teal/10 text-teal'
+                      : 'text-teal hover:bg-teal/5'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
