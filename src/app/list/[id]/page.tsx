@@ -53,9 +53,9 @@ const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(m
 })
 
 const GOALS_OPTIONS: { value: 'hide' | 'mine' | 'all'; label: string }[] = [
-  { value: 'hide', label: 'Hide all Goals' },
-  { value: 'mine', label: 'Show my Goals' },
-  { value: 'all', label: 'Show all Goals' },
+  { value: 'hide', label: 'Hide all Tasks' },
+  { value: 'mine', label: 'Show my Tasks' },
+  { value: 'all', label: 'Show all Tasks' },
 ]
 
 // All list tour steps - shown progressively as targets become available (filtered by DOM).
@@ -63,7 +63,7 @@ const GOALS_OPTIONS: { value: 'hide' | 'mine' | 'all'; label: string }[] = [
 const listTourSteps: Step[] = [
   {
     target: '[data-tour="view-toggle"]',
-    content: 'Choose which goals to display: all, yours, or none.',
+    content: 'Choose which tasks to display: all, yours, or none.',
     disableBeacon: true,
   },
   {
@@ -93,7 +93,7 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="add-member"]',
-    content: 'Set your own goals',
+    content: 'Set your own tasks',
   },
   {
     target: '[data-tour="category-sort"]',

@@ -374,7 +374,7 @@ export function MemberHeader({
             })}
           </div>
 
-          {/* +Goal button */}
+          {/* +Task button */}
           {showAddMember && (
             <div className="relative ml-2.5 flex-shrink-0">
               {isAdding ? (
@@ -410,7 +410,7 @@ export function MemberHeader({
                   className="flex items-center justify-center rounded-lg bg-cyan text-white text-base font-medium hover:opacity-80 transition-colors w-[90px] h-[40px]"
                   data-tour="add-member"
                 >
-                  +Goal
+                  +Task
                 </button>
               )}
             </div>
