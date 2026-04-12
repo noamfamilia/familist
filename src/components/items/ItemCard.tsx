@@ -57,6 +57,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [editingQuantityMember, setEditingQuantityMember] = useState<string | null>(null)
   const [editQuantityValue, setEditQuantityValue] = useState('')
   const quantityEditorRef = useRef<HTMLDivElement>(null)
+  const [editorPos, setEditorPos] = useState<{ top: number; left: number } | null>(null)
 
 
   // Sync editText with item.text when not editing (handles server updates/reverts)
@@ -80,6 +81,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       if (quantityEditorRef.current && !quantityEditorRef.current.contains(e.target as Node)) {
         setEditingQuantityMember(null)
         setEditQuantityValue('')
+        setEditorPos(null)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -137,8 +139,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (error) showError(error.message || 'Failed to unassign')
   }
 
-  const handleOpenQuantityEditor = (memberId: string) => {
+  const handleOpenQuantityEditor = (memberId: string, containerEl: HTMLElement) => {
     const state = item.memberStates[memberId]
+    const rect = containerEl.getBoundingClientRect()
+    setEditorPos({ top: rect.top, left: rect.left + rect.width / 2 })
     setEditingQuantityMember(memberId)
     setEditQuantityValue(String(state?.quantity || 1))
   }
@@ -151,11 +155,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     }
     setEditingQuantityMember(null)
     setEditQuantityValue('')
+    setEditorPos(null)
   }
 
   const handleCancelQuantityEdit = () => {
     setEditingQuantityMember(null)
     setEditQuantityValue('')
+    setEditorPos(null)
   }
 
   const handleClearQuantity = () => {
@@ -293,6 +299,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             return (
               <div key={member.id} className="relative">
                 <div
+                  data-state-container
                   className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] transition-colors ${!canEdit ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                   onClick={() => {
                     if (!canEdit || isEditingThis) return
@@ -327,7 +334,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
-                          if (canEdit) handleOpenQuantityEditor(member.id)
+                          const container = (e.currentTarget as HTMLElement).closest('[data-state-container]') as HTMLElement
+                          if (canEdit && container) handleOpenQuantityEditor(member.id, container)
                         }}
                         className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-teal"
                       >
@@ -340,8 +348,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 </div>
 
                 {/* Floating quantity editor */}
-                {isEditingThis && (
-                  <div ref={quantityEditorRef} className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 min-w-[140px]">
+                {isEditingThis && editorPos && (
+                  <div ref={quantityEditorRef} className="fixed -translate-x-1/2 -translate-y-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 min-w-[140px]" style={{ top: editorPos.top - 4, left: editorPos.left }}>
                     <input
                       type="number"
                       value={editQuantityValue}
