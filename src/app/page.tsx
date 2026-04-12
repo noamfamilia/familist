@@ -230,11 +230,7 @@ function HomeContent() {
               <button
                 type="button"
                 onClick={() => setLabelDropdownOpen(o => !o)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  labelDropdownOpen
-                    ? 'bg-white dark:bg-slate-800 text-teal border border-teal'
-                    : 'bg-teal text-white'
-                }`}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-white dark:bg-slate-800 text-teal border border-teal"
               >
                 {selectedLabel === '' ? <span className="text-gray-400">None</span> : selectedLabel}
                 <svg className={`h-3 w-3 transition-transform ${labelDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
