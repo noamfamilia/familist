@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -16,8 +16,9 @@ import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
-import type { ItemWithState } from '@/lib/supabase/types'
+import type { ItemWithState, ItemCategory } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
+import { ITEM_CATEGORY_STYLES, ITEM_CATEGORIES } from '@/lib/categoryStyles'
 import type { Step } from 'react-joyride'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
@@ -204,18 +205,20 @@ export default function ListPage() {
     updateItemTextWidthMode('auto')
   }
 
-  useEffect(() => {
-    if (!newItemText) return
+  const [newItemCategory, setNewItemCategory] = useState<ItemCategory>(1)
+  const [newItemComment, setNewItemComment] = useState('')
 
-    const handleClick = (event: MouseEvent) => {
-      const target = event.target as Node | null
-      if (!target || addItemFormRef.current?.contains(target)) return
-      setNewItemText('')
-    }
+  const autoGrowNewComment = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [])
 
-    document.addEventListener('click', handleClick)
-    return () => document.removeEventListener('click', handleClick)
-  }, [newItemText])
+  const clearNewItem = () => {
+    setNewItemText('')
+    setNewItemCategory(1)
+    setNewItemComment('')
+  }
 
   if (authLoading || loading) {
     return (
@@ -264,11 +267,15 @@ export default function ListPage() {
     if (!newItemText.trim()) return
 
     const itemText = newItemText.trim()
+    const cat = newItemCategory
+    const cmt = newItemComment.trim() || null
     setAdding(true)
-    setNewItemText('')
-    const { error } = await addItem(itemText)
+    clearNewItem()
+    const { error } = await addItem(itemText, cat, cmt)
     if (error) {
       setNewItemText(itemText)
+      setNewItemCategory(cat)
+      setNewItemComment(cmt || '')
       showError(error.message || 'Failed to add item')
     }
     setAdding(false)
@@ -438,25 +445,70 @@ export default function ListPage() {
       </header>
 
       {/* Add item form */}
-      <form ref={addItemFormRef} onSubmit={handleAddItem} className="flex gap-2 sm:gap-3 mb-4 sm:mb-6" data-tour="add-item">
-          <div className="flex-1">
+      <form ref={addItemFormRef} onSubmit={handleAddItem} className={`flex gap-2 sm:gap-3 ${newItemText ? 'mb-2' : 'mb-4 sm:mb-6'}`} data-tour="add-item">
+          <div className="flex-1 relative">
             <Input
               value={newItemText}
               onChange={(e) => setNewItemText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
-                  setNewItemText('')
+                  clearNewItem()
                 }
               }}
               placeholder="Add an item..."
               disabled={adding}
               aria-label="New item name"
             />
+            {newItemText && (
+              <button
+                type="button"
+                onClick={clearNewItem}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                aria-label="Clear input"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
           </div>
           <Button type="submit" loading={adding} className="bg-red-500 hover:bg-red-600">
             Add
           </Button>
         </form>
+
+      {/* Temporary card for new item settings (category + comment) */}
+      {newItemText && (
+        <div className={`rounded-lg border border-gray-200 dark:border-slate-600 p-3 mb-4 sm:mb-6 transition-colors ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
+          <textarea
+            rows={1}
+            value={newItemComment}
+            onChange={(e) => { setNewItemComment(e.target.value); autoGrowNewComment(e.target) }}
+            placeholder="Add a comment..."
+            className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white/80 dark:bg-slate-800/80 resize-none overflow-hidden mb-2"
+          />
+          <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
+            {(categoryOrder || ITEM_CATEGORIES).map(c => {
+              const catId = c as ItemCategory
+              const label = categoryNames?.[String(catId)] || ''
+              return (
+                <button
+                  key={catId}
+                  type="button"
+                  aria-label={`Category ${catId}`}
+                  aria-pressed={catId === newItemCategory}
+                  onClick={() => setNewItemCategory(catId)}
+                  className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
+                    catId === newItemCategory ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {searchText && (
         <p className="text-xs text-gray-400 dark:text-gray-500 px-1 -mt-4 mb-4 sm:mb-6">

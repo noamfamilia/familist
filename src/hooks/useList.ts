@@ -480,7 +480,7 @@ export function useList(listId: string) {
     }
   }, [userId, listId, fetchList])
 
-  const addItem = async (text: string) => {
+  const addItem = async (text: string, category?: number, comment?: string | null) => {
     const activeItems = items.filter(item => !item.archived)
     const maxSortOrder = activeItems.length > 0
       ? activeItems.reduce((max, item) => Math.max(max, item.sort_order ?? 0), activeItems[0].sort_order ?? 0)
@@ -492,11 +492,11 @@ export function useList(listId: string) {
       id: tempId,
       list_id: listId,
       text,
-      comment: null,
+      comment: comment || null,
       archived: false,
       archived_at: null,
       sort_order: newSortOrder,
-      category: 1,
+      category: category ?? 1,
       created_at: now,
       updated_at: now,
       memberStates: {},
@@ -512,6 +512,8 @@ export function useList(listId: string) {
           list_id: listId,
           text,
           sort_order: newSortOrder,
+          ...(category != null && { category }),
+          ...(comment != null && { comment }),
         })
         .select()
         .single()
