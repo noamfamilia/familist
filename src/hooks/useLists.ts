@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
@@ -152,6 +152,7 @@ export function useLists() {
         comment: item.comment,
         category_names: item.category_names ?? null,
         category_order: item.category_order ?? null,
+        label: item.label ?? '',
       }))
 
       setLists(listsData)
@@ -270,7 +271,7 @@ export function useLists() {
     }
   }, [userId, fetchLists])
 
-  const createList = async (name: string) => {
+  const createList = async (name: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
 
     const tempId = createTempId('list')
@@ -295,6 +296,7 @@ export function useLists() {
       userArchived: false,
       memberCount: 0,
       activeItemCount: 0,
+      label: label || '',
     }
 
     skipRealtimeUntilRef.current = Date.now() + 2000
@@ -327,10 +329,21 @@ export function useLists() {
       userArchived: false,
       memberCount: 0,
       activeItemCount: 0,
+      label: label || '',
     }
     const finalLists = [newList, ...lists.filter(list => list.id !== tempId && list.id !== newList.id)]
     setLists(finalLists)
     await persistListOrder(finalLists)
+
+    if (label) {
+      await trackSaveOperation(
+        supabase
+          .from('list_users')
+          .update({ label })
+          .eq('list_id', data.id)
+          .eq('user_id', user.id)
+      )
+    }
 
     return { data, error: null }
   }
@@ -448,7 +461,7 @@ export function useLists() {
     return { error: null }
   }
 
-  const duplicateList = async (listId: string, newName: string) => {
+  const duplicateList = async (listId: string, newName: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
     const { data, error } = await trackSaveOperation(
       supabase.rpc('duplicate_list', {
@@ -476,6 +489,7 @@ export function useLists() {
       userArchived: false,
       memberCount: 0,
       activeItemCount: data.items?.filter(item => !item.archived).length || 0,
+      label: label || '',
     }
 
     setLists(prev => {
@@ -500,7 +514,7 @@ export function useLists() {
     await trackSaveOperation(
       supabase
         .from('list_users')
-        .update({ item_text_width: 'auto' })
+        .update({ item_text_width: 'auto', ...(label ? { label } : {}) })
         .eq('list_id', duplicatedList.id)
         .eq('user_id', user.id)
     )
@@ -509,6 +523,38 @@ export function useLists() {
 
     return { data: data.list, error: null }
   }
+
+  const updateListLabel = async (listId: string, label: string) => {
+    if (!user) return { error: new Error('Not authenticated') }
+
+    const previousLists = lists
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setLists(prev => prev.map(list =>
+      list.id === listId ? { ...list, label } : list
+    ))
+
+    const { error } = await trackSaveOperation(
+      supabase
+        .from('list_users')
+        .update({ label })
+        .eq('list_id', listId)
+        .eq('user_id', user.id)
+    )
+
+    if (error) {
+      setLists(previousLists)
+    }
+
+    return { error }
+  }
+
+  const labels = useMemo(() => {
+    const set = new Set<string>()
+    for (const list of lists) {
+      if (list.label) set.add(list.label)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [lists])
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
     if (!user) return
@@ -551,5 +597,7 @@ export function useLists() {
     leaveList,
     duplicateList,
     reorderLists,
+    updateListLabel,
+    labels,
   }
 }

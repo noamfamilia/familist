@@ -105,6 +105,7 @@ export interface Database {
           sort_order: number | null
           member_filter: string | null
           item_text_width: string | null
+          label: string
           created_at: string
         }
         Insert: {
@@ -115,6 +116,7 @@ export interface Database {
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: string | null
+          label?: string
           created_at?: string
         }
         Update: {
@@ -125,6 +127,7 @@ export interface Database {
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: string | null
+          label?: string
           created_at?: string
         }
       }
@@ -248,6 +251,7 @@ export interface Database {
           comment: string | null
           category_names: string | null
           category_order: string | null
+          label: string
         }[]
       }
       get_list_data: {
@@ -342,6 +346,7 @@ export type ListWithRole = List & {
   activeItemCount?: number
   ownerNickname?: string | null
   comment?: string | null
+  label?: string
 }
 
 export type ItemWithState = Database['public']['Functions']['get_list_data']['Returns']['items'][number]

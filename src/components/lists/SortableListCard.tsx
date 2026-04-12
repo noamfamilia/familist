@@ -14,9 +14,11 @@ interface SortableListCardProps {
   onDuplicate: (listId: string, newName: string) => Promise<{ error: Error | null; warning?: string | null }>
   onLeave: (listId: string) => Promise<{ error: Error | null }>
   onRefresh?: () => void
+  labels?: string[]
+  onUpdateLabel?: (listId: string, label: string) => Promise<{ error: Error | null }>
 }
 
-export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh }: SortableListCardProps) {
+export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, labels, onUpdateLabel }: SortableListCardProps) {
   const {
     attributes,
     listeners,
@@ -44,6 +46,8 @@ export function SortableListCard({ list, existingListNames, onUpdate, onDelete, 
         onLeave={onLeave}
         onRefresh={onRefresh}
         dragHandleProps={{ ...attributes, ...listeners }}
+        labels={labels}
+        onUpdateLabel={onUpdateLabel}
       />
     </div>
   )

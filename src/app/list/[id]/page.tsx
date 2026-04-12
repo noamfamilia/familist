@@ -17,8 +17,8 @@ import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import type { ItemWithState, ItemCategory } from '@/lib/supabase/types'
-import { normalizeItemCategory } from '@/lib/supabase/types'
-import { ITEM_CATEGORY_STYLES, ITEM_CATEGORIES } from '@/lib/categoryStyles'
+import { normalizeItemCategory, ITEM_CATEGORIES } from '@/lib/supabase/types'
+import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import type { Step } from 'react-joyride'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
