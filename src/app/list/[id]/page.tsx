@@ -437,7 +437,10 @@ export default function ListPage() {
       {/* Add item form */}
       <div className="relative mb-4 sm:mb-6">
         {newItemText && (
-          <div className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 p-3 shadow-lg transition-colors z-20 ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
+          <div
+            onMouseDown={(e) => e.preventDefault()}
+            className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 p-3 shadow-lg transition-colors z-20 ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}
+          >
             <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
               {(categoryOrder || ITEM_CATEGORIES).map(c => {
                 const catId = c as ItemCategory
