@@ -435,7 +435,7 @@ export default function ListPage() {
       </header>
 
       {/* Add item form */}
-      <div className="relative mb-4 sm:mb-6">
+      <div className="relative mb-4 sm:mb-6 z-20">
         {newItemText && (
           <div
             onMouseDown={(e) => e.preventDefault()}
