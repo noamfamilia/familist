@@ -204,6 +204,7 @@ export interface Database {
           member_id: string
           quantity: number
           done: boolean
+          assigned: boolean
           updated_at: string
         }
         Insert: {
@@ -211,6 +212,7 @@ export interface Database {
           member_id: string
           quantity?: number
           done?: boolean
+          assigned?: boolean
           updated_at?: string
         }
         Update: {
@@ -218,6 +220,7 @@ export interface Database {
           member_id?: string
           quantity?: number
           done?: boolean
+          assigned?: boolean
           updated_at?: string
         }
       }

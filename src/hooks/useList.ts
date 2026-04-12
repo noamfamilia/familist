@@ -762,14 +762,15 @@ export function useList(listId: string) {
   const updateMemberState = async (
     itemId: string,
     memberId: string,
-    updates: { quantity?: number; done?: boolean }
+    updates: { quantity?: number; done?: boolean; assigned?: boolean }
   ) => {
     const existingState = items.find(i => i.id === itemId)?.memberStates[memberId]
     const optimisticState: ItemMemberState = {
       item_id: itemId,
       member_id: memberId,
-      quantity: updates.quantity ?? existingState?.quantity ?? 0,
+      quantity: updates.quantity ?? existingState?.quantity ?? 1,
       done: updates.done ?? existingState?.done ?? false,
+      assigned: updates.assigned ?? existingState?.assigned ?? false,
       updated_at: new Date().toISOString(),
     }
 
@@ -806,8 +807,9 @@ export function useList(listId: string) {
           .insert({
             item_id: itemId,
             member_id: memberId,
-            quantity: updates.quantity ?? 0,
+            quantity: updates.quantity ?? 1,
             done: updates.done ?? false,
+            assigned: updates.assigned ?? false,
           })
           .select()
           .single()
@@ -837,8 +839,9 @@ export function useList(listId: string) {
     const optimisticState: ItemMemberState = {
       item_id: itemId,
       member_id: memberId,
-      quantity: Math.max(0, (previousState?.quantity || 0) + delta),
+      quantity: Math.max(1, (previousState?.quantity || 1) + delta),
       done: previousState?.done || false,
+      assigned: previousState?.assigned ?? true,
       updated_at: new Date().toISOString(),
     }
 

@@ -20,7 +20,7 @@ interface ItemCardProps {
   onUpdateItem: (itemId: string, updates: Partial<Item>) => Promise<{ error?: { message: string } | null }>
   onDeleteItem: (itemId: string) => Promise<{ error?: Error | null }>
   onChangeQuantity: (itemId: string, memberId: string, delta: number) => Promise<{ error?: { message?: string } | null }>
-  onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<{ error?: { message?: string } | null }>
+  onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean; assigned?: boolean }) => Promise<{ error?: { message?: string } | null }>
   dragHandleProps?: Record<string, unknown>
   isDraggable?: boolean
   itemTextWidth?: number
@@ -56,6 +56,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [showMenu, setShowMenu] = useState(false)
   const [editingQuantityMember, setEditingQuantityMember] = useState<string | null>(null)
   const [editQuantityValue, setEditQuantityValue] = useState('')
+  const quantityEditorRef = useRef<HTMLDivElement>(null)
 
 
   // Sync editText with item.text when not editing (handles server updates/reverts)
@@ -73,16 +74,26 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (collapseSignal > 0) setShowMenu(false)
   }, [collapseSignal])
 
+  useEffect(() => {
+    if (!editingQuantityMember) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (quantityEditorRef.current && !quantityEditorRef.current.contains(e.target as Node)) {
+        setEditingQuantityMember(null)
+        setEditQuantityValue('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [editingQuantityMember])
+
   // Check if item should be hidden based on member filters
   const shouldHide = members.some(member => {
     const state = item.memberStates[member.id]
-    const quantity = state?.quantity || 0
     const done = state?.done || false
+    const assigned = state?.assigned || false
     
-    // Hide if done and hideDone is enabled for this member
     if (hideDone[member.id] && done) return true
-    // Hide if not relevant (qty 0) and hideNotRelevant is enabled for this member
-    if (hideNotRelevant[member.id] && quantity === 0) return true
+    if (hideNotRelevant[member.id] && !assigned) return true
     
     return false
   })
@@ -111,34 +122,43 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setIsEditing(false)
   }
 
-  const handleToggleDone = async (memberId: string) => {
-    const currentState = item.memberStates[memberId]
-    const newDone = !currentState?.done
-    const { error } = await onUpdateMemberState(item.id, memberId, { done: newDone })
-    if (error) {
-      showError(error.message || 'Failed to update item state')
-    }
+  const handleAssign = async (memberId: string) => {
+    const { error } = await onUpdateMemberState(item.id, memberId, { assigned: true })
+    if (error) showError(error.message || 'Failed to assign')
   }
 
-  const handleStartEditQuantity = (memberId: string, currentQuantity: number) => {
+  const handleMarkDone = async (memberId: string) => {
+    const { error } = await onUpdateMemberState(item.id, memberId, { done: true })
+    if (error) showError(error.message || 'Failed to mark done')
+  }
+
+  const handleUnassign = async (memberId: string) => {
+    const { error } = await onUpdateMemberState(item.id, memberId, { assigned: false, done: false })
+    if (error) showError(error.message || 'Failed to unassign')
+  }
+
+  const handleOpenQuantityEditor = (memberId: string) => {
+    const state = item.memberStates[memberId]
     setEditingQuantityMember(memberId)
-    setEditQuantityValue(currentQuantity.toString())
+    setEditQuantityValue(String(state?.quantity || 1))
   }
 
   const handleSaveQuantity = async (memberId: string) => {
     const newQuantity = parseInt(editQuantityValue, 10)
-    if (!isNaN(newQuantity) && newQuantity >= 0) {
-      const currentState = item.memberStates[memberId]
-      const currentQuantity = currentState?.quantity || 0
-      const delta = newQuantity - currentQuantity
-      if (delta !== 0) {
-        const { error } = await onChangeQuantity(item.id, memberId, delta)
-        if (error) {
-          showError(error.message || 'Failed to update quantity')
-        }
-      }
+    if (!isNaN(newQuantity) && newQuantity >= 1) {
+      const { error } = await onUpdateMemberState(item.id, memberId, { quantity: newQuantity, assigned: true })
+      if (error) showError(error.message || 'Failed to update quantity')
     }
     setEditingQuantityMember(null)
+    setEditQuantityValue('')
+  }
+
+  const handleCancelQuantityEdit = () => {
+    setEditingQuantityMember(null)
+    setEditQuantityValue('')
+  }
+
+  const handleClearQuantity = () => {
     setEditQuantityValue('')
   }
 
@@ -263,74 +283,104 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         >
           {members.map(member => {
             const state = item.memberStates[member.id]
-            const quantity = state?.quantity || 0
+            const quantity = state?.quantity || 1
             const done = state?.done || false
+            const assigned = state?.assigned || false
             const isCreator = member.created_by === user?.id
             const canEdit = isCreator || member.is_public
             const isEditingThis = editingQuantityMember === member.id
 
             return (
-              <div 
-                key={member.id} 
-                className={`flex items-center justify-center ${quantity > 0 ? 'gap-1' : ''} px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] ${!canEdit ? 'opacity-50' : ''} ${quantity === 0 && canEdit && !isEditingThis ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700' : ''}`}
-                onClick={() => {
-                  if (quantity === 0 && canEdit && !isEditingThis) {
-                    void onUpdateMemberState(item.id, member.id, { quantity: 1 }).then(({ error }) => {
-                      if (error) {
-                        showError(error.message || 'Failed to update item state')
-                      }
-                    })
-                  }
-                }}
-              >
-                {/* Quantity - editable text */}
-                {isEditingThis ? (
-                  <input
-                    type="number"
-                    value={editQuantityValue}
-                    onChange={(e) => setEditQuantityValue(e.target.value)}
-                    onBlur={() => handleSaveQuantity(member.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveQuantity(member.id)
-                      if (e.key === 'Escape') {
-                        setEditingQuantityMember(null)
-                        setEditQuantityValue('')
-                      }
-                    }}
-                    className="w-10 text-center text-xl font-semibold border border-teal rounded px-1"
-                    autoFocus
-                    min="0"
-                  />
-                ) : (
-                  <span
-                    onClick={(e) => {
-                      if (quantity > 0 && canEdit) {
-                        e.stopPropagation()
-                        handleStartEditQuantity(member.id, quantity)
-                      }
-                    }}
-                    className={`text-center text-lg font-semibold ${quantity === 0 ? 'text-gray-400 dark:text-gray-500' : 'text-primary dark:text-gray-100'} ${quantity > 0 && canEdit ? 'cursor-pointer hover:text-teal w-8' : ''}`}
-                  >
-                    {quantity}
-                  </span>
-                )}
+              <div key={member.id} className="relative">
+                <div
+                  className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] transition-colors ${!canEdit ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                  onClick={() => {
+                    if (!canEdit || isEditingThis) return
+                    if (!assigned) {
+                      void handleAssign(member.id)
+                    } else if (!done) {
+                      void handleMarkDone(member.id)
+                    } else {
+                      void handleUnassign(member.id)
+                    }
+                  }}
+                >
+                  {!assigned ? (
+                    /* Unassigned: grey X */
+                    <svg width="18" height="18" viewBox="-0.5 0 25 25" fill="none" className="text-gray-400 dark:text-gray-500">
+                      <path d="M3 21.32L21 3.32001" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M3 3.32001L21 21.32" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ) : done ? (
+                    /* Done: checkmark centered, small qty on left */
+                    <>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 absolute left-1.5 top-1/2 -translate-y-1/2">{quantity}</span>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-coral">
+                        <path d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                    </>
+                  ) : (
+                    /* Assigned: quantity left, edit icon right */
+                    <>
+                      <span className="text-lg font-semibold text-primary dark:text-gray-100 flex-1 text-center">{quantity}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (canEdit) handleOpenQuantityEditor(member.id)
+                        }}
+                        className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-teal"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                </div>
 
-                {/* Done toggle - only visible when quantity > 0 */}
-                {quantity > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      canEdit && handleToggleDone(member.id)
-                    }}
-                    className={`w-6 h-6 rounded-md flex items-center justify-center text-base font-bold transition-colors ${
-                      done 
-                        ? 'bg-coral text-white' 
-                        : 'bg-gray-100 dark:bg-slate-700 text-primary dark:text-gray-100'
-                    } ${canEdit ? 'hover:opacity-80' : 'cursor-not-allowed'}`}
-                    disabled={!canEdit}
-                  >
-                    ✓
-                  </button>
+                {/* Floating quantity editor */}
+                {isEditingThis && (
+                  <div ref={quantityEditorRef} className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 min-w-[140px]">
+                    <input
+                      type="number"
+                      value={editQuantityValue}
+                      onChange={(e) => setEditQuantityValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void handleSaveQuantity(member.id)
+                        if (e.key === 'Escape') handleCancelQuantityEdit()
+                      }}
+                      className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                      autoFocus
+                      min="1"
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleCancelQuantityEdit()}
+                        className="flex-1 px-2 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleClearQuantity()}
+                        className="flex-1 px-2 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => void handleSaveQuantity(member.id)}
+                        className="flex-1 px-2 py-1 text-xs text-white rounded bg-red-500 hover:bg-red-600"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )
