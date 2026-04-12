@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -206,18 +206,10 @@ export default function ListPage() {
   }
 
   const [newItemCategory, setNewItemCategory] = useState<ItemCategory>(1)
-  const [newItemComment, setNewItemComment] = useState('')
-
-  const autoGrowNewComment = useCallback((el: HTMLTextAreaElement | null) => {
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
-  }, [])
 
   const clearNewItem = () => {
     setNewItemText('')
     setNewItemCategory(1)
-    setNewItemComment('')
   }
 
   if (authLoading || loading) {
@@ -268,14 +260,12 @@ export default function ListPage() {
 
     const itemText = newItemText.trim()
     const cat = newItemCategory
-    const cmt = newItemComment.trim() || null
     setAdding(true)
     clearNewItem()
-    const { error } = await addItem(itemText, cat, cmt)
+    const { error } = await addItem(itemText, cat)
     if (error) {
       setNewItemText(itemText)
       setNewItemCategory(cat)
-      setNewItemComment(cmt || '')
       showError(error.message || 'Failed to add item')
     }
     setAdding(false)
@@ -477,16 +467,9 @@ export default function ListPage() {
           </Button>
         </form>
 
-      {/* Temporary card for new item settings (category + comment) */}
+      {/* Temporary card for new item settings (category) */}
       {newItemText && (
         <div className={`rounded-lg border border-gray-200 dark:border-slate-600 p-3 mb-4 sm:mb-6 transition-colors ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
-          <textarea
-            rows={1}
-            value={newItemComment}
-            onChange={(e) => { setNewItemComment(e.target.value); autoGrowNewComment(e.target) }}
-            placeholder="Add a comment..."
-            className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white/80 dark:bg-slate-800/80 resize-none overflow-hidden mb-2"
-          />
           <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
             {(categoryOrder || ITEM_CATEGORIES).map(c => {
               const catId = c as ItemCategory
