@@ -482,10 +482,10 @@ export function useList(listId: string) {
 
   const addItem = async (text: string) => {
     const activeItems = items.filter(item => !item.archived)
-    const minSortOrder = activeItems.length > 0
-      ? activeItems.reduce((min, item) => Math.min(min, item.sort_order ?? 0), activeItems[0].sort_order ?? 0)
+    const maxSortOrder = activeItems.length > 0
+      ? activeItems.reduce((max, item) => Math.max(max, item.sort_order ?? 0), activeItems[0].sort_order ?? 0)
       : 0
-    const newSortOrder = activeItems.length > 0 ? minSortOrder - 1 : 0
+    const newSortOrder = activeItems.length > 0 ? maxSortOrder + 1 : 0
     const tempId = createTempId('item')
     const now = new Date().toISOString()
     const optimisticItem: ItemWithState = {

@@ -298,7 +298,12 @@ export function useLists() {
     }
 
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => [optimisticList, ...prev])
+    setLists(prev => {
+      const lastActiveIdx = prev.reduce((acc, l, i) => !l.userArchived ? i : acc, -1)
+      const next = [...prev]
+      next.splice(lastActiveIdx + 1, 0, optimisticList)
+      return next
+    })
 
     const { data, error } = await trackSaveOperation(
       supabase
