@@ -439,8 +439,9 @@ export default function ListPage() {
         {newItemText && (
           <div
             onMouseDown={(e) => e.preventDefault()}
-            className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 p-3 shadow-lg transition-colors z-20 ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}
+            className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg z-20 bg-white dark:bg-slate-800 overflow-hidden"
           >
+            <div className={`p-3 transition-colors ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
             <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
               {(categoryOrder || ITEM_CATEGORIES).map(c => {
                 const catId = c as ItemCategory
@@ -460,6 +461,7 @@ export default function ListPage() {
                   </button>
                 )
               })}
+            </div>
             </div>
           </div>
         )}
