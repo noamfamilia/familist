@@ -176,6 +176,7 @@ export default function ListPage() {
   const [confirmRestoreArchived, setConfirmRestoreArchived] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
+  const addItemWrapperRef = useRef<HTMLDivElement>(null)
   const [goalsDropdownOpen, setGoalsDropdownOpen] = useState(false)
   const goalsDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -206,6 +207,16 @@ export default function ListPage() {
   }
 
   const [newItemCategory, setNewItemCategory] = useState<ItemCategory>(1)
+
+  useEffect(() => {
+    if (!newItemText) return
+    const handleClick = (e: MouseEvent) => {
+      if (addItemWrapperRef.current?.contains(e.target as Node)) return
+      clearNewItem()
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [newItemText])
 
   const clearNewItem = () => {
     setNewItemText('')
@@ -435,7 +446,7 @@ export default function ListPage() {
       </header>
 
       {/* Add item form */}
-      <div className="relative mb-4 sm:mb-6 z-20">
+      <div ref={addItemWrapperRef} className="relative mb-4 sm:mb-6 z-20">
         {newItemText && (
           <div
             onMouseDown={(e) => e.preventDefault()}
@@ -486,7 +497,7 @@ export default function ListPage() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                 aria-label="Clear input"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
               </button>
