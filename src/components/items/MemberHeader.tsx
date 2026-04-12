@@ -76,7 +76,7 @@ export function MemberHeader({
   onUpdateCategoryOrder,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
-  const { error: showError } = useToast()
+  const { success: showSuccess, error: showError } = useToast()
   const [isAdding, setIsAdding] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [actionsMenuPos, setActionsMenuPos] = useState<{ top: number; right: number } | null>(null)
@@ -218,9 +218,14 @@ export function MemberHeader({
   }
 
   const handleTogglePublic = async (member: MemberWithCreator) => {
-    const { error } = await onUpdateMember(member.id, { is_public: !member.is_public })
+    const newPublic = !member.is_public
+    const { error } = await onUpdateMember(member.id, { is_public: newPublic })
     if (error) {
       showError(error.message || 'Failed to update member')
+    } else {
+      showSuccess(newPublic
+        ? `Any user can edit status of ${member.name}`
+        : `Only you can edit status of ${member.name}`)
     }
   }
 
