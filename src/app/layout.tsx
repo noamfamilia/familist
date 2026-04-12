@@ -66,7 +66,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <ToastProvider>
-              <main className="min-h-screen flex items-start justify-start sm:items-center sm:justify-center p-0 sm:p-5">
+              <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
                 {children}
               </main>
               <InstallBanner />
