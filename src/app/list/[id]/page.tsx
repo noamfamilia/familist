@@ -435,7 +435,32 @@ export default function ListPage() {
       </header>
 
       {/* Add item form */}
-      <form ref={addItemFormRef} onSubmit={handleAddItem} className={`flex gap-2 sm:gap-3 ${newItemText ? 'mb-2' : 'mb-4 sm:mb-6'}`} data-tour="add-item">
+      <div className="relative mb-4 sm:mb-6">
+        {newItemText && (
+          <div className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 p-3 shadow-lg transition-colors z-20 ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
+            <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
+              {(categoryOrder || ITEM_CATEGORIES).map(c => {
+                const catId = c as ItemCategory
+                const label = categoryNames?.[String(catId)] || ''
+                return (
+                  <button
+                    key={catId}
+                    type="button"
+                    aria-label={`Category ${catId}`}
+                    aria-pressed={catId === newItemCategory}
+                    onClick={() => setNewItemCategory(catId)}
+                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
+                      catId === newItemCategory ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
+                    }`}
+                  >
+                    <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+        <form ref={addItemFormRef} onSubmit={handleAddItem} className="flex gap-2 sm:gap-3" data-tour="add-item">
           <div className="flex-1 relative">
             <Input
               value={newItemText}
@@ -466,32 +491,7 @@ export default function ListPage() {
             Add
           </Button>
         </form>
-
-      {/* Temporary card for new item settings (category) */}
-      {newItemText && (
-        <div className={`rounded-lg border border-gray-200 dark:border-slate-600 p-3 mb-4 sm:mb-6 transition-colors ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
-          <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
-            {(categoryOrder || ITEM_CATEGORIES).map(c => {
-              const catId = c as ItemCategory
-              const label = categoryNames?.[String(catId)] || ''
-              return (
-                <button
-                  key={catId}
-                  type="button"
-                  aria-label={`Category ${catId}`}
-                  aria-pressed={catId === newItemCategory}
-                  onClick={() => setNewItemCategory(catId)}
-                  className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
-                    catId === newItemCategory ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
-                  }`}
-                >
-                  <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      </div>
 
       {searchText && (
         <p className="text-xs text-gray-400 dark:text-gray-500 px-1 -mt-4 mb-4 sm:mb-6">
