@@ -25,6 +25,10 @@ const homeTourSteps: Step[] = [
     disableBeacon: true,
   },
   {
+    target: '[data-tour="home-label-filter"]',
+    content: 'Show lists by labels (open list menu to edit its label)',
+  },
+  {
     target: '[data-tour="create-list"]',
     content: 'Create a new list.',
   },
@@ -227,7 +231,7 @@ function HomeContent() {
         )}
         
         {user ? (
-            <div ref={labelDropdownRef}>
+            <div ref={labelDropdownRef} data-tour="home-label-filter">
             <div className="relative">
               <button
                 type="button"
