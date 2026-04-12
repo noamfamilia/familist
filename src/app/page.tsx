@@ -114,6 +114,12 @@ function HomeContent() {
     setAvailableLabels(labels)
   }, [])
 
+  useEffect(() => {
+    if (selectedLabel !== 'Any' && selectedLabel !== '' && !availableLabels.includes(selectedLabel)) {
+      setSelectedLabel('Any')
+    }
+  }, [availableLabels, selectedLabel])
+
   const clearInviteState = () => {
     clearPendingInviteToken()
 
