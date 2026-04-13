@@ -51,6 +51,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [newLabelText, setNewLabelText] = useState('')
   const labelDropdownRef = useRef<HTMLDivElement>(null)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
+  const addLabelPopoverRef = useRef<HTMLDivElement>(null)
 
   // Sync comment state when list updates from realtime
   useEffect(() => {
@@ -76,13 +77,30 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     }
   }, [addingLabel])
 
+  // Outside-click: save add-label
+  useEffect(() => {
+    if (!addingLabel || labelDropdownOpen) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (addLabelPopoverRef.current && !addLabelPopoverRef.current.contains(e.target as Node)) {
+        handleAddLabelDone()
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  })
+
   const handleAddLabelDone = () => {
     const trimmed = newLabelText.trim()
-    if (!trimmed || !onUpdateLabel) return
-    void onUpdateLabel(list.id, trimmed)
+    if (trimmed && onUpdateLabel) {
+      void onUpdateLabel(list.id, trimmed)
+    }
     setAddingLabel(false)
     setNewLabelText('')
-    setLabelDropdownOpen(false)
+  }
+
+  const handleCancelAddLabel = () => {
+    setAddingLabel(false)
+    setNewLabelText('')
   }
 
   const autoGrow = useCallback((el: HTMLTextAreaElement | null) => {
@@ -435,48 +453,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               </div>
             )}
           </div>
-          {/* Action buttons */}
-          <div className="flex items-center justify-end gap-2 flex-wrap">
-            {!list.userArchived && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void handleDuplicate()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
-              >
-                Duplicate
-              </button>
-            )}
-            {isOwner ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDeleteClick()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Delete
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleLeaveClick()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Leave
-              </button>
-            )}
-          </div>
-          {/* Label selector */}
-          {onUpdateLabel && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <div className="relative" ref={labelDropdownRef}>
+          {/* Action buttons + label selector (same row, wraps if needed) */}
+          <div className="flex items-center justify-end gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+            {/* Label selector */}
+            {onUpdateLabel && (
+              <div className="relative mr-auto" ref={labelDropdownRef}>
                 <button
                   type="button"
                   onClick={() => { setLabelDropdownOpen(o => !o); setAddingLabel(false); setNewLabelText('') }}
@@ -514,51 +495,81 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     >
                       None
                     </button>
-                    {!addingLabel ? (
+                    <button
+                      type="button"
+                      onClick={() => { setLabelDropdownOpen(false); setAddingLabel(true) }}
+                      className="w-full text-left px-3 py-1.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                    >
+                      + Add label
+                    </button>
+                  </div>
+                )}
+                {addingLabel && !labelDropdownOpen && (
+                  <div
+                    ref={addLabelPopoverRef}
+                    className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2 min-w-[160px]"
+                  >
+                    <div className="relative">
+                      <input
+                        ref={addLabelInputRef}
+                        type="text"
+                        value={newLabelText}
+                        onChange={(e) => setNewLabelText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); handleAddLabelDone() }
+                          if (e.key === 'Escape') handleCancelAddLabel()
+                        }}
+                        placeholder="Label name..."
+                        className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
+                      />
                       <button
                         type="button"
-                        onClick={() => setAddingLabel(true)}
-                        className="w-full text-left px-3 py-1.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                        onClick={() => setNewLabelText('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
-                        + Add label
+                        ✕
                       </button>
-                    ) : (
-                      <div className="p-2 border-t border-gray-200 dark:border-slate-600 space-y-2">
-                        <input
-                          ref={addLabelInputRef}
-                          type="text"
-                          value={newLabelText}
-                          onChange={(e) => setNewLabelText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') { e.preventDefault(); handleAddLabelDone() }
-                            if (e.key === 'Escape') { setAddingLabel(false); setNewLabelText('') }
-                          }}
-                          placeholder="Label name..."
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:border-teal bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200"
-                        />
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => { setAddingLabel(false); setNewLabelText('') }}
-                            className="px-2 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleAddLabelDone}
-                            className="px-2 py-1 text-xs text-white rounded bg-red-500 hover:bg-red-600"
-                          >
-                            Done
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            )}
+            {!list.userArchived && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void handleDuplicate()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
+              >
+                Duplicate
+              </button>
+            )}
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeleteClick()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+              >
+                Delete
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleLeaveClick()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+              >
+                Leave
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
