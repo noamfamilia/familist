@@ -279,15 +279,6 @@ function HomeContent() {
                   >
                     Any
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedLabel(''); setLabelDropdownOpen(false) }}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                      selectedLabel === '' ? 'bg-gray-100 dark:bg-slate-700 text-gray-400 font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    None
-                  </button>
                   {availableLabels.map(l => (
                     <button
                       key={l}
@@ -300,6 +291,15 @@ function HomeContent() {
                       {l}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedLabel(''); setLabelDropdownOpen(false) }}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      selectedLabel === '' ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    None
+                  </button>
                 </div>
               )}
             </div>
