@@ -84,7 +84,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
 
   return (
     <div 
-      className="fixed inset-0 z-50 overflow-y-auto p-4"
+      className="fixed inset-0 z-50 overflow-y-auto p-4 flex items-center justify-center min-h-full"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
@@ -100,7 +100,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
       <div 
         ref={modalRef}
         tabIndex={-1}
-        className={`relative mx-auto my-4 bg-white dark:bg-slate-800 rounded-xl shadow-xl dark:shadow-slate-900/50 p-6 sm:p-8 w-full max-h-[calc(100vh-2rem)] overflow-y-auto ${sizeClasses[size]} animate-in fade-in zoom-in-95 duration-200`}
+        className={`relative mx-auto bg-white dark:bg-slate-800 rounded-xl shadow-xl dark:shadow-slate-900/50 p-6 sm:p-8 w-full max-h-[calc(100vh-2rem)] overflow-y-auto ${sizeClasses[size]} animate-in fade-in zoom-in-95 duration-200`}
       >
         {/* Close button */}
         {!hideClose && (

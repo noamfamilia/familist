@@ -560,6 +560,7 @@ export default function ListPage() {
           <div className="sticky top-0 z-10 bg-white dark:bg-slate-800" data-tour="members-header">
             <MemberHeader
               members={filteredMembers}
+              allMembers={members}
               hideDone={hideDone}
               hideNotRelevant={hideNotRelevant}
               onToggleHideDone={toggleHideDone}
@@ -693,28 +694,28 @@ export default function ListPage() {
       <Modal
         isOpen={showNewMemberAlert}
         onClose={() => setShowNewMemberAlert(false)}
-        size="sm"
+        size="xs"
       >
-        <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+        <p className="text-sm text-gray-700 dark:text-gray-300 text-center mb-6 leading-relaxed">
           A user added a new task. Switch to &ldquo;Show all Tasks&rdquo; to view it?
         </p>
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setShowNewMemberAlert(false)}
-            className="px-3 py-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300"
-          >
-            Dismiss
-          </button>
+        <div className="flex flex-col gap-2">
           <button
             type="button"
             onClick={() => {
               updateMemberFilter('all')
               setShowNewMemberAlert(false)
             }}
-            className="px-3 py-1.5 text-sm font-medium text-white bg-teal rounded-lg hover:opacity-80"
+            className="w-full px-3 py-2 text-sm font-medium text-white bg-teal rounded-lg hover:opacity-80"
           >
             Ok
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowNewMemberAlert(false)}
+            className="w-full px-3 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300"
+          >
+            Dismiss
           </button>
         </div>
       </Modal>

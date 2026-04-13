@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
@@ -18,6 +18,7 @@ const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(m
 
 interface MemberHeaderProps {
   members: MemberWithCreator[]
+  allMembers: MemberWithCreator[]
   hideDone: Record<string, boolean>
   hideNotRelevant: Record<string, boolean>
   onToggleHideDone: (memberId: string) => void
@@ -48,6 +49,7 @@ interface MemberHeaderProps {
 
 export function MemberHeader({
   members,
+  allMembers,
   hideDone,
   hideNotRelevant,
   onToggleHideDone,
@@ -77,6 +79,17 @@ export function MemberHeader({
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { success: showSuccess, error: showError } = useToast()
+
+  const suggestedName = useMemo(() => {
+    const base = profile?.nickname?.trim()
+    if (!base) return ''
+    const names = new Set(allMembers.map(m => m.name))
+    if (!names.has(base)) return base
+    let i = 2
+    while (names.has(`${base}${i}`)) i++
+    return `${base}${i}`
+  }, [profile?.nickname, allMembers])
+
   const [isAdding, setIsAdding] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [actionsMenuPos, setActionsMenuPos] = useState<{ top: number; right: number } | null>(null)
@@ -135,7 +148,7 @@ export function MemberHeader({
   const [deleteLoading, setDeleteLoading] = useState(false)
 
   const handleAddMember = async () => {
-    const fallbackName = profile?.nickname?.trim() || ''
+    const fallbackName = suggestedName
     const nameToAdd = newMemberName.trim() || fallbackName
     if (!nameToAdd) {
       setNewMemberName('')
@@ -395,7 +408,7 @@ export function MemberHeader({
                         handleCancelAddMember()
                       }
                     }}
-                    placeholder={profile?.nickname || 'Name'}
+                    placeholder={suggestedName || 'Name'}
                     className="w-[90px] h-[40px] px-2 py-0.5 text-lg border border-teal rounded-lg bg-white dark:bg-slate-800"
                     autoFocus
                   />
