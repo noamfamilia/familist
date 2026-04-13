@@ -161,19 +161,33 @@ export default function ListPage() {
   }, [accessDenied, router, showError])
 
   const [showNewMemberAlert, setShowNewMemberAlert] = useState(false)
-  const newMemberCheckedRef = useRef(false)
+  const knownMemberIdsRef = useRef<Set<string> | null>(null)
 
-  // Check for new members added since last visit
   useEffect(() => {
-    if (newMemberCheckedRef.current || !hasCompletedInitialFetch || !lastViewedMembers || !user) return
-    newMemberCheckedRef.current = true
-    if (memberFilter === 'all') return
-    const hasNewFromOthers = members.some(
-      m => m.created_by !== user.id && new Date(m.created_at) > new Date(lastViewedMembers)
-    )
-    if (hasNewFromOthers) {
-      setShowNewMemberAlert(true)
+    if (!hasCompletedInitialFetch || !user) return
+    const currentIds = new Set(members.map(m => m.id))
+
+    if (knownMemberIdsRef.current === null) {
+      // First load: seed known IDs, then check for unseen members from before this session
+      knownMemberIdsRef.current = currentIds
+      if (memberFilter === 'all' || !lastViewedMembers) return
+      const hasNewFromOthers = members.some(
+        m => m.created_by !== user.id && new Date(m.created_at) > new Date(lastViewedMembers)
+      )
+      if (hasNewFromOthers) setShowNewMemberAlert(true)
+      return
     }
+
+    // Realtime update: detect newly appeared members from other users
+    if (memberFilter === 'all') {
+      knownMemberIdsRef.current = currentIds
+      return
+    }
+    const newFromOthers = members.some(
+      m => !knownMemberIdsRef.current!.has(m.id) && m.created_by !== user.id
+    )
+    knownMemberIdsRef.current = currentIds
+    if (newFromOthers) setShowNewMemberAlert(true)
   }, [hasCompletedInitialFetch, lastViewedMembers, members, memberFilter, user])
 
   useEffect(() => {
