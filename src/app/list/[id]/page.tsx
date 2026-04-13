@@ -515,7 +515,7 @@ export default function ListPage() {
                       catId === newItemCategory ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
                     }`}
                   >
-                    <span className="truncate">{label || <span className="text-gray-400/70">&lt;empty&gt;</span>}</span>
+                    <span className="truncate">{label}</span>
                   </button>
                 )
               })}

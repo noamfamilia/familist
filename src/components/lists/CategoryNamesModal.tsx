@@ -50,8 +50,8 @@ function SortableCategoryRow({
         type="text"
         value={value}
         onChange={e => onChange(e.target.value)}
-        placeholder="<empty>"
-        className="flex-1 min-w-0 bg-transparent text-sm text-black focus:outline-none placeholder:text-gray-400/70 h-5 p-0"
+        placeholder="Add category name..."
+        className="flex-1 min-w-0 bg-transparent text-sm text-black focus:outline-none placeholder:text-gray-400 h-5 p-0"
         maxLength={30}
       />
     </div>
@@ -112,6 +112,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   return (
     <Modal isOpen={isOpen} onClose={handleDone} size="xs" hideClose>
       <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Set Categories</h3>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
