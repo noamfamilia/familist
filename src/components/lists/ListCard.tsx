@@ -44,6 +44,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const [draftComment, setDraftComment] = useState('')
   const commentRef = useRef<HTMLTextAreaElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const renamePopoverRef = useRef<HTMLDivElement>(null)
+  const commentPopoverRef = useRef<HTMLDivElement>(null)
   const [labelDropdownOpen, setLabelDropdownOpen] = useState(false)
   const [addingLabel, setAddingLabel] = useState(false)
   const [newLabelText, setNewLabelText] = useState('')
@@ -111,7 +113,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     const trimmed = draftComment.trim()
     setComment(trimmed)
     setEditingComment(false)
-    commentRef.current?.blur()
     const { error } = await onUpdate(list.id, { comment: trimmed || null })
     if (error) {
       showError('Failed to save comment')
@@ -122,13 +123,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const handleCancelComment = () => {
     setDraftComment(comment)
     setEditingComment(false)
-    commentRef.current?.blur()
-    requestAnimationFrame(() => {
-      if (commentRef.current) {
-        commentRef.current.style.height = 'auto'
-        commentRef.current.style.height = commentRef.current.scrollHeight + 'px'
-      }
-    })
   }
 
   const handleClearComment = () => {
@@ -147,6 +141,38 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     }
   }, [isRenaming])
 
+  // Outside-click: save rename
+  useEffect(() => {
+    if (!isRenaming) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
+        void handleRename()
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  })
+
+  // Outside-click: save comment
+  useEffect(() => {
+    if (!editingComment) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (commentPopoverRef.current && !commentPopoverRef.current.contains(e.target as Node)) {
+        void handleSaveComment()
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  })
+
+  // Focus and auto-grow comment textarea on open
+  useEffect(() => {
+    if (editingComment && commentRef.current) {
+      commentRef.current.focus()
+      autoGrow(commentRef.current)
+    }
+  }, [editingComment, autoGrow])
+
   const handleArchiveClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
     
@@ -163,10 +189,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       }
     }
     setIsRenaming(false)
-  }
-
-  const handleArchive = async () => {
-    await onArchive(list.id, { archived: !list.userArchived })
   }
 
   const handleDeleteClick = () => {
@@ -262,38 +284,69 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         {list.userArchived ? '▲' : '▼'}
       </button>
 
-      {/* List name — tour highlights just the text */}
-      {isRenaming ? (
-        <input
-          ref={inputRef}
-          type="text"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void handleRename()
-            if (e.key === 'Escape') handleCancelRename()
-          }}
-          className="flex-1 min-w-0 px-2 py-1 border border-teal rounded text-lg font-medium"
-          aria-label="List name"
-        />
-      ) : list.userArchived ? (
-        <span
-          className="flex-1 min-w-0 font-medium truncate text-lg text-gray-400 dark:text-gray-500 line-through"
-          data-tour="list-card"
-        >
-          {list.name}
-          {ownerBadge}
-        </span>
-      ) : (
-        <Link
-          href={`/list/${list.id}`}
-          className="flex-1 min-w-0 font-medium truncate text-lg text-primary dark:text-gray-100 hover:text-teal"
-          data-tour="list-card"
-        >
-          {list.name}
-          {ownerBadge}
-        </Link>
-      )}
+      {/* List name */}
+      <div className="flex-1 min-w-0 relative">
+        {list.userArchived ? (
+          <span
+            className="block font-medium truncate text-lg text-gray-400 dark:text-gray-500 line-through"
+            data-tour="list-card"
+          >
+            {list.name}
+            {ownerBadge}
+          </span>
+        ) : menuOpen && isOwner ? (
+          <span
+            className="block font-medium truncate text-lg text-primary dark:text-gray-100 hover:text-teal cursor-pointer"
+            data-tour="list-card"
+            onClick={(e) => {
+              e.stopPropagation()
+              setNewName(list.name)
+              setIsRenaming(true)
+            }}
+          >
+            {list.name}
+            {ownerBadge}
+          </span>
+        ) : (
+          <Link
+            href={`/list/${list.id}`}
+            className="block font-medium truncate text-lg text-primary dark:text-gray-100 hover:text-teal"
+            data-tour="list-card"
+          >
+            {list.name}
+            {ownerBadge}
+          </Link>
+        )}
+        {isRenaming && (
+          <div
+            ref={renamePopoverRef}
+            className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative">
+              <input
+                ref={inputRef}
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleRename()
+                  if (e.key === 'Escape') handleCancelRename()
+                }}
+                className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
+                aria-label="List name"
+              />
+              <button
+                type="button"
+                onClick={handleClearName}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Comment indicator */}
       {list.comment && list.comment.trim().length > 0 && (
@@ -337,103 +390,91 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       {/* Expanded menu with comment field and action buttons */}
       {menuOpen && (
         <div className="px-3 py-2 bg-gray-50 dark:bg-slate-900 group-hover:bg-gray-100 dark:group-hover:bg-slate-700 transition-colors border-t border-gray-200 dark:border-slate-600 space-y-2">
-          {/* Comment field */}
-          <div className="flex gap-2 items-start">
-            <textarea
-              ref={commentRef}
-              rows={1}
-              value={editingComment ? draftComment : comment}
-              onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
-              onFocus={() => { if (!editingComment) handleStartEditComment() }}
-              placeholder="Add a comment..."
-              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal resize-none overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            />
+          {/* Comment display / editor */}
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            {comment ? (
+              <p
+                className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words cursor-pointer hover:text-teal"
+                onClick={() => handleStartEditComment()}
+              >
+                {comment}
+              </p>
+            ) : (
+              <p
+                className="text-sm text-gray-400 dark:text-gray-500 cursor-pointer hover:text-teal"
+                onClick={() => handleStartEditComment()}
+              >
+                Add a comment...
+              </p>
+            )}
+            {editingComment && (
+              <div
+                ref={commentPopoverRef}
+                className="absolute left-0 right-0 top-0 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2"
+              >
+                <div className="relative">
+                  <textarea
+                    ref={commentRef}
+                    rows={1}
+                    value={draftComment}
+                    onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') handleCancelComment()
+                    }}
+                    className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal resize-none overflow-hidden"
+                    placeholder="Add a comment..."
+                  />
+                  <button
+                    type="button"
+                    onClick={handleClearComment}
+                    className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           {/* Action buttons */}
           <div className="flex items-center justify-end gap-2 flex-wrap">
-            {editingComment || isRenaming ? (
-              <>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => { e.stopPropagation(); isRenaming ? handleCancelRename() : handleCancelComment() }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg bg-gray-400 hover:bg-gray-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => { e.stopPropagation(); isRenaming ? handleClearName() : handleClearComment() }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg bg-teal hover:opacity-80"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => { e.stopPropagation(); isRenaming ? void handleRename() : void handleSaveComment() }}
-                  className="px-3 py-1.5 text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
-                >
-                  Done
-                </button>
-              </>
+            {!list.userArchived && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void handleDuplicate()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
+              >
+                Duplicate
+              </button>
+            )}
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeleteClick()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+              >
+                Delete
+              </button>
             ) : (
-              <>
-                {!list.userArchived && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void handleDuplicate()
-                    }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
-                  >
-                    Duplicate
-                  </button>
-                )}
-                {isOwner && !list.userArchived && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setNewName(list.name)
-                      setIsRenaming(true)
-                    }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-teal hover:opacity-80"
-                  >
-                    Rename
-                  </button>
-                )}
-                {isOwner ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteClick()
-                    }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-                  >
-                    Delete
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleLeaveClick()
-                    }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-                  >
-                    Leave
-                  </button>
-                )}
-              </>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleLeaveClick()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+              >
+                Leave
+              </button>
             )}
           </div>
           {/* Label selector */}
-          {onUpdateLabel && !editingComment && !isRenaming && (
+          {onUpdateLabel && (
             <div onClick={(e) => e.stopPropagation()}>
               <div className="relative" ref={labelDropdownRef}>
                 <button
