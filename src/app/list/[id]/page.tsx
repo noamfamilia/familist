@@ -126,6 +126,7 @@ export default function ListPage() {
     saveTimedOut,
     error,
     accessDenied,
+    hasCompletedInitialFetch,
     memberFilter,
     itemTextWidth,
     itemTextWidthMode,

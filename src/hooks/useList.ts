@@ -1115,6 +1115,7 @@ export function useList(listId: string) {
     saveTimedOut,
     error,
     accessDenied,
+    hasCompletedInitialFetch,
     memberFilter,
     itemTextWidth,
     itemTextWidthMode,
