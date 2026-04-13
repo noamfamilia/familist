@@ -46,14 +46,25 @@ function SortableCategoryRow({
       >
         ⋮⋮
       </div>
-      <input
-        type="text"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="Add category name..."
-        className="flex-1 min-w-0 bg-transparent text-sm text-black focus:outline-none placeholder:text-gray-400 h-5 p-0"
-        maxLength={30}
-      />
+      <div className="flex-1 min-w-0 relative">
+        <input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="Add category name..."
+          className="w-full bg-transparent text-sm text-black focus:outline-none placeholder:text-gray-400 h-5 p-0 pr-5"
+          maxLength={30}
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            ✕
+          </button>
+        )}
+      </div>
     </div>
   )
 }
