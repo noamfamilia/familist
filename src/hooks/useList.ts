@@ -979,21 +979,16 @@ export function useList(listId: string) {
 
   const updateMemberFilter = async (filter: MemberFilter) => {
     const prev = memberFilter
-    const switchingFromAll = prev === 'all' && filter !== 'all'
     setMemberFilter(filter)
     setCachedPrefs(listId, { memberFilter: filter }, userId)
-    if (switchingFromAll) {
+    if (prev === 'all' && filter !== 'all') {
       setLastViewedMembers(new Date().toISOString())
     }
     if (userId) {
-      const updates: Record<string, string> = { member_filter: filter }
-      if (switchingFromAll) {
-        updates.last_viewed_members = new Date().toISOString()
-      }
       const { error } = await trackSaveOperation(
         supabase
           .from('list_users')
-          .update(updates)
+          .update({ member_filter: filter })
           .eq('list_id', listId)
           .eq('user_id', userId)
       )
