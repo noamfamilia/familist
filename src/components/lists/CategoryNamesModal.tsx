@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -26,6 +26,8 @@ function SortableCategoryRow({
   onChange: (value: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: catId })
+  const [focused, setFocused] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -48,17 +50,21 @@ function SortableCategoryRow({
       </div>
       <div className="flex-1 min-w-0 relative">
         <input
+          ref={inputRef}
           type="text"
           value={value}
           onChange={e => onChange(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder="Add category name..."
           className="w-full bg-transparent text-sm text-black focus:outline-none placeholder:text-gray-400 h-5 p-0 pr-5"
           maxLength={30}
         />
-        {value && (
+        {focused && value && (
           <button
             type="button"
-            onClick={() => onChange('')}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => { onChange(''); inputRef.current?.focus() }}
             className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
           >
             ✕

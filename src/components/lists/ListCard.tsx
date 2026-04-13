@@ -476,7 +476,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <button
                   type="button"
                   onClick={() => { setLabelDropdownOpen(o => !o); setAddingLabel(false); setNewLabelText('') }}
-                  className="text-sm bg-transparent border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal cursor-pointer flex items-center gap-1"
+                  className="text-sm bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal cursor-pointer flex items-center gap-1"
                 >
                   <svg className="h-8 w-8 flex-shrink-0 -my-1.5" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
                     <path d="M746.5 575.9L579.2 743.6l-173-173.5-53.3-112.4 108.3-108.6 112.2 53.4z" fill="#FBBA22" />
