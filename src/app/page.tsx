@@ -12,8 +12,13 @@ import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
 import { resetTutorial } from '@/components/ui/TutorialTour'
 import { useTheme } from 'next-themes'
+import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
+  ssr: false,
+})
+const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
   ssr: false,
 })
 
@@ -67,6 +72,10 @@ function HomeContent() {
   const inviteToken = searchParams.get('invite')
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [showDenote, setShowDenote] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [submittingFeedback, setSubmittingFeedback] = useState(false)
+  const { success, error: showError } = useToast()
   const profileMenuRef = useRef<HTMLDivElement>(null)
   const [selectedLabel, setSelectedLabel] = useState('Any')
   const [labelDropdownOpen, setLabelDropdownOpen] = useState(false)
@@ -212,6 +221,17 @@ function HomeContent() {
                   className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   onClick={() => {
                     setProfileMenuOpen(false)
+                    setShowFeedback(true)
+                  }}
+                >
+                  User feedback
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  onClick={() => {
+                    setProfileMenuOpen(false)
                     setShowDenote(true)
                   }}
                 >
@@ -325,6 +345,44 @@ function HomeContent() {
         isOpen={showAuthModal && !user}
         onClose={() => setShowAuthModal(false)}
       />
+
+      <Modal
+        isOpen={showFeedback}
+        onClose={() => { setShowFeedback(false); setFeedbackText('') }}
+        title="User Feedback"
+        size="sm"
+      >
+        <textarea
+          value={feedbackText}
+          onChange={(e) => setFeedbackText(e.target.value)}
+          placeholder="Share your suggestions or feedback..."
+          className="w-full min-h-[120px] px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200 resize-y"
+          maxLength={2000}
+        />
+        <div className="flex justify-end mt-3">
+          <button
+            type="button"
+            disabled={!feedbackText.trim() || submittingFeedback}
+            onClick={async () => {
+              if (!feedbackText.trim() || !user) return
+              setSubmittingFeedback(true)
+              const supabase = createClient()
+              const { error: err } = await supabase.from('feedback').insert({ user_id: user.id, email: user.email, message: feedbackText.trim() })
+              setSubmittingFeedback(false)
+              if (err) {
+                showError('Failed to submit feedback')
+              } else {
+                success('Thank you for your feedback!')
+                setFeedbackText('')
+                setShowFeedback(false)
+              }
+            }}
+            className="px-4 py-1.5 text-sm font-medium text-white bg-teal rounded-lg hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submittingFeedback ? 'Submitting...' : 'Submit'}
+          </button>
+        </div>
+      </Modal>
 
       {showDenote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
