@@ -112,7 +112,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   return (
     <Modal isOpen={isOpen} onClose={handleDone} size="xs" hideClose>
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Set Categories</h3>
+        <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2 text-center">Set Categories</h3>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
