@@ -110,7 +110,7 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={handleCancel} size="xs" hideClose>
+    <Modal isOpen={isOpen} onClose={handleDone} size="xs" hideClose>
       <div>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
@@ -126,22 +126,6 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
             </div>
           </SortableContext>
         </DndContext>
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-slate-600 rounded px-3 py-1 hover:bg-gray-300"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleDone}
-            className="text-xs font-medium text-white bg-teal rounded px-3 py-1 hover:opacity-80"
-          >
-            Done
-          </button>
-        </div>
       </div>
     </Modal>
   )
