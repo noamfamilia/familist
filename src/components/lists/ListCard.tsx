@@ -378,8 +378,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         )}
       </div>
 
-      {/* Comment indicator */}
-      {list.comment && list.comment.trim().length > 0 && (
+      {/* Comment indicator - hidden when expanded */}
+      {list.comment && list.comment.trim().length > 0 && !menuOpen && (
         <span className="text-teal text-sm opacity-80">💬</span>
       )}
 

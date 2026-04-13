@@ -473,8 +473,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Trailing section - pushed to right with ml-auto */}
         <div className="flex-shrink-0 flex justify-end items-center gap-1 ml-auto pl-4">
-          {/* Comment indicator */}
-          {hasComment && (
+          {/* Comment indicator - hidden when expanded */}
+          {hasComment && !showMenu && (
             <span className="text-teal text-sm opacity-80" title="Has comment">💬</span>
           )}
 
