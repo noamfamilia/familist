@@ -516,7 +516,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
-          <div className="px-3 py-2 space-y-2 border-t border-black/10 dark:border-white/10">
+          <div className="px-3 py-2 space-y-2">
             {/* Comment display / editor */}
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               {comment ? (

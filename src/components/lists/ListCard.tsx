@@ -419,7 +419,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
       {/* Expanded menu with comment field and action buttons */}
       {menuOpen && (
-        <div className="px-3 py-2 bg-gray-50 dark:bg-slate-900 group-hover:bg-gray-100 dark:group-hover:bg-slate-700 transition-colors border-t border-gray-200 dark:border-slate-600 space-y-2">
+        <div className="px-3 py-2 bg-gray-50 dark:bg-slate-900 group-hover:bg-gray-100 dark:group-hover:bg-slate-700 transition-colors space-y-2">
           {/* Comment display / editor */}
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             {comment ? (
