@@ -478,13 +478,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             <span className="text-teal text-sm opacity-80" title="Has comment">💬</span>
           )}
 
-          {/* Category name label (non-empty names only) */}
-          {categoryNames?.[String(category)] ? (
-            <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[60px]">
-              {categoryNames[String(category)]}
-            </span>
-          ) : null}
-
           {/* Delete icon - only when expanded */}
           {showMenu && (
             <button
@@ -501,6 +494,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               </svg>
             </button>
           )}
+
+          {/* Category name label (non-empty names only) */}
+          {categoryNames?.[String(category)] ? (
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[60px]">
+              {categoryNames[String(category)]}
+            </span>
+          ) : null}
 
           {/* Kebab menu button */}
           <button
