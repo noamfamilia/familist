@@ -24,6 +24,9 @@ import type { Step } from 'react-joyride'
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
 })
+const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
+  ssr: false,
+})
 
 function makeCategoryComparators(order: number[]) {
   const positionOf = (cat: number) => {
@@ -145,6 +148,7 @@ export default function ListPage() {
     updateItemTextWidthMode,
     updateCategoryNames,
     updateCategoryOrder,
+    lastVisited,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -154,6 +158,31 @@ export default function ListPage() {
       router.replace('/')
     }
   }, [accessDenied, router, showError])
+
+  // Check for new members added since last visit
+  useEffect(() => {
+    if (newMemberCheckedRef.current || !hasCompletedInitialFetch || !lastVisited || !user) return
+    newMemberCheckedRef.current = true
+    if (memberFilter === 'all') return
+    const hasNewFromOthers = members.some(
+      m => m.created_by !== user.id && new Date(m.created_at) > new Date(lastVisited)
+    )
+    if (hasNewFromOthers) {
+      setShowNewMemberAlert(true)
+    }
+  }, [hasCompletedInitialFetch, lastVisited, members, memberFilter, user])
+
+  useEffect(() => {
+    if (!showNewMemberAlert) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        updateMemberFilter('all')
+        setShowNewMemberAlert(false)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [showNewMemberAlert, updateMemberFilter])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -175,6 +204,8 @@ export default function ListPage() {
   const [confirmDeleteArchived, setConfirmDeleteArchived] = useState(false)
   const [confirmRestoreArchived, setConfirmRestoreArchived] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [showNewMemberAlert, setShowNewMemberAlert] = useState(false)
+  const newMemberCheckedRef = useRef(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
   const [goalsDropdownOpen, setGoalsDropdownOpen] = useState(false)
@@ -656,6 +687,35 @@ export default function ListPage() {
         variant="danger"
         loading={bulkLoading}
       />
+
+      <Modal
+        isOpen={showNewMemberAlert}
+        onClose={() => setShowNewMemberAlert(false)}
+        size="sm"
+      >
+        <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+          A user added a new task. Switch to &ldquo;Show all Tasks&rdquo; to view it?
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setShowNewMemberAlert(false)}
+            className="px-3 py-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300"
+          >
+            Dismiss
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              updateMemberFilter('all')
+              setShowNewMemberAlert(false)
+            }}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-teal rounded-lg hover:opacity-80"
+          >
+            Ok
+          </button>
+        </div>
+      </Modal>
 
     </div>
   )

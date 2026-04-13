@@ -157,6 +157,7 @@ export function useList(listId: string) {
   const [itemTextWidth, setItemTextWidth] = useState(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).width)
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
+  const [lastVisited, setLastVisited] = useState<string | null>(null)
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -307,7 +308,7 @@ export function useList(listId: string) {
         prefsFetchedRef.current = true
         const { data: listUserData } = await supabase
           .from('list_users')
-          .select('member_filter, item_text_width')
+          .select('member_filter, item_text_width, last_visited')
           .eq('list_id', listId)
           .eq('user_id', userId)
           .single()
@@ -325,7 +326,16 @@ export function useList(listId: string) {
           if (parsed.mode === 'manual') {
             setItemTextWidth(parsed.width)
           }
+          setLastVisited(listUserData.last_visited ?? null)
         }
+
+        // Update last_visited timestamp
+        supabase
+          .from('list_users')
+          .update({ last_visited: new Date().toISOString() })
+          .eq('list_id', listId)
+          .eq('user_id', userId)
+          .then(() => {})
       }
       setFetchTimedOut(false)
     } catch (err) {
@@ -1127,5 +1137,6 @@ export function useList(listId: string) {
     updateItemTextWidthMode,
     updateCategoryNames,
     updateCategoryOrder,
+    lastVisited,
   }
 }
