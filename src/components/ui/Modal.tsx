@@ -77,7 +77,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
 
   const sizeClasses = {
     xs: 'max-w-[240px] !px-1.5 !py-4',
-    sm: 'max-w-xs',
+    sm: 'max-w-[256px]',
     md: 'max-w-md',
     lg: 'max-w-lg',
   }
@@ -100,7 +100,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
       <div 
         ref={modalRef}
         tabIndex={-1}
-        className={`relative mx-auto mt-16 bg-white dark:bg-slate-800 rounded-xl shadow-xl dark:shadow-slate-900/50 p-6 sm:p-8 w-full max-h-[calc(100vh-2rem)] overflow-y-auto ${sizeClasses[size]} animate-in fade-in zoom-in-95 duration-200`}
+        className={`relative mx-auto mt-16 bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full max-h-[calc(100vh-2rem)] overflow-y-auto outline-none ${sizeClasses[size]} animate-in fade-in zoom-in-95 duration-200`}
       >
         {/* Close button */}
         {!hideClose && (
