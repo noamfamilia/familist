@@ -461,43 +461,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               </div>
             )}
           </div>
-          {/* Action buttons + label selector (buttons first, label wraps below if needed) */}
+          {/* Label selector + action buttons (label left, buttons right, label wraps below if needed) */}
           <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-            {!list.userArchived && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void handleDuplicate()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
-              >
-                Duplicate
-              </button>
-            )}
-            {isOwner ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDeleteClick()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Delete
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleLeaveClick()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Leave
-              </button>
-            )}
             {/* Label selector */}
             {onUpdateLabel && (
               <div className="relative" ref={labelDropdownRef}>
@@ -576,6 +541,41 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   </div>
                 )}
               </div>
+            )}
+            {!list.userArchived && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void handleDuplicate()
+                }}
+                className="ml-auto px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
+              >
+                Duplicate
+              </button>
+            )}
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeleteClick()
+                }}
+                className={`${list.userArchived ? 'ml-auto' : ''} px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500`}
+              >
+                Delete
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleLeaveClick()
+                }}
+                className={`${list.userArchived ? 'ml-auto' : ''} px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500`}
+              >
+                Leave
+              </button>
             )}
           </div>
         </div>
