@@ -64,6 +64,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       if (labelDropdownRef.current && !labelDropdownRef.current.contains(e.target as Node)) {
         e.preventDefault()
         e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
         setLabelDropdownOpen(false)
         setAddingLabel(false)
         setNewLabelText('')
@@ -86,6 +87,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       if (addLabelPopoverRef.current && !addLabelPopoverRef.current.contains(e.target as Node)) {
         e.preventDefault()
         e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
         handleAddLabelDone()
       }
     }
@@ -170,6 +172,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
         e.preventDefault()
         e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
         void handleRename()
       }
     }
@@ -184,6 +187,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       if (commentPopoverRef.current && !commentPopoverRef.current.contains(e.target as Node)) {
         e.preventDefault()
         e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
         void handleSaveComment()
       }
     }
@@ -462,7 +466,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             )}
           </div>
           {/* Label selector + action buttons (label left, buttons right, label wraps below if needed) */}
-          <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2 flex-wrap-reverse" onClick={(e) => e.stopPropagation()}>
             {/* Label selector */}
             {onUpdateLabel && (
               <div className="relative" ref={labelDropdownRef}>

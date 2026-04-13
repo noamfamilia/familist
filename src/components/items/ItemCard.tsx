@@ -83,6 +83,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       if (quantityEditorRef.current && !quantityEditorRef.current.contains(e.target as Node)) {
         e.preventDefault()
         e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
         setEditingQuantityMember(null)
         setEditQuantityValue('')
         setEditorPos(null)
@@ -99,6 +100,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
         e.preventDefault()
         e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
         void handleSaveText()
       }
     }
@@ -113,6 +115,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       if (commentPopoverRef.current && !commentPopoverRef.current.contains(e.target as Node)) {
         e.preventDefault()
         e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
         void handleSaveComment()
       }
     }
