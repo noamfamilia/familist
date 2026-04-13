@@ -485,6 +485,23 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </span>
           ) : null}
 
+          {/* Delete icon - only when expanded */}
+          {showMenu && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowDeleteConfirm(true)
+                setShowMenu(false)
+              }}
+              className="text-red-500 hover:opacity-70 p-0.5"
+              title="Delete item"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5.755,20.283,4,8H20L18.245,20.283A2,2,0,0,1,16.265,22H7.735A2,2,0,0,1,5.755,20.283ZM21,4H16V3a1,1,0,0,0-1-1H9A1,1,0,0,0,8,3V4H3A1,1,0,0,0,3,6H21a1,1,0,0,0,0-2Z"/>
+              </svg>
+            </button>
+          )}
+
           {/* Kebab menu button */}
           <button
             onClick={() => setShowMenu(!showMenu)}
@@ -569,20 +586,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   </button>
                 )
               })}
-            </div>
-            {/* Action buttons */}
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowDeleteConfirm(true)
-                  setShowMenu(false)
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Delete
-              </button>
             </div>
           </div>
         )}
