@@ -116,11 +116,14 @@ function HomeContent() {
     if (!labelDropdownOpen) return
     const close = (e: MouseEvent) => {
       if (labelDropdownRef.current && !labelDropdownRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
         setLabelDropdownOpen(false)
       }
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('mousedown', close, true)
+    return () => document.removeEventListener('mousedown', close, true)
   }, [labelDropdownOpen])
 
   const handleLabelsChange = useCallback((labels: string[]) => {

@@ -231,11 +231,14 @@ export default function ListPage() {
     if (!goalsDropdownOpen) return
     const close = (e: MouseEvent) => {
       if (goalsDropdownRef.current && !goalsDropdownRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
         setGoalsDropdownOpen(false)
       }
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('mousedown', close, true)
+    return () => document.removeEventListener('mousedown', close, true)
   }, [goalsDropdownOpen])
 
   const handleBackToLists = () => {
