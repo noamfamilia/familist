@@ -505,7 +505,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                       type="button"
                       onClick={() => { void onUpdateLabel(list.id, ''); setLabelDropdownOpen(false) }}
                       className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                        !list.label ? 'bg-gray-100 dark:bg-slate-700 text-gray-400 font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
+                        !list.label ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
                       }`}
                     >
                       None
