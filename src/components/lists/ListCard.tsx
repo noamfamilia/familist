@@ -62,13 +62,15 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     if (!labelDropdownOpen) return
     const close = (e: MouseEvent) => {
       if (labelDropdownRef.current && !labelDropdownRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
         setLabelDropdownOpen(false)
         setAddingLabel(false)
         setNewLabelText('')
       }
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('mousedown', close, true)
+    return () => document.removeEventListener('mousedown', close, true)
   }, [labelDropdownOpen])
 
   useEffect(() => {
@@ -82,11 +84,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     if (!addingLabel || labelDropdownOpen) return
     const handleMouseDown = (e: MouseEvent) => {
       if (addLabelPopoverRef.current && !addLabelPopoverRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
         handleAddLabelDone()
       }
     }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
+    document.addEventListener('mousedown', handleMouseDown, true)
+    return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
 
   const handleAddLabelDone = () => {
@@ -164,11 +168,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     if (!isRenaming) return
     const handleMouseDown = (e: MouseEvent) => {
       if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
         void handleRename()
       }
     }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
+    document.addEventListener('mousedown', handleMouseDown, true)
+    return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
 
   // Outside-click: save comment
@@ -176,11 +182,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     if (!editingComment) return
     const handleMouseDown = (e: MouseEvent) => {
       if (commentPopoverRef.current && !commentPopoverRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
         void handleSaveComment()
       }
     }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
+    document.addEventListener('mousedown', handleMouseDown, true)
+    return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
 
   // Focus and auto-grow comment textarea on open
@@ -453,11 +461,46 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               </div>
             )}
           </div>
-          {/* Action buttons + label selector (same row, wraps if needed) */}
-          <div className="flex items-center justify-end gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+          {/* Action buttons + label selector (buttons first, label wraps below if needed) */}
+          <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+            {!list.userArchived && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void handleDuplicate()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
+              >
+                Duplicate
+              </button>
+            )}
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeleteClick()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+              >
+                Delete
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleLeaveClick()
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+              >
+                Leave
+              </button>
+            )}
             {/* Label selector */}
             {onUpdateLabel && (
-              <div className="relative mr-auto" ref={labelDropdownRef}>
+              <div className="relative" ref={labelDropdownRef}>
                 <button
                   type="button"
                   onClick={() => { setLabelDropdownOpen(o => !o); setAddingLabel(false); setNewLabelText('') }}
@@ -533,41 +576,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   </div>
                 )}
               </div>
-            )}
-            {!list.userArchived && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void handleDuplicate()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-cyan"
-              >
-                Duplicate
-              </button>
-            )}
-            {isOwner ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDeleteClick()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Delete
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleLeaveClick()
-                }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-              >
-                Leave
-              </button>
             )}
           </div>
         </div>

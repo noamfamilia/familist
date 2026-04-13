@@ -81,13 +81,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (!editingQuantityMember) return
     const handleClickOutside = (e: MouseEvent) => {
       if (quantityEditorRef.current && !quantityEditorRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
         setEditingQuantityMember(null)
         setEditQuantityValue('')
         setEditorPos(null)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('mousedown', handleClickOutside, true)
+    return () => document.removeEventListener('mousedown', handleClickOutside, true)
   }, [editingQuantityMember])
 
   // Outside-click: save rename
@@ -95,11 +97,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (!isEditing) return
     const handleMouseDown = (e: MouseEvent) => {
       if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
         void handleSaveText()
       }
     }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
+    document.addEventListener('mousedown', handleMouseDown, true)
+    return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
 
   // Outside-click: save comment
@@ -107,11 +111,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (!editingComment) return
     const handleMouseDown = (e: MouseEvent) => {
       if (commentPopoverRef.current && !commentPopoverRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
         void handleSaveComment()
       }
     }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
+    document.addEventListener('mousedown', handleMouseDown, true)
+    return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
 
   // Focus and select name input on edit
