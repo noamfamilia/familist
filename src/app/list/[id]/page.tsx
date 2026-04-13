@@ -694,26 +694,29 @@ export default function ListPage() {
       <Modal
         isOpen={showNewMemberAlert}
         onClose={() => setShowNewMemberAlert(false)}
-        size="xs"
+        size="sm"
+        hideClose
       >
-        <p className="text-sm text-gray-700 dark:text-gray-300 text-center mb-6 leading-relaxed">
-          A user added a new task. Switch to &ldquo;Show all Tasks&rdquo; to view it?
+        <p className="text-base text-gray-700 dark:text-gray-300 text-center leading-relaxed mb-6">
+          A user added a new task.
+          <br />
+          Switch to &ldquo;Show all Tasks&rdquo; to view it?
         </p>
-        <div className="flex flex-col gap-2">
+        <div className="flex justify-center gap-3">
           <button
             type="button"
             onClick={() => {
               updateMemberFilter('all')
               setShowNewMemberAlert(false)
             }}
-            className="w-full px-3 py-2 text-sm font-medium text-white bg-teal rounded-lg hover:opacity-80"
+            className="px-5 py-2 text-base font-medium text-white bg-teal rounded-lg hover:opacity-80"
           >
             Ok
           </button>
           <button
             type="button"
             onClick={() => setShowNewMemberAlert(false)}
-            className="w-full px-3 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300"
+            className="px-5 py-2 text-base font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300"
           >
             Dismiss
           </button>
