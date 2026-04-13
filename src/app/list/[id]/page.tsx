@@ -160,6 +160,9 @@ export default function ListPage() {
     }
   }, [accessDenied, router, showError])
 
+  const [showNewMemberAlert, setShowNewMemberAlert] = useState(false)
+  const newMemberCheckedRef = useRef(false)
+
   // Check for new members added since last visit
   useEffect(() => {
     if (newMemberCheckedRef.current || !hasCompletedInitialFetch || !lastVisited || !user) return
@@ -205,8 +208,6 @@ export default function ListPage() {
   const [confirmDeleteArchived, setConfirmDeleteArchived] = useState(false)
   const [confirmRestoreArchived, setConfirmRestoreArchived] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
-  const [showNewMemberAlert, setShowNewMemberAlert] = useState(false)
-  const newMemberCheckedRef = useRef(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
   const [goalsDropdownOpen, setGoalsDropdownOpen] = useState(false)
