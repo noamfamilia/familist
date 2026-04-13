@@ -40,6 +40,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [draftComment, setDraftComment] = useState('')
   const commentRef = useRef<HTMLTextAreaElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const renamePopoverRef = useRef<HTMLDivElement>(null)
+  const commentPopoverRef = useRef<HTMLDivElement>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Sync comment state when item updates from realtime
@@ -87,6 +89,46 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [editingQuantityMember])
+
+  // Outside-click: save rename
+  useEffect(() => {
+    if (!isEditing) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
+        void handleSaveText()
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  })
+
+  // Outside-click: save comment
+  useEffect(() => {
+    if (!editingComment) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (commentPopoverRef.current && !commentPopoverRef.current.contains(e.target as Node)) {
+        void handleSaveComment()
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  })
+
+  // Focus and select name input on edit
+  useEffect(() => {
+    if (isEditing && nameInputRef.current) {
+      nameInputRef.current.focus()
+      nameInputRef.current.select()
+    }
+  }, [isEditing])
+
+  // Focus and auto-grow comment textarea on open
+  useEffect(() => {
+    if (editingComment && commentRef.current) {
+      commentRef.current.focus()
+      autoGrow(commentRef.current)
+    }
+  }, [editingComment, autoGrow])
 
   // Check if item should be hidden based on member filters
   const shouldHide = members.some(member => {
@@ -192,7 +234,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     const trimmed = draftComment.trim()
     setComment(trimmed)
     setEditingComment(false)
-    commentRef.current?.blur()
     const { error } = await onUpdateItem(item.id, { comment: trimmed || null })
     if (error) {
       showError(error.message || 'Failed to save comment')
@@ -203,13 +244,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const handleCancelComment = () => {
     setDraftComment(comment)
     setEditingComment(false)
-    commentRef.current?.blur()
-    requestAnimationFrame(() => {
-      if (commentRef.current) {
-        commentRef.current.style.height = 'auto'
-        commentRef.current.style.height = commentRef.current.scrollHeight + 'px'
-      }
-    })
   }
 
   const handleClearComment = () => {
@@ -256,25 +290,24 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           {isDraggable ? '⋮⋮' : ''}
         </div>
 
-        {/* Item name - click to toggle archive */}
+        {/* Item name - click to toggle archive (collapsed) or rename (expanded) */}
         <div
-          className="flex-shrink-0"
+          className="flex-shrink-0 relative"
           style={{ width: itemTextWidth }}
           data-tour="item-name"
         >
-          {isEditing ? (
-            <input
-              ref={nameInputRef}
-              type="text"
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleSaveText()
-                if (e.key === 'Escape') handleCancelEditText()
+          {showMenu ? (
+            <span
+              onClick={(e) => {
+                e.stopPropagation()
+                setEditText(item.text)
+                setIsEditing(true)
               }}
-              className="w-full px-2 py-0.5 border border-teal rounded text-lg"
-              autoFocus
-            />
+              className={`block truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              data-tour="item-archive"
+            >
+              {item.text}
+            </span>
           ) : (
             <span
               onClick={handleArchive}
@@ -284,6 +317,35 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             >
               {item.text}
             </span>
+          )}
+          {isEditing && (
+            <div
+              ref={renamePopoverRef}
+              className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative">
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleSaveText()
+                    if (e.key === 'Escape') handleCancelEditText()
+                  }}
+                  className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
+                  aria-label="Item name"
+                />
+                <button
+                  type="button"
+                  onClick={handleClearText}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
@@ -429,18 +491,50 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
           <div className="px-3 py-2 space-y-2 border-t border-black/10 dark:border-white/10">
-            {/* Comment field */}
-            <div className="flex gap-2 items-start">
-              <textarea
-                ref={commentRef}
-                rows={1}
-                value={editingComment ? draftComment : comment}
-                onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
-                onFocus={() => { if (!editingComment) handleStartEditComment() }}
-                placeholder="Add a comment..."
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white/80 dark:bg-slate-800/80 resize-none overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-              />
+            {/* Comment display / editor */}
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              {comment ? (
+                <p
+                  className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words cursor-pointer hover:text-teal"
+                  onClick={() => handleStartEditComment()}
+                >
+                  {comment}
+                </p>
+              ) : (
+                <p
+                  className="text-sm text-gray-400 dark:text-gray-500 cursor-pointer hover:text-teal"
+                  onClick={() => handleStartEditComment()}
+                >
+                  Add a comment...
+                </p>
+              )}
+              {editingComment && (
+                <div
+                  ref={commentPopoverRef}
+                  className="absolute left-0 right-0 top-0 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2"
+                >
+                  <div className="relative">
+                    <textarea
+                      ref={commentRef}
+                      rows={1}
+                      value={draftComment}
+                      onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') handleCancelComment()
+                      }}
+                      className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal resize-none overflow-hidden"
+                      placeholder="Add a comment..."
+                    />
+                    <button
+                      type="button"
+                      onClick={handleClearComment}
+                      className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             {/* Category 1–6 labeled rectangles — grid keeps all buttons equal width */}
             <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
@@ -469,59 +563,17 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </div>
             {/* Action buttons */}
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {editingComment || isEditing ? (
-                <div className="flex items-center justify-end gap-2 flex-shrink-0">
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => { e.stopPropagation(); isEditing ? handleCancelEditText() : handleCancelComment() }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-gray-400 hover:bg-gray-500"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => { e.stopPropagation(); isEditing ? handleClearText() : handleClearComment() }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-teal hover:opacity-80"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => { e.stopPropagation(); isEditing ? void handleSaveText() : void handleSaveComment() }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
-                  >
-                    Done
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-end gap-2 flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setEditText(item.text)
-                      setIsEditing(true)
-                    }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg bg-teal hover:opacity-80"
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowDeleteConfirm(true)
-                      setShowMenu(false)
-                    }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowDeleteConfirm(true)
+                  setShowMenu(false)
+                }}
+                className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+              >
+                Delete
+              </button>
             </div>
           </div>
         )}
