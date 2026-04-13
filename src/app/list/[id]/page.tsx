@@ -149,7 +149,7 @@ export default function ListPage() {
     updateItemTextWidthMode,
     updateCategoryNames,
     updateCategoryOrder,
-    lastVisited,
+    lastViewedMembers,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -165,16 +165,16 @@ export default function ListPage() {
 
   // Check for new members added since last visit
   useEffect(() => {
-    if (newMemberCheckedRef.current || !hasCompletedInitialFetch || !lastVisited || !user) return
+    if (newMemberCheckedRef.current || !hasCompletedInitialFetch || !lastViewedMembers || !user) return
     newMemberCheckedRef.current = true
     if (memberFilter === 'all') return
     const hasNewFromOthers = members.some(
-      m => m.created_by !== user.id && new Date(m.created_at) > new Date(lastVisited)
+      m => m.created_by !== user.id && new Date(m.created_at) > new Date(lastViewedMembers)
     )
     if (hasNewFromOthers) {
       setShowNewMemberAlert(true)
     }
-  }, [hasCompletedInitialFetch, lastVisited, members, memberFilter, user])
+  }, [hasCompletedInitialFetch, lastViewedMembers, members, memberFilter, user])
 
   useEffect(() => {
     if (!showNewMemberAlert) return
