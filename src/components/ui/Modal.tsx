@@ -10,9 +10,10 @@ interface ModalProps {
   size?: 'xs' | 'sm' | 'md' | 'lg'
   manageHistory?: boolean
   hideClose?: boolean
+  contentClassName?: string
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md', manageHistory = true, hideClose = false }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size = 'md', manageHistory = true, hideClose = false, contentClassName = '' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
@@ -77,14 +78,14 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
 
   const sizeClasses = {
     xs: 'max-w-[240px] !px-1.5 !py-4',
-    sm: 'max-w-[256px]',
+    sm: 'max-w-xs',
     md: 'max-w-md',
     lg: 'max-w-lg',
   }
 
   return (
     <div 
-      className="fixed inset-0 z-50 overflow-y-auto p-4 flex items-start justify-center"
+      className="fixed inset-0 z-50 overflow-y-auto p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
@@ -100,7 +101,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', manageHis
       <div 
         ref={modalRef}
         tabIndex={-1}
-        className={`relative mx-auto mt-16 bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full max-h-[calc(100vh-2rem)] overflow-y-auto outline-none ${sizeClasses[size]} animate-in fade-in zoom-in-95 duration-200`}
+        className={`relative mx-auto my-4 bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full max-h-[calc(100vh-2rem)] overflow-y-auto outline-none ${sizeClasses[size]} animate-in fade-in zoom-in-95 duration-200 ${contentClassName}`}
       >
         {/* Close button */}
         {!hideClose && (

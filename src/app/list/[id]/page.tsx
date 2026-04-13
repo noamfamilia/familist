@@ -708,8 +708,9 @@ export default function ListPage() {
       <Modal
         isOpen={showNewMemberAlert}
         onClose={() => setShowNewMemberAlert(false)}
-        size="sm"
+        size="xs"
         hideClose
+        contentClassName="!mt-16"
       >
         <p className="text-base text-gray-700 dark:text-gray-300 text-center leading-relaxed mb-6">
           A user added a new task.
