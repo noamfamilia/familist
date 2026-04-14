@@ -4,8 +4,15 @@ alter table public.lists
 alter table public.lists
   drop constraint if exists lists_join_token_hash_key;
 
-alter table public.lists
-  add constraint lists_join_token_key unique (join_token);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'lists_join_token_key'
+  ) then
+    alter table public.lists
+      add constraint lists_join_token_key unique (join_token);
+  end if;
+end $$;
 
 drop function if exists public.generate_share_token(uuid);
 
@@ -49,6 +56,18 @@ begin
   values (v_list_id, auth.uid(), v_role)
   on conflict (list_id, user_id) do update
     set role = excluded.role;
+
+  -- Shift existing sort_order values up by 1 to make room at position 0
+  update public.list_users
+  set sort_order = coalesce(sort_order, 0) + 1
+  where user_id = auth.uid()
+    and list_id != v_list_id;
+
+  -- Place the joined list at position 0
+  update public.list_users
+  set sort_order = 0
+  where list_id = v_list_id
+    and user_id = auth.uid();
 
   update public.lists
   set join_use_count = join_use_count + 1

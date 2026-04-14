@@ -442,6 +442,36 @@ export function useLists() {
 
   const duplicateList = async (listId: string, newName: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
+
+    const sourceList = lists.find(l => l.id === listId)
+    const tempId = createTempId('list')
+    const now = new Date().toISOString()
+    const optimisticList: ListWithRole = {
+      id: tempId,
+      name: newName,
+      owner_id: user.id,
+      visibility: 'private',
+      archived: false,
+      comment: null,
+      category_names: sourceList?.category_names ?? null,
+      category_order: sourceList?.category_order ?? null,
+      join_token: null,
+      join_role_granted: 'editor',
+      join_expires_at: null,
+      join_revoked_at: null,
+      join_use_count: 0,
+      created_at: now,
+      updated_at: now,
+      role: 'owner',
+      userArchived: false,
+      memberCount: 0,
+      activeItemCount: sourceList?.activeItemCount || 0,
+      label: label || '',
+    }
+
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setLists(prev => [optimisticList, ...prev])
+
     const { data, error } = await trackSaveOperation(
       supabase.rpc('duplicate_list', {
         p_source_list_id: listId,
@@ -451,6 +481,7 @@ export function useLists() {
     )
 
     if (error) {
+      setLists(prev => prev.filter(list => list.id !== tempId))
       if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
@@ -458,10 +489,9 @@ export function useLists() {
     }
 
     if (!data?.list) {
+      setLists(prev => prev.filter(list => list.id !== tempId))
       return { error: new Error('Failed to duplicate list') }
     }
-
-    skipRealtimeUntilRef.current = Date.now() + 2000
 
     const duplicatedList: ListWithRole = {
       ...data.list,
@@ -473,7 +503,7 @@ export function useLists() {
     }
 
     setLists(prev => {
-      const filtered = prev.filter(list => list.id !== duplicatedList.id)
+      const filtered = prev.filter(list => list.id !== tempId && list.id !== duplicatedList.id)
       const nextLists = [duplicatedList, ...filtered]
       setCachedLists(userId, nextLists)
       return nextLists
