@@ -165,7 +165,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         return
       }
       
-      const { error } = await joinListByToken(token)
+      const { data, error } = await joinListByToken(token)
       
       if (error) {
         setError(error.message)
@@ -173,6 +173,17 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       } else {
         setInputValue('')
         onSelectLabel?.('Any')
+        if (typeof data === 'string' && data) {
+          const joined = lists.find(l => l.id === data)
+          if (joined) {
+            const by = joined.ownerNickname ? ` (by ${joined.ownerNickname})` : ''
+            success(`Joined list "${joined.name}"${by}`)
+          } else {
+            success('Joined list!')
+          }
+        } else {
+          success('Joined list!')
+        }
       }
     } else {
       const labelToAssign = newListLabel || undefined
@@ -246,11 +257,19 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         return
       }
 
-      success('Joined list!')
       onSelectLabel?.('Any')
 
       if (typeof data === 'string' && data) {
+        const joined = lists.find(l => l.id === data)
+        if (joined) {
+          const by = joined.ownerNickname ? ` (by ${joined.ownerNickname})` : ''
+          success(`Joined list "${joined.name}"${by}`)
+        } else {
+          success('Joined list!')
+        }
         router.replace(`/list/${data}`)
+      } else {
+        success('Joined list!')
       }
     }
 
