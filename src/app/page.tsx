@@ -423,6 +423,7 @@ function HomeContent() {
             onLabelsChange={handleLabelsChange}
             onSelectLabel={setSelectedLabel}
             onCreatingChange={setIsCreating}
+            labelDropdownRef={labelDropdownRef}
           />
         </>
       ) : (

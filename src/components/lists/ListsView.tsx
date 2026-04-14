@@ -29,9 +29,10 @@ interface ListsViewProps {
   onLabelsChange?: (labels: string[]) => void
   onSelectLabel?: (label: string) => void
   onCreatingChange?: (creating: boolean) => void
+  labelDropdownRef?: React.RefObject<HTMLDivElement | null>
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, labelDropdownRef }: ListsViewProps) {
   const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists, updateListLabel, labels } = useLists()
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
@@ -159,7 +160,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
     const handleClick = (event: MouseEvent) => {
       const target = event.target as Node | null
-      if (!target || formRef.current?.contains(target)) return
+      if (!target || formRef.current?.contains(target) || labelDropdownRef?.current?.contains(target)) return
       clearCreateInput()
     }
 
