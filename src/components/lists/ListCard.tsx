@@ -331,7 +331,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     const filterAfterDuplicate = isSpecificLabel
       ? dupLabel
       : (currentFilter !== 'Any' && currentFilter !== '' ? 'Any' : currentFilter)
-    onSelectLabel?.(filterAfterDuplicate || 'Any')
+    onSelectLabel?.(filterAfterDuplicate ?? 'Any')
 
     void onDuplicate(list.id, dupName.trim(), dupLabel || undefined).then(({ error, warning }) => {
       if (error) {

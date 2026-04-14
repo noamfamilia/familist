@@ -153,7 +153,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
       const filterAfterImport = isSpecificLabel
         ? selectedLabel
         : (currentFilter !== 'Any' && currentFilter !== '' ? 'Any' : currentFilter)
-      onSelectLabel?.(filterAfterImport || 'Any')
+      onSelectLabel?.(filterAfterImport ?? 'Any')
       onClose()
     } finally {
       setBusy(false)

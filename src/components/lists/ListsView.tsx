@@ -129,7 +129,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       const isSpecificLabel = !!labelToAssign
       const filterAfterCreate = isSpecificLabel
         ? chosenLabel
-        : (preCreateFilter && preCreateFilter !== 'Any' && preCreateFilter !== '' ? 'Any' : (preCreateFilter || 'Any'))
+        : (preCreateFilter !== null && preCreateFilter !== 'Any' && preCreateFilter !== '' ? 'Any' : (preCreateFilter ?? 'Any'))
       clearCreateInput()
       const { error } = await createList(submittedValue, labelToAssign)
       
