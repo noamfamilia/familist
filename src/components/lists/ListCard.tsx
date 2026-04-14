@@ -698,6 +698,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       onClose={() => setShowDuplicateModal(false)}
       title="Duplicate list"
       size="sm"
+      contentClassName="!overflow-visible"
     >
       <div className="space-y-4">
         <div>
