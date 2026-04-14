@@ -82,6 +82,7 @@ function HomeContent() {
   const [availableLabels, setAvailableLabels] = useState<string[]>([])
   const labelDropdownRef = useRef<HTMLDivElement>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [localLabels, setLocalLabels] = useState<string[]>([])
   const [addingLabel, setAddingLabel] = useState(false)
   const [newLabelText, setNewLabelText] = useState('')
   const addLabelInputRef = useRef<HTMLInputElement>(null)
@@ -157,28 +158,32 @@ function HomeContent() {
     const trimmed = newLabelText.trim()
     if (trimmed) {
       setSelectedLabel(trimmed)
+      if (!availableLabels.includes(trimmed)) {
+        setLocalLabels(prev => prev.includes(trimmed) ? prev : [...prev, trimmed])
+      }
     }
     setAddingLabel(false)
     setNewLabelText('')
   }
 
-  // Reset add-label state when creating mode ends
-  useEffect(() => {
-    if (!isCreating) {
-      setAddingLabel(false)
-      setNewLabelText('')
-    }
-  }, [isCreating])
+  
 
   const handleLabelsChange = useCallback((labels: string[]) => {
     setAvailableLabels(labels)
   }, [])
 
+  // Auto-cleanup local labels that now exist on the server
   useEffect(() => {
-    if (selectedLabel !== 'Any' && selectedLabel !== '' && !availableLabels.includes(selectedLabel)) {
+    setLocalLabels(prev => prev.filter(l => !availableLabels.includes(l)))
+  }, [availableLabels])
+
+  const allLabels = [...availableLabels, ...localLabels]
+
+  useEffect(() => {
+    if (selectedLabel !== 'Any' && selectedLabel !== '' && !allLabels.includes(selectedLabel)) {
       setSelectedLabel('Any')
     }
-  }, [availableLabels, selectedLabel])
+  }, [availableLabels, localLabels, selectedLabel])
 
   const clearInviteState = () => {
     clearPendingInviteToken()
@@ -331,7 +336,7 @@ function HomeContent() {
                   >
                     Any
                   </button>
-                  {availableLabels.map(l => (
+                  {allLabels.map(l => (
                     <button
                       key={l}
                       type="button"
@@ -352,15 +357,13 @@ function HomeContent() {
                   >
                     None
                   </button>
-                  {isCreating && (
-                    <button
-                      type="button"
-                      onClick={() => { setLabelDropdownOpen(false); setAddingLabel(true) }}
-                      className="w-full text-left px-4 py-2 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
-                    >
-                      + Add label
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setLabelDropdownOpen(false); setAddingLabel(true) }}
+                    className="w-full text-left px-4 py-2 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                  >
+                    + Add label
+                  </button>
                 </div>
               )}
               {addingLabel && !labelDropdownOpen && (
