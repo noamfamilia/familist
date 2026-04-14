@@ -170,7 +170,7 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
   }
 
   if (categoryValueToIndex.size > MAX_CATEGORIES) {
-    const names = [...categoryValueToIndex.keys()].map(n => n ? `"${n}"` : '(empty)').join(', ')
+    const names = [...categoryValueToIndex.keys()].map(n => `"${n}"`).join(', ')
     return { ok: false, error: `Too many categories (max ${MAX_CATEGORIES}). Found ${categoryValueToIndex.size}: ${names}` }
   }
 
