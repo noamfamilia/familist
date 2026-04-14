@@ -56,16 +56,15 @@ body {
   }
 
   .animate-button-nudge {
-    animation: button-nudge 6s 3s infinite;
+    animation: button-nudge 3s 3s infinite;
   }
 }
 
 @keyframes button-nudge {
-  0%, 5% { opacity: 1; }
-  6% { opacity: 0.6; }
-  10% { opacity: 1; }
-  14% { opacity: 0.6; }
-  18%, 100% { opacity: 1; }
+  0%, 10% { transform: translateY(0); box-shadow: none; filter: brightness(1); }
+  14% { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); filter: brightness(0.9); }
+  30% { transform: translateY(0); box-shadow: none; filter: brightness(1); }
+  100% { transform: translateY(0); box-shadow: none; filter: brightness(1); }
 }
 
 /* Custom scrollbar */
