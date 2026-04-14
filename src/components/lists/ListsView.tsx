@@ -76,7 +76,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const filteredLists = lists.filter(list => {
     const matchesViewMode = viewMode === 'mine' ? list.role === 'owner' : true
     const matchesSearch = searchText ? list.name.toLowerCase().includes(searchText) : true
-    const matchesLabel = selectedLabel === 'Any' ? true : (list.label || '') === selectedLabel
+    const matchesLabel = isCreating || selectedLabel === 'Any' ? true : (list.label || '') === selectedLabel
     return matchesViewMode && matchesSearch && matchesLabel
   })
 
