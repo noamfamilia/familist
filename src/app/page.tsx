@@ -483,6 +483,7 @@ function HomeContent() {
         isOpen={showImport}
         onClose={() => setShowImport(false)}
         labels={allLabels}
+        currentFilter={selectedLabel}
         onSelectLabel={setSelectedLabel}
         onAddLocalLabel={(label) => setLocalLabels(prev => prev.includes(label) ? prev : [...prev, label])}
       />

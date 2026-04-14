@@ -320,6 +320,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     labels={mergedLabels}
                     onUpdateLabel={updateListLabel}
                     onSelectLabel={onSelectLabel}
+                    currentFilter={selectedLabel}
                   />
                 ))}
               </div>
@@ -353,6 +354,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     labels={mergedLabels}
                     onUpdateLabel={updateListLabel}
                     onSelectLabel={onSelectLabel}
+                    currentFilter={selectedLabel}
                   />
             ))}
           </div>

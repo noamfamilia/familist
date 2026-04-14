@@ -13,11 +13,12 @@ interface ImportModalProps {
   isOpen: boolean
   onClose: () => void
   labels: string[]
+  currentFilter?: string
   onSelectLabel?: (label: string) => void
   onAddLocalLabel?: (label: string) => void
 }
 
-export function ImportModal({ isOpen, onClose, labels, onSelectLabel, onAddLocalLabel }: ImportModalProps) {
+export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', onSelectLabel, onAddLocalLabel }: ImportModalProps) {
   const { user } = useAuth()
   const { lists, importList } = useLists()
   const [sheetUrl, setSheetUrl] = useState('')
@@ -148,7 +149,11 @@ export function ImportModal({ isOpen, onClose, labels, onSelectLabel, onAddLocal
         return
       }
 
-      onSelectLabel?.(selectedLabel || 'Any')
+      const isSpecificLabel = selectedLabel && selectedLabel !== ''
+      const filterAfterImport = isSpecificLabel
+        ? selectedLabel
+        : (currentFilter !== 'Any' && currentFilter !== '' ? 'Any' : currentFilter)
+      onSelectLabel?.(filterAfterImport || 'Any')
       onClose()
     } finally {
       setBusy(false)

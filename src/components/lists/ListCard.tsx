@@ -30,9 +30,10 @@ interface ListCardProps {
   labels?: string[]
   onUpdateLabel?: (listId: string, label: string) => Promise<{ error: Error | null }>
   onSelectLabel?: (label: string) => void
+  currentFilter?: string
 }
 
-export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel }: ListCardProps) {
+export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any' }: ListCardProps) {
   const { error: showError } = useToast()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -326,7 +327,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     if (duplicating) return
     setDuplicating(true)
     setShowDuplicateModal(false)
-    onSelectLabel?.(dupLabel || 'Any')
+    const isSpecificLabel = dupLabel && dupLabel !== ''
+    const filterAfterDuplicate = isSpecificLabel
+      ? dupLabel
+      : (currentFilter !== 'Any' && currentFilter !== '' ? 'Any' : currentFilter)
+    onSelectLabel?.(filterAfterDuplicate || 'Any')
 
     void onDuplicate(list.id, dupName.trim(), dupLabel || undefined).then(({ error, warning }) => {
       if (error) {
