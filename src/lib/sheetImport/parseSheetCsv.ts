@@ -140,9 +140,9 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
   })
   const categoryIdx = columnIndex(headerCells, h => matchHeader(h, 'category'))
 
-  // First pass: collect unique category names in order of first appearance
-  const categoryNameToIndex = new Map<string, number>()
-  const rawRows: { text: string; comment: string | null; catName: string }[] = []
+  // First pass: collect unique category values (including empty) in order of first appearance
+  const categoryValueToIndex = new Map<string, number>()
+  const rawRows: { text: string; comment: string | null; catValue: string }[] = []
 
   for (let r = 1; r < table.length; r++) {
     const line = table[r]
@@ -153,30 +153,30 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
       commentsIdx === -1 ? '' : (line[commentsIdx] ?? '').trim()
     const comment = commentRaw === '' ? null : commentRaw
 
-    let catName = ''
+    let catValue = ''
     if (categoryIdx !== -1) {
-      catName = (line[categoryIdx] ?? '').trim()
+      catValue = (line[categoryIdx] ?? '').trim()
     }
 
-    if (catName && !categoryNameToIndex.has(catName)) {
-      categoryNameToIndex.set(catName, categoryNameToIndex.size + 1)
+    if (!categoryValueToIndex.has(catValue)) {
+      categoryValueToIndex.set(catValue, categoryValueToIndex.size + 1)
     }
 
-    rawRows.push({ text: itemText, comment, catName })
+    rawRows.push({ text: itemText, comment, catValue })
   }
 
   if (rawRows.length === 0) {
     return { ok: false, error: 'No items found (all rows were empty in the Items column).' }
   }
 
-  if (categoryNameToIndex.size > MAX_CATEGORIES) {
-    const names = [...categoryNameToIndex.keys()].map(n => `"${n}"`).join(', ')
-    return { ok: false, error: `Too many categories (max ${MAX_CATEGORIES}). Found ${categoryNameToIndex.size}: ${names}` }
+  if (categoryValueToIndex.size > MAX_CATEGORIES) {
+    const names = [...categoryValueToIndex.keys()].map(n => n ? `"${n}"` : '(empty)').join(', ')
+    return { ok: false, error: `Too many categories (max ${MAX_CATEGORIES}). Found ${categoryValueToIndex.size}: ${names}` }
   }
 
   // Build categoryNames mapping for list.category_names
   const categoryNames: CategoryNames = { '1': '', '2': '', '3': '', '4': '', '5': '', '6': '' }
-  for (const [name, index] of categoryNameToIndex) {
+  for (const [name, index] of categoryValueToIndex) {
     categoryNames[String(index)] = name
   }
 
@@ -184,7 +184,7 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
   const rows: SheetImportItemRow[] = rawRows.map((raw, i) => ({
     text: raw.text,
     sort_order: i,
-    category: raw.catName ? (categoryNameToIndex.get(raw.catName) ?? 1) : 1,
+    category: categoryValueToIndex.get(raw.catValue) ?? 1,
     comment: raw.comment,
   }))
 
