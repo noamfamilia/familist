@@ -335,6 +335,7 @@ function HomeContent() {
             onInviteHandled={clearInviteState}
             selectedLabel={selectedLabel}
             onLabelsChange={handleLabelsChange}
+            onSelectLabel={setSelectedLabel}
           />
         </>
       ) : (
