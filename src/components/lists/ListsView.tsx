@@ -29,11 +29,12 @@ interface ListsViewProps {
   onLabelsChange?: (labels: string[]) => void
   onSelectLabel?: (label: string) => void
   onCreatingChange?: (creating: boolean) => void
+  preCreateFilter?: string | null
   labelDropdownRef?: React.RefObject<HTMLDivElement | null>
   localLabels?: string[]
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, labelDropdownRef, localLabels = [] }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, labelDropdownRef, localLabels = [] }: ListsViewProps) {
   const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists, updateListLabel, labels } = useLists()
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
@@ -123,8 +124,12 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         }
       }
     } else {
-      const labelToAssign = selectedLabel && selectedLabel !== 'Any' && selectedLabel !== '' ? selectedLabel : undefined
-      const filterAfterCreate = selectedLabel
+      const chosenLabel = selectedLabel
+      const labelToAssign = chosenLabel && chosenLabel !== 'Any' && chosenLabel !== '' ? chosenLabel : undefined
+      const isSpecificLabel = !!labelToAssign
+      const filterAfterCreate = isSpecificLabel
+        ? chosenLabel
+        : (preCreateFilter && preCreateFilter !== 'Any' && preCreateFilter !== '' ? 'Any' : (preCreateFilter || 'Any'))
       clearCreateInput()
       const { error } = await createList(submittedValue, labelToAssign)
       

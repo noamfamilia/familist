@@ -86,11 +86,25 @@ function HomeContent() {
   const [availableLabels, setAvailableLabels] = useState<string[]>([])
   const labelDropdownRef = useRef<HTMLDivElement>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [preCreateFilter, setPreCreateFilter] = useState<string | null>(null)
   const [localLabels, setLocalLabels] = useState<string[]>([])
   const [addingLabel, setAddingLabel] = useState(false)
   const [newLabelText, setNewLabelText] = useState('')
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (isCreating) {
+      setPreCreateFilter(selectedLabel)
+      if (selectedLabel === 'Any') {
+        setSelectedLabel('')
+      }
+    } else if (preCreateFilter !== null) {
+      setSelectedLabel(preCreateFilter)
+      setPreCreateFilter(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCreating])
 
   useEffect(() => {
     if (!inviteToken) return
@@ -342,15 +356,17 @@ function HomeContent() {
                 <div className={`absolute right-0 mt-1 min-w-[160px] rounded-lg border bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 z-50 overflow-hidden ${
                   isCreating ? 'border-red-500' : 'border-teal'
                 }`}>
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedLabel('Any'); setLabelDropdownOpen(false) }}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                      selectedLabel === 'Any' ? 'bg-teal/10 text-teal font-semibold' : 'text-teal hover:bg-gray-50 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    Any
-                  </button>
+                  {!isCreating && (
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedLabel('Any'); setLabelDropdownOpen(false) }}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                        selectedLabel === 'Any' ? 'bg-teal/10 text-teal font-semibold' : 'text-teal hover:bg-gray-50 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      Any
+                    </button>
+                  )}
                   {allLabels.map(l => (
                     <button
                       key={l}
@@ -441,6 +457,7 @@ function HomeContent() {
             onLabelsChange={handleLabelsChange}
             onSelectLabel={setSelectedLabel}
             onCreatingChange={setIsCreating}
+            preCreateFilter={preCreateFilter}
             labelDropdownRef={labelDropdownRef}
             localLabels={localLabels}
           />
