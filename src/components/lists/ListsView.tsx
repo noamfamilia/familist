@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useToast } from '@/components/ui/Toast'
 import { SortableListCard } from './SortableListCard'
 import { ListCard } from './ListCard'
+import { ImportModal } from '@/components/import/ImportModal'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 
@@ -32,15 +33,13 @@ interface ListsViewProps {
   preCreateFilter?: string | null
   labelDropdownRef?: React.RefObject<HTMLDivElement | null>
   localLabels?: string[]
-  listsHookRef?: React.MutableRefObject<{ importList: ReturnType<typeof useLists>['importList']; lists: ReturnType<typeof useLists>['lists'] } | null>
+  showImport?: boolean
+  onCloseImport?: () => void
+  onAddLocalLabel?: (label: string) => void
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, labelDropdownRef, localLabels = [], listsHookRef }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, labelDropdownRef, localLabels = [], showImport, onCloseImport, onAddLocalLabel }: ListsViewProps) {
   const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, labels } = useLists()
-
-  if (listsHookRef) {
-    listsHookRef.current = { importList, lists }
-  }
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
   
@@ -381,6 +380,17 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
           contentKey={lists.map(list => `${list.id}:${list.userArchived ? 'archived' : 'active'}`).join('|')}
         />
       )}
+
+      <ImportModal
+        isOpen={!!showImport}
+        onClose={() => onCloseImport?.()}
+        labels={mergedLabels}
+        currentFilter={selectedLabel}
+        onSelectLabel={onSelectLabel}
+        onAddLocalLabel={onAddLocalLabel}
+        importList={importList}
+        existingLists={lists}
+      />
     </div>
   )
 }

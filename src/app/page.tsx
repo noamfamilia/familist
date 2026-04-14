@@ -5,7 +5,6 @@ import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { ThemedImage } from '@/components/ui/ThemedImage'
 import { ProfileModal } from '@/components/profile/ProfileModal'
-import { ImportModal } from '@/components/import/ImportModal'
 
 
 import { Suspense, useState, useEffect, useRef, useCallback } from 'react'
@@ -92,7 +91,6 @@ function HomeContent() {
   const [newLabelText, setNewLabelText] = useState('')
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
-  const listsHookRef = useRef<{ importList: (name: string, label?: string, categoryNames?: string, rows?: unknown) => Promise<{ data?: unknown; error: Error | null }>; lists: { role: string; name: string }[] } | null>(null)
 
   useEffect(() => {
     if (isCreating) {
@@ -461,7 +459,9 @@ function HomeContent() {
             preCreateFilter={preCreateFilter}
             labelDropdownRef={labelDropdownRef}
             localLabels={localLabels}
-            listsHookRef={listsHookRef}
+            showImport={showImport}
+            onCloseImport={() => setShowImport(false)}
+            onAddLocalLabel={(label) => setLocalLabels(prev => prev.includes(label) ? prev : [...prev, label])}
           />
         </>
       ) : (
@@ -479,17 +479,6 @@ function HomeContent() {
       <ProfileModal
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
-      />
-
-      <ImportModal
-        isOpen={showImport}
-        onClose={() => setShowImport(false)}
-        labels={allLabels}
-        currentFilter={selectedLabel}
-        onSelectLabel={setSelectedLabel}
-        onAddLocalLabel={(label) => setLocalLabels(prev => prev.includes(label) ? prev : [...prev, label])}
-        importList={listsHookRef.current?.importList}
-        existingLists={listsHookRef.current?.lists}
       />
 
       <Modal
