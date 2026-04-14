@@ -300,19 +300,10 @@ export function useLists() {
     }
 
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => {
-      const lastActiveIdx = prev.reduce((acc, l, i) => !l.userArchived ? i : acc, -1)
-      const next = [...prev]
-      next.splice(lastActiveIdx + 1, 0, optimisticList)
-      return next
-    })
+    setLists(prev => [optimisticList, ...prev])
 
     const { data, error } = await trackSaveOperation(
-      supabase
-        .from('lists')
-        .insert({ name, owner_id: user.id })
-        .select()
-        .single()
+      supabase.rpc('create_list', { p_name: name, p_label: label || '' })
     )
 
     if (error) {
@@ -331,19 +322,7 @@ export function useLists() {
       activeItemCount: 0,
       label: label || '',
     }
-    const finalLists = [newList, ...lists.filter(list => list.id !== tempId && list.id !== newList.id)]
-    setLists(finalLists)
-    await persistListOrder(finalLists)
-
-    if (label) {
-      await trackSaveOperation(
-        supabase
-          .from('list_users')
-          .update({ label })
-          .eq('list_id', data.id)
-          .eq('user_id', user.id)
-      )
-    }
+    setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])
 
     return { data, error: null }
   }
@@ -467,6 +446,7 @@ export function useLists() {
       supabase.rpc('duplicate_list', {
         p_source_list_id: listId,
         p_new_name: newName,
+        p_label: label || '',
       })
     )
 
@@ -488,13 +468,13 @@ export function useLists() {
       role: 'owner',
       userArchived: false,
       memberCount: 0,
-      activeItemCount: data.items?.filter(item => !item.archived).length || 0,
+      activeItemCount: data.items?.filter((item: { archived: boolean }) => !item.archived).length || 0,
       label: label || '',
     }
 
     setLists(prev => {
-      if (prev.some(list => list.id === duplicatedList.id)) return prev
-      const nextLists = [duplicatedList, ...prev]
+      const filtered = prev.filter(list => list.id !== duplicatedList.id)
+      const nextLists = [duplicatedList, ...filtered]
       setCachedLists(userId, nextLists)
       return nextLists
     })
@@ -510,16 +490,6 @@ export function useLists() {
       items: dupItems,
       members: data.members || [],
     })
-
-    await trackSaveOperation(
-      supabase
-        .from('list_users')
-        .update({ item_text_width: 'auto', ...(label ? { label } : {}) })
-        .eq('list_id', duplicatedList.id)
-        .eq('user_id', user.id)
-    )
-
-    void fetchLists()
 
     return { data: data.list, error: null }
   }

@@ -229,6 +229,10 @@ export interface Database {
       }
     }
     Functions: {
+      create_list: {
+        Args: { p_name: string; p_label?: string }
+        Returns: Database['public']['Tables']['lists']['Row']
+      }
       join_list_by_token: {
         Args: { p_token: string }
         Returns: string
@@ -267,7 +271,7 @@ export interface Database {
         }
       }
       duplicate_list: {
-        Args: { p_source_list_id: string; p_new_name: string }
+        Args: { p_source_list_id: string; p_new_name: string; p_label?: string }
         Returns: {
           list: Database['public']['Tables']['lists']['Row'] | null
           items: (Database['public']['Tables']['items']['Row'] & {

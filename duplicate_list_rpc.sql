@@ -1,4 +1,4 @@
-create or replace function public.duplicate_list(p_source_list_id uuid, p_new_name text)
+create or replace function public.duplicate_list(p_source_list_id uuid, p_new_name text, p_label text default '')
 returns jsonb
 language plpgsql
 security definer
@@ -44,6 +44,20 @@ begin
   where i.list_id = p_source_list_id
   order by i.archived, i.sort_order nulls last, i.created_at, i.id;
 
+  -- Shift existing sort_order values up by 1 to make room at position 0
+  update public.list_users
+  set sort_order = coalesce(sort_order, 0) + 1
+  where user_id = v_user_id
+    and list_id != v_new_list.id;
+
+  -- Set the new list to position 0, apply label and item_text_width
+  update public.list_users
+  set sort_order = 0,
+      label = coalesce(nullif(btrim(p_label), ''), ''),
+      item_text_width = 'auto'
+  where list_id = v_new_list.id
+    and user_id = v_user_id;
+
   select jsonb_build_object(
     'list', to_jsonb(v_new_list),
     'items', coalesce(
@@ -65,4 +79,4 @@ begin
 end;
 $$;
 
-grant execute on function public.duplicate_list(uuid, text) to authenticated;
+grant execute on function public.duplicate_list(uuid, text, text) to authenticated;
