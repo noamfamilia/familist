@@ -164,8 +164,8 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       clearCreateInput()
     }
 
-    document.addEventListener('click', handleClick)
-    return () => document.removeEventListener('click', handleClick)
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
   }, [inputValue])
 
   useEffect(() => {
