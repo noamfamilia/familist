@@ -123,7 +123,8 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         }
       }
     } else {
-      const labelToAssign = selectedLabel && selectedLabel !== 'Any' ? selectedLabel : undefined
+      const labelToAssign = selectedLabel && selectedLabel !== 'Any' && selectedLabel !== '' ? selectedLabel : undefined
+      const filterAfterCreate = selectedLabel
       clearCreateInput()
       const { error } = await createList(submittedValue, labelToAssign)
       
@@ -132,7 +133,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         setError(error.message)
         showError('Failed to create list')
       } else {
-        onSelectLabel?.(labelToAssign || 'Any')
+        onSelectLabel?.(filterAfterCreate)
       }
     }
     
