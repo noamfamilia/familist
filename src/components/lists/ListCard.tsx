@@ -321,21 +321,21 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     setShowDuplicateModal(true)
   }
 
-  const handleDuplicateConfirm = async () => {
+  const handleDuplicateConfirm = () => {
     if (!dupName.trim()) return
     if (duplicating) return
     setDuplicating(true)
-
-    const { error, warning } = await onDuplicate(list.id, dupName.trim(), dupLabel || undefined)
-    if (error) {
-      showError('Failed to duplicate list')
-    } else if (warning) {
-      showError(warning)
-    } else {
-      onSelectLabel?.(dupLabel || 'Any')
-    }
-    setDuplicating(false)
     setShowDuplicateModal(false)
+    onSelectLabel?.(dupLabel || 'Any')
+
+    void onDuplicate(list.id, dupName.trim(), dupLabel || undefined).then(({ error, warning }) => {
+      if (error) {
+        showError('Failed to duplicate list')
+      } else if (warning) {
+        showError(warning)
+      }
+      setDuplicating(false)
+    })
   }
 
   const handleLeaveClick = () => {
