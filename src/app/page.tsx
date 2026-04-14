@@ -4,8 +4,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { ThemedImage } from '@/components/ui/ThemedImage'
+import { ProfileModal } from '@/components/profile/ProfileModal'
+import { ImportModal } from '@/components/import/ImportModal'
 
-import Link from 'next/link'
+
 import { Suspense, useState, useEffect, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
@@ -72,6 +74,8 @@ function HomeContent() {
   const inviteToken = searchParams.get('invite')
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [showDenote, setShowDenote] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackText, setFeedbackText] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
@@ -94,14 +98,15 @@ function HomeContent() {
   }, [inviteToken])
 
   useEffect(() => {
-    const labelParam = searchParams.get('label')
-    if (!labelParam) return
-    setSelectedLabel(labelParam)
-    const url = new URL(window.location.href)
-    url.searchParams.delete('label')
-    const search = url.searchParams.toString()
-    router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
-  }, [searchParams, router])
+    const sheet = searchParams.get('sheet')
+    if (sheet && user) {
+      setShowImport(true)
+      const url = new URL(window.location.href)
+      url.searchParams.delete('sheet')
+      const search = url.searchParams.toString()
+      router.replace(`${url.pathname}${search ? `?${search}` : ''}`)
+    }
+  }, [searchParams, user, router])
 
   useEffect(() => {
     if (!loading && !user && inviteToken) {
@@ -237,22 +242,22 @@ function HomeContent() {
                 className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 py-1 z-50"
                 role="menu"
               >
-                <Link
-                  href="/profile"
-                  className="block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                <button
+                  type="button"
+                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   role="menuitem"
-                  onClick={() => setProfileMenuOpen(false)}
+                  onClick={() => { setProfileMenuOpen(false); setShowProfile(true) }}
                 >
                   Profile settings
-                </Link>
-                <Link
-                  href="/import"
-                  className="block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   role="menuitem"
-                  onClick={() => setProfileMenuOpen(false)}
+                  onClick={() => { setProfileMenuOpen(false); setShowImport(true) }}
                 >
                   Import from Google Sheet
-                </Link>
+                </button>
                 <button
                   type="button"
                   role="menuitem"
@@ -450,6 +455,19 @@ function HomeContent() {
       <AuthModal
         isOpen={showAuthModal && !user}
         onClose={() => setShowAuthModal(false)}
+      />
+
+      <ProfileModal
+        isOpen={showProfile}
+        onClose={() => setShowProfile(false)}
+      />
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        labels={allLabels}
+        onSelectLabel={setSelectedLabel}
+        onAddLocalLabel={(label) => setLocalLabels(prev => prev.includes(label) ? prev : [...prev, label])}
       />
 
       <Modal
