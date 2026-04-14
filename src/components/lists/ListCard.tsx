@@ -31,9 +31,10 @@ interface ListCardProps {
   onUpdateLabel?: (listId: string, label: string) => Promise<{ error: Error | null }>
   onSelectLabel?: (label: string) => void
   currentFilter?: string
+  onClearCreateInput?: () => void
 }
 
-export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any' }: ListCardProps) {
+export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any', onClearCreateInput }: ListCardProps) {
   const { error: showError } = useToast()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -306,6 +307,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   const openDuplicateModal = () => {
+    onClearCreateInput?.()
     const existingNamesLower = existingListNames.map(n => n.toLowerCase())
     let name = `${list.name} (copy)`
     let attempt = 1

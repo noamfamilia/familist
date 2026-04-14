@@ -18,9 +18,10 @@ interface SortableListCardProps {
   onUpdateLabel?: (listId: string, label: string) => Promise<{ error: Error | null }>
   onSelectLabel?: (label: string) => void
   currentFilter?: string
+  onClearCreateInput?: () => void
 }
 
-export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, labels, onUpdateLabel, onSelectLabel, currentFilter }: SortableListCardProps) {
+export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, labels, onUpdateLabel, onSelectLabel, currentFilter, onClearCreateInput }: SortableListCardProps) {
   const {
     attributes,
     listeners,
@@ -52,6 +53,7 @@ export function SortableListCard({ list, existingListNames, onUpdate, onDelete, 
         onUpdateLabel={onUpdateLabel}
         onSelectLabel={onSelectLabel}
         currentFilter={currentFilter}
+        onClearCreateInput={onClearCreateInput}
       />
     </div>
   )

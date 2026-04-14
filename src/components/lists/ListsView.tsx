@@ -31,14 +31,13 @@ interface ListsViewProps {
   onSelectLabel?: (label: string) => void
   onCreatingChange?: (creating: boolean) => void
   preCreateFilter?: string | null
-  labelDropdownRef?: React.RefObject<HTMLDivElement | null>
   localLabels?: string[]
   showImport?: boolean
   onCloseImport?: () => void
   onAddLocalLabel?: (label: string) => void
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, labelDropdownRef, localLabels = [], showImport, onCloseImport, onAddLocalLabel }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel }: ListsViewProps) {
   const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, labels } = useLists()
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
@@ -72,6 +71,10 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const clearCreateInput = () => {
     setInputValue('')
   }
+
+  useEffect(() => {
+    if (showImport) clearCreateInput()
+  }, [showImport])
 
   const isJoinMode = inputValue.startsWith('@')
   const searchText = isJoinMode ? '' : inputValue.trim().toLowerCase()
@@ -168,19 +171,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   }
 
   useEffect(() => {
-    if (!inputValue) return
-
-    const handleClick = (event: MouseEvent) => {
-      const target = event.target as Node | null
-      if (!target || formRef.current?.contains(target) || labelDropdownRef?.current?.contains(target)) return
-      clearCreateInput()
-    }
-
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [inputValue])
-
-  useEffect(() => {
     if (!inviteToken) {
       inviteJoinRef.current = null
       return
@@ -246,7 +236,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
       {/* Create or Join */}
       <form ref={formRef} onSubmit={handleSubmit} className="flex gap-3" data-tour="create-list">
-        <div className="flex-1">
+        <div className="flex-1 relative">
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -258,6 +248,18 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
             placeholder="List name"
             disabled={submitting}
           />
+          {inputValue && (
+            <button
+              type="button"
+              onClick={clearCreateInput}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+              aria-label="Clear input"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
         </div>
         <Button type="submit" loading={submitting} className="bg-red-500 hover:bg-red-600">
           {isJoinMode ? 'Join' : 'Create'}
@@ -325,6 +327,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onUpdateLabel={updateListLabel}
                     onSelectLabel={onSelectLabel}
                     currentFilter={selectedLabel}
+                    onClearCreateInput={clearCreateInput}
                   />
                 ))}
               </div>
@@ -359,6 +362,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onUpdateLabel={updateListLabel}
                     onSelectLabel={onSelectLabel}
                     currentFilter={selectedLabel}
+                    onClearCreateInput={clearCreateInput}
                   />
             ))}
           </div>

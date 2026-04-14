@@ -258,16 +258,6 @@ export default function ListPage() {
 
   const [newItemCategory, setNewItemCategory] = useState<ItemCategory>(1)
 
-  useEffect(() => {
-    if (!newItemText) return
-    const handleClick = (e: MouseEvent) => {
-      if (addItemWrapperRef.current?.contains(e.target as Node)) return
-      clearNewItem()
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [newItemText])
-
   const clearNewItem = () => {
     setNewItemText('')
     setNewItemCategory(1)

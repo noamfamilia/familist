@@ -457,7 +457,6 @@ function HomeContent() {
             onSelectLabel={setSelectedLabel}
             onCreatingChange={setIsCreating}
             preCreateFilter={preCreateFilter}
-            labelDropdownRef={labelDropdownRef}
             localLabels={localLabels}
             showImport={showImport}
             onCloseImport={() => setShowImport(false)}
