@@ -32,10 +32,15 @@ interface ListsViewProps {
   preCreateFilter?: string | null
   labelDropdownRef?: React.RefObject<HTMLDivElement | null>
   localLabels?: string[]
+  listsHookRef?: React.MutableRefObject<{ importList: ReturnType<typeof useLists>['importList']; lists: ReturnType<typeof useLists>['lists'] } | null>
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, labelDropdownRef, localLabels = [] }: ListsViewProps) {
-  const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists, updateListLabel, labels } = useLists()
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, labelDropdownRef, localLabels = [], listsHookRef }: ListsViewProps) {
+  const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, labels } = useLists()
+
+  if (listsHookRef) {
+    listsHookRef.current = { importList, lists }
+  }
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
   

@@ -92,6 +92,7 @@ function HomeContent() {
   const [newLabelText, setNewLabelText] = useState('')
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
+  const listsHookRef = useRef<{ importList: (name: string, label?: string, categoryNames?: string, rows?: unknown) => Promise<{ data?: unknown; error: Error | null }>; lists: { role: string; name: string }[] } | null>(null)
 
   useEffect(() => {
     if (isCreating) {
@@ -460,6 +461,7 @@ function HomeContent() {
             preCreateFilter={preCreateFilter}
             labelDropdownRef={labelDropdownRef}
             localLabels={localLabels}
+            listsHookRef={listsHookRef}
           />
         </>
       ) : (
@@ -486,6 +488,8 @@ function HomeContent() {
         currentFilter={selectedLabel}
         onSelectLabel={setSelectedLabel}
         onAddLocalLabel={(label) => setLocalLabels(prev => prev.includes(label) ? prev : [...prev, label])}
+        importList={listsHookRef.current?.importList}
+        existingLists={listsHookRef.current?.lists}
       />
 
       <Modal

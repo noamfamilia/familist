@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
-import { useLists } from '@/hooks/useLists'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
@@ -16,11 +15,12 @@ interface ImportModalProps {
   currentFilter?: string
   onSelectLabel?: (label: string) => void
   onAddLocalLabel?: (label: string) => void
+  importList?: (name: string, label?: string, categoryNames?: string, rows?: Json) => Promise<{ data?: unknown; error: Error | null }>
+  existingLists?: { role: string; name: string }[]
 }
 
-export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', onSelectLabel, onAddLocalLabel }: ImportModalProps) {
+export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', onSelectLabel, onAddLocalLabel, importList, existingLists }: ImportModalProps) {
   const { user } = useAuth()
-  const { lists, importList } = useLists()
   const [sheetUrl, setSheetUrl] = useState('')
   const [nameOverride, setNameOverride] = useState('')
   const [selectedLabel, setSelectedLabel] = useState('')
@@ -91,7 +91,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
     setNewLabelText('')
   }
 
-  const ownedListNames = lists.filter(l => l.role === 'owner').map(l => l.name)
+  const ownedListNames = (existingLists || []).filter(l => l.role === 'owner').map(l => l.name)
 
   const runImport = async () => {
     setError('')
@@ -138,6 +138,10 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
           )
         : undefined
 
+      if (!importList) {
+        setError('Import not available. Please try again.')
+        return
+      }
       const { error: importErr } = await importList(
         listName,
         selectedLabel || undefined,
