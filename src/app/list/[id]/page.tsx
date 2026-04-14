@@ -543,7 +543,7 @@ export default function ListPage() {
               </button>
             )}
           </div>
-          <Button type="submit" loading={adding} className="bg-red-500 hover:bg-red-600">
+          <Button type="submit" loading={adding} className={`bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''}`}>
             Add
           </Button>
         </form>

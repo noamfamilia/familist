@@ -261,7 +261,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
             </button>
           )}
         </div>
-        <Button type="submit" loading={submitting} className="bg-red-500 hover:bg-red-600">
+        <Button type="submit" loading={submitting} className={`bg-red-500 hover:bg-red-600 ${inputValue ? 'animate-button-nudge' : ''}`}>
           {isJoinMode ? 'Join' : 'Create'}
         </Button>
       </form>

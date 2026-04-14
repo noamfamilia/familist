@@ -54,6 +54,18 @@ body {
   .gradient-primary {
     background: linear-gradient(135deg, var(--color-cyan) 0%, var(--color-teal) 100%);
   }
+
+  .animate-button-nudge {
+    animation: button-nudge 6s 3s infinite;
+  }
+}
+
+@keyframes button-nudge {
+  0%, 5% { opacity: 1; }
+  6% { opacity: 0.6; }
+  10% { opacity: 1; }
+  14% { opacity: 0.6; }
+  18%, 100% { opacity: 1; }
 }
 
 /* Custom scrollbar */
