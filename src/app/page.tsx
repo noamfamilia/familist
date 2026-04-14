@@ -427,6 +427,7 @@ function HomeContent() {
             onSelectLabel={setSelectedLabel}
             onCreatingChange={setIsCreating}
             labelDropdownRef={labelDropdownRef}
+            localLabels={localLabels}
           />
         </>
       ) : (

@@ -30,9 +30,10 @@ interface ListsViewProps {
   onSelectLabel?: (label: string) => void
   onCreatingChange?: (creating: boolean) => void
   labelDropdownRef?: React.RefObject<HTMLDivElement | null>
+  localLabels?: string[]
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, labelDropdownRef }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, labelDropdownRef, localLabels = [] }: ListsViewProps) {
   const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, reorderLists, updateListLabel, labels } = useLists()
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
@@ -84,6 +85,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   
   // Get all owned list names (including archived) for duplicate name checking
   const ownedListNames = lists.filter(l => l.role === 'owner').map(l => l.name)
+  const mergedLabels = [...labels, ...localLabels.filter(l => !labels.includes(l))]
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -309,7 +311,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onDuplicate={duplicateList}
                     onLeave={leaveList}
                     onRefresh={refresh}
-                    labels={labels}
+                    labels={mergedLabels}
                     onUpdateLabel={updateListLabel}
                     onSelectLabel={onSelectLabel}
                   />
@@ -342,7 +344,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onDuplicate={duplicateList}
                     onLeave={leaveList}
                     onRefresh={refresh}
-                    labels={labels}
+                    labels={mergedLabels}
                     onUpdateLabel={updateListLabel}
                     onSelectLabel={onSelectLabel}
                   />
