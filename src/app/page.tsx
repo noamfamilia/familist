@@ -94,6 +94,16 @@ function HomeContent() {
   }, [inviteToken])
 
   useEffect(() => {
+    const labelParam = searchParams.get('label')
+    if (!labelParam) return
+    setSelectedLabel(labelParam)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('label')
+    const search = url.searchParams.toString()
+    router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
+  }, [searchParams, router])
+
+  useEffect(() => {
     if (!loading && !user && inviteToken) {
       setShowAuthModal(true)
     }

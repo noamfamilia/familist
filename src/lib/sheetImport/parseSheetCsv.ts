@@ -1,16 +1,15 @@
-import { normalizeItemCategory } from '@/lib/supabase/types'
+import type { CategoryNames } from '@/lib/supabase/types'
 
-/** One row ready for `import_list_items` RPC */
+/** One row ready for `import_list` RPC */
 export type SheetImportItemRow = {
   text: string
   sort_order: number
   category: number
-  archived: boolean
   comment: string | null
 }
 
 export type ParseSheetCsvResult =
-  | { ok: true; rows: SheetImportItemRow[] }
+  | { ok: true; rows: SheetImportItemRow[]; categoryNames: CategoryNames }
   | { ok: false; error: string }
 
 function normalizeHeader(s: string): string {
@@ -107,15 +106,13 @@ function columnIndex(headers: string[], predicate: (h: string) => boolean): numb
   return headers.findIndex(predicate)
 }
 
-function parseArchivedCell(raw: string | undefined): boolean {
-  if (raw === undefined) return false
-  const v = raw.trim().toLowerCase()
-  return v === 'x' || v === 'yes' || v === 'true' || v === '1'
-}
+const MAX_CATEGORIES = 6
 
 /**
  * Parse exported Google Sheet CSV. Expects a header row with Items (required);
- * archived / comments / category optional with defaults per product spec.
+ * comments / category (names) optional.
+ * All items are treated as active.
+ * Category column should contain category names (not indexes).
  */
 export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
   const trimmed = csvText.trim()
@@ -137,48 +134,61 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
     return { ok: false, error: 'No "Items" column found in the first row.' }
   }
 
-  const archivedIdx = columnIndex(headerCells, h => matchHeader(h, 'archived', 0))
   const commentsIdx = columnIndex(headerCells, h => {
     const n = normalizeHeader(h)
     return n === 'comments' || n === 'comment'
   })
   const categoryIdx = columnIndex(headerCells, h => matchHeader(h, 'category'))
 
-  const rows: SheetImportItemRow[] = []
-  let sortOrder = 0
+  // First pass: collect unique category names in order of first appearance
+  const categoryNameToIndex = new Map<string, number>()
+  const rawRows: { text: string; comment: string | null; catName: string }[] = []
 
   for (let r = 1; r < table.length; r++) {
     const line = table[r]
     const itemText = (line[itemsIdx] ?? '').trim()
     if (!itemText) continue
 
-    const archived =
-      archivedIdx === -1 ? false : parseArchivedCell(line[archivedIdx])
     const commentRaw =
       commentsIdx === -1 ? '' : (line[commentsIdx] ?? '').trim()
     const comment = commentRaw === '' ? null : commentRaw
 
-    let category = 1
+    let catName = ''
     if (categoryIdx !== -1) {
-      const catCell = (line[categoryIdx] ?? '').trim()
-      category = catCell === '' ? 1 : normalizeItemCategory(catCell)
+      catName = (line[categoryIdx] ?? '').trim()
     }
 
-    rows.push({
-      text: itemText,
-      sort_order: sortOrder,
-      category,
-      archived,
-      comment,
-    })
-    sortOrder++
+    if (catName && !categoryNameToIndex.has(catName)) {
+      categoryNameToIndex.set(catName, categoryNameToIndex.size + 1)
+    }
+
+    rawRows.push({ text: itemText, comment, catName })
   }
 
-  if (rows.length === 0) {
+  if (rawRows.length === 0) {
     return { ok: false, error: 'No items found (all rows were empty in the Items column).' }
   }
 
-  return { ok: true, rows }
+  if (categoryNameToIndex.size > MAX_CATEGORIES) {
+    const names = [...categoryNameToIndex.keys()].map(n => `"${n}"`).join(', ')
+    return { ok: false, error: `Too many categories (max ${MAX_CATEGORIES}). Found ${categoryNameToIndex.size}: ${names}` }
+  }
+
+  // Build categoryNames mapping for list.category_names
+  const categoryNames: CategoryNames = { '1': '', '2': '', '3': '', '4': '', '5': '', '6': '' }
+  for (const [name, index] of categoryNameToIndex) {
+    categoryNames[String(index)] = name
+  }
+
+  // Build rows with numeric category indexes
+  const rows: SheetImportItemRow[] = rawRows.map((raw, i) => ({
+    text: raw.text,
+    sort_order: i,
+    category: raw.catName ? (categoryNameToIndex.get(raw.catName) ?? 1) : 1,
+    comment: raw.comment,
+  }))
+
+  return { ok: true, rows, categoryNames }
 }
 
 /** Pick a list name: API title if unique, else Import / Import 2 / … */

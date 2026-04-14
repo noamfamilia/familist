@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
-import type { Database, ItemWithState, ListWithRole } from '@/lib/supabase/types'
+import type { Database, ItemWithState, Json, ListWithRole } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -524,6 +524,68 @@ export function useLists() {
     return { data: data.list, error: null }
   }
 
+  const importList = async (name: string, label?: string, categoryNames?: string, rows?: Json) => {
+    if (!user) return { error: new Error('Not authenticated') }
+
+    const tempId = createTempId('list')
+    const now = new Date().toISOString()
+    const itemCount = Array.isArray(rows) ? rows.length : 0
+    const optimisticList: ListWithRole = {
+      id: tempId,
+      name,
+      owner_id: user.id,
+      visibility: 'private',
+      archived: false,
+      comment: null,
+      category_names: categoryNames || null,
+      category_order: null,
+      join_token: null,
+      join_role_granted: 'editor',
+      join_expires_at: null,
+      join_revoked_at: null,
+      join_use_count: 0,
+      created_at: now,
+      updated_at: now,
+      role: 'owner',
+      userArchived: false,
+      memberCount: 0,
+      activeItemCount: itemCount,
+      label: label || '',
+    }
+
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setLists(prev => [optimisticList, ...prev])
+
+    const { data, error } = await trackSaveOperation(
+      supabase.rpc('import_list', {
+        p_name: name,
+        p_label: label || '',
+        p_category_names: categoryNames || '{}',
+        p_rows: (rows || []) as unknown as Json,
+      })
+    )
+
+    if (error) {
+      setLists(prev => prev.filter(list => list.id !== tempId))
+      if (error.code === '23505') {
+        return { error: new Error('You already have a list with this name') }
+      }
+      return { error }
+    }
+
+    const newList: ListWithRole = {
+      ...data,
+      role: 'owner',
+      userArchived: false,
+      memberCount: 0,
+      activeItemCount: itemCount,
+      label: label || '',
+    }
+    setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])
+
+    return { data, error: null }
+  }
+
   const updateListLabel = async (listId: string, label: string) => {
     if (!user) return { error: new Error('Not authenticated') }
 
@@ -596,6 +658,7 @@ export function useLists() {
     joinListByToken,
     leaveList,
     duplicateList,
+    importList,
     reorderLists,
     updateListLabel,
     labels,
