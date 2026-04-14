@@ -81,6 +81,11 @@ function HomeContent() {
   const [labelDropdownOpen, setLabelDropdownOpen] = useState(false)
   const [availableLabels, setAvailableLabels] = useState<string[]>([])
   const labelDropdownRef = useRef<HTMLDivElement>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const [addingLabel, setAddingLabel] = useState(false)
+  const [newLabelText, setNewLabelText] = useState('')
+  const addLabelInputRef = useRef<HTMLInputElement>(null)
+  const addLabelPopoverRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!inviteToken) return
@@ -125,6 +130,45 @@ function HomeContent() {
     document.addEventListener('mousedown', close, true)
     return () => document.removeEventListener('mousedown', close, true)
   }, [labelDropdownOpen])
+
+  // Focus add-label input when it opens
+  useEffect(() => {
+    if (addingLabel && addLabelInputRef.current) {
+      addLabelInputRef.current.focus()
+    }
+  }, [addingLabel])
+
+  // Outside-click for add-label popover
+  useEffect(() => {
+    if (!addingLabel || labelDropdownOpen) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (addLabelPopoverRef.current && !addLabelPopoverRef.current.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
+        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
+        handleAddLabelDone()
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown, true)
+    return () => document.removeEventListener('mousedown', handleMouseDown, true)
+  })
+
+  const handleAddLabelDone = () => {
+    const trimmed = newLabelText.trim()
+    if (trimmed) {
+      setSelectedLabel(trimmed)
+    }
+    setAddingLabel(false)
+    setNewLabelText('')
+  }
+
+  // Reset add-label state when creating mode ends
+  useEffect(() => {
+    if (!isCreating) {
+      setAddingLabel(false)
+      setNewLabelText('')
+    }
+  }, [isCreating])
 
   const handleLabelsChange = useCallback((labels: string[]) => {
     setAvailableLabels(labels)
@@ -254,12 +298,15 @@ function HomeContent() {
         )}
         
         {user ? (
-            <div ref={labelDropdownRef} data-tour="home-label-filter">
+            <div ref={labelDropdownRef} data-tour="home-label-filter" className="flex items-center gap-1.5">
+            {isCreating && <span className="text-red-500 text-sm font-medium whitespace-nowrap">Set label</span>}
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setLabelDropdownOpen(o => !o)}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm font-medium transition-colors bg-white dark:bg-slate-800 text-teal border border-teal"
+                onClick={() => { setLabelDropdownOpen(o => !o); setAddingLabel(false); setNewLabelText('') }}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm font-medium transition-colors bg-white dark:bg-slate-800 ${
+                  isCreating ? 'text-red-500 border border-red-500' : 'text-teal border border-teal'
+                }`}
               >
                 <svg className="h-8 w-8 flex-shrink-0 -my-1.5" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
                   <path d="M746.5 575.9L579.2 743.6l-173-173.5-53.3-112.4 108.3-108.6 112.2 53.4z" fill="#FBBA22" />
@@ -272,7 +319,9 @@ function HomeContent() {
               </button>
 
               {labelDropdownOpen && (
-                <div className="absolute right-0 mt-1 min-w-[160px] rounded-lg border border-teal bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 z-50 overflow-hidden">
+                <div className={`absolute right-0 mt-1 min-w-[160px] rounded-lg border bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 z-50 overflow-hidden ${
+                  isCreating ? 'border-red-500' : 'border-teal'
+                }`}>
                   <button
                     type="button"
                     onClick={() => { setSelectedLabel('Any'); setLabelDropdownOpen(false) }}
@@ -303,6 +352,43 @@ function HomeContent() {
                   >
                     None
                   </button>
+                  {isCreating && (
+                    <button
+                      type="button"
+                      onClick={() => { setLabelDropdownOpen(false); setAddingLabel(true) }}
+                      className="w-full text-left px-4 py-2 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                    >
+                      + Add label
+                    </button>
+                  )}
+                </div>
+              )}
+              {addingLabel && !labelDropdownOpen && (
+                <div
+                  ref={addLabelPopoverRef}
+                  className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 min-w-[160px]"
+                >
+                  <div className="relative">
+                    <input
+                      ref={addLabelInputRef}
+                      type="text"
+                      value={newLabelText}
+                      onChange={(e) => setNewLabelText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleAddLabelDone() }
+                        if (e.key === 'Escape') { setAddingLabel(false); setNewLabelText('') }
+                      }}
+                      placeholder="Label name..."
+                      className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewLabelText('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -336,6 +422,7 @@ function HomeContent() {
             selectedLabel={selectedLabel}
             onLabelsChange={handleLabelsChange}
             onSelectLabel={setSelectedLabel}
+            onCreatingChange={setIsCreating}
           />
         </>
       ) : (
