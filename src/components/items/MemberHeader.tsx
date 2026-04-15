@@ -495,7 +495,7 @@ export function MemberHeader({
               <button
                 type="button"
                 onClick={() => isAdding ? void handleAddMember() : setIsAdding(true)}
-                className={`flex items-center justify-center rounded-lg text-base font-medium hover:opacity-80 transition-colors h-[40px] w-[90px] ${isAdding ? 'bg-cyan text-white' : 'bg-white text-black border-2 border-cyan'}`}
+                className={`flex items-center justify-center rounded-lg text-lg hover:opacity-80 transition-colors h-[40px] w-[90px] ${isAdding ? 'bg-cyan text-white font-medium' : 'bg-white dark:bg-slate-800 text-black dark:text-gray-200 border border-gray-200 dark:border-slate-600'}`}
                 data-tour="add-member"
               >
                 {isAdding ? 'Add' : '+Task'}
