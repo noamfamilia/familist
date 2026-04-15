@@ -713,6 +713,7 @@ export function MemberHeader({
               <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
                 Owner: {openMember.name}
               </div>
+              <div className="border-b border-gray-200 dark:border-slate-600 mx-2" />
               <button
                 type="button"
                 role="menuitem"
