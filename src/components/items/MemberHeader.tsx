@@ -780,6 +780,7 @@ export function MemberHeader({
         onClose={() => setOwnConfirm({ open: false, memberId: null, memberName: '' })}
         size="xs"
         hideClose
+        title="Take ownership"
       >
         <div>
           <p className="text-gray-600 dark:text-gray-300 text-center mb-6">
