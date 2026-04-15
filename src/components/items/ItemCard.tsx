@@ -428,7 +428,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
                 {/* Floating quantity editor */}
                 {isEditingThis && editorPos && (
-                  <div ref={quantityEditorRef} className="fixed -translate-x-1/2 -translate-y-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 min-w-[140px]" style={{ top: editorPos.top - 4, left: editorPos.left }}>
+                  <div ref={quantityEditorRef} className="fixed -translate-x-1/2 -translate-y-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 min-w-[100px]" style={{ top: editorPos.top - 4, left: editorPos.left }}>
                     <input
                       type="number"
                       value={editQuantityValue}
@@ -454,7 +454,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => void handleSaveQuantity(member.id)}
-                        className="flex-1 px-2 py-1 text-xs text-white rounded bg-red-500 hover:bg-red-600"
+                        className="flex-1 px-2 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
                       >
                         Done
                       </button>
