@@ -53,6 +53,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           setSuccessMessage('Password reset email sent! Check your inbox.')
         }
       } else if (mode === 'signUp') {
+        if (!nickname.trim()) {
+          setError('Nickname is required')
+          setLoading(false)
+          return
+        }
         if (password !== confirmPassword) {
           setError('Passwords do not match')
           setLoading(false)

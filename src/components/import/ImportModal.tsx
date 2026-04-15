@@ -291,7 +291,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
           >
             Cancel
           </button>
-          <Button type="button" className="bg-red-500 hover:bg-red-600" loading={busy} onClick={() => void runImport()}>
+          <Button type="button" className="bg-teal hover:opacity-80" loading={busy} onClick={() => void runImport()}>
             Import
           </Button>
         </div>
