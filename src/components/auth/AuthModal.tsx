@@ -53,11 +53,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           setSuccessMessage('Password reset email sent! Check your inbox.')
         }
       } else if (mode === 'signUp') {
-        if (!nickname.trim()) {
-          setError('Nickname is required')
-          setLoading(false)
-          return
-        }
         if (password !== confirmPassword) {
           setError('Passwords do not match')
           setLoading(false)
@@ -121,6 +116,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             placeholder="e.g. John"
+            required
             maxLength={50}
             autoComplete="nickname"
           />
