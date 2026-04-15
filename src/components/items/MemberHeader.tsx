@@ -353,42 +353,77 @@ export function MemberHeader({
   }, [openMenuId, closeMemberMenu, editingMemberId, isAdding])
 
   // Unified outside-click: clicks inside header area are allowed, clicks outside close popups and are blocked
+  const blockNextClickRef = useRef(false)
+
   useEffect(() => {
     const anyOpen = !!openMenuId || isAdding || actionsOpen
     if (!anyOpen) return
 
-    const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node
+    const isInsideAllowed = (target: Node) => {
       const headerEl = headerCardRef.current
       const menuEl = memberMenuRef.current
       const actionsEl = actionsMenuRef.current
       const renameEl = renamePopoverRef.current
+      if (menuEl?.contains(target)) return true
+      if (actionsEl?.contains(target)) return true
+      if (renameEl?.contains(target)) return true
+      if (headerEl?.contains(target)) return true
+      return false
+    }
 
-      // Allow clicks inside floating menus/popovers
-      if (menuEl?.contains(target)) return
-      if (actionsEl?.contains(target)) return
-      if (renameEl?.contains(target)) return
-
-      // Clicks inside the header area: close current popup but let the click through
-      if (headerEl?.contains(target)) {
-        if (editingMemberId) void handleSaveEdit()
-        else if (isAdding) handleCancelAddMember()
-        else if (openMenuId) { closeMemberMenu(); setEditingMemberId(null); setEditName('') }
-        else if (actionsOpen) closeActions()
-        return
-      }
-
-      // Clicks outside header area: close popup and block the event
-      e.preventDefault()
-      e.stopPropagation()
+    const closeAll = () => {
       if (editingMemberId) void handleSaveEdit()
       else if (isAdding) handleCancelAddMember()
       else if (openMenuId) { closeMemberMenu(); setEditingMemberId(null); setEditName('') }
       else if (actionsOpen) closeActions()
     }
 
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node
+
+      if (isInsideAllowed(target)) {
+        const headerEl = headerCardRef.current
+        const menuEl = memberMenuRef.current
+        const actionsEl = actionsMenuRef.current
+        const renameEl = renamePopoverRef.current
+        // Inside floating menus — let through entirely
+        if (menuEl?.contains(target) || actionsEl?.contains(target) || renameEl?.contains(target)) return
+        // Inside header — close popup but let the click through
+        closeAll()
+        return
+      }
+
+      // Outside header area: block and close
+      e.preventDefault()
+      e.stopPropagation()
+      blockNextClickRef.current = true
+      closeAll()
+    }
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (blockNextClickRef.current && !isInsideAllowed(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+
+    const handleClick = (e: MouseEvent) => {
+      if (blockNextClickRef.current) {
+        e.preventDefault()
+        e.stopPropagation()
+        blockNextClickRef.current = false
+      }
+    }
+
     document.addEventListener('mousedown', handleMouseDown, true)
-    return () => document.removeEventListener('mousedown', handleMouseDown, true)
+    document.addEventListener('mouseup', handleMouseUp, true)
+    document.addEventListener('click', handleClick, true)
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown, true)
+      document.removeEventListener('mouseup', handleMouseUp, true)
+      document.removeEventListener('click', handleClick, true)
+      blockNextClickRef.current = false
+    }
   }, [openMenuId, isAdding, actionsOpen, editingMemberId, closeMemberMenu])
 
   return (
