@@ -165,7 +165,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Import from Google Sheet" contentClassName="!overflow-visible">
+    <Modal isOpen={isOpen} onClose={onClose} title="Import from Google Sheet" contentClassName="!overflow-visible" hideClose>
       <div className="space-y-5">
         <p className="text-sm text-gray-500 dark:text-gray-400">
           First row must include an <strong>Items</strong> column. Optional:{' '}
@@ -283,9 +283,18 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
 
         {error && <div className="bg-red-50 dark:bg-red-900/30 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>}
 
-        <Button type="button" className="w-full bg-red-500 hover:bg-red-600" loading={busy} onClick={() => void runImport()}>
-          Import
-        </Button>
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg"
+          >
+            Cancel
+          </button>
+          <Button type="button" className="bg-red-500 hover:bg-red-600" loading={busy} onClick={() => void runImport()}>
+            Import
+          </Button>
+        </div>
       </div>
     </Modal>
   )

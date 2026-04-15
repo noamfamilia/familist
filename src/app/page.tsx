@@ -485,6 +485,7 @@ function HomeContent() {
         onClose={() => { setShowFeedback(false); setFeedbackText('') }}
         title="User Feedback"
         size="sm"
+        hideClose
       >
         <textarea
           value={feedbackText}
@@ -493,7 +494,14 @@ function HomeContent() {
           className="w-full min-h-[120px] px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200 resize-y"
           maxLength={2000}
         />
-        <div className="flex justify-end mt-3">
+        <div className="flex justify-end gap-2 mt-3">
+          <button
+            type="button"
+            onClick={() => { setShowFeedback(false); setFeedbackText('') }}
+            className="px-4 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg"
+          >
+            Cancel
+          </button>
           <button
             type="button"
             disabled={!feedbackText.trim() || submittingFeedback}
@@ -522,17 +530,10 @@ function HomeContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowDenote(false)} />
           <div
-            className="relative w-full max-w-md aspect-square rounded-xl bg-cover bg-center shadow-xl"
+            className="relative w-full max-w-md aspect-square rounded-xl bg-cover bg-center shadow-xl cursor-pointer"
             style={{ backgroundImage: 'url(/denote.jpg)' }}
-          >
-            <button
-              onClick={() => setShowDenote(false)}
-              className="absolute top-3 right-3 text-white text-4xl font-bold leading-none drop-shadow-lg hover:opacity-80"
-              aria-label="Close"
-            >
-              ✕
-            </button>
-          </div>
+            onClick={() => setShowDenote(false)}
+          />
         </div>
       )}
     </div>
