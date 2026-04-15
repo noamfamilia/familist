@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
-import { Toggle } from '@/components/ui/Toggle'
 import type { CategoryNames, Member, MemberWithCreator } from '@/lib/supabase/types'
 import { GearIcon } from '@/components/icons/GearIcon'
 
@@ -195,6 +194,7 @@ export function MemberHeader({
     setEditingMemberId(member.id)
     setEditName(member.name)
     setOpenMenuId(member.id)
+    setMemberMenuPos(null)
   }
 
   const handleSaveEdit = async () => {
@@ -222,7 +222,7 @@ export function MemberHeader({
 
   const handleDeleteClick = (member: Member) => {
     setDeleteConfirm({ open: true, memberId: member.id, memberName: member.name })
-    setOpenMenuId(null)
+    closeMemberMenu()
   }
 
   const handleConfirmDelete = async () => {
@@ -238,21 +238,21 @@ export function MemberHeader({
     setDeleteConfirm({ open: false, memberId: null, memberName: '' })
   }
 
-  const handleTogglePublic = async (member: MemberWithCreator) => {
-    const newPublic = !member.is_public
-    const { error } = await onUpdateMember(member.id, { is_public: newPublic })
+  const handleTogglePublic = async (member: MemberWithCreator, makePublic: boolean) => {
+    if (makePublic === member.is_public) return
+    const { error } = await onUpdateMember(member.id, { is_public: makePublic })
     if (error) {
       showError(error.message || 'Failed to update member')
     } else {
-      showSuccess(newPublic
-        ? `Any user can edit status of ${member.name}`
-        : `Only you can edit status of ${member.name}`)
+      showSuccess(makePublic
+        ? `Other users can now take ownership of ${member.name}`
+        : `${member.name} is no longer available for takeover`)
     }
   }
 
   const handleOwnClick = (member: MemberWithCreator) => {
     setOwnConfirm({ open: true, memberId: member.id, memberName: member.name })
-    setOpenMenuId(null)
+    closeMemberMenu()
   }
 
   const handleConfirmOwn = async () => {
@@ -264,69 +264,114 @@ export function MemberHeader({
       showError(error.message || 'Failed to take ownership')
     } else {
       showSuccess(`You now own "${ownConfirm.memberName}"`)
-      if (newMemberId) setOpenMenuId(newMemberId)
+      if (newMemberId) {
+        setOpenMenuId(newMemberId)
+        requestAnimationFrame(() => {
+          const chipEl = chipRefsMap.current.get(newMemberId)
+          if (chipEl) computeMenuPos(chipEl)
+        })
+      }
     }
     setOwnConfirm({ open: false, memberId: null, memberName: '' })
   }
 
   const openMember = openMenuId ? members.find(m => m.id === openMenuId) : null
-  const openMemberIndex = openMenuId ? members.findIndex(m => m.id === openMenuId) : -1
   const isOpenMemberOwner = openMember?.created_by === user?.id
 
   const memberMenuRef = useRef<HTMLDivElement>(null)
-  const memberMenuContainerRef = useRef<HTMLDivElement>(null)
-  const [menuPaddingRight, setMenuPaddingRight] = useState<number>(0)
+  const headerCardRef = useRef<HTMLDivElement>(null)
+  const chipRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
+  const [memberMenuPos, setMemberMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
+  const renamePopoverRef = useRef<HTMLDivElement>(null)
 
+  const MENU_WIDTH = 224 // w-56
+
+  const computeMenuPos = useCallback((chipEl: HTMLDivElement) => {
+    const chipRect = chipEl.getBoundingClientRect()
+    const cardRect = headerCardRef.current?.getBoundingClientRect()
+    const top = chipRect.bottom + 4
+    if (!cardRect) {
+      setMemberMenuPos({ top, left: chipRect.left })
+      return
+    }
+    const vw = window.innerWidth
+    if (chipRect.left + MENU_WIDTH <= vw) {
+      setMemberMenuPos({ top, left: chipRect.left })
+    } else if (chipRect.right - MENU_WIDTH >= cardRect.left) {
+      setMemberMenuPos({ top, right: vw - chipRect.right })
+    } else {
+      const cardCenter = cardRect.left + cardRect.width / 2
+      setMemberMenuPos({ top, left: cardCenter - MENU_WIDTH / 2 })
+    }
+  }, [])
+
+  const handleChipClick = useCallback((memberId: string) => {
+    if (openMenuId === memberId) {
+      setOpenMenuId(null)
+      setMemberMenuPos(null)
+      return
+    }
+    setEditingMemberId(null)
+    setEditName('')
+    setOpenMenuId(memberId)
+    const chipEl = chipRefsMap.current.get(memberId)
+    if (chipEl) computeMenuPos(chipEl)
+  }, [openMenuId, computeMenuPos])
+
+  const closeMemberMenu = useCallback(() => {
+    setOpenMenuId(null)
+    setMemberMenuPos(null)
+  }, [])
+
+  // Outside-click and escape to close member menu
   useEffect(() => {
-    if (!openMenuId || openMemberIndex < 0) return
-    const chipRightEdge = 12 + 20 + 2 + itemTextWidth + 2 + 8 + (openMemberIndex + 1) * 90 + openMemberIndex * 10
-
-    // First render with ideal alignment, then measure and clamp
-    setMenuPaddingRight(-1) // sentinel to trigger measurement
-
-    requestAnimationFrame(() => {
-      const container = memberMenuContainerRef.current
-      const wrapper = memberMenuRef.current
-      if (!container || !wrapper) return
-
-      // Temporarily set ideal padding to measure
-      const containerWidth = container.offsetWidth
-      const idealPR = Math.max(0, containerWidth - chipRightEdge)
-      wrapper.style.paddingRight = `${idealPR}px`
-
-      // Measure widest row's content width
-      const gap = 12 // gap-3 = 12px
-      let maxRowWidth = 0
-      for (let r = 0; r < wrapper.children.length; r++) {
-        const row = wrapper.children[r] as HTMLElement
-        let rowWidth = 0
-        for (let i = 0; i < row.children.length; i++) {
-          rowWidth += (row.children[i] as HTMLElement).offsetWidth
+    if (!openMenuId) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const menuEl = memberMenuRef.current
+      const chipEl = chipRefsMap.current.get(openMenuId)
+      const renameEl = renamePopoverRef.current
+      if (menuEl && menuEl.contains(e.target as Node)) return
+      if (chipEl && chipEl.contains(e.target as Node)) return
+      if (renameEl && renameEl.contains(e.target as Node)) return
+      closeMemberMenu()
+      setEditingMemberId(null)
+      setEditName('')
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (editingMemberId) {
+          handleCancelEdit()
+        } else {
+          closeMemberMenu()
         }
-        rowWidth += Math.max(0, row.children.length - 1) * gap
-        maxRowWidth = Math.max(maxRowWidth, rowWidth)
       }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [openMenuId, closeMemberMenu, editingMemberId])
 
-      // If content + idealPR exceeds container, reduce paddingRight
-      const available = containerWidth
-      const needed = maxRowWidth + idealPR
-      if (needed > available) {
-        setMenuPaddingRight(Math.max(0, idealPR - (needed - available)))
-      } else {
-        setMenuPaddingRight(idealPR)
+  // Outside-click to save rename popover
+  useEffect(() => {
+    if (!editingMemberId) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
+        void handleSaveEdit()
       }
-    })
-  }, [openMenuId, openMemberIndex, itemTextWidth])
+    }
+    document.addEventListener('mousedown', handleMouseDown, true)
+    return () => document.removeEventListener('mousedown', handleMouseDown, true)
+  })
 
   return (
     <div className="mb-3 min-w-full w-max">
       {/* Header card container */}
-      <div className={`bg-gray-50 dark:bg-slate-900 ${openMenuId ? 'rounded-t-lg' : 'rounded-lg'}`}>
+      <div ref={headerCardRef} className="bg-gray-50 dark:bg-slate-900 rounded-lg">
         {/* Header row - matching item card styling */}
         <div className="relative flex items-center gap-0.5 pl-3 pr-1 py-1 whitespace-nowrap">
-          {openMenuId && (
-            <div className="absolute inset-0 bg-white/80 dark:bg-slate-800/80 z-[5] rounded-t-lg pointer-events-none" />
-          )}
           <div className="w-5 flex-shrink-0 h-[40px]" />
           <div
             className="flex-shrink-0 h-[40px] flex items-center justify-between"
@@ -381,43 +426,55 @@ export function MemberHeader({
           <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
             {members.map(member => {
               const isMenuOpen = openMenuId === member.id
-              const isHidden = openMenuId && !isMenuOpen
+              const isRenaming = editingMemberId === member.id
               
               return (
-                <div key={member.id} className={isMenuOpen ? 'relative z-10' : ''}>
-                  {/* Member container - fixed size to match item state containers */}
+                <div key={member.id} className="relative">
                   <div
-                    className={`relative flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] ${editingMemberId !== member.id ? 'cursor-pointer' : ''}`}
+                    ref={(el) => { if (el) chipRefsMap.current.set(member.id, el); else chipRefsMap.current.delete(member.id) }}
+                    className={`relative flex items-center justify-center px-2 py-1 rounded-lg border w-[90px] h-[40px] transition-colors ${
+                      isMenuOpen
+                        ? 'bg-cyan border-cyan text-white'
+                        : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600'
+                    } ${!isRenaming ? 'cursor-pointer' : ''}`}
                     data-tour="member-chip"
                     onClick={() => {
-                      if (editingMemberId !== member.id) setOpenMenuId(isMenuOpen ? null : member.id)
+                      if (!isRenaming) handleChipClick(member.id)
                     }}
                   >
-                    {editingMemberId === member.id ? (
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onBlur={handleCancelEdit}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveEdit()
-                          if (e.key === 'Escape') {
-                            handleCancelEdit()
-                          }
-                        }}
-                        className="w-14 px-1 py-0.5 text-sm border border-teal rounded"
-                        autoFocus
-                        onClick={e => e.stopPropagation()}
-                      />
-                    ) : (
-                      <span className="text-lg truncate flex-1 text-center">
-                        {member.name}
-                      </span>
-                    )}
-                    {isMenuOpen && editingMemberId !== member.id && (
-                      <span className="absolute top-0.5 right-1 text-gray-400 dark:text-gray-500 text-xs leading-none">✕</span>
-                    )}
+                    <span className="text-lg truncate flex-1 text-center">
+                      {member.name}
+                    </span>
                   </div>
+                  {/* Rename popover */}
+                  {isRenaming && (
+                    <div
+                      ref={renamePopoverRef}
+                      className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 min-w-[160px]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') void handleSaveEdit()
+                            if (e.key === 'Escape') handleCancelEdit()
+                          }}
+                          className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditName('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -580,104 +637,146 @@ export function MemberHeader({
           </div>
         </div>
 
-        {/* Expanded menu - right-aligned to selected member chip, items flow right-to-left */}
-        {openMenuId && openMember && openMemberIndex >= 0 && (
-          <div ref={memberMenuContainerRef} className="py-2 bg-gray-50 dark:bg-slate-900 rounded-b-lg overflow-hidden">
-            <div
-              ref={memberMenuRef}
-              className="flex flex-col gap-2"
-              style={{ paddingRight: menuPaddingRight >= 0 ? menuPaddingRight : undefined }}
-            >
-              {/* Row 1 */}
-              <div className="flex flex-row-reverse items-center gap-3">
-                {isOpenMemberOwner ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteClick(openMember)
-                      }}
-                      className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
-                    >
-                      Delete
-                    </button>
-                    <Toggle
-                      options={[
-                        { value: 'private', label: 'Private' },
-                        { value: 'public', label: 'Public' },
-                      ]}
-                      value={openMember.is_public ? 'public' : 'private'}
-                      onChange={(v) => {
-                        const wantPublic = v === 'public'
-                        if (wantPublic !== openMember.is_public) handleTogglePublic(openMember)
-                      }}
-                      variant="menu"
-                    />
-                  </>
-                ) : (
-                  <>
-                    {openMember.is_public && onOwnMember && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleOwnClick(openMember)
-                        }}
-                        className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-                      >
-                        Own It!
-                      </button>
-                    )}
-                    {openMember.creator?.nickname && (
-                      <span className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
-                        Owner: {openMember.creator.nickname}
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-              {/* Row 2 */}
-              <div className="flex flex-row-reverse items-center gap-3">
-                {isOpenMemberOwner && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (editingMemberId === openMember.id) {
-                        void handleSaveEdit()
-                        return
-                      }
-                      handleStartEdit(openMember)
-                    }}
-                    onMouseDown={(e) => {
-                      if (editingMemberId === openMember.id) e.preventDefault()
-                    }}
-                    className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-                      editingMemberId === openMember.id ? 'bg-red-500 hover:bg-red-600' : 'bg-cyan hover:opacity-80'
-                    }`}
-                  >
-                    {editingMemberId === openMember.id ? 'Done' : 'Rename'}
-                  </button>
-                )}
-                <Toggle
-                  options={[
-                    { value: 'all', label: 'All' },
-                    { value: 'todo', label: 'To do' },
-                  ]}
-                  value={hideDone[openMember.id] && hideNotRelevant[openMember.id] ? 'todo' : 'all'}
-                  onChange={(v) => {
-                    const showTodo = v === 'todo'
-                    if (showTodo !== hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                    if (showTodo !== hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                  }}
-                  variant="menu"
-                />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Floating member dropdown menu */}
+      {openMenuId && openMember && memberMenuPos && !editingMemberId && (
+        <div
+          ref={memberMenuRef}
+          className="fixed w-56 flex flex-col rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 py-1 z-50"
+          role="menu"
+          style={{ top: memberMenuPos.top, left: memberMenuPos.left, right: memberMenuPos.right }}
+        >
+          {isOpenMemberOwner ? (
+            <>
+              {/* Show items toggles */}
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                onClick={() => {
+                  const isAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                  if (isAll) return
+                  if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                  if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                }}
+              >
+                <span className="w-5 text-teal">{!hideDone[openMember.id] || !hideNotRelevant[openMember.id] ? '✓' : ''}</span>
+                Show all items
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                onClick={() => {
+                  const isTodo = hideDone[openMember.id] && hideNotRelevant[openMember.id]
+                  if (isTodo) return
+                  if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                  if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                }}
+              >
+                <span className="w-5 text-teal">{hideDone[openMember.id] && hideNotRelevant[openMember.id] ? '✓' : ''}</span>
+                Show uncompleted items
+              </button>
+
+              <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
+
+              {/* Ownership toggles */}
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                onClick={() => void handleTogglePublic(openMember, true)}
+              >
+                <span className="w-5 text-teal">{openMember.is_public ? '✓' : ''}</span>
+                Allow others take ownership
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                onClick={() => void handleTogglePublic(openMember, false)}
+              >
+                <span className="w-5 text-teal">{!openMember.is_public ? '✓' : ''}</span>
+                {"Don\u2019t let any user take ownership"}
+              </button>
+
+              <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
+
+              {/* Rename */}
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                onClick={() => handleStartEdit(openMember)}
+              >
+                Rename
+              </button>
+              {/* Delete */}
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-slate-700"
+                onClick={() => handleDeleteClick(openMember)}
+              >
+                Delete
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Owner info */}
+              {openMember.creator?.nickname && (
+                <div className="px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400">
+                  Owner: {openMember.creator.nickname}
+                </div>
+              )}
+              {/* Own It */}
+              {openMember.is_public && onOwnMember && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 font-medium"
+                  onClick={() => handleOwnClick(openMember)}
+                >
+                  Own It!
+                </button>
+              )}
+
+              <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
+
+              {/* Show items toggles */}
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                onClick={() => {
+                  const isAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                  if (isAll) return
+                  if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                  if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                }}
+              >
+                <span className="w-5 text-teal">{!hideDone[openMember.id] || !hideNotRelevant[openMember.id] ? '✓' : ''}</span>
+                Show all items
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                onClick={() => {
+                  const isTodo = hideDone[openMember.id] && hideNotRelevant[openMember.id]
+                  if (isTodo) return
+                  if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                  if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                }}
+              >
+                <span className="w-5 text-teal">{hideDone[openMember.id] && hideNotRelevant[openMember.id] ? '✓' : ''}</span>
+                Show uncompleted items
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={deleteConfirm.open}
