@@ -279,6 +279,7 @@ export function MemberHeader({
   const [memberMenuPos, setMemberMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
   const renamePopoverRef = useRef<HTMLDivElement>(null)
   const addMemberPopoverRef = useRef<HTMLDivElement>(null)
+  const addMemberContainerRef = useRef<HTMLDivElement>(null)
 
   const MENU_WIDTH = 224 // w-56
 
@@ -366,7 +367,7 @@ export function MemberHeader({
   useEffect(() => {
     if (!isAdding) return
     const handleMouseDown = (e: MouseEvent) => {
-      if (addMemberPopoverRef.current && !addMemberPopoverRef.current.contains(e.target as Node)) {
+      if (addMemberContainerRef.current && !addMemberContainerRef.current.contains(e.target as Node)) {
         handleCancelAddMember()
       }
     }
@@ -490,7 +491,7 @@ export function MemberHeader({
 
           {/* +Task button */}
           {showAddMember && (
-            <div className="relative ml-2.5 flex-shrink-0">
+            <div ref={addMemberContainerRef} className="relative ml-2.5 flex-shrink-0 flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setIsAdding(v => !v)}
@@ -499,6 +500,15 @@ export function MemberHeader({
               >
                 +Task
               </button>
+              {isAdding && (
+                <button
+                  type="button"
+                  onClick={() => void handleAddMember()}
+                  className="px-3 h-[40px] text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
+                >
+                  Add
+                </button>
+              )}
               {isAdding && (
                 <div
                   ref={addMemberPopoverRef}
