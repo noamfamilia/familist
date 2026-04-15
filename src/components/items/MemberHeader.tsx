@@ -263,13 +263,7 @@ export function MemberHeader({
       showError(error.message || 'Failed to take ownership')
     } else {
       showSuccess(`You now own "${ownConfirm.memberName}"`)
-      if (newMemberId) {
-        setOpenMenuId(newMemberId)
-        requestAnimationFrame(() => {
-          const chipEl = chipRefsMap.current.get(newMemberId)
-          if (chipEl) computeMenuPos(chipEl)
-        })
-      }
+      closeMemberMenu()
     }
     setOwnConfirm({ open: false, memberId: null, memberName: '' })
   }
