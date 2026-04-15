@@ -60,6 +60,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [editQuantityValue, setEditQuantityValue] = useState('')
   const quantityEditorRef = useRef<HTMLDivElement>(null)
   const [editorPos, setEditorPos] = useState<{ top: number; left: number } | null>(null)
+  const EDITOR_WIDTH = 100
+  const EDGE_GUARD = 12
 
 
   // Sync editText with item.text when not editing (handles server updates/reverts)
@@ -198,7 +200,18 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const handleOpenQuantityEditor = (memberId: string, containerEl: HTMLElement) => {
     const state = item.memberStates[memberId]
     const rect = containerEl.getBoundingClientRect()
-    setEditorPos({ top: rect.top, left: rect.left + rect.width / 2 })
+    const vw = window.innerWidth
+    const top = rect.bottom + 4
+    const centerLeft = rect.left + rect.width / 2 - EDITOR_WIDTH / 2
+    let left: number
+    if (centerLeft >= EDGE_GUARD && centerLeft + EDITOR_WIDTH + EDGE_GUARD <= vw) {
+      left = centerLeft
+    } else if (centerLeft < EDGE_GUARD) {
+      left = EDGE_GUARD
+    } else {
+      left = vw - EDITOR_WIDTH - EDGE_GUARD
+    }
+    setEditorPos({ top, left })
     setEditingQuantityMember(memberId)
     setEditQuantityValue(String(state?.quantity || 1))
   }
@@ -428,7 +441,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
                 {/* Floating quantity editor */}
                 {isEditingThis && editorPos && (
-                  <div ref={quantityEditorRef} className="fixed -translate-x-1/2 -translate-y-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 min-w-[100px]" style={{ top: editorPos.top - 4, left: editorPos.left }}>
+                  <div ref={quantityEditorRef} className="fixed bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 w-[100px]" style={{ top: editorPos.top, left: editorPos.left }}>
                     <input
                       type="number"
                       value={editQuantityValue}
