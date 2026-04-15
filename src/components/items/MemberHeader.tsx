@@ -779,12 +779,13 @@ export function MemberHeader({
         isOpen={ownConfirm.open}
         onClose={() => setOwnConfirm({ open: false, memberId: null, memberName: '' })}
         size="sm"
+        hideClose
       >
-        <div className="space-y-4">
+        <div className="space-y-6">
           <p className="text-gray-600 dark:text-gray-300 text-center">
             Take ownership of &ldquo;{ownConfirm.memberName}&rdquo;?
           </p>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-center gap-6">
             <button
               type="button"
               onClick={() => setOwnConfirm({ open: false, memberId: null, memberName: '' })}
