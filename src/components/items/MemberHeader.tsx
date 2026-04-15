@@ -124,21 +124,11 @@ export function MemberHeader({
 
   useEffect(() => {
     if (!actionsOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node) &&
-          actionsButtonRef.current && !actionsButtonRef.current.contains(e.target as Node)) {
-        closeActions()
-      }
-    }
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeActions()
     }
-    document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
+    return () => document.removeEventListener('keydown', handleEscape)
   }, [actionsOpen])
 
   const [newMemberName, setNewMemberName] = useState('')
@@ -344,60 +334,62 @@ export function MemberHeader({
     setMemberMenuPos(null)
   }, [])
 
-  // Outside-click and escape to close member menu
+  // Escape to close member menu / rename / add member
   useEffect(() => {
-    if (!openMenuId) return
-    const handleClickOutside = (e: MouseEvent) => {
-      const menuEl = memberMenuRef.current
-      const chipEl = chipRefsMap.current.get(openMenuId)
-      const renameEl = renamePopoverRef.current
-      if (menuEl && menuEl.contains(e.target as Node)) return
-      if (chipEl && chipEl.contains(e.target as Node)) return
-      if (renameEl && renameEl.contains(e.target as Node)) return
-      closeMemberMenu()
-      setEditingMemberId(null)
-      setEditName('')
-    }
+    if (!openMenuId && !isAdding) return
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (editingMemberId) {
           handleCancelEdit()
+        } else if (isAdding) {
+          handleCancelAddMember()
         } else {
           closeMemberMenu()
         }
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [openMenuId, closeMemberMenu, editingMemberId])
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [openMenuId, closeMemberMenu, editingMemberId, isAdding])
 
-  // Outside-click to save rename popover
+  // Unified outside-click: clicks inside header area are allowed, clicks outside close popups and are blocked
   useEffect(() => {
-    if (!editingMemberId) return
+    const anyOpen = !!openMenuId || isAdding || actionsOpen
+    if (!anyOpen) return
+
     const handleMouseDown = (e: MouseEvent) => {
-      if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
-        void handleSaveEdit()
+      const target = e.target as Node
+      const headerEl = headerCardRef.current
+      const menuEl = memberMenuRef.current
+      const actionsEl = actionsMenuRef.current
+      const renameEl = renamePopoverRef.current
+
+      // Allow clicks inside floating menus/popovers
+      if (menuEl?.contains(target)) return
+      if (actionsEl?.contains(target)) return
+      if (renameEl?.contains(target)) return
+
+      // Clicks inside the header area: close current popup but let the click through
+      if (headerEl?.contains(target)) {
+        if (editingMemberId) void handleSaveEdit()
+        else if (isAdding) handleCancelAddMember()
+        else if (openMenuId) { closeMemberMenu(); setEditingMemberId(null); setEditName('') }
+        else if (actionsOpen) closeActions()
+        return
       }
+
+      // Clicks outside header area: close popup and block the event
+      e.preventDefault()
+      e.stopPropagation()
+      if (editingMemberId) void handleSaveEdit()
+      else if (isAdding) handleCancelAddMember()
+      else if (openMenuId) { closeMemberMenu(); setEditingMemberId(null); setEditName('') }
+      else if (actionsOpen) closeActions()
     }
+
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
-  })
-
-  // Outside-click to close add member popover
-  useEffect(() => {
-    if (!isAdding) return
-    const handleMouseDown = (e: MouseEvent) => {
-      if (addMemberContainerRef.current && !addMemberContainerRef.current.contains(e.target as Node)) {
-        handleCancelAddMember()
-      }
-    }
-    document.addEventListener('mousedown', handleMouseDown, true)
-    return () => document.removeEventListener('mousedown', handleMouseDown, true)
-  })
+  }, [openMenuId, isAdding, actionsOpen, editingMemberId, closeMemberMenu])
 
   return (
     <div className="mb-3 min-w-full w-max">
