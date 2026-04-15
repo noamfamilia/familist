@@ -670,17 +670,18 @@ export function MemberHeader({
                   <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
                 </svg>
               </button>
+              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+              <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
+                Owner: {openMember.creator?.nickname || 'Unknown'}
+              </div>
+              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-1.5"
+                className="w-full text-left px-4 py-2.5 text-xs text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700"
                 onClick={() => void handleTogglePublic(openMember)}
               >
-                Owner: {openMember.creator?.nickname || 'Unknown'}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40">
-                  <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-                </svg>
-                <span className="text-xs text-gray-400">(click to transfer ownership)</span>
+                (click to transfer ownership)
               </button>
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
               <button
@@ -702,6 +703,7 @@ export function MemberHeader({
                   ? 'Show all items'
                   : 'Show only uncompleted items'}
               </button>
+              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
               <button
                 type="button"
                 role="menuitem"
@@ -716,25 +718,24 @@ export function MemberHeader({
               <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
                 Task: {openMember.name}
               </div>
-              {openMember.is_public ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-1.5"
-                  onClick={() => handleOwnClick(openMember)}
-                >
-                  Owner: {openMember.creator?.nickname || 'Unknown'}
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-                  </svg>
-                  <span className="text-xs text-gray-400">(click to grab ownership)</span>
-                </button>
-              ) : (
-                <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
-                  Owner: {openMember.creator?.nickname || 'Unknown'}
-                </div>
-              )}
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+              <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
+                Owner: {openMember.creator?.nickname || 'Unknown'}
+              </div>
+              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+              {openMember.is_public && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="w-full text-left px-4 py-2.5 text-xs text-cyan hover:bg-gray-50 dark:hover:bg-slate-700"
+                    onClick={() => handleOwnClick(openMember)}
+                  >
+                    (click to grab ownership)
+                  </button>
+                  <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+                </>
+              )}
               <button
                 type="button"
                 role="menuitem"
