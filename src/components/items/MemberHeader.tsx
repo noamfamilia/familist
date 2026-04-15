@@ -281,7 +281,6 @@ export function MemberHeader({
     if (error) {
       showError(error.message || 'Failed to take ownership')
     } else {
-      showSuccess(`You now own "${ownConfirm.memberName}"`)
       closeMemberMenu()
     }
     setOwnConfirm({ open: false, memberId: null, memberName: '' })
