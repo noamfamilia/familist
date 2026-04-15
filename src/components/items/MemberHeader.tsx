@@ -784,7 +784,7 @@ export function MemberHeader({
       >
         <div>
           <p className="text-gray-600 dark:text-gray-300 text-center mb-6">
-            Take ownership of &ldquo;{ownConfirm.memberName}&rdquo;?
+            Take ownership of<br />{ownConfirm.memberName}?
           </p>
           <div className="flex justify-center gap-6 mb-1">
             <button
