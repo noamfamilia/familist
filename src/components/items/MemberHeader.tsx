@@ -671,17 +671,16 @@ export function MemberHeader({
                 </svg>
               </button>
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
-              <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
-                Owner: {openMember.creator?.nickname || 'Unknown'}
-              </div>
-              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-xs text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                 onClick={() => void handleTogglePublic(openMember)}
               >
-                (click to transfer ownership)
+                Owner: {openMember.creator?.nickname || 'Unknown'}{' '}
+                <span className={`text-xs ${openMember.is_public ? 'text-cyan' : 'text-gray-400'}`}>
+                  {openMember.is_public ? '(click to reclaim ownership)' : '(click to transfer ownership)'}
+                </span>
               </button>
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
               <button
@@ -719,23 +718,22 @@ export function MemberHeader({
                 Task: {openMember.name}
               </div>
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
-              <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
-                Owner: {openMember.creator?.nickname || 'Unknown'}
-              </div>
-              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
-              {openMember.is_public && (
-                <>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="w-full text-left px-4 py-2.5 text-xs text-cyan hover:bg-gray-50 dark:hover:bg-slate-700"
-                    onClick={() => handleOwnClick(openMember)}
-                  >
-                    (click to grab ownership)
-                  </button>
-                  <hr className="border-gray-200 dark:border-slate-600 mx-2" />
-                </>
+              {openMember.is_public ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  onClick={() => handleOwnClick(openMember)}
+                >
+                  Owner: {openMember.creator?.nickname || 'Unknown'}{' '}
+                  <span className="text-xs text-cyan">(click to grab ownership)</span>
+                </button>
+              ) : (
+                <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
+                  Owner: {openMember.creator?.nickname || 'Unknown'}
+                </div>
               )}
+              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
               <button
                 type="button"
                 role="menuitem"
