@@ -60,7 +60,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [editQuantityValue, setEditQuantityValue] = useState('')
   const quantityEditorRef = useRef<HTMLDivElement>(null)
   const [editorPos, setEditorPos] = useState<{ top: number; left: number } | null>(null)
-  const EDITOR_WIDTH = 100
+  const EDITOR_WIDTH = 200
   const EDGE_GUARD = 12
 
 
@@ -441,7 +441,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
                 {/* Floating quantity editor */}
                 {isEditingThis && editorPos && (
-                  <div ref={quantityEditorRef} className="fixed bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 w-[100px]" style={{ top: editorPos.top, left: editorPos.left }}>
+                  <div ref={quantityEditorRef} className="fixed bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 w-[200px]" style={{ top: editorPos.top, left: editorPos.left }}>
                     <input
                       type="number"
                       value={editQuantityValue}
