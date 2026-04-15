@@ -192,6 +192,7 @@ export function MemberHeader({
   const handleCancelEdit = () => {
     setEditingMemberId(null)
     setEditName('')
+    setRenamePopoverPos(null)
   }
 
   const handleStartEdit = (member: Member) => {
@@ -199,6 +200,24 @@ export function MemberHeader({
     setEditName(member.name)
     setOpenMenuId(member.id)
     setMemberMenuPos(null)
+    requestAnimationFrame(() => {
+      const chipEl = chipRefsMap.current.get(member.id)
+      if (!chipEl) return
+      const EDGE_GUARD = 12
+      const chipRect = chipEl.getBoundingClientRect()
+      const top = chipRect.bottom + 4
+      const vw = window.innerWidth
+      if (chipRect.left + RENAME_WIDTH + EDGE_GUARD <= vw && chipRect.left >= EDGE_GUARD) {
+        setRenamePopoverPos({ top, left: chipRect.left })
+      } else {
+        const centerLeft = chipRect.left + chipRect.width / 2 - RENAME_WIDTH / 2
+        if (centerLeft >= EDGE_GUARD && centerLeft + RENAME_WIDTH + EDGE_GUARD <= vw) {
+          setRenamePopoverPos({ top, left: centerLeft })
+        } else {
+          setRenamePopoverPos({ top, left: Math.max(EDGE_GUARD, Math.min(chipRect.left, vw - RENAME_WIDTH - EDGE_GUARD)) })
+        }
+      }
+    })
   }
 
   const handleSaveEdit = async () => {
@@ -275,11 +294,13 @@ export function MemberHeader({
   const headerCardRef = useRef<HTMLDivElement>(null)
   const chipRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
   const [memberMenuPos, setMemberMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
+  const [renamePopoverPos, setRenamePopoverPos] = useState<{ top: number; left: number } | null>(null)
   const renamePopoverRef = useRef<HTMLDivElement>(null)
   const addMemberPopoverRef = useRef<HTMLDivElement>(null)
   const addMemberContainerRef = useRef<HTMLDivElement>(null)
 
   const MENU_WIDTH = 224 // w-56
+  const RENAME_WIDTH = 160
 
   const computeMenuPos = useCallback((chipEl: HTMLDivElement) => {
     const EDGE_GUARD = 12
@@ -461,10 +482,11 @@ export function MemberHeader({
                     </span>
                   </div>
                   {/* Rename popover */}
-                  {isRenaming && (
+                  {isRenaming && renamePopoverPos && (
                     <div
                       ref={renamePopoverRef}
-                      className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 min-w-[160px]"
+                      className="fixed z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 w-[160px]"
+                      style={{ top: renamePopoverPos.top, left: renamePopoverPos.left }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="relative">
