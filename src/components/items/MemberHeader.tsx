@@ -238,15 +238,10 @@ export function MemberHeader({
     setDeleteConfirm({ open: false, memberId: null, memberName: '' })
   }
 
-  const handleTogglePublic = async (member: MemberWithCreator, makePublic: boolean) => {
-    if (makePublic === member.is_public) return
-    const { error } = await onUpdateMember(member.id, { is_public: makePublic })
+  const handleTogglePublic = async (member: MemberWithCreator) => {
+    const { error } = await onUpdateMember(member.id, { is_public: !member.is_public })
     if (error) {
       showError(error.message || 'Failed to update member')
-    } else {
-      showSuccess(makePublic
-        ? `Other users can now take ownership of ${member.name}`
-        : `${member.name} is no longer available for takeover`)
     }
   }
 
@@ -643,80 +638,56 @@ export function MemberHeader({
       {openMenuId && openMember && memberMenuPos && !editingMemberId && (
         <div
           ref={memberMenuRef}
-          className="fixed w-56 flex flex-col rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 py-1 z-50"
+          className="fixed w-64 flex flex-col rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 py-1 z-50"
           role="menu"
           style={{ top: memberMenuPos.top, left: memberMenuPos.left, right: memberMenuPos.right }}
         >
           {isOpenMemberOwner ? (
             <>
-              {/* Show items toggles */}
               <button
                 type="button"
                 role="menuitem"
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                onClick={() => {
-                  const isAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
-                  if (isAll) return
-                  if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                  if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                }}
+                onClick={() => handleStartEdit(openMember)}
               >
-                <span className="w-5 text-teal">{!hideDone[openMember.id] || !hideNotRelevant[openMember.id] ? '✓' : ''}</span>
-                Show all items
+                {openMember.name}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                </svg>
               </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                onClick={() => {
-                  const isTodo = hideDone[openMember.id] && hideNotRelevant[openMember.id]
-                  if (isTodo) return
-                  if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                  if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                }}
-              >
-                <span className="w-5 text-teal">{hideDone[openMember.id] && hideNotRelevant[openMember.id] ? '✓' : ''}</span>
-                Show uncompleted items
-              </button>
-
-              <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
-
-              {/* Ownership toggles */}
-              <button
-                type="button"
-                role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                onClick={() => void handleTogglePublic(openMember, true)}
-              >
-                <span className="w-5 text-teal">{openMember.is_public ? '✓' : ''}</span>
-                Allow others take ownership
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                onClick={() => void handleTogglePublic(openMember, false)}
-              >
-                <span className="w-5 text-teal">{!openMember.is_public ? '✓' : ''}</span>
-                {"Don\u2019t let any user take ownership"}
-              </button>
-
-              <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
-
-              {/* Rename */}
               <button
                 type="button"
                 role="menuitem"
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
-                onClick={() => handleStartEdit(openMember)}
+                onClick={() => {
+                  const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                  if (isShowingAll) {
+                    if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                    if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                  } else {
+                    if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                    if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                  }
+                }}
               >
-                Rename
+                {hideDone[openMember.id] && hideNotRelevant[openMember.id]
+                  ? 'Showing uncompleted items'
+                  : 'Showing all items'}
               </button>
-              {/* Delete */}
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-slate-700"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                onClick={() => void handleTogglePublic(openMember)}
+              >
+                {openMember.is_public
+                  ? 'Other users can claim ownership'
+                  : 'Let other users claim ownership'}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                 onClick={() => handleDeleteClick(openMember)}
               >
                 Delete
@@ -724,54 +695,45 @@ export function MemberHeader({
             </>
           ) : (
             <>
-              {/* Owner info */}
-              {openMember.creator?.nickname && (
-                <div className="px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400">
-                  Owner: {openMember.creator.nickname}
-                </div>
-              )}
-              {/* Own It */}
-              {openMember.is_public && onOwnMember && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 font-medium"
-                  onClick={() => handleOwnClick(openMember)}
-                >
-                  Own It!
-                </button>
-              )}
-
-              <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
-
-              {/* Show items toggles */}
+              <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
+                {openMember.name}
+              </div>
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                className={`w-full text-left px-4 py-2.5 text-sm font-medium ${
+                  openMember.is_public
+                    ? 'text-cyan hover:bg-gray-50 dark:hover:bg-slate-700'
+                    : 'text-gray-400 dark:text-gray-500'
+                }`}
                 onClick={() => {
-                  const isAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
-                  if (isAll) return
-                  if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                  if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                  if (openMember.is_public) {
+                    handleOwnClick(openMember)
+                  } else {
+                    showError('Ask owner to let you claim ownership')
+                  }
                 }}
               >
-                <span className="w-5 text-teal">{!hideDone[openMember.id] || !hideNotRelevant[openMember.id] ? '✓' : ''}</span>
-                Show all items
+                Claim ownership!
               </button>
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                 onClick={() => {
-                  const isTodo = hideDone[openMember.id] && hideNotRelevant[openMember.id]
-                  if (isTodo) return
-                  if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                  if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                  const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                  if (isShowingAll) {
+                    if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                    if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                  } else {
+                    if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                    if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                  }
                 }}
               >
-                <span className="w-5 text-teal">{hideDone[openMember.id] && hideNotRelevant[openMember.id] ? '✓' : ''}</span>
-                Show uncompleted items
+                {hideDone[openMember.id] && hideNotRelevant[openMember.id]
+                  ? 'Showing uncompleted items'
+                  : 'Showing all items'}
               </button>
             </>
           )}
