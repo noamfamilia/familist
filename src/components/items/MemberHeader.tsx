@@ -495,10 +495,10 @@ export function MemberHeader({
               <button
                 type="button"
                 onClick={() => isAdding ? void handleAddMember() : setIsAdding(true)}
-                className={`flex items-center justify-center rounded-lg text-base font-medium hover:opacity-80 transition-colors h-[40px] ${isAdding ? 'bg-cyan text-white w-[110px]' : 'bg-white text-cyan border-2 border-cyan w-[90px]'}`}
+                className={`flex items-center justify-center rounded-lg text-base font-medium hover:opacity-80 transition-colors h-[40px] w-[90px] ${isAdding ? 'bg-cyan text-white' : 'bg-white text-black border-2 border-cyan'}`}
                 data-tour="add-member"
               >
-                {isAdding ? 'Add Task' : '+Task'}
+                {isAdding ? 'Add' : '+Task'}
               </button>
               {isAdding && (
                 <div
