@@ -326,6 +326,14 @@ export interface Database {
         Args: { p_name: string; p_label?: string; p_category_names?: string; p_rows?: Json }
         Returns: Database['public']['Tables']['lists']['Row']
       }
+      own_member: {
+        Args: { p_member_id: string }
+        Returns: {
+          member: Database['public']['Tables']['members']['Row'] & {
+            creator?: { nickname: string | null } | null
+          }
+        }
+      }
     }
   }
 }

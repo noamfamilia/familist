@@ -307,7 +307,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   const openDuplicateModal = () => {
-    onClearCreateInput?.()
     const existingNamesLower = existingListNames.map(n => n.toLowerCase())
     let name = `${list.name} (copy)`
     let attempt = 1
@@ -324,11 +323,16 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     setShowDuplicateModal(true)
   }
 
+  const closeDuplicateModal = () => {
+    setShowDuplicateModal(false)
+    onClearCreateInput?.()
+  }
+
   const handleDuplicateConfirm = () => {
     if (!dupName.trim()) return
     if (duplicating) return
     setDuplicating(true)
-    setShowDuplicateModal(false)
+    closeDuplicateModal()
     const isSpecificLabel = dupLabel && dupLabel !== ''
     const filterAfterDuplicate = isSpecificLabel
       ? dupLabel
@@ -702,7 +706,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
     <Modal
       isOpen={showDuplicateModal}
-      onClose={() => setShowDuplicateModal(false)}
+      onClose={closeDuplicateModal}
       title="Duplicate list"
       size="sm"
       contentClassName="!overflow-visible"
@@ -803,7 +807,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
-            onClick={() => setShowDuplicateModal(false)}
+            onClick={closeDuplicateModal}
             className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg"
           >
             Cancel

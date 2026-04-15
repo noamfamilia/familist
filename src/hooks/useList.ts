@@ -763,6 +763,43 @@ export function useList(listId: string) {
     return { error: null }
   }
 
+  const ownMember = async (memberId: string, creatorNickname?: string) => {
+    const { data, error } = await trackSaveOperation(
+      supabase.rpc('own_member', { p_member_id: memberId })
+    )
+
+    if (error) {
+      return { error: { ...error, message: error.message || 'Failed to take ownership' } }
+    }
+
+    const newMember: MemberWithCreator = {
+      ...data.member,
+      creator: creatorNickname ? { nickname: creatorNickname } : (data.member.creator ?? null),
+    }
+
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setMembers(prev => prev.map(m => m.id === memberId ? newMember : m))
+    setItems(prev => prev.map(item => {
+      const oldState = item.memberStates[memberId]
+      if (!oldState) return item
+      const { [memberId]: _, ...rest } = item.memberStates
+      return {
+        ...item,
+        memberStates: { ...rest, [newMember.id]: { ...oldState, member_id: newMember.id } },
+      }
+    }))
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'member_owned',
+        payload: { oldMemberId: memberId, newMemberId: newMember.id }
+      })
+    }
+
+    return { error: null, newMemberId: newMember.id }
+  }
+
   const updateMemberState = async (
     itemId: string,
     memberId: string,
@@ -1123,6 +1160,7 @@ export function useList(listId: string) {
     addMember,
     updateMember,
     deleteMember,
+    ownMember,
     updateMemberState,
     changeQuantity,
     reorderItems,

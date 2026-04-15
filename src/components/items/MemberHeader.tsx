@@ -26,6 +26,7 @@ interface MemberHeaderProps {
   onAddMember: (name: string, creatorNickname?: string) => Promise<{ error?: { message?: string } | null }>
   onUpdateMember: (memberId: string, updates: Partial<MemberWithCreator>) => Promise<{ error?: { message: string } | null }>
   onDeleteMember: (memberId: string) => Promise<{ error?: { message: string } | null }>
+  onOwnMember?: (memberId: string, creatorNickname?: string) => Promise<{ error?: { message: string } | null; newMemberId?: string }>
   listId: string
   showAddMember?: boolean
   itemTextWidth?: number
@@ -57,6 +58,7 @@ export function MemberHeader({
   onAddMember,
   onUpdateMember,
   onDeleteMember,
+  onOwnMember,
   listId,
   showAddMember = true,
   itemTextWidth = 80,
@@ -146,6 +148,12 @@ export function MemberHeader({
     memberName: '',
   })
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [ownConfirm, setOwnConfirm] = useState<{ open: boolean; memberId: string | null; memberName: string }>({
+    open: false,
+    memberId: null,
+    memberName: '',
+  })
+  const [ownLoading, setOwnLoading] = useState(false)
 
   const handleAddMember = async () => {
     const fallbackName = suggestedName
@@ -242,6 +250,25 @@ export function MemberHeader({
     }
   }
 
+  const handleOwnClick = (member: MemberWithCreator) => {
+    setOwnConfirm({ open: true, memberId: member.id, memberName: member.name })
+    setOpenMenuId(null)
+  }
+
+  const handleConfirmOwn = async () => {
+    if (!ownConfirm.memberId || !onOwnMember) return
+    setOwnLoading(true)
+    const { error, newMemberId } = await onOwnMember(ownConfirm.memberId, profile?.nickname || undefined)
+    setOwnLoading(false)
+    if (error) {
+      showError(error.message || 'Failed to take ownership')
+    } else {
+      showSuccess(`You now own "${ownConfirm.memberName}"`)
+      if (newMemberId) setOpenMenuId(newMemberId)
+    }
+    setOwnConfirm({ open: false, memberId: null, memberName: '' })
+  }
+
   const openMember = openMenuId ? members.find(m => m.id === openMenuId) : null
   const openMemberIndex = openMenuId ? members.findIndex(m => m.id === openMenuId) : -1
   const isOpenMemberOwner = openMember?.created_by === user?.id
@@ -259,26 +286,30 @@ export function MemberHeader({
 
     requestAnimationFrame(() => {
       const container = memberMenuContainerRef.current
-      const row = memberMenuRef.current
-      if (!container || !row) return
+      const wrapper = memberMenuRef.current
+      if (!container || !wrapper) return
 
       // Temporarily set ideal padding to measure
       const containerWidth = container.offsetWidth
       const idealPR = Math.max(0, containerWidth - chipRightEdge)
-      row.style.paddingRight = `${idealPR}px`
+      wrapper.style.paddingRight = `${idealPR}px`
 
-      // Measure content width (sum of children + gaps)
-      const children = row.children
-      let contentWidth = 0
-      for (let i = 0; i < children.length; i++) {
-        contentWidth += (children[i] as HTMLElement).offsetWidth
-      }
+      // Measure widest row's content width
       const gap = 12 // gap-3 = 12px
-      contentWidth += Math.max(0, children.length - 1) * gap
+      let maxRowWidth = 0
+      for (let r = 0; r < wrapper.children.length; r++) {
+        const row = wrapper.children[r] as HTMLElement
+        let rowWidth = 0
+        for (let i = 0; i < row.children.length; i++) {
+          rowWidth += (row.children[i] as HTMLElement).offsetWidth
+        }
+        rowWidth += Math.max(0, row.children.length - 1) * gap
+        maxRowWidth = Math.max(maxRowWidth, rowWidth)
+      }
 
       // If content + idealPR exceeds container, reduce paddingRight
       const available = containerWidth
-      const needed = contentWidth + idealPR
+      const needed = maxRowWidth + idealPR
       if (needed > available) {
         setMenuPaddingRight(Math.max(0, idealPR - (needed - available)))
       } else {
@@ -554,21 +585,61 @@ export function MemberHeader({
           <div ref={memberMenuContainerRef} className="py-2 bg-gray-50 dark:bg-slate-900 rounded-b-lg overflow-hidden">
             <div
               ref={memberMenuRef}
-              className="flex flex-row-reverse items-center gap-3"
+              className="flex flex-col gap-2"
               style={{ paddingRight: menuPaddingRight >= 0 ? menuPaddingRight : undefined }}
             >
-              {isOpenMemberOwner && (
-                <>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteClick(openMember)
-                    }}
-                    className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
-                  >
-                    Delete
-                  </button>
+              {/* Row 1 */}
+              <div className="flex flex-row-reverse items-center gap-3">
+                {isOpenMemberOwner ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteClick(openMember)
+                      }}
+                      className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-red-500"
+                    >
+                      Delete
+                    </button>
+                    <Toggle
+                      options={[
+                        { value: 'private', label: 'Private' },
+                        { value: 'public', label: 'Public' },
+                      ]}
+                      value={openMember.is_public ? 'public' : 'private'}
+                      onChange={(v) => {
+                        const wantPublic = v === 'public'
+                        if (wantPublic !== openMember.is_public) handleTogglePublic(openMember)
+                      }}
+                      variant="menu"
+                    />
+                  </>
+                ) : (
+                  <>
+                    {openMember.is_public && onOwnMember && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleOwnClick(openMember)
+                        }}
+                        className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
+                      >
+                        Own It!
+                      </button>
+                    )}
+                    {openMember.creator?.nickname && (
+                      <span className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
+                        Owner: {openMember.creator.nickname}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+              {/* Row 2 */}
+              <div className="flex flex-row-reverse items-center gap-3">
+                {isOpenMemberOwner && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -583,47 +654,26 @@ export function MemberHeader({
                       if (editingMemberId === openMember.id) e.preventDefault()
                     }}
                     className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-                      editingMemberId === openMember.id ? 'bg-red-500 hover:bg-red-600' : 'bg-teal hover:opacity-80'
+                      editingMemberId === openMember.id ? 'bg-red-500 hover:bg-red-600' : 'bg-cyan hover:opacity-80'
                     }`}
                   >
                     {editingMemberId === openMember.id ? 'Done' : 'Rename'}
                   </button>
-                </>
-              )}
-
-              <Toggle
-                options={[
-                  { value: 'all', label: 'All' },
-                  { value: 'todo', label: 'To do' },
-                ]}
-                value={hideDone[openMember.id] && hideNotRelevant[openMember.id] ? 'todo' : 'all'}
-                onChange={(v) => {
-                  const showTodo = v === 'todo'
-                  if (showTodo !== hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                  if (showTodo !== hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                }}
-                variant="menu"
-              />
-
-              {isOpenMemberOwner ? (
-                <button
-                  onClick={() => handleTogglePublic(openMember)}
-                  className="text-lg hover:opacity-70"
-                  title={openMember.is_public ? 'Public - Click to make private' : 'Private - Click to make public'}
-                >
-                  {openMember.is_public ? '🔓' : '🔒'}
-                </button>
-              ) : (
-                <span className="text-lg opacity-60" title={openMember.is_public ? 'Public member' : 'Private member'}>
-                  {openMember.is_public ? '🔓' : '🔒'}
-                </span>
-              )}
-
-              {!isOpenMemberOwner && openMember.creator?.nickname && (
-                <span className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
-                  Created by: {openMember.creator.nickname}
-                </span>
-              )}
+                )}
+                <Toggle
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'todo', label: 'To do' },
+                  ]}
+                  value={hideDone[openMember.id] && hideNotRelevant[openMember.id] ? 'todo' : 'all'}
+                  onChange={(v) => {
+                    const showTodo = v === 'todo'
+                    if (showTodo !== hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                    if (showTodo !== hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                  }}
+                  variant="menu"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -638,6 +688,16 @@ export function MemberHeader({
         confirmText="Delete"
         variant="danger"
         loading={deleteLoading}
+      />
+
+      <ConfirmModal
+        isOpen={ownConfirm.open}
+        onClose={() => setOwnConfirm({ open: false, memberId: null, memberName: '' })}
+        onConfirm={handleConfirmOwn}
+        title="Take Ownership"
+        message={`Take ownership of "${ownConfirm.memberName}"? It will become your private member.`}
+        confirmText="Own It!"
+        loading={ownLoading}
       />
 
       {onUpdateCategoryNames && onUpdateCategoryOrder && categoryNames && (

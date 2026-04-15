@@ -137,6 +137,7 @@ export default function ListPage() {
     addMember,
     updateMember,
     deleteMember,
+    ownMember,
     updateItem,
     deleteItem,
     updateMemberState,
@@ -575,6 +576,7 @@ export default function ListPage() {
               onAddMember={addMember}
               onUpdateMember={updateMember}
               onDeleteMember={deleteMember}
+              onOwnMember={ownMember}
               listId={listId}
               showAddMember={memberFilter !== 'hide'}
               itemTextWidth={itemTextWidth}
