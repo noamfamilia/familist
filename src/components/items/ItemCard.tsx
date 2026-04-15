@@ -453,14 +453,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => handleClearQuantity()}
-                        className="flex-1 px-2 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
-                      >
-                        Clear
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => void handleSaveQuantity(member.id)}
                         className="flex-1 px-2 py-1 text-xs text-white rounded bg-red-500 hover:bg-red-600"
                       >
