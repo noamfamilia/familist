@@ -772,14 +772,14 @@ export function MemberHeader({
       <Modal
         isOpen={ownConfirm.open}
         onClose={() => setOwnConfirm({ open: false, memberId: null, memberName: '' })}
-        size="sm"
+        size="xs"
         hideClose
       >
-        <div className="space-y-6">
-          <p className="text-gray-600 dark:text-gray-300 text-center">
+        <div>
+          <p className="text-gray-600 dark:text-gray-300 text-center mb-6">
             Take ownership of &ldquo;{ownConfirm.memberName}&rdquo;?
           </p>
-          <div className="flex justify-center gap-6">
+          <div className="flex justify-center gap-6 mb-1">
             <button
               type="button"
               onClick={() => setOwnConfirm({ open: false, memberId: null, memberName: '' })}
