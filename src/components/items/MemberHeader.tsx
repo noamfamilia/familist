@@ -282,21 +282,27 @@ export function MemberHeader({
   const MENU_WIDTH = 224 // w-56
 
   const computeMenuPos = useCallback((chipEl: HTMLDivElement) => {
+    const EDGE_GUARD = 12
     const chipRect = chipEl.getBoundingClientRect()
-    const cardRect = headerCardRef.current?.getBoundingClientRect()
     const top = chipRect.bottom + 4
-    if (!cardRect) {
-      setMemberMenuPos({ top, left: chipRect.left })
-      return
-    }
     const vw = window.innerWidth
-    if (chipRect.left + MENU_WIDTH <= vw) {
+
+    // Prefer left-aligned with chip
+    if (chipRect.left + MENU_WIDTH + EDGE_GUARD <= vw && chipRect.left >= EDGE_GUARD) {
       setMemberMenuPos({ top, left: chipRect.left })
-    } else if (chipRect.right - MENU_WIDTH >= cardRect.left) {
-      setMemberMenuPos({ top, right: vw - chipRect.right })
+    // Then try centering under chip
     } else {
-      const cardCenter = cardRect.left + cardRect.width / 2
-      setMemberMenuPos({ top, left: cardCenter - MENU_WIDTH / 2 })
+      const centerLeft = chipRect.left + chipRect.width / 2 - MENU_WIDTH / 2
+      if (centerLeft >= EDGE_GUARD && centerLeft + MENU_WIDTH + EDGE_GUARD <= vw) {
+        setMemberMenuPos({ top, left: centerLeft })
+      // Then right-aligned with chip
+      } else if (chipRect.right - MENU_WIDTH >= EDGE_GUARD) {
+        setMemberMenuPos({ top, right: vw - chipRect.right })
+      // Fallback: clamp to screen edges
+      } else {
+        const clampedLeft = Math.max(EDGE_GUARD, Math.min(chipRect.left, vw - MENU_WIDTH - EDGE_GUARD))
+        setMemberMenuPos({ top, left: clampedLeft })
+      }
     }
   }, [])
 
