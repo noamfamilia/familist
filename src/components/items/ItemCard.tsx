@@ -428,7 +428,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
                 {/* Floating quantity editor */}
                 {isEditingThis && editorPos && (
-                  <div ref={quantityEditorRef} className="fixed -translate-x-1/2 -translate-y-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 min-w-[100px]" style={{ top: editorPos.top - 4, left: editorPos.left }}>
+                  <div ref={quantityEditorRef} className="fixed -translate-x-1/2 -translate-y-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-1.5 z-50 w-[80px]" style={{ top: editorPos.top - 4, left: editorPos.left }}>
                     <input
                       type="number"
                       value={editQuantityValue}
@@ -437,16 +437,16 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         if (e.key === 'Enter') void handleSaveQuantity(member.id)
                         if (e.key === 'Escape') handleCancelQuantityEdit()
                       }}
-                      className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                      className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-1 py-1 mb-1.5 focus:outline-none focus:ring-2 focus:ring-teal/20"
                       autoFocus
                       min="1"
                     />
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1">
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => handleCancelQuantityEdit()}
-                        className="flex-1 px-2 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
+                        className="flex-1 px-1 py-0.5 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
                       >
                         Cancel
                       </button>
@@ -454,7 +454,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => void handleSaveQuantity(member.id)}
-                        className="flex-1 px-2 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                        className="flex-1 px-1 py-0.5 text-xs text-white rounded bg-teal hover:opacity-80"
                       >
                         Done
                       </button>
