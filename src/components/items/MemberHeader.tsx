@@ -665,7 +665,7 @@ export function MemberHeader({
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
                 onClick={() => handleStartEdit(openMember)}
               >
-                Task name: {openMember.name}
+                Task: {openMember.name}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40">
                   <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
                 </svg>
@@ -688,7 +688,7 @@ export function MemberHeader({
               >
                 {hideDone[openMember.id] && hideNotRelevant[openMember.id]
                   ? 'Show all items'
-                  : 'Show uncompleted items'}
+                  : 'Show only uncompleted items'}
               </button>
               <button
                 type="button"
@@ -712,7 +712,7 @@ export function MemberHeader({
           ) : (
             <>
               <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
-                Task name: {openMember.name}
+                Task: {openMember.name}
               </div>
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
               <button
@@ -732,7 +732,7 @@ export function MemberHeader({
               >
                 {hideDone[openMember.id] && hideNotRelevant[openMember.id]
                   ? 'Show all items'
-                  : 'Show uncompleted items'}
+                  : 'Show only uncompleted items'}
               </button>
               <button
                 type="button"
