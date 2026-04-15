@@ -537,7 +537,8 @@ grant execute on function public.revoke_share_token(uuid) to authenticated;
 -- ===== RPC 5: Update member (only creator can update) =====
 create or replace function public.update_member(
   p_member_id uuid,
-  p_name text default null
+  p_name text default null,
+  p_is_public boolean default null
 )
 returns void
 language plpgsql
@@ -560,13 +561,14 @@ begin
   -- Update the member
   update public.members
   set name = coalesce(p_name, name),
+      is_public = coalesce(p_is_public, is_public),
       updated_at = now()
   where id = p_member_id;
 end;
 $$;
 
-revoke all on function public.update_member(uuid, text) from public;
-grant execute on function public.update_member(uuid, text) to authenticated;
+revoke all on function public.update_member(uuid, text, boolean) from public;
+grant execute on function public.update_member(uuid, text, boolean) to authenticated;
 
 
 -- ===== RPC 6: Delete member (only creator can delete) =====
