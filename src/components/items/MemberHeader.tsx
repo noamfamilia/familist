@@ -278,6 +278,7 @@ export function MemberHeader({
   const chipRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
   const [memberMenuPos, setMemberMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
   const renamePopoverRef = useRef<HTMLDivElement>(null)
+  const addMemberPopoverRef = useRef<HTMLDivElement>(null)
 
   const MENU_WIDTH = 224 // w-56
 
@@ -355,6 +356,18 @@ export function MemberHeader({
     const handleMouseDown = (e: MouseEvent) => {
       if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
         void handleSaveEdit()
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown, true)
+    return () => document.removeEventListener('mousedown', handleMouseDown, true)
+  })
+
+  // Outside-click to close add member popover
+  useEffect(() => {
+    if (!isAdding) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (addMemberPopoverRef.current && !addMemberPopoverRef.current.contains(e.target as Node)) {
+        handleCancelAddMember()
       }
     }
     document.addEventListener('mousedown', handleMouseDown, true)
@@ -478,41 +491,41 @@ export function MemberHeader({
           {/* +Task button */}
           {showAddMember && (
             <div className="relative ml-2.5 flex-shrink-0">
-              {isAdding ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
-                    onBlur={handleCancelAddMember}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddMember()
-                      if (e.key === 'Escape') {
-                        handleCancelAddMember()
-                      }
-                    }}
-                    placeholder={suggestedName || 'Name'}
-                    className="w-[90px] h-[40px] px-2 py-0.5 text-lg border border-teal rounded-lg bg-white dark:bg-slate-800"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddMember}
-                    onMouseDown={(e) => e.preventDefault()}
-                    className="px-3 h-[40px] text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
-                  >
-                    Add
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsAdding(true)}
-                  className="flex items-center justify-center rounded-lg bg-cyan text-white text-base font-medium hover:opacity-80 transition-colors w-[90px] h-[40px]"
-                  data-tour="add-member"
+              <button
+                type="button"
+                onClick={() => setIsAdding(v => !v)}
+                className={`flex items-center justify-center rounded-lg text-white text-base font-medium hover:opacity-80 transition-colors w-[90px] h-[40px] ${isAdding ? 'bg-teal' : 'bg-cyan'}`}
+                data-tour="add-member"
+              >
+                +Task
+              </button>
+              {isAdding && (
+                <div
+                  ref={addMemberPopoverRef}
+                  className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 min-w-[160px]"
                 >
-                  +Task
-                </button>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={newMemberName}
+                      onChange={(e) => setNewMemberName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void handleAddMember()
+                        if (e.key === 'Escape') handleCancelAddMember()
+                      }}
+                      placeholder={suggestedName || 'Name'}
+                      className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewMemberName('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}
