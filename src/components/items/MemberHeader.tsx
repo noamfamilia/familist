@@ -15,6 +15,10 @@ const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(m
   ssr: false,
 })
 
+const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
+  ssr: false,
+})
+
 interface MemberHeaderProps {
   members: MemberWithCreator[]
   allMembers: MemberWithCreator[]
@@ -771,15 +775,34 @@ export function MemberHeader({
         loading={deleteLoading}
       />
 
-      <ConfirmModal
+      <Modal
         isOpen={ownConfirm.open}
         onClose={() => setOwnConfirm({ open: false, memberId: null, memberName: '' })}
-        onConfirm={handleConfirmOwn}
-        title="Take Ownership"
-        message={`Take ownership of "${ownConfirm.memberName}"? It will become your private member.`}
-        confirmText="Own It!"
-        loading={ownLoading}
-      />
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 dark:text-gray-300 text-center">
+            Take ownership of &ldquo;{ownConfirm.memberName}&rdquo;?
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setOwnConfirm({ open: false, memberId: null, memberName: '' })}
+              className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleConfirmOwn()}
+              disabled={ownLoading}
+              className="px-4 py-2 text-sm text-white rounded-lg bg-cyan hover:opacity-80 disabled:opacity-50"
+            >
+              {ownLoading ? 'Taking...' : 'OK'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {onUpdateCategoryNames && onUpdateCategoryOrder && categoryNames && (
         <CategoryNamesModal
