@@ -677,7 +677,8 @@ export function MemberHeader({
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                 onClick={() => void handleTogglePublic(openMember)}
               >
-                Owner: {openMember.creator?.nickname || 'Unknown'}{' '}
+                Owner: {openMember.creator?.nickname || 'Unknown'}
+                <br />
                 <span className={`text-xs ${openMember.is_public ? 'text-cyan' : 'text-gray-400'}`}>
                   {openMember.is_public ? '(click to reclaim ownership)' : '(click to transfer ownership)'}
                 </span>
@@ -725,7 +726,8 @@ export function MemberHeader({
                   className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   onClick={() => handleOwnClick(openMember)}
                 >
-                  Owner: {openMember.creator?.nickname || 'Unknown'}{' '}
+                  Owner: {openMember.creator?.nickname || 'Unknown'}
+                  <br />
                   <span className="text-xs text-cyan">(click to grab ownership)</span>
                 </button>
               ) : (
