@@ -436,6 +436,7 @@ export function MemberHeader({
             {members.map(member => {
               const isMenuOpen = openMenuId === member.id
               const isRenaming = editingMemberId === member.id
+              const isMemberOwner = member.created_by === user?.id
               
               return (
                 <div key={member.id} className="relative">
@@ -445,7 +446,7 @@ export function MemberHeader({
                       isMenuOpen
                         ? 'bg-cyan border-cyan text-white'
                         : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600'
-                    } ${!isRenaming ? 'cursor-pointer' : ''}`}
+                    } ${!isMemberOwner && !isMenuOpen ? 'opacity-50' : ''} ${!isRenaming ? 'cursor-pointer' : ''}`}
                     data-tour="member-chip"
                     onClick={() => {
                       if (!isRenaming) handleChipClick(member.id)
