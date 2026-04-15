@@ -491,24 +491,15 @@ export function MemberHeader({
 
           {/* +Task button */}
           {showAddMember && (
-            <div ref={addMemberContainerRef} className="relative ml-2.5 flex-shrink-0 flex items-center gap-2">
+            <div ref={addMemberContainerRef} className="relative ml-2.5 flex-shrink-0">
               <button
                 type="button"
-                onClick={() => setIsAdding(v => !v)}
-                className={`flex items-center justify-center rounded-lg text-white text-base font-medium hover:opacity-80 transition-colors w-[90px] h-[40px] ${isAdding ? 'bg-teal' : 'bg-cyan'}`}
+                onClick={() => isAdding ? void handleAddMember() : setIsAdding(true)}
+                className={`flex items-center justify-center rounded-lg text-white text-base font-medium hover:opacity-80 transition-colors h-[40px] ${isAdding ? 'bg-red-500 hover:bg-red-600 w-[110px]' : 'bg-cyan w-[90px]'}`}
                 data-tour="add-member"
               >
-                +Task
+                {isAdding ? 'Add Task' : '+Task'}
               </button>
-              {isAdding && (
-                <button
-                  type="button"
-                  onClick={() => void handleAddMember()}
-                  className="px-3 h-[40px] text-sm text-white rounded-lg bg-red-500 hover:bg-red-600"
-                >
-                  Add
-                </button>
-              )}
               {isAdding && (
                 <div
                   ref={addMemberPopoverRef}
