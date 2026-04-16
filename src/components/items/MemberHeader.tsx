@@ -379,7 +379,8 @@ export function MemberHeader({
     const isInsideFloating = (target: Node) => {
       return memberMenuRef.current?.contains(target) ||
         actionsMenuRef.current?.contains(target) ||
-        renamePopoverRef.current?.contains(target)
+        renamePopoverRef.current?.contains(target) ||
+        addMemberPopoverRef.current?.contains(target)
     }
 
     const closeAll = () => {
