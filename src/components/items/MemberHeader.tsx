@@ -776,46 +776,30 @@ export function MemberHeader({
                   {openMember.is_public ? <>{'Other users can grab ownership.'}<br />{'Click to reclaim!'}</> : 'Click to transfer ownership'}
                 </span>
               </button>
-              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
-              <button
-                type="button"
-                role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
-                onClick={() => {
-                  if (openMember.is_target) {
-                    const hd = !!hideDone[openMember.id]
-                    const hnr = !!hideNotRelevant[openMember.id]
-                    if (!hd && !hnr) {
-                      onToggleHideNotRelevant(openMember.id)
-                    } else if (hnr && !hd) {
-                      onToggleHideNotRelevant(openMember.id)
-                      onToggleHideDone(openMember.id)
-                    } else {
-                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                    }
-                  } else {
-                    const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
-                    if (isShowingAll) {
-                      if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                      if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                    } else {
-                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                    }
-                  }
-                }}
-              >
-                {openMember.is_target
-                  ? (!hideDone[openMember.id] && !hideNotRelevant[openMember.id]
-                      ? 'Show unassigned items'
-                      : hideNotRelevant[openMember.id] && !hideDone[openMember.id]
-                      ? 'Show uncompleted items'
-                      : 'Show all items')
-                  : (hideDone[openMember.id] && hideNotRelevant[openMember.id]
+              {!openMember.is_target && (
+                <>
+                  <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                    onClick={() => {
+                      const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                      if (isShowingAll) {
+                        if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                        if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                      } else {
+                        if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                        if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                      }
+                    }}
+                  >
+                    {hideDone[openMember.id] && hideNotRelevant[openMember.id]
                       ? 'Show all items'
-                      : 'Show uncompleted items')}
-              </button>
+                      : 'Show uncompleted items'}
+                  </button>
+                </>
+              )}
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
               <button
                 type="button"
@@ -848,46 +832,30 @@ export function MemberHeader({
                   Owner: {openMember.creator?.nickname || 'Unknown'}
                 </div>
               )}
-              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
-              <button
-                type="button"
-                role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
-                onClick={() => {
-                  if (openMember.is_target) {
-                    const hd = !!hideDone[openMember.id]
-                    const hnr = !!hideNotRelevant[openMember.id]
-                    if (!hd && !hnr) {
-                      onToggleHideNotRelevant(openMember.id)
-                    } else if (hnr && !hd) {
-                      onToggleHideNotRelevant(openMember.id)
-                      onToggleHideDone(openMember.id)
-                    } else {
-                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                    }
-                  } else {
-                    const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
-                    if (isShowingAll) {
-                      if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                      if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                    } else {
-                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                    }
-                  }
-                }}
-              >
-                {openMember.is_target
-                  ? (!hideDone[openMember.id] && !hideNotRelevant[openMember.id]
-                      ? 'Show unassigned items'
-                      : hideNotRelevant[openMember.id] && !hideDone[openMember.id]
-                      ? 'Show uncompleted items'
-                      : 'Show all items')
-                  : (hideDone[openMember.id] && hideNotRelevant[openMember.id]
+              {!openMember.is_target && (
+                <>
+                  <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                    onClick={() => {
+                      const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                      if (isShowingAll) {
+                        if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                        if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                      } else {
+                        if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                        if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                      }
+                    }}
+                  >
+                    {hideDone[openMember.id] && hideNotRelevant[openMember.id]
                       ? 'Show all items'
-                      : 'Show uncompleted items')}
-              </button>
+                      : 'Show uncompleted items'}
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>

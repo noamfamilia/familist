@@ -143,22 +143,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }, [editingComment, autoGrow])
 
   const shouldHide = members.some(member => {
-    if (member.is_target) {
-      if (!hideDone[member.id] && !hideNotRelevant[member.id]) return false
-      const targetQty = item.memberStates[member.id]?.quantity || 1
-      const nonTargetMembers = members.filter(m => !m.is_target)
-      let totalQty = 0, totalDoneQty = 0
-      for (const m of nonTargetMembers) {
-        const s = item.memberStates[m.id]
-        if (s?.assigned) {
-          totalQty += s.quantity || 0
-          if (s.done) totalDoneQty += s.quantity || 0
-        }
-      }
-      if (hideNotRelevant[member.id] && totalQty >= targetQty) return true
-      if (hideDone[member.id] && totalDoneQty >= targetQty) return true
-      return false
-    }
+    if (member.is_target) return false
     const state = item.memberStates[member.id]
     const done = state?.done || false
     const assigned = state?.assigned || false
