@@ -561,6 +561,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleClearComment()}
+                    className="w-[80px] px-1 py-1 text-xs text-white rounded bg-cyan hover:opacity-80"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => void handleSaveComment()}
                     className="w-[80px] px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
                   >
