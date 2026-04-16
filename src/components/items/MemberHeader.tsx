@@ -473,10 +473,19 @@ export function MemberHeader({
           <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
             {members.map(member => {
               if (member.is_target) {
+                const isMenuOpen = openMenuId === member.id
                 return (
                   <div key={member.id} className="relative">
-                    <div className="relative flex items-center justify-center px-2 py-1 rounded-lg border-2 border-cyan bg-white dark:bg-slate-800 w-[90px] h-[40px]">
-                      <span className="text-lg truncate flex-1 text-center text-cyan font-medium">
+                    <div
+                      ref={(el) => { if (el) chipRefsMap.current.set(member.id, el); else chipRefsMap.current.delete(member.id) }}
+                      className={`relative flex items-center justify-center px-2 py-1 rounded-lg border w-[90px] h-[40px] cursor-pointer transition-colors ${
+                        isMenuOpen
+                          ? 'bg-cyan border-cyan text-white'
+                          : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600'
+                      }`}
+                      onClick={() => handleChipClick(member.id)}
+                    >
+                      <span className="text-lg truncate flex-1 text-center">
                         {member.name}
                       </span>
                     </div>
@@ -645,6 +654,22 @@ export function MemberHeader({
                   role="menu"
                   style={{ top: actionsMenuPos.top, right: actionsMenuPos.right }}
                 >
+                  {onToggleTargets && (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                        onClick={() => {
+                          closeActions()
+                          onToggleTargets()
+                        }}
+                      >
+                        {showTargets ? 'Hide Targets' : 'Show Targets'}
+                      </button>
+                      <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
+                    </>
+                  )}
                   {onUpdateCategoryNames && (
                     <button
                       type="button"
@@ -671,21 +696,8 @@ export function MemberHeader({
                       Sort by category
                     </button>
                   )}
-                  {onToggleTargets && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
-                      onClick={() => {
-                        closeActions()
-                        onToggleTargets()
-                      }}
-                    >
-                      {showTargets ? 'Hide targets' : 'Set targets'}
-                    </button>
-                  )}
-                  {(onUpdateCategoryNames || onCategorySortClick || onToggleTargets) && (
-                    <div className="my-1 h-px bg-gray-200" role="separator" />
+                  {(onUpdateCategoryNames || onCategorySortClick) && (
+                    <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
                   )}
                   {onExpandAll && (
                     <button
@@ -759,7 +771,27 @@ export function MemberHeader({
           role="menu"
           style={{ top: memberMenuPos.top, left: memberMenuPos.left, right: memberMenuPos.right }}
         >
-          {isOpenMemberOwner ? (
+          {openMember.is_target ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+              onClick={() => {
+                const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                if (isShowingAll) {
+                  if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                  if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                } else {
+                  if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                  if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                }
+              }}
+            >
+              {hideDone[openMember.id] && hideNotRelevant[openMember.id]
+                ? 'Show all items'
+                : 'Show only uncompleted items'}
+            </button>
+          ) : isOpenMemberOwner ? (
             <>
               <button
                 type="button"

@@ -220,8 +220,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   const handleSaveQuantity = async (memberId: string) => {
     const newQuantity = parseInt(editQuantityValue, 10)
-    const isTarget = members.find(m => m.id === memberId)?.is_target
-    const minQty = isTarget ? 0 : 1
+    const minQty = 1
     if (!isNaN(newQuantity) && newQuantity >= minQty) {
       const { error } = await onUpdateMemberState(item.id, memberId, { quantity: newQuantity, assigned: true })
       if (error) showError(error.message || 'Failed to update quantity')
@@ -412,23 +411,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className="flex items-center justify-center gap-1 px-1 py-1 rounded-lg border-2 border-cyan bg-white dark:bg-slate-800 w-[90px] h-[40px] cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700"
+                    className="flex items-center justify-center gap-1 px-1 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const container = e.currentTarget as HTMLElement
+                      handleOpenQuantityEditor(member.id, container)
+                    }}
                   >
                     <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} />
-                    <span className="text-sm text-cyan font-medium">{targetQty || '–'}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        const container = (e.currentTarget as HTMLElement).closest('[data-state-container]') as HTMLElement
-                        if (container) handleOpenQuantityEditor(member.id, container)
-                      }}
-                      className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-cyan"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-                      </svg>
-                    </button>
+                    <span className="text-lg text-primary dark:text-gray-100">{targetQty || '–'}</span>
                   </div>
 
                   {isEditingThis && editorPos && (
@@ -443,7 +434,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         }}
                         className="w-full text-center text-lg border border-cyan rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-cyan/20"
                         autoFocus
-                        min="0"
+                        min="1"
                       />
                       <div className="flex gap-1.5">
                         <button
@@ -618,6 +609,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   onClick={() => handleStartEditComment()}
                 >
                   {comment}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="inline-block ml-1 opacity-40 align-text-bottom">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                  </svg>
                 </p>
               ) : (
                 <p
