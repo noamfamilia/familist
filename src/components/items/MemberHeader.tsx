@@ -49,8 +49,8 @@ interface MemberHeaderProps {
   categoryOrder?: number[]
   onUpdateCategoryNames?: (names: CategoryNames) => Promise<{ error: unknown }>
   onUpdateCategoryOrder?: (order: number[]) => Promise<{ error: unknown }>
-  showTargets?: boolean
-  onToggleTargets?: () => void
+  hasTargetMember?: boolean
+  onCreateTargets?: () => void
 }
 
 export function MemberHeader({
@@ -83,8 +83,8 @@ export function MemberHeader({
   categoryOrder,
   onUpdateCategoryNames,
   onUpdateCategoryOrder,
-  showTargets = false,
-  onToggleTargets,
+  hasTargetMember = false,
+  onCreateTargets,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { success: showSuccess, error: showError } = useToast()
@@ -161,7 +161,7 @@ export function MemberHeader({
       return
     }
     
-    const nameExists = members.some(m => m.name.toLowerCase() === nameToAdd.toLowerCase())
+    const nameExists = members.some(m => !m.is_target && m.name.toLowerCase() === nameToAdd.toLowerCase())
     if (nameExists) {
       showError(`Member "${nameToAdd}" already exists`)
       return
@@ -220,7 +220,7 @@ export function MemberHeader({
       const trimmedName = editName.trim()
       
       const nameExists = members.some(m => 
-        m.id !== editingMemberId && m.name.toLowerCase() === trimmedName.toLowerCase()
+        !m.is_target && m.id !== editingMemberId && m.name.toLowerCase() === trimmedName.toLowerCase()
       )
       if (nameExists) {
         showError(`Member "${trimmedName}" already exists`)
@@ -472,27 +472,6 @@ export function MemberHeader({
           {/* Members section */}
           <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
             {members.map(member => {
-              if (member.is_target) {
-                const isMenuOpen = openMenuId === member.id
-                return (
-                  <div key={member.id} className="relative">
-                    <div
-                      ref={(el) => { if (el) chipRefsMap.current.set(member.id, el); else chipRefsMap.current.delete(member.id) }}
-                      className={`relative flex items-center justify-center px-2 py-1 rounded-lg border w-[90px] h-[40px] cursor-pointer transition-colors ${
-                        isMenuOpen
-                          ? 'bg-cyan border-cyan text-white'
-                          : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600'
-                      }`}
-                      onClick={() => handleChipClick(member.id)}
-                    >
-                      <span className="text-lg truncate flex-1 text-center">
-                        {member.name}
-                      </span>
-                    </div>
-                  </div>
-                )
-              }
-
               const isMenuOpen = openMenuId === member.id
               const isRenaming = editingMemberId === member.id
               const isMemberOwner = member.created_by === user?.id
@@ -654,7 +633,7 @@ export function MemberHeader({
                   role="menu"
                   style={{ top: actionsMenuPos.top, right: actionsMenuPos.right }}
                 >
-                  {onToggleTargets && (
+                  {onCreateTargets && !hasTargetMember && (
                     <>
                       <button
                         type="button"
@@ -662,10 +641,10 @@ export function MemberHeader({
                         className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                         onClick={() => {
                           closeActions()
-                          onToggleTargets()
+                          onCreateTargets()
                         }}
                       >
-                        {showTargets ? 'Hide Targets' : 'Show Targets'}
+                        Create Targets
                       </button>
                       <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
                     </>
@@ -771,27 +750,7 @@ export function MemberHeader({
           role="menu"
           style={{ top: memberMenuPos.top, left: memberMenuPos.left, right: memberMenuPos.right }}
         >
-          {openMember.is_target ? (
-            <button
-              type="button"
-              role="menuitem"
-              className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
-              onClick={() => {
-                const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
-                if (isShowingAll) {
-                  if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                  if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                } else {
-                  if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                  if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                }
-              }}
-            >
-              {hideDone[openMember.id] && hideNotRelevant[openMember.id]
-                ? 'Show all items'
-                : 'Show only uncompleted items'}
-            </button>
-          ) : isOpenMemberOwner ? (
+          {isOpenMemberOwner ? (
             <>
               <button
                 type="button"

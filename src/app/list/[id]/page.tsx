@@ -151,8 +151,7 @@ export default function ListPage() {
     updateCategoryNames,
     updateCategoryOrder,
     lastViewedMembers,
-    showTargets,
-    toggleShowTargets,
+    createTargets,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -346,18 +345,13 @@ export default function ListPage() {
     return bTime - aTime
   })
 
-  const targetMember = members.find(m => m.is_target) || null
-  const regularMembers = members.filter(m => !m.is_target)
+  const hasTargetMember = members.some(m => m.is_target)
 
   const filteredMembers = memberFilter === 'all'
-    ? regularMembers
+    ? members
     : memberFilter === 'mine'
-    ? regularMembers.filter(m => m.created_by === user?.id)
+    ? members.filter(m => m.created_by === user?.id)
     : []
-
-  const visibleMembers = showTargets && targetMember
-    ? [...filteredMembers, targetMember]
-    : filteredMembers
 
   const toggleHideDone = (memberId: string) => {
     setHideDone(prev => ({
@@ -579,7 +573,7 @@ export default function ListPage() {
           {/* Members header with hide done toggles */}
           <div className="sticky top-0 z-10 bg-white dark:bg-slate-800" data-tour="members-header">
             <MemberHeader
-              members={visibleMembers}
+              members={filteredMembers}
               allMembers={members}
               hideDone={hideDone}
               hideNotRelevant={hideNotRelevant}
@@ -604,8 +598,8 @@ export default function ListPage() {
               onDeleteAllArchived={() => setConfirmDeleteArchived(true)}
               onRestoreAllArchived={() => setConfirmRestoreArchived(true)}
               isOwner={list?.owner_id === user?.id}
-              showTargets={showTargets}
-              onToggleTargets={toggleShowTargets}
+              hasTargetMember={hasTargetMember}
+              onCreateTargets={createTargets}
               categoryNames={categoryNames}
               categoryOrder={categoryOrder}
               onUpdateCategoryNames={updateCategoryNames}
@@ -626,7 +620,7 @@ export default function ListPage() {
                     <SortableItemCard
                       key={item.id}
                       item={item}
-                      members={visibleMembers}
+                      members={filteredMembers}
                       hideDone={hideDone}
                       hideNotRelevant={hideNotRelevant}
                       onUpdateItem={updateItem}
@@ -664,7 +658,7 @@ export default function ListPage() {
                   <ItemCard
                     key={item.id}
                     item={item}
-                    members={visibleMembers}
+                    members={filteredMembers}
                     hideDone={hideDone}
                     hideNotRelevant={hideNotRelevant}
                     onUpdateItem={updateItem}

@@ -158,7 +158,6 @@ export function useList(listId: string) {
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
   const [lastViewedMembers, setLastViewedMembers] = useState<string | null>(null)
-  const [showTargets, setShowTargets] = useState(false)
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -309,7 +308,7 @@ export function useList(listId: string) {
         prefsFetchedRef.current = true
         const { data: listUserData } = await supabase
           .from('list_users')
-          .select('member_filter, item_text_width, last_viewed_members, show_targets')
+          .select('member_filter, item_text_width, last_viewed_members')
           .eq('list_id', listId)
           .eq('user_id', userId)
           .single()
@@ -328,7 +327,6 @@ export function useList(listId: string) {
             setItemTextWidth(parsed.width)
           }
           setLastViewedMembers(listUserData.last_viewed_members ?? null)
-          setShowTargets(!!listUserData.show_targets)
         }
       }
       setFetchTimedOut(false)
@@ -531,7 +529,32 @@ export function useList(listId: string) {
       return { data: null, error }
     }
 
-    const newItem: ItemWithState = { ...data, memberStates: {} }
+    const targetMember = members.find(m => m.is_target)
+    const newMemberStates: Record<string, ItemMemberState> = {}
+
+    if (targetMember) {
+      const targetState: ItemMemberState = {
+        item_id: data.id,
+        member_id: targetMember.id,
+        quantity: 1,
+        done: false,
+        assigned: true,
+        updated_at: new Date().toISOString(),
+      }
+      newMemberStates[targetMember.id] = targetState
+
+      trackSaveOperation(
+        supabase.from('item_member_state').insert({
+          item_id: data.id,
+          member_id: targetMember.id,
+          quantity: 1,
+          done: false,
+          assigned: true,
+        })
+      )
+    }
+
+    const newItem: ItemWithState = { ...data, memberStates: newMemberStates }
     setItems(prev => {
       let replaced = false
       const next = prev.map(item => {
@@ -1148,74 +1171,87 @@ export function useList(listId: string) {
     return { error: null }
   }
 
-  const toggleShowTargets = async () => {
-    const next = !showTargets
-    setShowTargets(next)
+  const createTargets = async () => {
+    if (!userId) return
+    const hasTarget = members.some(m => m.is_target)
+    if (hasTarget) return
 
-    if (next) {
-      const hasTarget = members.some(m => m.is_target)
-      if (!hasTarget && userId) {
-        const maxSortOrder = members.reduce((max, m) => Math.max(max, m.sort_order || 0), 0)
-        const tempId = createTempId('member')
-        const now = new Date().toISOString()
-        const optimisticTarget: MemberWithCreator = {
-          id: tempId,
+    const maxSortOrder = members.reduce((max, m) => Math.max(max, m.sort_order || 0), 0)
+    const tempId = createTempId('member')
+    const now = new Date().toISOString()
+    const optimisticTarget: MemberWithCreator = {
+      id: tempId,
+      list_id: listId,
+      name: 'Targets',
+      created_by: userId,
+      sort_order: maxSortOrder + 1,
+      is_public: true,
+      is_target: true,
+      created_at: now,
+      updated_at: now,
+      creator: null,
+    }
+    skipRealtimeUntilRef.current = Date.now() + 2000
+    setMembers(prev => [...prev, optimisticTarget])
+
+    const { data, error: insertError } = await trackSaveOperation(
+      supabase
+        .from('members')
+        .insert({
           list_id: listId,
           name: 'Targets',
           created_by: userId,
           sort_order: maxSortOrder + 1,
           is_public: true,
           is_target: true,
-          created_at: now,
-          updated_at: now,
-          creator: null,
-        }
-        skipRealtimeUntilRef.current = Date.now() + 2000
-        setMembers(prev => [...prev, optimisticTarget])
-
-        const { data, error: insertError } = await trackSaveOperation(
-          supabase
-            .from('members')
-            .insert({
-              list_id: listId,
-              name: 'Targets',
-              created_by: userId,
-              sort_order: maxSortOrder + 1,
-              is_public: true,
-              is_target: true,
-            })
-            .select()
-            .single()
-        )
-
-        if (insertError || !data) {
-          setMembers(prev => prev.filter(m => m.id !== tempId))
-          setShowTargets(false)
-          return
-        }
-
-        setMembers(prev => {
-          const next = prev.map(m => m.id === tempId ? { ...data, creator: null } : m)
-          const deduped: MemberWithCreator[] = []
-          for (const m of next) {
-            if (!deduped.some(e => e.id === m.id)) deduped.push(m)
-          }
-          return deduped
         })
-      }
+        .select()
+        .single()
+    )
+
+    if (insertError || !data) {
+      setMembers(prev => prev.filter(m => m.id !== tempId))
+      return
     }
 
-    if (userId) {
-      const { error } = await trackSaveOperation(
-        supabase
-          .from('list_users')
-          .update({ show_targets: next })
-          .eq('list_id', listId)
-          .eq('user_id', userId)
-      )
-      if (error) {
-        setShowTargets(!next)
+    const realMemberId = data.id
+
+    setMembers(prev => {
+      const next = prev.map(m => m.id === tempId ? { ...data, creator: null } : m)
+      const deduped: MemberWithCreator[] = []
+      for (const m of next) {
+        if (!deduped.some(e => e.id === m.id)) deduped.push(m)
       }
+      return deduped
+    })
+
+    if (items.length > 0) {
+      const stateRows = items.map(i => ({
+        item_id: i.id,
+        member_id: realMemberId,
+        quantity: 1,
+        done: false,
+        assigned: true,
+      }))
+
+      setItems(prev => prev.map(i => ({
+        ...i,
+        memberStates: {
+          ...i.memberStates,
+          [realMemberId]: {
+            item_id: i.id,
+            member_id: realMemberId,
+            quantity: 1,
+            done: false,
+            assigned: true,
+            updated_at: now,
+          },
+        },
+      })))
+
+      await trackSaveOperation(
+        supabase.from('item_member_state').insert(stateRows)
+      )
     }
   }
 
@@ -1263,7 +1299,6 @@ export function useList(listId: string) {
     updateCategoryNames,
     updateCategoryOrder,
     lastViewedMembers,
-    showTargets,
-    toggleShowTargets,
+    createTargets,
   }
 }

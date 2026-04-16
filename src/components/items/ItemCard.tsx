@@ -394,7 +394,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         >
           {members.map(member => {
             if (member.is_target) {
-              const targetQty = item.memberStates[member.id]?.quantity || 0
+              const targetQty = item.memberStates[member.id]?.quantity || 1
               const nonTargetMembers = members.filter(m => !m.is_target)
               let totalQty = 0
               let totalDoneQty = 0
@@ -411,15 +411,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className="flex items-center justify-center gap-1 px-1 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700"
+                    className="flex items-center justify-center gap-0.5 px-1 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700"
                     onClick={(e) => {
                       e.stopPropagation()
                       const container = e.currentTarget as HTMLElement
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} />
-                    <span className="text-lg text-primary dark:text-gray-100">{targetQty || '–'}</span>
+                    <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} size={30} />
+                    <span className="text-lg text-primary dark:text-gray-100 font-medium leading-none">{targetQty}</span>
                   </div>
 
                   {isEditingThis && editorPos && (
