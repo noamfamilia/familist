@@ -1176,6 +1176,10 @@ export function useList(listId: string) {
     const hasTarget = members.some(m => m.is_target)
     if (hasTarget) return
 
+    if (memberFilter !== 'all') {
+      await updateMemberFilter('all')
+    }
+
     const maxSortOrder = members.reduce((max, m) => Math.max(max, m.sort_order || 0), 0)
     const tempId = createTempId('member')
     const now = new Date().toISOString()
