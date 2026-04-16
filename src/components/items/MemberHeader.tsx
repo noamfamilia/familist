@@ -510,9 +510,16 @@ export function MemberHeader({
                             if (e.key === 'Enter') void handleSaveEdit()
                             if (e.key === 'Escape') handleCancelEdit()
                           }}
-                          className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                          className="w-full px-3 py-1.5 pr-14 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
                           autoFocus
                         />
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveEdit()}
+                          className="absolute right-7 top-1/2 -translate-y-1/2 text-green-500 hover:text-green-700"
+                        >
+                          ✓
+                        </button>
                         <button
                           type="button"
                           onClick={() => setEditName('')}
@@ -533,11 +540,11 @@ export function MemberHeader({
             <div ref={addMemberContainerRef} className="relative ml-2.5 flex-shrink-0">
               <button
                 type="button"
-                onClick={() => isAdding ? void handleAddMember() : setIsAdding(true)}
+                onClick={() => isAdding ? handleCancelAddMember() : setIsAdding(true)}
                 className={`flex items-center justify-center rounded-lg text-lg hover:opacity-80 transition-colors h-[40px] w-[90px] ${isAdding ? 'bg-cyan text-white font-medium' : 'bg-white dark:bg-slate-800 text-black dark:text-gray-200 border border-gray-200 dark:border-slate-600'}`}
                 data-tour="add-member"
               >
-                {isAdding ? 'Add' : '+Task'}
+                +Task
               </button>
               {isAdding && (
                 <div
@@ -554,9 +561,16 @@ export function MemberHeader({
                         if (e.key === 'Escape') handleCancelAddMember()
                       }}
                       placeholder={suggestedName || 'Name'}
-                      className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                      className="w-full px-3 py-1.5 pr-14 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
                       autoFocus
                     />
+                    <button
+                      type="button"
+                      onClick={() => void handleAddMember()}
+                      className="absolute right-7 top-1/2 -translate-y-1/2 text-green-500 hover:text-green-700"
+                    >
+                      ✓
+                    </button>
                     <button
                       type="button"
                       onClick={() => setNewMemberName('')}
