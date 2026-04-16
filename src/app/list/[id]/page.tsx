@@ -171,7 +171,11 @@ export default function ListPage() {
     if (knownMemberIdsRef.current === null) {
       // First load: seed known IDs, then check for unseen members from before this session
       knownMemberIdsRef.current = currentIds
-      if (memberFilter === 'all' || !lastViewedMembers) return
+      if (memberFilter === 'all') return
+      if (!lastViewedMembers) {
+        if (members.some(m => m.created_by !== user.id)) setShowNewMemberAlert(true)
+        return
+      }
       const hasNewFromOthers = members.some(
         m => m.created_by !== user.id && new Date(m.created_at) > new Date(lastViewedMembers)
       )
@@ -419,7 +423,7 @@ export default function ListPage() {
   }
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full sm:min-w-[400px] max-w-3xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full sm:w-fit sm:min-w-[400px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
