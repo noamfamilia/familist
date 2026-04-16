@@ -1185,7 +1185,7 @@ export function useList(listId: string) {
       name: 'Targets',
       created_by: userId,
       sort_order: maxSortOrder + 1,
-      is_public: true,
+      is_public: false,
       is_target: true,
       created_at: now,
       updated_at: now,
@@ -1202,7 +1202,7 @@ export function useList(listId: string) {
           name: 'Targets',
           created_by: userId,
           sort_order: maxSortOrder + 1,
-          is_public: true,
+          is_public: false,
           is_target: true,
         })
         .select()

@@ -425,8 +425,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className="flex items-center justify-center w-[90px] h-[40px] cursor-pointer"
+                    className={`flex items-center justify-center w-[90px] h-[40px] ${item.archived ? '' : 'cursor-pointer'}`}
                     onClick={(e) => {
+                      if (item.archived) return
                       e.stopPropagation()
                       const container = e.currentTarget as HTMLElement
                       handleOpenQuantityEditor(member.id, container)
@@ -485,9 +486,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               <div key={member.id} className="relative">
                 <div
                   data-state-container
-                  className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] transition-colors ${!canEdit ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                  className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                   onClick={() => {
-                    if (!canEdit || isEditingThis) return
+                    if (!canEdit || isEditingThis || item.archived) return
                     if (!assigned) {
                       void handleAssign(member.id)
                     } else if (!done) {
@@ -517,7 +518,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         onClick={(e) => {
                           e.stopPropagation()
                           const container = (e.currentTarget as HTMLElement).closest('[data-state-container]') as HTMLElement
-                          if (canEdit && container) handleOpenQuantityEditor(member.id, container)
+                          if (canEdit && !item.archived && container) handleOpenQuantityEditor(member.id, container)
                         }}
                         className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-teal"
                       >
