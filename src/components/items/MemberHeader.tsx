@@ -396,13 +396,7 @@ export function MemberHeader({
       // Inside floating menus — let through entirely
       if (isInsideFloating(target)) return
 
-      // Inside header — close popup but let the click through
-      if (headerCardRef.current?.contains(target)) {
-        closeAll()
-        return
-      }
-
-      // Outside header area: block and close
+      // Always block the click from reaching other elements when closing an editor
       e.preventDefault()
       e.stopPropagation()
       blockNextClickRef.current = true
