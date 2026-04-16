@@ -96,7 +96,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     }
   }, [addingLabel])
 
-  // Outside-click: save add-label
+  // Outside-click: cancel add-label
   useEffect(() => {
     if (!addingLabel || labelDropdownOpen) return
     const handleMouseDown = (e: MouseEvent) => {
@@ -104,7 +104,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         e.preventDefault()
         e.stopPropagation()
         document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        handleAddLabelDone()
+        handleCancelAddLabel()
       }
     }
     document.addEventListener('mousedown', handleMouseDown, true)
@@ -148,7 +148,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     }
   }, [dupAddingLabel])
 
-  // Duplicate modal: outside-click for add-label popover
+  // Duplicate modal: outside-click cancel add-label popover
   useEffect(() => {
     if (!dupAddingLabel || dupLabelDropdownOpen) return
     const handleMouseDown = (e: MouseEvent) => {
@@ -156,7 +156,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         e.preventDefault()
         e.stopPropagation()
         document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        handleDupAddLabelDone()
+        setDupAddingLabel(false)
+        setDupNewLabelText('')
       }
     }
     document.addEventListener('mousedown', handleMouseDown, true)
@@ -236,7 +237,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     }
   }, [isRenaming])
 
-  // Outside-click: save rename
+  // Outside-click: cancel rename
   useEffect(() => {
     if (!isRenaming) return
     const handleMouseDown = (e: MouseEvent) => {
@@ -244,14 +245,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         e.preventDefault()
         e.stopPropagation()
         document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        void handleRename()
+        handleCancelRename()
       }
     }
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
 
-  // Outside-click: save comment
+  // Outside-click: cancel comment
   useEffect(() => {
     if (!editingComment) return
     const handleMouseDown = (e: MouseEvent) => {
@@ -259,7 +260,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         e.preventDefault()
         e.stopPropagation()
         document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        void handleSaveComment()
+        handleCancelComment()
       }
     }
     document.addEventListener('mousedown', handleMouseDown, true)
@@ -435,28 +436,38 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         {isRenaming && (
           <div
             ref={renamePopoverRef}
-            className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2"
+            className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleRename()
-                  if (e.key === 'Escape') handleCancelRename()
-                }}
-                className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
-                aria-label="List name"
-              />
+            <input
+              ref={inputRef}
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleRename()
+                if (e.key === 'Escape') handleCancelRename()
+              }}
+              className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+              aria-label="List name"
+              autoFocus
+            />
+            <div className="flex gap-1.5">
               <button
                 type="button"
-                onClick={handleClearName}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleCancelRename()}
+                className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
               >
-                ✕
+                Cancel
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void handleRename()}
+                className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+              >
+                Done
               </button>
             </div>
           </div>
@@ -525,26 +536,35 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             {editingComment && (
               <div
                 ref={commentPopoverRef}
-                className="absolute left-0 right-0 top-0 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2"
+                className="absolute left-0 right-0 top-0 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2"
               >
-                <div className="relative">
-                  <textarea
-                    ref={commentRef}
-                    rows={1}
-                    value={draftComment}
-                    onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') handleCancelComment()
-                    }}
-                    className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal resize-none overflow-hidden"
-                    placeholder="Add a comment..."
-                  />
+                <textarea
+                  ref={commentRef}
+                  rows={1}
+                  value={draftComment}
+                  onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') handleCancelComment()
+                  }}
+                  className="w-full px-3 py-1.5 text-sm border border-teal rounded-lg focus:outline-none focus:ring-2 focus:ring-teal/20 resize-none overflow-hidden mb-2"
+                  placeholder="Add a comment..."
+                />
+                <div className="flex justify-end gap-1.5">
                   <button
                     type="button"
-                    onClick={handleClearComment}
-                    className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleCancelComment()}
+                    className="w-[80px] px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
                   >
-                    ✕
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => void handleSaveComment()}
+                    className="w-[80px] px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                  >
+                    Done
                   </button>
                 </div>
               </div>
@@ -604,27 +624,37 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 {addingLabel && !labelDropdownOpen && (
                   <div
                     ref={addLabelPopoverRef}
-                    className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2 min-w-[160px]"
+                    className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
                   >
-                    <div className="relative">
-                      <input
-                        ref={addLabelInputRef}
-                        type="text"
-                        value={newLabelText}
-                        onChange={(e) => setNewLabelText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') { e.preventDefault(); handleAddLabelDone() }
-                          if (e.key === 'Escape') handleCancelAddLabel()
-                        }}
-                        placeholder="Label name..."
-                        className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
-                      />
+                    <input
+                      ref={addLabelInputRef}
+                      type="text"
+                      value={newLabelText}
+                      onChange={(e) => setNewLabelText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleAddLabelDone() }
+                        if (e.key === 'Escape') handleCancelAddLabel()
+                      }}
+                      placeholder="Label name..."
+                      className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                      autoFocus
+                    />
+                    <div className="flex gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setNewLabelText('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleCancelAddLabel()}
+                        className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
                       >
-                        ✕
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleAddLabelDone()}
+                        className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                      >
+                        Done
                       </button>
                     </div>
                   </div>
@@ -777,27 +807,37 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             {dupAddingLabel && !dupLabelDropdownOpen && (
               <div
                 ref={dupAddLabelPopoverRef}
-                className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 min-w-[160px]"
+                className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
               >
-                <div className="relative">
-                  <input
-                    ref={dupAddLabelInputRef}
-                    type="text"
-                    value={dupNewLabelText}
-                    onChange={(e) => setDupNewLabelText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') { e.preventDefault(); handleDupAddLabelDone() }
-                      if (e.key === 'Escape') { setDupAddingLabel(false); setDupNewLabelText('') }
-                    }}
-                    placeholder="Label name..."
-                    className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
-                  />
+                <input
+                  ref={dupAddLabelInputRef}
+                  type="text"
+                  value={dupNewLabelText}
+                  onChange={(e) => setDupNewLabelText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); handleDupAddLabelDone() }
+                    if (e.key === 'Escape') { setDupAddingLabel(false); setDupNewLabelText('') }
+                  }}
+                  placeholder="Label name..."
+                  className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                  autoFocus
+                />
+                <div className="flex gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setDupNewLabelText('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => { setDupAddingLabel(false); setDupNewLabelText('') }}
+                    className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
                   >
-                    ✕
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleDupAddLabelDone()}
+                    className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                  >
+                    Done
                   </button>
                 </div>
               </div>

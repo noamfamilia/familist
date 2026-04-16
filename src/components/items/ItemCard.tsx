@@ -95,7 +95,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     return () => document.removeEventListener('mousedown', handleClickOutside, true)
   }, [editingQuantityMember])
 
-  // Outside-click: save rename
+  // Outside-click: cancel rename
   useEffect(() => {
     if (!isEditing) return
     const handleMouseDown = (e: MouseEvent) => {
@@ -103,14 +103,14 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         e.preventDefault()
         e.stopPropagation()
         document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        void handleSaveText()
+        handleCancelEditText()
       }
     }
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
 
-  // Outside-click: save comment
+  // Outside-click: cancel comment
   useEffect(() => {
     if (!editingComment) return
     const handleMouseDown = (e: MouseEvent) => {
@@ -118,7 +118,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         e.preventDefault()
         e.stopPropagation()
         document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        void handleSaveComment()
+        handleCancelComment()
       }
     }
     document.addEventListener('mousedown', handleMouseDown, true)
@@ -346,28 +346,38 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           {isEditing && (
             <div
               ref={renamePopoverRef}
-              className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2"
+              className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="relative">
-                <input
-                  ref={nameInputRef}
-                  type="text"
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void handleSaveText()
-                    if (e.key === 'Escape') handleCancelEditText()
-                  }}
-                  className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal"
-                  aria-label="Item name"
-                />
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSaveText()
+                  if (e.key === 'Escape') handleCancelEditText()
+                }}
+                className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                aria-label="Item name"
+                autoFocus
+              />
+              <div className="flex gap-1.5">
                 <button
                   type="button"
-                  onClick={handleClearText}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleCancelEditText()}
+                  className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
                 >
-                  ✕
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void handleSaveText()}
+                  className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                >
+                  Done
                 </button>
               </div>
             </div>
@@ -545,26 +555,35 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               {editingComment && (
                 <div
                   ref={commentPopoverRef}
-                  className="absolute left-0 right-0 top-0 z-50 bg-white rounded-lg border border-gray-200 shadow-lg p-2"
+                  className="absolute left-0 right-0 top-0 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2"
                 >
-                  <div className="relative">
-                    <textarea
-                      ref={commentRef}
-                      rows={1}
-                      value={draftComment}
-                      onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') handleCancelComment()
-                      }}
-                      className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-teal resize-none overflow-hidden"
-                      placeholder="Add a comment..."
-                    />
+                  <textarea
+                    ref={commentRef}
+                    rows={1}
+                    value={draftComment}
+                    onChange={(e) => { setDraftComment(e.target.value); autoGrow(e.target) }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') handleCancelComment()
+                    }}
+                    className="w-full px-3 py-1.5 text-sm border border-teal rounded-lg focus:outline-none focus:ring-2 focus:ring-teal/20 resize-none overflow-hidden mb-2"
+                    placeholder="Add a comment..."
+                  />
+                  <div className="flex justify-end gap-1.5">
                     <button
                       type="button"
-                      onClick={handleClearComment}
-                      className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleCancelComment()}
+                      className="w-[80px] px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
                     >
-                      ✕
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void handleSaveComment()}
+                      className="w-[80px] px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                    >
+                      Done
                     </button>
                   </div>
                 </div>

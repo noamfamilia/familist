@@ -167,7 +167,7 @@ function HomeContent() {
     }
   }, [addingLabel])
 
-  // Outside-click for add-label popover
+  // Outside-click: cancel add-label popover
   useEffect(() => {
     if (!addingLabel || labelDropdownOpen) return
     const handleMouseDown = (e: MouseEvent) => {
@@ -175,7 +175,8 @@ function HomeContent() {
         e.preventDefault()
         e.stopPropagation()
         document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        handleAddLabelDone()
+        setAddingLabel(false)
+        setNewLabelText('')
       }
     }
     document.addEventListener('mousedown', handleMouseDown, true)
@@ -399,27 +400,37 @@ function HomeContent() {
               {addingLabel && !labelDropdownOpen && (
                 <div
                   ref={addLabelPopoverRef}
-                  className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 min-w-[160px]"
+                  className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
                 >
-                  <div className="relative">
-                    <input
-                      ref={addLabelInputRef}
-                      type="text"
-                      value={newLabelText}
-                      onChange={(e) => setNewLabelText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') { e.preventDefault(); handleAddLabelDone() }
-                        if (e.key === 'Escape') { setAddingLabel(false); setNewLabelText('') }
-                      }}
-                      placeholder="Label name..."
-                      className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
-                    />
+                  <input
+                    ref={addLabelInputRef}
+                    type="text"
+                    value={newLabelText}
+                    onChange={(e) => setNewLabelText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleAddLabelDone() }
+                      if (e.key === 'Escape') { setAddingLabel(false); setNewLabelText('') }
+                    }}
+                    placeholder="Label name..."
+                    className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                    autoFocus
+                  />
+                  <div className="flex gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setNewLabelText('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { setAddingLabel(false); setNewLabelText('') }}
+                      className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
                     >
-                      ✕
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleAddLabelDone()}
+                      className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                    >
+                      Done
                     </button>
                   </div>
                 </div>

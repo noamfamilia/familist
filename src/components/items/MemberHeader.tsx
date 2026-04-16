@@ -384,7 +384,7 @@ export function MemberHeader({
     }
 
     const closeAll = () => {
-      if (editingMemberId) void handleSaveEdit()
+      if (editingMemberId) handleCancelEdit()
       else if (isAdding) handleCancelAddMember()
       else if (openMenuId) { closeMemberMenu(); setEditingMemberId(null); setEditName('') }
       else if (actionsOpen) closeActions()
@@ -498,35 +498,37 @@ export function MemberHeader({
                   {isRenaming && renamePopoverPos && (
                     <div
                       ref={renamePopoverRef}
-                      className="fixed z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 w-[160px]"
+                      className="fixed z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
                       style={{ top: renamePopoverPos.top, left: renamePopoverPos.left }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') void handleSaveEdit()
-                            if (e.key === 'Escape') handleCancelEdit()
-                          }}
-                          className="w-full px-3 py-1.5 pr-14 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
-                          autoFocus
-                        />
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void handleSaveEdit()
+                          if (e.key === 'Escape') handleCancelEdit()
+                        }}
+                        className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                        autoFocus
+                      />
+                      <div className="flex gap-1.5">
                         <button
                           type="button"
-                          onClick={() => void handleSaveEdit()}
-                          className="absolute right-7 top-1/2 -translate-y-1/2 text-green-500 hover:text-green-700"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleCancelEdit()}
+                          className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
                         >
-                          ✓
+                          Cancel
                         </button>
                         <button
                           type="button"
-                          onClick={() => setEditName('')}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => void handleSaveEdit()}
+                          className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
                         >
-                          ✕
+                          Done
                         </button>
                       </div>
                     </div>
@@ -550,34 +552,36 @@ export function MemberHeader({
               {isAdding && (
                 <div
                   ref={addMemberPopoverRef}
-                  className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 min-w-[160px]"
+                  className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
                 >
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={newMemberName}
-                      onChange={(e) => setNewMemberName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void handleAddMember()
-                        if (e.key === 'Escape') handleCancelAddMember()
-                      }}
-                      placeholder={suggestedName || 'Name'}
-                      className="w-full px-3 py-1.5 pr-14 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
-                      autoFocus
-                    />
+                  <input
+                    type="text"
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void handleAddMember()
+                      if (e.key === 'Escape') handleCancelAddMember()
+                    }}
+                    placeholder={suggestedName || 'Name'}
+                    className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                    autoFocus
+                  />
+                  <div className="flex gap-1.5">
                     <button
                       type="button"
-                      onClick={() => void handleAddMember()}
-                      className="absolute right-7 top-1/2 -translate-y-1/2 text-green-500 hover:text-green-700"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleCancelAddMember()}
+                      className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
                     >
-                      ✓
+                      Cancel
                     </button>
                     <button
                       type="button"
-                      onClick={() => setNewMemberName('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void handleAddMember()}
+                      className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
                     >
-                      ✕
+                      Done
                     </button>
                   </div>
                 </div>
