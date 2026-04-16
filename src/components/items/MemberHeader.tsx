@@ -777,25 +777,54 @@ export function MemberHeader({
                 </span>
               </button>
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
-              <button
-                type="button"
-                role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
-                onClick={() => {
-                  const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
-                  if (isShowingAll) {
-                    if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                    if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                  } else {
-                    if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                    if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                  }
-                }}
-              >
-                {hideDone[openMember.id] && hideNotRelevant[openMember.id]
-                  ? 'Show all items'
-                  : 'Show only uncompleted items'}
-              </button>
+              {openMember.is_target ? (
+                <>
+                  <button type="button" role="menuitem"
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 ${!hideDone[openMember.id] && !hideNotRelevant[openMember.id] ? 'text-teal font-medium' : 'text-gray-900 dark:text-gray-100'}`}
+                    onClick={() => {
+                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    }}>
+                    Show all items
+                  </button>
+                  <button type="button" role="menuitem"
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 ${!hideDone[openMember.id] && hideNotRelevant[openMember.id] ? 'text-teal font-medium' : 'text-gray-900 dark:text-gray-100'}`}
+                    onClick={() => {
+                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    }}>
+                    Show unassigned items
+                  </button>
+                  <button type="button" role="menuitem"
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 ${hideDone[openMember.id] && !hideNotRelevant[openMember.id] ? 'text-teal font-medium' : 'text-gray-900 dark:text-gray-100'}`}
+                    onClick={() => {
+                      if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    }}>
+                    Show uncompleted items
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  onClick={() => {
+                    const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                    if (isShowingAll) {
+                      if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    } else {
+                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    }
+                  }}
+                >
+                  {hideDone[openMember.id] && hideNotRelevant[openMember.id]
+                    ? 'Show all items'
+                    : 'Show uncompleted items'}
+                </button>
+              )}
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
               <button
                 type="button"
@@ -829,25 +858,54 @@ export function MemberHeader({
                 </div>
               )}
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
-              <button
-                type="button"
-                role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
-                onClick={() => {
-                  const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
-                  if (isShowingAll) {
-                    if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                    if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                  } else {
-                    if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                    if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
-                  }
-                }}
-              >
-                {hideDone[openMember.id] && hideNotRelevant[openMember.id]
-                  ? 'Show all items'
-                  : 'Show only uncompleted items'}
-              </button>
+              {openMember.is_target ? (
+                <>
+                  <button type="button" role="menuitem"
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 ${!hideDone[openMember.id] && !hideNotRelevant[openMember.id] ? 'text-teal font-medium' : 'text-gray-900 dark:text-gray-100'}`}
+                    onClick={() => {
+                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    }}>
+                    Show all items
+                  </button>
+                  <button type="button" role="menuitem"
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 ${!hideDone[openMember.id] && hideNotRelevant[openMember.id] ? 'text-teal font-medium' : 'text-gray-900 dark:text-gray-100'}`}
+                    onClick={() => {
+                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    }}>
+                    Show unassigned items
+                  </button>
+                  <button type="button" role="menuitem"
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 ${hideDone[openMember.id] && !hideNotRelevant[openMember.id] ? 'text-teal font-medium' : 'text-gray-900 dark:text-gray-100'}`}
+                    onClick={() => {
+                      if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    }}>
+                    Show uncompleted items
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  onClick={() => {
+                    const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                    if (isShowingAll) {
+                      if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    } else {
+                      if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
+                      if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                    }
+                  }}
+                >
+                  {hideDone[openMember.id] && hideNotRelevant[openMember.id]
+                    ? 'Show all items'
+                    : 'Show uncompleted items'}
+                </button>
+              )}
             </>
           )}
         </div>

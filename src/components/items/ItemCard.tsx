@@ -142,9 +142,23 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     }
   }, [editingComment, autoGrow])
 
-  // Check if item should be hidden based on member filters (exclude target member)
   const shouldHide = members.some(member => {
-    if (member.is_target) return false
+    if (member.is_target) {
+      if (!hideDone[member.id] && !hideNotRelevant[member.id]) return false
+      const targetQty = item.memberStates[member.id]?.quantity || 1
+      const nonTargetMembers = members.filter(m => !m.is_target)
+      let totalQty = 0, totalDoneQty = 0
+      for (const m of nonTargetMembers) {
+        const s = item.memberStates[m.id]
+        if (s?.assigned) {
+          totalQty += s.quantity || 0
+          if (s.done) totalDoneQty += s.quantity || 0
+        }
+      }
+      if (hideNotRelevant[member.id] && totalQty >= targetQty) return true
+      if (hideDone[member.id] && totalDoneQty >= targetQty) return true
+      return false
+    }
     const state = item.memberStates[member.id]
     const done = state?.done || false
     const assigned = state?.assigned || false
@@ -411,15 +425,14 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className="flex items-center justify-center gap-0.5 px-1 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700"
+                    className="flex items-center justify-center w-[90px] h-[40px] cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation()
                       const container = e.currentTarget as HTMLElement
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} size={30} />
-                    <span className="text-lg text-primary dark:text-gray-100 font-medium leading-none">{targetQty}</span>
+                    <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} size={36} />
                   </div>
 
                   {isEditingThis && editorPos && (
