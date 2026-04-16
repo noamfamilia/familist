@@ -105,6 +105,7 @@ export interface Database {
           sort_order: number | null
           member_filter: string | null
           item_text_width: string | null
+          show_targets: boolean
           label: string
           created_at: string
         }
@@ -116,6 +117,7 @@ export interface Database {
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: string | null
+          show_targets?: boolean
           label?: string
           created_at?: string
         }
@@ -127,6 +129,7 @@ export interface Database {
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: string | null
+          show_targets?: boolean
           label?: string
           created_at?: string
         }
@@ -139,6 +142,7 @@ export interface Database {
           created_by: string | null
           sort_order: number | null
           is_public: boolean
+          is_target: boolean
           created_at: string
           updated_at: string
         }
@@ -149,6 +153,7 @@ export interface Database {
           created_by?: string | null
           sort_order?: number | null
           is_public?: boolean
+          is_target?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -159,6 +164,7 @@ export interface Database {
           created_by?: string | null
           sort_order?: number | null
           is_public?: boolean
+          is_target?: boolean
           created_at?: string
           updated_at?: string
         }

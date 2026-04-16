@@ -49,6 +49,8 @@ interface MemberHeaderProps {
   categoryOrder?: number[]
   onUpdateCategoryNames?: (names: CategoryNames) => Promise<{ error: unknown }>
   onUpdateCategoryOrder?: (order: number[]) => Promise<{ error: unknown }>
+  showTargets?: boolean
+  onToggleTargets?: () => void
 }
 
 export function MemberHeader({
@@ -81,6 +83,8 @@ export function MemberHeader({
   categoryOrder,
   onUpdateCategoryNames,
   onUpdateCategoryOrder,
+  showTargets = false,
+  onToggleTargets,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { success: showSuccess, error: showError } = useToast()
@@ -468,6 +472,18 @@ export function MemberHeader({
           {/* Members section */}
           <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
             {members.map(member => {
+              if (member.is_target) {
+                return (
+                  <div key={member.id} className="relative">
+                    <div className="relative flex items-center justify-center px-2 py-1 rounded-lg border-2 border-cyan bg-white dark:bg-slate-800 w-[90px] h-[40px]">
+                      <span className="text-lg truncate flex-1 text-center text-cyan font-medium">
+                        {member.name}
+                      </span>
+                    </div>
+                  </div>
+                )
+              }
+
               const isMenuOpen = openMenuId === member.id
               const isRenaming = editingMemberId === member.id
               const isMemberOwner = member.created_by === user?.id
@@ -655,7 +671,20 @@ export function MemberHeader({
                       Sort by category
                     </button>
                   )}
-                  {(onUpdateCategoryNames || onCategorySortClick) && (
+                  {onToggleTargets && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                      onClick={() => {
+                        closeActions()
+                        onToggleTargets()
+                      }}
+                    >
+                      {showTargets ? 'Hide targets' : 'Set targets'}
+                    </button>
+                  )}
+                  {(onUpdateCategoryNames || onCategorySortClick || onToggleTargets) && (
                     <div className="my-1 h-px bg-gray-200" role="separator" />
                   )}
                   {onExpandAll && (

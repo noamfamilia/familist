@@ -7,6 +7,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
+import { ProgressRings } from '@/components/items/ProgressRings'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -141,8 +142,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     }
   }, [editingComment, autoGrow])
 
-  // Check if item should be hidden based on member filters
+  // Check if item should be hidden based on member filters (exclude target member)
   const shouldHide = members.some(member => {
+    if (member.is_target) return false
     const state = item.memberStates[member.id]
     const done = state?.done || false
     const assigned = state?.assigned || false
@@ -218,7 +220,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   const handleSaveQuantity = async (memberId: string) => {
     const newQuantity = parseInt(editQuantityValue, 10)
-    if (!isNaN(newQuantity) && newQuantity >= 1) {
+    const isTarget = members.find(m => m.id === memberId)?.is_target
+    const minQty = isTarget ? 0 : 1
+    if (!isNaN(newQuantity) && newQuantity >= minQty) {
       const { error } = await onUpdateMemberState(item.id, memberId, { quantity: newQuantity, assigned: true })
       if (error) showError(error.message || 'Failed to update quantity')
     }
@@ -390,6 +394,81 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           {...(members.length > 0 ? { 'data-tour': 'item-state' } : {})}
         >
           {members.map(member => {
+            if (member.is_target) {
+              const targetQty = item.memberStates[member.id]?.quantity || 0
+              const nonTargetMembers = members.filter(m => !m.is_target)
+              let totalQty = 0
+              let totalDoneQty = 0
+              for (const m of nonTargetMembers) {
+                const s = item.memberStates[m.id]
+                if (s?.assigned) {
+                  totalQty += s.quantity || 0
+                  if (s.done) totalDoneQty += s.quantity || 0
+                }
+              }
+              const isEditingThis = editingQuantityMember === member.id
+
+              return (
+                <div key={member.id} className="relative">
+                  <div
+                    data-state-container
+                    className="flex items-center justify-center gap-1 px-1 py-1 rounded-lg border-2 border-cyan bg-white dark:bg-slate-800 w-[90px] h-[40px] cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700"
+                  >
+                    <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} />
+                    <span className="text-sm text-cyan font-medium">{targetQty || '–'}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const container = (e.currentTarget as HTMLElement).closest('[data-state-container]') as HTMLElement
+                        if (container) handleOpenQuantityEditor(member.id, container)
+                      }}
+                      className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-cyan"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                      </svg>
+                    </button>
+                  </div>
+
+                  {isEditingThis && editorPos && (
+                    <div ref={quantityEditorRef} className="fixed bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 w-[200px]" style={{ top: editorPos.top, left: editorPos.left }}>
+                      <input
+                        type="number"
+                        value={editQuantityValue}
+                        onChange={(e) => setEditQuantityValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void handleSaveQuantity(member.id)
+                          if (e.key === 'Escape') handleCancelQuantityEdit()
+                        }}
+                        className="w-full text-center text-lg border border-cyan rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-cyan/20"
+                        autoFocus
+                        min="0"
+                      />
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleCancelQuantityEdit()}
+                          className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => void handleSaveQuantity(member.id)}
+                          className="flex-1 px-1 py-1 text-xs text-white rounded bg-cyan hover:opacity-80"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
             const state = item.memberStates[member.id]
             const quantity = state?.quantity || 1
             const done = state?.done || false
@@ -415,13 +494,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   }}
                 >
                   {!assigned ? (
-                    /* Unassigned: grey X */
                     <svg width="18" height="18" viewBox="-0.5 0 25 25" fill="none" className="text-gray-400 dark:text-gray-500">
                       <path d="M3 21.32L21 3.32001" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       <path d="M3 3.32001L21 21.32" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   ) : done ? (
-                    /* Done: checkmark centered, small qty on left */
                     <>
                       <span className="text-xs text-gray-400 dark:text-gray-500 absolute left-1.5 top-1/2 -translate-y-1/2">{quantity}</span>
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-coral">
@@ -429,7 +506,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       </svg>
                     </>
                   ) : (
-                    /* Assigned: quantity left, edit icon right */
                     <>
                       <span className="text-lg text-primary dark:text-gray-100 flex-1 text-center">{quantity}</span>
                       <button
@@ -449,7 +525,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   )}
                 </div>
 
-                {/* Floating quantity editor */}
                 {isEditingThis && editorPos && (
                   <div ref={quantityEditorRef} className="fixed bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 w-[200px]" style={{ top: editorPos.top, left: editorPos.left }}>
                     <input

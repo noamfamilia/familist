@@ -151,6 +151,8 @@ export default function ListPage() {
     updateCategoryNames,
     updateCategoryOrder,
     lastViewedMembers,
+    showTargets,
+    toggleShowTargets,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -166,29 +168,28 @@ export default function ListPage() {
 
   useEffect(() => {
     if (!hasCompletedInitialFetch || !user) return
-    const currentIds = new Set(members.map(m => m.id))
+    const nonTargetMembers = members.filter(m => !m.is_target)
+    const currentIds = new Set(nonTargetMembers.map(m => m.id))
 
     if (knownMemberIdsRef.current === null) {
-      // First load: seed known IDs, then check for unseen members from before this session
       knownMemberIdsRef.current = currentIds
       if (memberFilter === 'all') return
       if (!lastViewedMembers) {
-        if (members.some(m => m.created_by !== user.id)) setShowNewMemberAlert(true)
+        if (nonTargetMembers.some(m => m.created_by !== user.id)) setShowNewMemberAlert(true)
         return
       }
-      const hasNewFromOthers = members.some(
+      const hasNewFromOthers = nonTargetMembers.some(
         m => m.created_by !== user.id && new Date(m.created_at) > new Date(lastViewedMembers)
       )
       if (hasNewFromOthers) setShowNewMemberAlert(true)
       return
     }
 
-    // Realtime update: detect newly appeared members from other users
     if (memberFilter === 'all') {
       knownMemberIdsRef.current = currentIds
       return
     }
-    const newFromOthers = members.some(
+    const newFromOthers = nonTargetMembers.some(
       m => !knownMemberIdsRef.current!.has(m.id) && m.created_by !== user.id
     )
     knownMemberIdsRef.current = currentIds
@@ -345,11 +346,18 @@ export default function ListPage() {
     return bTime - aTime
   })
 
+  const targetMember = members.find(m => m.is_target) || null
+  const regularMembers = members.filter(m => !m.is_target)
+
   const filteredMembers = memberFilter === 'all'
-    ? members
+    ? regularMembers
     : memberFilter === 'mine'
-    ? members.filter(m => m.created_by === user?.id)
+    ? regularMembers.filter(m => m.created_by === user?.id)
     : []
+
+  const visibleMembers = showTargets && targetMember
+    ? [...filteredMembers, targetMember]
+    : filteredMembers
 
   const toggleHideDone = (memberId: string) => {
     setHideDone(prev => ({
@@ -571,7 +579,7 @@ export default function ListPage() {
           {/* Members header with hide done toggles */}
           <div className="sticky top-0 z-10 bg-white dark:bg-slate-800" data-tour="members-header">
             <MemberHeader
-              members={filteredMembers}
+              members={visibleMembers}
               allMembers={members}
               hideDone={hideDone}
               hideNotRelevant={hideNotRelevant}
@@ -596,6 +604,8 @@ export default function ListPage() {
               onDeleteAllArchived={() => setConfirmDeleteArchived(true)}
               onRestoreAllArchived={() => setConfirmRestoreArchived(true)}
               isOwner={list?.owner_id === user?.id}
+              showTargets={showTargets}
+              onToggleTargets={toggleShowTargets}
               categoryNames={categoryNames}
               categoryOrder={categoryOrder}
               onUpdateCategoryNames={updateCategoryNames}
@@ -616,7 +626,7 @@ export default function ListPage() {
                     <SortableItemCard
                       key={item.id}
                       item={item}
-                      members={filteredMembers}
+                      members={visibleMembers}
                       hideDone={hideDone}
                       hideNotRelevant={hideNotRelevant}
                       onUpdateItem={updateItem}
@@ -654,7 +664,7 @@ export default function ListPage() {
                   <ItemCard
                     key={item.id}
                     item={item}
-                    members={filteredMembers}
+                    members={visibleMembers}
                     hideDone={hideDone}
                     hideNotRelevant={hideNotRelevant}
                     onUpdateItem={updateItem}

@@ -158,6 +158,7 @@ export function useList(listId: string) {
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
   const [lastViewedMembers, setLastViewedMembers] = useState<string | null>(null)
+  const [showTargets, setShowTargets] = useState(false)
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -308,7 +309,7 @@ export function useList(listId: string) {
         prefsFetchedRef.current = true
         const { data: listUserData } = await supabase
           .from('list_users')
-          .select('member_filter, item_text_width, last_viewed_members')
+          .select('member_filter, item_text_width, last_viewed_members, show_targets')
           .eq('list_id', listId)
           .eq('user_id', userId)
           .single()
@@ -327,6 +328,7 @@ export function useList(listId: string) {
             setItemTextWidth(parsed.width)
           }
           setLastViewedMembers(listUserData.last_viewed_members ?? null)
+          setShowTargets(!!listUserData.show_targets)
         }
       }
       setFetchTimedOut(false)
@@ -627,8 +629,11 @@ export function useList(listId: string) {
   const addMember = async (name: string, creatorNickname?: string) => {
     if (!userId) return { error: new Error('Not authenticated') }
 
-    const maxSortOrder = members.reduce((max, member) => 
+    const targetMember = members.find(m => m.is_target)
+    const nonTargetMembers = members.filter(m => !m.is_target)
+    const maxSortOrder = nonTargetMembers.reduce((max, member) => 
       Math.max(max, member.sort_order || 0), 0)
+    const newSortOrder = maxSortOrder + 1
     const tempId = createTempId('member')
     const now = new Date().toISOString()
     const optimisticMember: MemberWithCreator = {
@@ -636,15 +641,23 @@ export function useList(listId: string) {
       list_id: listId,
       name,
       created_by: userId,
-      sort_order: maxSortOrder + 1,
+      sort_order: newSortOrder,
       is_public: false,
+      is_target: false,
       created_at: now,
       updated_at: now,
       creator: creatorNickname ? { nickname: creatorNickname } : null,
     }
 
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setMembers(prev => [...prev, optimisticMember])
+    if (targetMember) {
+      setMembers(prev => {
+        const withoutTarget = prev.filter(m => !m.is_target)
+        return [...withoutTarget, optimisticMember, { ...targetMember, sort_order: newSortOrder + 1 }]
+      })
+    } else {
+      setMembers(prev => [...prev, optimisticMember])
+    }
 
     const { data, error } = await trackSaveOperation(
       supabase
@@ -653,11 +666,18 @@ export function useList(listId: string) {
           list_id: listId,
           name,
           created_by: userId,
-          sort_order: maxSortOrder + 1,
+          sort_order: newSortOrder,
         })
         .select()
         .single()
     )
+
+    if (!error && targetMember) {
+      await supabase
+        .from('members')
+        .update({ sort_order: newSortOrder + 1 })
+        .eq('id', targetMember.id)
+    }
 
     if (error || !data) {
       setMembers(prev => prev.filter(member => member.id !== tempId))
@@ -1128,6 +1148,77 @@ export function useList(listId: string) {
     return { error: null }
   }
 
+  const toggleShowTargets = async () => {
+    const next = !showTargets
+    setShowTargets(next)
+
+    if (next) {
+      const hasTarget = members.some(m => m.is_target)
+      if (!hasTarget && userId) {
+        const maxSortOrder = members.reduce((max, m) => Math.max(max, m.sort_order || 0), 0)
+        const tempId = createTempId('member')
+        const now = new Date().toISOString()
+        const optimisticTarget: MemberWithCreator = {
+          id: tempId,
+          list_id: listId,
+          name: 'Targets',
+          created_by: userId,
+          sort_order: maxSortOrder + 1,
+          is_public: true,
+          is_target: true,
+          created_at: now,
+          updated_at: now,
+          creator: null,
+        }
+        skipRealtimeUntilRef.current = Date.now() + 2000
+        setMembers(prev => [...prev, optimisticTarget])
+
+        const { data, error: insertError } = await trackSaveOperation(
+          supabase
+            .from('members')
+            .insert({
+              list_id: listId,
+              name: 'Targets',
+              created_by: userId,
+              sort_order: maxSortOrder + 1,
+              is_public: true,
+              is_target: true,
+            })
+            .select()
+            .single()
+        )
+
+        if (insertError || !data) {
+          setMembers(prev => prev.filter(m => m.id !== tempId))
+          setShowTargets(false)
+          return
+        }
+
+        setMembers(prev => {
+          const next = prev.map(m => m.id === tempId ? { ...data, creator: null } : m)
+          const deduped: MemberWithCreator[] = []
+          for (const m of next) {
+            if (!deduped.some(e => e.id === m.id)) deduped.push(m)
+          }
+          return deduped
+        })
+      }
+    }
+
+    if (userId) {
+      const { error } = await trackSaveOperation(
+        supabase
+          .from('list_users')
+          .update({ show_targets: next })
+          .eq('list_id', listId)
+          .eq('user_id', userId)
+      )
+      if (error) {
+        setShowTargets(!next)
+      }
+    }
+  }
+
   // Auto-fit width when mode is 'auto' and items change
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
@@ -1172,5 +1263,7 @@ export function useList(listId: string) {
     updateCategoryNames,
     updateCategoryOrder,
     lastViewedMembers,
+    showTargets,
+    toggleShowTargets,
   }
 }
