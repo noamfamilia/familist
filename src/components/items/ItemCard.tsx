@@ -431,7 +431,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   ) : (
                     /* Assigned: quantity left, edit icon right */
                     <>
-                      <span className="text-lg font-semibold text-primary dark:text-gray-100 flex-1 text-center">{quantity}</span>
+                      <span className="text-lg text-primary dark:text-gray-100 flex-1 text-center">{quantity}</span>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -460,7 +460,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         if (e.key === 'Enter') void handleSaveQuantity(member.id)
                         if (e.key === 'Escape') handleCancelQuantityEdit()
                       }}
-                      className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                      className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
                       autoFocus
                       min="1"
                     />
