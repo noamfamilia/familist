@@ -412,7 +412,7 @@ function HomeContent() {
                       if (e.key === 'Escape') { setAddingLabel(false); setNewLabelText('') }
                     }}
                     placeholder="Label name..."
-                    className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                    className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
                     autoFocus
                   />
                   <div className="flex gap-1.5">

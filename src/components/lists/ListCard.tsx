@@ -448,7 +448,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 if (e.key === 'Enter') void handleRename()
                 if (e.key === 'Escape') handleCancelRename()
               }}
-              className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+              className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
               aria-label="List name"
               autoFocus
             />
@@ -636,7 +636,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                         if (e.key === 'Escape') handleCancelAddLabel()
                       }}
                       placeholder="Label name..."
-                      className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                      className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
                       autoFocus
                     />
                     <div className="flex gap-1.5">
@@ -819,7 +819,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     if (e.key === 'Escape') { setDupAddingLabel(false); setDupNewLabelText('') }
                   }}
                   placeholder="Label name..."
-                  className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                  className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
                   autoFocus
                 />
                 <div className="flex gap-1.5">

@@ -177,6 +177,7 @@ export function MemberHeader({
   const handleCancelAddMember = () => {
     setNewMemberName('')
     setIsAdding(false)
+    setAddMemberPopoverPos(null)
   }
 
   const handleCancelEdit = () => {
@@ -284,6 +285,7 @@ export function MemberHeader({
   const chipRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
   const [memberMenuPos, setMemberMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
   const [renamePopoverPos, setRenamePopoverPos] = useState<{ top: number; left: number } | null>(null)
+  const [addMemberPopoverPos, setAddMemberPopoverPos] = useState<{ top: number; left: number } | null>(null)
   const renamePopoverRef = useRef<HTMLDivElement>(null)
   const addMemberPopoverRef = useRef<HTMLDivElement>(null)
   const addMemberContainerRef = useRef<HTMLDivElement>(null)
@@ -504,7 +506,7 @@ export function MemberHeader({
                           if (e.key === 'Enter') void handleSaveEdit()
                           if (e.key === 'Escape') handleCancelEdit()
                         }}
-                        className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                        className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
                         autoFocus
                       />
                       <div className="flex gap-1.5">
@@ -537,16 +539,36 @@ export function MemberHeader({
             <div ref={addMemberContainerRef} className="relative ml-2.5 flex-shrink-0">
               <button
                 type="button"
-                onClick={() => isAdding ? handleCancelAddMember() : setIsAdding(true)}
+                onClick={() => {
+                  if (isAdding) {
+                    handleCancelAddMember()
+                  } else {
+                    setIsAdding(true)
+                    requestAnimationFrame(() => {
+                      const el = addMemberContainerRef.current
+                      if (!el) return
+                      const rect = el.getBoundingClientRect()
+                      const EDGE_GUARD = 12
+                      const vw = window.innerWidth
+                      const popoverWidth = 200
+                      let left = rect.left
+                      if (left + popoverWidth + EDGE_GUARD > vw) {
+                        left = Math.max(EDGE_GUARD, vw - popoverWidth - EDGE_GUARD)
+                      }
+                      setAddMemberPopoverPos({ top: rect.bottom + 4, left })
+                    })
+                  }
+                }}
                 className={`flex items-center justify-center rounded-lg text-lg hover:opacity-80 transition-colors h-[40px] w-[90px] ${isAdding ? 'bg-cyan text-white font-medium' : 'bg-white dark:bg-slate-800 text-black dark:text-gray-200 border border-gray-200 dark:border-slate-600'}`}
                 data-tour="add-member"
               >
                 +Task
               </button>
-              {isAdding && (
+              {isAdding && addMemberPopoverPos && (
                 <div
                   ref={addMemberPopoverRef}
-                  className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+                  className="fixed z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+                  style={{ top: addMemberPopoverPos.top, left: addMemberPopoverPos.left }}
                 >
                   <input
                     type="text"
@@ -557,7 +579,7 @@ export function MemberHeader({
                       if (e.key === 'Escape') handleCancelAddMember()
                     }}
                     placeholder={suggestedName || 'Name'}
-                    className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                    className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
                     autoFocus
                   />
                   <div className="flex gap-1.5">

@@ -358,7 +358,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   if (e.key === 'Enter') void handleSaveText()
                   if (e.key === 'Escape') handleCancelEditText()
                 }}
-                className="w-full text-center text-lg font-semibold border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
                 aria-label="Item name"
                 autoFocus
               />
