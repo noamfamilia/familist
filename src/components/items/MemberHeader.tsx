@@ -718,7 +718,7 @@ export function MemberHeader({
                 Owner: {openMember.creator?.nickname || 'Unknown'}
                 <br />
                 <span className={`text-xs ${openMember.is_public ? 'text-cyan' : 'text-gray-400'}`}>
-                  {openMember.is_public ? <>{'Other users can grab ownership.'}<br />{'Click to reclaim!'}</> : '(click to transfer ownership)'}
+                  {openMember.is_public ? <>{'Other users can grab ownership.'}<br />{'Click to reclaim!'}</> : {'Click to transfer ownership'}}
                 </span>
               </button>
               <hr className="border-gray-200 dark:border-slate-600 mx-2" />
@@ -766,7 +766,7 @@ export function MemberHeader({
                 >
                   Owner: {openMember.creator?.nickname || 'Unknown'}
                   <br />
-                  <span className="text-xs text-cyan">(click to grab ownership)</span>
+                  <span className="text-xs text-cyan">{'Click to grab ownership!'}</span>
                 </button>
               ) : (
                 <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
