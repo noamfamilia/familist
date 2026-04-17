@@ -551,10 +551,13 @@ export default function ListPage() {
 
       {/* Add item form */}
       <div ref={addItemWrapperRef} className="relative mb-4 sm:mb-6">
-        {newItemText && (
           <div
             onMouseDown={(e) => e.preventDefault()}
-            className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg z-20 bg-white dark:bg-slate-800 overflow-hidden"
+            className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg z-20 bg-white dark:bg-slate-800 overflow-hidden transition-all duration-150 ease-out origin-bottom ${
+              newItemText
+                ? 'opacity-100 scale-y-100 translate-y-0'
+                : 'opacity-0 scale-y-95 translate-y-1 pointer-events-none'
+            }`}
           >
             <div className={`p-3 transition-colors ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
             <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
@@ -580,7 +583,6 @@ export default function ListPage() {
             </div>
             </div>
           </div>
-        )}
         <form ref={addItemFormRef} onSubmit={handleAddItem} className="flex gap-2 sm:gap-3" data-tour="add-item">
           <div className="flex-1 relative">
             <Input
