@@ -15,6 +15,7 @@ import { resetTutorial } from '@/components/ui/TutorialTour'
 import { useTheme } from 'next-themes'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
+import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -80,7 +81,7 @@ function HomeContent() {
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { success, error: showError } = useToast()
   const profileMenuRef = useRef<HTMLDivElement>(null)
-  const [selectedLabel, setSelectedLabel] = useState(profile?.label_filter ?? 'Any')
+  const [selectedLabel, setSelectedLabel] = useState(() => getCachedLabelFilter() ?? profile?.label_filter ?? 'Any')
   const labelSyncedRef = useRef(false)
   const [labelDropdownOpen, setLabelDropdownOpen] = useState(false)
   const [availableLabels, setAvailableLabels] = useState<string[]>([])
@@ -96,7 +97,9 @@ function HomeContent() {
   useEffect(() => {
     if (profile && !labelSyncedRef.current) {
       labelSyncedRef.current = true
-      setSelectedLabel(profile.label_filter ?? 'Any')
+      const serverLabel = profile.label_filter ?? 'Any'
+      setSelectedLabel(serverLabel)
+      setCachedLabelFilter(serverLabel)
     }
   }, [profile])
 
@@ -207,6 +210,7 @@ function HomeContent() {
 
   const handleSelectLabel = useCallback((label: string) => {
     setSelectedLabel(label)
+    setCachedLabelFilter(label)
     if (labelSyncedRef.current) {
       void updateProfile({ label_filter: label })
     }
@@ -224,10 +228,11 @@ function HomeContent() {
   const allLabels = [...availableLabels, ...localLabels]
 
   useEffect(() => {
+    if (availableLabels.length === 0) return
     if (selectedLabel !== 'Any' && selectedLabel !== '' && !allLabels.includes(selectedLabel)) {
-      handleSelectLabel('Any')
+      setSelectedLabel('Any')
     }
-  }, [availableLabels, localLabels, selectedLabel, handleSelectLabel])
+  }, [availableLabels, localLabels, selectedLabel])
 
   const clearInviteState = () => {
     clearPendingInviteToken()

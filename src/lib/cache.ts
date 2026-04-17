@@ -130,6 +130,34 @@ export function removeCachedList(userId: string | undefined, listId: string) {
   }
 }
 
+const CACHE_KEY_LABEL_FILTER = 'label_filter'
+
+function getLabelFilterKey(userId: string) {
+  return `${CACHE_KEY_LABEL_FILTER}_${userId}`
+}
+
+export function getCachedLabelFilter(userId?: string): string | null {
+  const scopedUserId = resolveUserId(userId)
+  if (!scopedUserId) return null
+  if (typeof window === 'undefined') return null
+  try {
+    return localStorage.getItem(getLabelFilterKey(scopedUserId))
+  } catch {
+    return null
+  }
+}
+
+export function setCachedLabelFilter(label: string, userId?: string) {
+  const scopedUserId = resolveUserId(userId)
+  if (!scopedUserId) return
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(getLabelFilterKey(scopedUserId), label)
+  } catch {
+    // Ignore errors
+  }
+}
+
 function getRecentLists(userId: string): string[] {
   try {
     const cached = localStorage.getItem(getRecentKey(userId))
