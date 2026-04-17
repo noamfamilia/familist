@@ -6,6 +6,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import type { CategoryNames, Member, MemberWithCreator } from '@/lib/supabase/types'
 import { GearIcon } from '@/components/icons/GearIcon'
+import { FilterIcon } from '@/components/icons/FilterIcon'
 
 const CategoryNamesModal = dynamic(() => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
   ssr: false,
@@ -490,6 +491,9 @@ export function MemberHeader({
                       if (!isRenaming) handleChipClick(member.id)
                     }}
                   >
+                    {hideDone[member.id] && hideNotRelevant[member.id] && (
+                      <FilterIcon className={`flex-shrink-0 ${isMenuOpen ? 'text-white' : 'text-cyan'}`} />
+                    )}
                     <span className="text-lg truncate flex-1 text-center">
                       {member.name}
                     </span>
