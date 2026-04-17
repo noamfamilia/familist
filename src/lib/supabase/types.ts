@@ -179,8 +179,6 @@ export interface Database {
           archived_at: string | null
           sort_order: number | null
           category: number
-          archived_above_id: string | null
-          archived_below_id: string | null
           created_at: string
           updated_at: string
         }
@@ -193,8 +191,6 @@ export interface Database {
           archived_at?: string | null
           sort_order?: number | null
           category?: number
-          archived_above_id?: string | null
-          archived_below_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -207,8 +203,6 @@ export interface Database {
           archived_at?: string | null
           sort_order?: number | null
           category?: number
-          archived_above_id?: string | null
-          archived_below_id?: string | null
           created_at?: string
           updated_at?: string
         }

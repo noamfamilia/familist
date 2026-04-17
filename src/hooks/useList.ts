@@ -483,11 +483,10 @@ export function useList(listId: string) {
   }, [userId, listId, fetchList])
 
   const addItem = async (text: string, category?: number, comment?: string | null) => {
-    const activeItems = items.filter(item => !item.archived)
-    const maxSortOrder = activeItems.length > 0
-      ? activeItems.reduce((max, item) => Math.max(max, item.sort_order ?? 0), activeItems[0].sort_order ?? 0)
+    const maxSortOrder = items.length > 0
+      ? items.reduce((max, item) => Math.max(max, item.sort_order ?? 0), 0)
       : 0
-    const newSortOrder = activeItems.length > 0 ? maxSortOrder + 1 : 0
+    const newSortOrder = items.length > 0 ? maxSortOrder + 1 : 0
     const tempId = createTempId('item')
     const now = new Date().toISOString()
     const optimisticItem: ItemWithState = {
@@ -499,8 +498,6 @@ export function useList(listId: string) {
       archived_at: null,
       sort_order: newSortOrder,
       category: category ?? 1,
-      archived_above_id: null,
-      archived_below_id: null,
       created_at: now,
       updated_at: now,
       memberStates: {},
@@ -582,74 +579,6 @@ export function useList(listId: string) {
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
     const previousItem = items.find(item => item.id === itemId)
     const persistedUpdates = { ...updates }
-
-    if (previousItem && updates.archived === true && !previousItem.archived) {
-      const activeItems = items
-        .filter(item => !item.archived)
-        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      const idx = activeItems.findIndex(item => item.id === itemId)
-      persistedUpdates.archived_above_id = idx > 0 ? activeItems[idx - 1].id : null
-      persistedUpdates.archived_below_id = idx < activeItems.length - 1 ? activeItems[idx + 1].id : null
-    }
-
-    if (previousItem && updates.archived === false && previousItem.archived) {
-      persistedUpdates.archived_above_id = null
-      persistedUpdates.archived_below_id = null
-
-      const activeItems = items
-        .filter(item => !item.archived)
-        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-
-      let insertIdx = activeItems.length
-      const aboveId = previousItem.archived_above_id
-      const belowId = previousItem.archived_below_id
-      const aboveIdx = aboveId ? activeItems.findIndex(i => i.id === aboveId) : -1
-      const belowIdx = belowId ? activeItems.findIndex(i => i.id === belowId) : -1
-
-      if (aboveIdx >= 0) {
-        insertIdx = aboveIdx + 1
-      } else if (belowIdx >= 0) {
-        insertIdx = belowIdx
-      }
-
-      const restoredItem = { ...previousItem, ...persistedUpdates }
-      const newActiveOrder = [...activeItems]
-      newActiveOrder.splice(insertIdx, 0, restoredItem)
-      const reordered = newActiveOrder.map((item, i) => ({ ...item, sort_order: i }))
-      const remainingArchived = items.filter(i => i.archived && i.id !== itemId)
-
-      skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 3000)
-      setItems([...reordered, ...remainingArchived])
-
-      const { error: updateError } = await trackSaveOperation(
-        supabase.from('items').update(persistedUpdates).eq('id', itemId)
-      )
-      if (updateError) {
-        setItems(items)
-        return { error: updateError }
-      }
-
-      const allIds = [...reordered.map(i => i.id), ...remainingArchived.map(i => i.id)]
-      const { error: reorderError } = await trackSaveOperation(
-        supabase.rpc('reorder_list_items', {
-          p_list_id: listId,
-          p_item_ids: allIds,
-        })
-      )
-      if (reorderError) {
-        setItems(items)
-        return { error: reorderError }
-      }
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'item_updated',
-          payload: { itemId }
-        })
-      }
-      return { error: null }
-    }
 
     const skipMs = 'category' in persistedUpdates ? 4500 : 2000
     skipRealtimeUntilRef.current = Math.max(
@@ -745,6 +674,13 @@ export function useList(listId: string) {
       setMembers(prev => [...prev, optimisticMember])
     }
 
+    if (targetMember) {
+      await supabase
+        .from('members')
+        .update({ sort_order: newSortOrder + 1 })
+        .eq('id', targetMember.id)
+    }
+
     const { data, error } = await trackSaveOperation(
       supabase
         .from('members')
@@ -757,13 +693,6 @@ export function useList(listId: string) {
         .select()
         .single()
     )
-
-    if (!error && targetMember) {
-      await supabase
-        .from('members')
-        .update({ sort_order: newSortOrder + 1 })
-        .eq('id', targetMember.id)
-    }
 
     if (error || !data) {
       setMembers(prev => prev.filter(member => member.id !== tempId))
@@ -1057,15 +986,10 @@ export function useList(listId: string) {
     const hasArchived = items.some(i => i.archived)
     if (!hasArchived) return { error: null, count: 0 }
 
-    const maxActive = items
-      .filter(i => !i.archived)
-      .reduce((max, i) => Math.max(max, i.sort_order ?? 0), -1)
-
     skipRealtimeUntilRef.current = Date.now() + 3000
-    let idx = 1
     setItems(prev => prev.map(i => {
       if (!i.archived) return i
-      return { ...i, archived: false, archived_at: null, sort_order: maxActive + idx++, archived_above_id: null, archived_below_id: null }
+      return { ...i, archived: false, archived_at: null }
     }))
 
     const { data, error } = await trackSaveOperation(

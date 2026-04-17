@@ -1,8 +1,10 @@
--- 1. Add neighbor snapshot columns to items
-ALTER TABLE public.items ADD COLUMN IF NOT EXISTS archived_above_id uuid REFERENCES public.items(id) ON DELETE SET NULL;
-ALTER TABLE public.items ADD COLUMN IF NOT EXISTS archived_below_id uuid REFERENCES public.items(id) ON DELETE SET NULL;
+-- Unified sort_order: drop neighbor snapshot columns and update get_list_data RPC
 
--- 2. Update get_list_data to include the new columns in item JSON
+-- 1. Drop the neighbor columns (no longer needed)
+ALTER TABLE public.items DROP COLUMN IF EXISTS archived_above_id;
+ALTER TABLE public.items DROP COLUMN IF EXISTS archived_below_id;
+
+-- 2. Update get_list_data to remove the dropped columns from item JSON
 CREATE OR REPLACE FUNCTION public.get_list_data(p_list_id uuid)
 RETURNS json
 LANGUAGE plpgsql
@@ -53,8 +55,6 @@ BEGIN
           'archived_at', i.archived_at,
           'sort_order', i.sort_order,
           'category', i.category,
-          'archived_above_id', i.archived_above_id,
-          'archived_below_id', i.archived_below_id,
           'created_at', i.created_at,
           'updated_at', i.updated_at,
           'memberStates', (
@@ -73,53 +73,3 @@ $$;
 
 REVOKE ALL ON FUNCTION public.get_list_data(uuid) FROM public;
 GRANT EXECUTE ON FUNCTION public.get_list_data(uuid) TO authenticated;
-
--- 3. Update restore_archived_items to use neighbor-based positioning
-CREATE OR REPLACE FUNCTION public.restore_archived_items(p_list_id uuid)
-RETURNS int
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_user_id uuid := auth.uid();
-  v_max_sort int;
-  v_count int;
-BEGIN
-  IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'Not authenticated';
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM public.list_users
-    WHERE list_id = p_list_id AND user_id = v_user_id
-  ) THEN
-    RAISE EXCEPTION 'Access denied';
-  END IF;
-
-  SELECT coalesce(max(sort_order), -1)
-  INTO v_max_sort
-  FROM public.items
-  WHERE list_id = p_list_id AND archived = false;
-
-  -- Bulk restore: place at end of active items, clear neighbor refs
-  WITH numbered AS (
-    SELECT id, row_number() OVER (ORDER BY archived_at ASC NULLS LAST, created_at ASC) AS rn
-    FROM public.items
-    WHERE list_id = p_list_id AND archived = true
-  )
-  UPDATE public.items i
-  SET archived = false,
-      archived_at = NULL,
-      sort_order = v_max_sort + n.rn,
-      archived_above_id = NULL,
-      archived_below_id = NULL
-  FROM numbered n
-  WHERE i.id = n.id;
-
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-  RETURN v_count;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.restore_archived_items(uuid) TO authenticated;

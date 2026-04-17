@@ -28,6 +28,57 @@ const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Moda
   ssr: false,
 })
 
+/**
+ * After active items are reordered, re-interleave archived items so each
+ * archived item stays "glued" to its nearest active neighbour.
+ *
+ * Anchor rule: the nearest active item ABOVE in the old full order.
+ * Top-of-list archived items (no active item above) anchor to the nearest
+ * active item BELOW and are placed right before it.
+ */
+function buildFullOrder(
+  currentFull: ItemWithState[],
+  newActiveOrder: ItemWithState[],
+): ItemWithState[] {
+  const activeSet = new Set(newActiveOrder.map(i => i.id))
+  const archivedItems = currentFull.filter(i => !activeSet.has(i.id))
+
+  // For each archived item find its anchor (nearest active item above in old order)
+  const anchorMap = new Map<string, string | null>()
+  let lastActiveId: string | null = null
+  for (const item of currentFull) {
+    if (activeSet.has(item.id)) {
+      lastActiveId = item.id
+    } else {
+      anchorMap.set(item.id, lastActiveId)
+    }
+  }
+
+  // Group archived items by their anchor
+  const attachedAfter = new Map<string | null, ItemWithState[]>()
+  for (const item of archivedItems) {
+    const anchor = anchorMap.get(item.id) ?? null
+    if (!attachedAfter.has(anchor)) attachedAfter.set(anchor, [])
+    attachedAfter.get(anchor)!.push(item)
+  }
+
+  // Build result: items anchored to null (top-of-list) go before the first
+  // active item; all others go right after their anchor.
+  const result: ItemWithState[] = []
+
+  // Top-glued archived items (no active item above them)
+  const topGlued = attachedAfter.get(null)
+  if (topGlued) result.push(...topGlued)
+
+  for (const active of newActiveOrder) {
+    result.push(active)
+    const trailing = attachedAfter.get(active.id)
+    if (trailing) result.push(...trailing)
+  }
+
+  return result
+}
+
 function makeCategoryComparators(order: number[]) {
   const positionOf = (cat: number) => {
     const idx = order.indexOf(cat)
@@ -369,13 +420,13 @@ export default function ListPage() {
 
   const handleCategorySortClick = async () => {
     if (categorySortLoading || items.length === 0) return
-    const { byCategory, archivedByCategory } = makeCategoryComparators(categoryOrder)
-    const active = items.filter(i => !i.archived)
-    const archived = items.filter(i => i.archived)
+    const { byCategory } = makeCategoryComparators(categoryOrder)
+    const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    const active = currentFull.filter(i => !i.archived)
     const sortedActive = [...active].sort(byCategory)
-    const sortedArchived = [...archived].sort(archivedByCategory)
+    const fullOrder = buildFullOrder(currentFull, sortedActive)
     setCategorySortLoading(true)
-    const { error: reorderError } = await reorderItems([...sortedActive, ...sortedArchived])
+    const { error: reorderError } = await reorderItems(fullOrder)
     setCategorySortLoading(false)
     if (reorderError) {
       showError(reorderError.message || 'Failed to sort by category')
@@ -413,10 +464,12 @@ export default function ListPage() {
       const newIndex = activeItems.findIndex(i => i.id === over.id)
 
       if (oldIndex !== -1 && newIndex !== -1) {
-        const reordered = [...activeItems]
-        const [removed] = reordered.splice(oldIndex, 1)
-        reordered.splice(newIndex, 0, removed)
-        const { error: reorderError } = await reorderItems([...reordered, ...archivedItems])
+        const newActiveOrder = [...activeItems]
+        const [removed] = newActiveOrder.splice(oldIndex, 1)
+        newActiveOrder.splice(newIndex, 0, removed)
+        const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        const fullOrder = buildFullOrder(currentFull, newActiveOrder)
+        const { error: reorderError } = await reorderItems(fullOrder)
         if (reorderError) {
           showError(reorderError.message || 'Failed to reorder items')
         }
