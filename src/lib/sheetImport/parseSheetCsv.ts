@@ -139,8 +139,14 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
     const n = normalizeHeader(h)
     return n === 'comments' || n === 'comment'
   })
-  const categoryIdx = columnIndex(headerCells, h => matchHeader(h, 'category'))
-  const targetIdx = columnIndex(headerCells, h => normalizeHeader(h) === 'target')
+  const categoryIdx = columnIndex(headerCells, h => {
+    const n = normalizeHeader(h)
+    return n === 'category' || n === 'categories' || matchHeader(h, 'category')
+  })
+  const targetIdx = columnIndex(headerCells, h => {
+    const n = normalizeHeader(h)
+    return n === 'target' || n === 'targets'
+  })
   const hasTargets = targetIdx !== -1
 
   // First pass: collect unique category values (including empty) in order of first appearance
