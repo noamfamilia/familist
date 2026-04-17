@@ -83,7 +83,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
 
   const handleAddLabelDone = () => {
     const trimmed = newLabelText.trim()
-    if (trimmed) {
+    if (trimmed && trimmed.toLowerCase() !== 'any') {
       setSelectedLabel(trimmed)
       onAddLocalLabel?.(trimmed)
     }

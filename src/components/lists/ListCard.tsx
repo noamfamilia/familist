@@ -113,7 +113,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
   const handleAddLabelDone = () => {
     const trimmed = newLabelText.trim()
-    if (trimmed && onUpdateLabel) {
+    if (trimmed && trimmed.toLowerCase() !== 'any' && onUpdateLabel) {
       void onUpdateLabel(list.id, trimmed)
     }
     setAddingLabel(false)

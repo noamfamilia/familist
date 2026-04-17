@@ -25,21 +25,21 @@ export interface Database {
           id: string
           email: string | null
           nickname: string | null
-          list_filter: string | null
+          label_filter: string
           created_at: string
         }
         Insert: {
           id: string
           email?: string | null
           nickname?: string | null
-          list_filter?: string | null
+          label_filter?: string
           created_at?: string
         }
         Update: {
           id?: string
           email?: string | null
           nickname?: string | null
-          list_filter?: string | null
+          label_filter?: string
           created_at?: string
         }
       }

@@ -80,7 +80,8 @@ function HomeContent() {
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { success, error: showError } = useToast()
   const profileMenuRef = useRef<HTMLDivElement>(null)
-  const [selectedLabel, setSelectedLabel] = useState('Any')
+  const [selectedLabel, setSelectedLabel] = useState(profile?.label_filter ?? 'Any')
+  const labelSyncedRef = useRef(false)
   const [labelDropdownOpen, setLabelDropdownOpen] = useState(false)
   const [availableLabels, setAvailableLabels] = useState<string[]>([])
   const labelDropdownRef = useRef<HTMLDivElement>(null)
@@ -91,6 +92,13 @@ function HomeContent() {
   const [newLabelText, setNewLabelText] = useState('')
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (profile && !labelSyncedRef.current) {
+      labelSyncedRef.current = true
+      setSelectedLabel(profile.label_filter ?? 'Any')
+    }
+  }, [profile])
 
   useEffect(() => {
     if (isCreating) {
@@ -185,8 +193,8 @@ function HomeContent() {
 
   const handleAddLabelDone = () => {
     const trimmed = newLabelText.trim()
-    if (trimmed) {
-      setSelectedLabel(trimmed)
+    if (trimmed && trimmed.toLowerCase() !== 'any') {
+      handleSelectLabel(trimmed)
       if (!availableLabels.includes(trimmed)) {
         setLocalLabels(prev => prev.includes(trimmed) ? prev : [...prev, trimmed])
       }
@@ -196,6 +204,13 @@ function HomeContent() {
   }
 
   
+
+  const handleSelectLabel = useCallback((label: string) => {
+    setSelectedLabel(label)
+    if (labelSyncedRef.current) {
+      void updateProfile({ label_filter: label })
+    }
+  }, [updateProfile])
 
   const handleLabelsChange = useCallback((labels: string[]) => {
     setAvailableLabels(labels)
@@ -210,9 +225,9 @@ function HomeContent() {
 
   useEffect(() => {
     if (selectedLabel !== 'Any' && selectedLabel !== '' && !allLabels.includes(selectedLabel)) {
-      setSelectedLabel('Any')
+      handleSelectLabel('Any')
     }
-  }, [availableLabels, localLabels, selectedLabel])
+  }, [availableLabels, localLabels, selectedLabel, handleSelectLabel])
 
   const clearInviteState = () => {
     clearPendingInviteToken()
@@ -359,7 +374,7 @@ function HomeContent() {
                   {!isCreating && (
                     <button
                       type="button"
-                      onClick={() => { setSelectedLabel('Any'); setLabelDropdownOpen(false) }}
+                      onClick={() => { handleSelectLabel('Any'); setLabelDropdownOpen(false) }}
                       className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                         selectedLabel === 'Any' ? 'bg-teal/10 text-teal font-semibold' : 'text-teal hover:bg-gray-50 dark:hover:bg-slate-700'
                       }`}
@@ -371,7 +386,7 @@ function HomeContent() {
                     <button
                       key={l}
                       type="button"
-                      onClick={() => { setSelectedLabel(l); setLabelDropdownOpen(false) }}
+                      onClick={() => { handleSelectLabel(l); setLabelDropdownOpen(false) }}
                       className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                         selectedLabel === l ? 'bg-teal/10 text-teal font-semibold' : 'text-teal hover:bg-gray-50 dark:hover:bg-slate-700'
                       }`}
@@ -381,7 +396,7 @@ function HomeContent() {
                   ))}
                   <button
                     type="button"
-                    onClick={() => { setSelectedLabel(''); setLabelDropdownOpen(false) }}
+                    onClick={() => { handleSelectLabel(''); setLabelDropdownOpen(false) }}
                     className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                       selectedLabel === '' ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
@@ -465,7 +480,7 @@ function HomeContent() {
             onInviteHandled={clearInviteState}
             selectedLabel={selectedLabel}
             onLabelsChange={handleLabelsChange}
-            onSelectLabel={setSelectedLabel}
+            onSelectLabel={handleSelectLabel}
             onCreatingChange={setIsCreating}
             preCreateFilter={preCreateFilter}
             localLabels={localLabels}
