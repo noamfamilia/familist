@@ -565,6 +565,7 @@ export default function ListPage() {
                   <button
                     key={catId}
                     type="button"
+                    tabIndex={-1}
                     aria-label={`Category ${catId}`}
                     aria-pressed={catId === newItemCategory}
                     onClick={() => setNewItemCategory(catId)}
