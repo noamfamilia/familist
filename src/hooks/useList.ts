@@ -593,41 +593,63 @@ export function useList(listId: string) {
     }
 
     if (previousItem && updates.archived === false && previousItem.archived) {
+      persistedUpdates.archived_above_id = null
+      persistedUpdates.archived_below_id = null
+
       const activeItems = items
         .filter(item => !item.archived)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
 
-      let restoreSortOrder: number
+      let insertIdx = activeItems.length
       const aboveId = previousItem.archived_above_id
       const belowId = previousItem.archived_below_id
-      const aboveItem = aboveId ? activeItems.find(i => i.id === aboveId) : null
-      const belowItem = belowId ? activeItems.find(i => i.id === belowId) : null
+      const aboveIdx = aboveId ? activeItems.findIndex(i => i.id === aboveId) : -1
+      const belowIdx = belowId ? activeItems.findIndex(i => i.id === belowId) : -1
 
-      if (aboveItem) {
-        const aboveIdx = activeItems.indexOf(aboveItem)
-        const nextItem = activeItems[aboveIdx + 1]
-        if (nextItem) {
-          restoreSortOrder = ((aboveItem.sort_order ?? 0) + (nextItem.sort_order ?? 0)) / 2
-        } else {
-          restoreSortOrder = (aboveItem.sort_order ?? 0) + 1
-        }
-      } else if (belowItem) {
-        const belowIdx = activeItems.indexOf(belowItem)
-        const prevItem = belowIdx > 0 ? activeItems[belowIdx - 1] : null
-        if (prevItem) {
-          restoreSortOrder = ((prevItem.sort_order ?? 0) + (belowItem.sort_order ?? 0)) / 2
-        } else {
-          restoreSortOrder = (belowItem.sort_order ?? 0) - 1
-        }
-      } else {
-        restoreSortOrder = activeItems.length > 0
-          ? Math.max(...activeItems.map(i => i.sort_order ?? 0)) + 1
-          : 0
+      if (aboveIdx >= 0) {
+        insertIdx = aboveIdx + 1
+      } else if (belowIdx >= 0) {
+        insertIdx = belowIdx
       }
 
-      persistedUpdates.sort_order = restoreSortOrder
-      persistedUpdates.archived_above_id = null
-      persistedUpdates.archived_below_id = null
+      const restoredItem = { ...previousItem, ...persistedUpdates }
+      const newOrder = [...activeItems]
+      newOrder.splice(insertIdx, 0, restoredItem)
+      const reordered = newOrder.map((item, i) => ({ ...item, sort_order: i }))
+
+      skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 3000)
+      setItems(prev => {
+        const archived = prev.filter(i => i.archived && i.id !== itemId)
+        return [...reordered, ...archived]
+      })
+
+      const { error: updateError } = await trackSaveOperation(
+        supabase.from('items').update(persistedUpdates).eq('id', itemId)
+      )
+      if (updateError) {
+        setItems(items)
+        return { error: updateError }
+      }
+
+      const { error: reorderError } = await trackSaveOperation(
+        supabase.rpc('reorder_list_items', {
+          p_list_id: listId,
+          p_item_ids: reordered.map(i => i.id),
+        })
+      )
+      if (reorderError) {
+        setItems(items)
+        return { error: reorderError }
+      }
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'item_updated',
+          payload: { itemId }
+        })
+      }
+      return { error: null }
     }
 
     const skipMs = 'category' in persistedUpdates ? 4500 : 2000
