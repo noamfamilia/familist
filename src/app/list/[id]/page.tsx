@@ -282,6 +282,7 @@ export default function ListPage() {
   const [confirmRestoreArchived, setConfirmRestoreArchived] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
+  const addItemInputRef = useRef<HTMLInputElement>(null)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
   const [goalsDropdownOpen, setGoalsDropdownOpen] = useState(false)
   const goalsDropdownRef = useRef<HTMLDivElement>(null)
@@ -379,6 +380,7 @@ export default function ListPage() {
       showError(error.message || 'Failed to add item')
     }
     setAdding(false)
+    addItemInputRef.current?.focus()
   }
 
   const searchText = newItemText.trim().toLowerCase()
@@ -581,6 +583,7 @@ export default function ListPage() {
         <form ref={addItemFormRef} onSubmit={handleAddItem} className="flex gap-2 sm:gap-3" data-tour="add-item">
           <div className="flex-1 relative">
             <Input
+              ref={addItemInputRef}
               value={newItemText}
               onChange={(e) => setNewItemText(e.target.value)}
               onKeyDown={(e) => {

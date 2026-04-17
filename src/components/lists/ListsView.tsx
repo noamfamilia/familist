@@ -57,6 +57,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     onLabelsChange?.(labels)
@@ -150,6 +151,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     }
     
     setSubmitting(false)
+    inputRef.current?.focus()
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -238,6 +240,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       <form ref={formRef} onSubmit={handleSubmit} className="flex gap-3" data-tour="create-list">
         <div className="flex-1 relative">
           <Input
+            ref={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => {
