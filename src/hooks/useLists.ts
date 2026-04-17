@@ -527,7 +527,7 @@ export function useLists() {
     return { data: data.list, error: null }
   }
 
-  const importList = async (name: string, label?: string, categoryNames?: string, rows?: Json) => {
+  const importList = async (name: string, label?: string, categoryNames?: string, rows?: Json, hasTargets?: boolean) => {
     if (!user) return { error: new Error('Not authenticated') }
 
     const tempId = createTempId('list')
@@ -551,7 +551,7 @@ export function useLists() {
       updated_at: now,
       role: 'owner',
       userArchived: false,
-      memberCount: 0,
+      memberCount: hasTargets ? 1 : 0,
       activeItemCount: itemCount,
       label: label || '',
     }
@@ -565,6 +565,7 @@ export function useLists() {
         p_label: label || '',
         p_category_names: categoryNames || '{}',
         p_rows: (rows || []) as unknown as Json,
+        p_has_targets: hasTargets || false,
       })
     )
 
@@ -580,7 +581,7 @@ export function useLists() {
       ...data,
       role: 'owner',
       userArchived: false,
-      memberCount: 0,
+      memberCount: hasTargets ? 1 : 0,
       activeItemCount: itemCount,
       label: label || '',
     }

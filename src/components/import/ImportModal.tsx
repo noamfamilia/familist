@@ -15,7 +15,7 @@ interface ImportModalProps {
   currentFilter?: string
   onSelectLabel?: (label: string) => void
   onAddLocalLabel?: (label: string) => void
-  importList?: (name: string, label?: string, categoryNames?: string, rows?: Json) => Promise<{ data?: unknown; error: Error | null }>
+  importList?: (name: string, label?: string, categoryNames?: string, rows?: Json, hasTargets?: boolean) => Promise<{ data?: unknown; error: Error | null }>
   existingLists?: { role: string; name: string }[]
 }
 
@@ -147,6 +147,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
         selectedLabel || undefined,
         categoryNamesJson,
         parsed.rows as unknown as Json,
+        parsed.hasTargets,
       )
       if (importErr) {
         setError(importErr.message || 'Import failed.')
@@ -169,7 +170,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
       <div className="space-y-5">
         <p className="text-sm text-gray-500 dark:text-gray-400">
           First row must include an <strong>Items</strong> column. Optional:{' '}
-          <strong>comments</strong>, <strong>category</strong> (names). Share the sheet so anyone with the link can view.
+          <strong>comment</strong>, <strong>category</strong>, <strong>target</strong>. Share the sheet so anyone with the link can view.
         </p>
 
         <div className="space-y-2">

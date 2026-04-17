@@ -329,7 +329,7 @@ export interface Database {
         Returns: undefined
       }
       import_list: {
-        Args: { p_name: string; p_label?: string; p_category_names?: string; p_rows?: Json }
+        Args: { p_name: string; p_label?: string; p_category_names?: string; p_rows?: Json; p_has_targets?: boolean }
         Returns: Database['public']['Tables']['lists']['Row']
       }
       own_member: {

@@ -6,10 +6,11 @@ export type SheetImportItemRow = {
   sort_order: number
   category: number
   comment: string | null
+  target: number | null
 }
 
 export type ParseSheetCsvResult =
-  | { ok: true; rows: SheetImportItemRow[]; categoryNames: CategoryNames }
+  | { ok: true; rows: SheetImportItemRow[]; categoryNames: CategoryNames; hasTargets: boolean }
   | { ok: false; error: string }
 
 function normalizeHeader(s: string): string {
@@ -139,10 +140,12 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
     return n === 'comments' || n === 'comment'
   })
   const categoryIdx = columnIndex(headerCells, h => matchHeader(h, 'category'))
+  const targetIdx = columnIndex(headerCells, h => normalizeHeader(h) === 'target')
+  const hasTargets = targetIdx !== -1
 
   // First pass: collect unique category values (including empty) in order of first appearance
   const categoryValueToIndex = new Map<string, number>()
-  const rawRows: { text: string; comment: string | null; catValue: string }[] = []
+  const rawRows: { text: string; comment: string | null; catValue: string; target: number | null }[] = []
 
   for (let r = 1; r < table.length; r++) {
     const line = table[r]
@@ -158,11 +161,18 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
       catValue = (line[categoryIdx] ?? '').trim()
     }
 
+    let target: number | null = null
+    if (hasTargets) {
+      const raw = (line[targetIdx] ?? '').trim()
+      const parsed = parseInt(raw, 10)
+      target = Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
+    }
+
     if (!categoryValueToIndex.has(catValue)) {
       categoryValueToIndex.set(catValue, categoryValueToIndex.size + 1)
     }
 
-    rawRows.push({ text: itemText, comment, catValue })
+    rawRows.push({ text: itemText, comment, catValue, target })
   }
 
   if (rawRows.length === 0) {
@@ -186,9 +196,10 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
     sort_order: i,
     category: categoryValueToIndex.get(raw.catValue) ?? 1,
     comment: raw.comment,
+    target: raw.target,
   }))
 
-  return { ok: true, rows, categoryNames }
+  return { ok: true, rows, categoryNames, hasTargets }
 }
 
 /** Pick a list name: API title if unique, else Import / Import 2 / … */
