@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { parseSheetCsv, resolveImportListName } from '@/lib/sheetImport/parseSheetCsv'
+import { useToast } from '@/components/ui/Toast'
 import type { Json } from '@/lib/supabase/types'
 
 interface ImportModalProps {
@@ -21,6 +22,7 @@ interface ImportModalProps {
 
 export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', onSelectLabel, onAddLocalLabel, importList, existingLists }: ImportModalProps) {
   const { user } = useAuth()
+  const { error: showError } = useToast()
   const [sheetUrl, setSheetUrl] = useState('')
   const [nameOverride, setNameOverride] = useState('')
   const [selectedLabel, setSelectedLabel] = useState('')
@@ -114,7 +116,8 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
       })
       const payload = (await res.json()) as { csv?: string; title?: string | null; error?: string }
       if (!res.ok) {
-        setError(payload.error || 'Could not download the sheet.')
+        showError(payload.error || 'Could not download the sheet.')
+        onClose()
         return
       }
       const csv = payload.csv
@@ -130,7 +133,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
       }
 
       const override = nameOverride.trim()
-      const listName = override || resolveImportListName(payload.title ?? null, ownedListNames)
+      const listName = resolveImportListName(override || payload.title || null, ownedListNames)
 
       const categoryNamesJson = Object.values(parsed.categoryNames).some(v => v)
         ? JSON.stringify(

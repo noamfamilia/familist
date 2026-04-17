@@ -208,18 +208,24 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
   return { ok: true, rows, categoryNames, hasTargets }
 }
 
-/** Pick a list name: API title if unique, else Import / Import 2 / … */
-export function resolveImportListName(apiTitle: string | null | undefined, existingNames: string[]): string {
+function deduplicateName(base: string, existingNames: string[]): string {
   const taken = new Set(existingNames.map(n => n.trim().toLowerCase()).filter(Boolean))
   const free = (name: string) => !taken.has(name.trim().toLowerCase())
 
-  const primary = apiTitle?.trim()
-  if (primary && free(primary)) return primary
-
-  if (free('Import')) return 'Import'
+  if (free(base)) return base
+  const copy = `${base} (copy)`
+  if (free(copy)) return copy
   for (let i = 2; i < 10_000; i++) {
-    const n = `Import ${i}`
+    const n = `${base} (copy ${i})`
     if (free(n)) return n
   }
-  return `Import ${Date.now()}`
+  return `${base} (copy ${Date.now()})`
+}
+
+/** Pick a list name, deduplicating against existing names. */
+export function resolveImportListName(apiTitle: string | null | undefined, existingNames: string[]): string {
+  const primary = apiTitle?.trim()
+  if (primary) return deduplicateName(primary, existingNames)
+
+  return deduplicateName('Import', existingNames)
 }
