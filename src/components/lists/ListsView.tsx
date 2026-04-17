@@ -151,7 +151,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     }
     
     setSubmitting(false)
-    inputRef.current?.focus()
+    requestAnimationFrame(() => inputRef.current?.focus())
   }
 
   const handleDragEnd = (event: DragEndEvent) => {

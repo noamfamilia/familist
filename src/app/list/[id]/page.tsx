@@ -380,7 +380,7 @@ export default function ListPage() {
       showError(error.message || 'Failed to add item')
     }
     setAdding(false)
-    addItemInputRef.current?.focus()
+    requestAnimationFrame(() => addItemInputRef.current?.focus())
   }
 
   const searchText = newItemText.trim().toLowerCase()
