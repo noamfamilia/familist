@@ -99,7 +99,10 @@ export function useLists() {
     const archivedLists = remainingLists.filter(list => list.userArchived)
     const updatedList = { ...targetList, userArchived: archived }
 
-    return [...activeLists, updatedList, ...archivedLists]
+    if (archived) {
+      return [...activeLists, updatedList, ...archivedLists]
+    }
+    return [updatedList, ...activeLists, ...archivedLists]
   }
 
   const fetchLists = useCallback(async () => {

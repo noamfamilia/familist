@@ -499,6 +499,8 @@ export function useList(listId: string) {
       archived_at: null,
       sort_order: newSortOrder,
       category: category ?? 1,
+      archived_above_id: null,
+      archived_below_id: null,
       created_at: now,
       updated_at: now,
       memberStates: {},
@@ -581,11 +583,51 @@ export function useList(listId: string) {
     const previousItem = items.find(item => item.id === itemId)
     const persistedUpdates = { ...updates }
 
-    if (previousItem && updates.archived === false && previousItem.archived) {
-      const maxActiveSortOrder = items
+    if (previousItem && updates.archived === true && !previousItem.archived) {
+      const activeItems = items
         .filter(item => !item.archived)
-        .reduce((max, item) => Math.max(max, item.sort_order ?? 0), -1)
-      persistedUpdates.sort_order = maxActiveSortOrder + 1
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      const idx = activeItems.findIndex(item => item.id === itemId)
+      persistedUpdates.archived_above_id = idx > 0 ? activeItems[idx - 1].id : null
+      persistedUpdates.archived_below_id = idx < activeItems.length - 1 ? activeItems[idx + 1].id : null
+    }
+
+    if (previousItem && updates.archived === false && previousItem.archived) {
+      const activeItems = items
+        .filter(item => !item.archived)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+
+      let restoreSortOrder: number
+      const aboveId = previousItem.archived_above_id
+      const belowId = previousItem.archived_below_id
+      const aboveItem = aboveId ? activeItems.find(i => i.id === aboveId) : null
+      const belowItem = belowId ? activeItems.find(i => i.id === belowId) : null
+
+      if (aboveItem) {
+        const aboveIdx = activeItems.indexOf(aboveItem)
+        const nextItem = activeItems[aboveIdx + 1]
+        if (nextItem) {
+          restoreSortOrder = ((aboveItem.sort_order ?? 0) + (nextItem.sort_order ?? 0)) / 2
+        } else {
+          restoreSortOrder = (aboveItem.sort_order ?? 0) + 1
+        }
+      } else if (belowItem) {
+        const belowIdx = activeItems.indexOf(belowItem)
+        const prevItem = belowIdx > 0 ? activeItems[belowIdx - 1] : null
+        if (prevItem) {
+          restoreSortOrder = ((prevItem.sort_order ?? 0) + (belowItem.sort_order ?? 0)) / 2
+        } else {
+          restoreSortOrder = (belowItem.sort_order ?? 0) - 1
+        }
+      } else {
+        restoreSortOrder = activeItems.length > 0
+          ? Math.max(...activeItems.map(i => i.sort_order ?? 0)) + 1
+          : 0
+      }
+
+      persistedUpdates.sort_order = restoreSortOrder
+      persistedUpdates.archived_above_id = null
+      persistedUpdates.archived_below_id = null
     }
 
     const skipMs = 'category' in persistedUpdates ? 4500 : 2000
@@ -1002,7 +1044,7 @@ export function useList(listId: string) {
     let idx = 1
     setItems(prev => prev.map(i => {
       if (!i.archived) return i
-      return { ...i, archived: false, archived_at: null, sort_order: maxActive + idx++ }
+      return { ...i, archived: false, archived_at: null, sort_order: maxActive + idx++, archived_above_id: null, archived_below_id: null }
     }))
 
     const { data, error } = await trackSaveOperation(
