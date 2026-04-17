@@ -461,7 +461,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
               <label key={user.user_id} className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-slate-900 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600">
                 <div className="flex items-center gap-1 text-sm">
                   <span dir="auto" className="font-medium">{user.nickname || 'Unknown user'}</span>
-                  <span dir="ltr" className="text-gray-400 dark:text-gray-500">· {user.member_count} member{user.member_count !== 1 ? 's' : ''}</span>
+                  <span dir="ltr" className="text-gray-400 dark:text-gray-500">· {user.member_count} task{user.member_count !== 1 ? 's' : ''}</span>
                 </div>
                 <input
                   type="checkbox"
@@ -495,7 +495,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
         onClose={() => setShowConfirm(false)}
         onConfirm={makePrivate}
         title="Make List Private"
-        message={`This will remove ${totalUsers} user${totalUsers !== 1 ? 's' : ''} and ${totalMembers} member${totalMembers !== 1 ? 's' : ''} from the list. This cannot be undone.`}
+        message={`This will remove ${totalUsers} user${totalUsers !== 1 ? 's' : ''} and ${totalMembers} task${totalMembers !== 1 ? 's' : ''} from the list. This cannot be undone.`}
         confirmText="Make Private"
         variant="danger"
         loading={loading}
@@ -506,7 +506,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
         onClose={() => setShowRemoveConfirm(false)}
         onConfirm={removeSelectedUsers}
         title="Remove Users"
-        message={`This will remove ${selectedUsersCount} user${selectedUsersCount !== 1 ? 's' : ''} and ${selectedMembersCount} member${selectedMembersCount !== 1 ? 's' : ''} from the list. This cannot be undone.`}
+        message={`This will remove ${selectedUsersCount} user${selectedUsersCount !== 1 ? 's' : ''} and ${selectedMembersCount} task${selectedMembersCount !== 1 ? 's' : ''} from the list. This cannot be undone.`}
         confirmText="Remove"
         variant="danger"
         loading={loading}
