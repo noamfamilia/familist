@@ -29,53 +29,64 @@ const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Moda
 })
 
 /**
- * After active items are reordered, re-interleave archived items so each
- * archived item stays "glued" to its nearest active neighbour.
- *
- * Anchor rule: the nearest active item ABOVE in the old full order.
- * Top-of-list archived items (no active item above) anchor to the nearest
- * active item BELOW and are placed right before it.
+ * Drag-and-drop: move one item in the full list. Archived items never move.
+ * The dragged item lands below any adjacent archived items, except when all
+ * items above the insertion point are archived (position-0 exception).
  */
-function buildFullOrder(
+function reorderWithDrag(
   currentFull: ItemWithState[],
   newActiveOrder: ItemWithState[],
+  draggedId: string,
 ): ItemWithState[] {
-  const activeSet = new Set(newActiveOrder.map(i => i.id))
-  const archivedItems = currentFull.filter(i => !activeSet.has(i.id))
+  const dragged = currentFull.find(i => i.id === draggedId)!
+  const without = currentFull.filter(i => i.id !== draggedId)
 
-  // For each archived item find its anchor (nearest active item above in old order)
-  const anchorMap = new Map<string, string | null>()
-  let lastActiveId: string | null = null
-  for (const item of currentFull) {
-    if (activeSet.has(item.id)) {
-      lastActiveId = item.id
-    } else {
-      anchorMap.set(item.id, lastActiveId)
+  const dragIdx = newActiveOrder.findIndex(i => i.id === draggedId)
+  const nextActive = newActiveOrder[dragIdx + 1]
+
+  if (nextActive) {
+    const nextIdx = without.findIndex(i => i.id === nextActive.id)
+    // Exception: if everything before nextActive is archived, insert at 0
+    const allArchivedAbove = without.slice(0, nextIdx).every(i => i.archived)
+    if (nextIdx > 0 && allArchivedAbove) {
+      return [dragged, ...without]
+    }
+    const result = [...without]
+    result.splice(nextIdx, 0, dragged)
+    return result
+  }
+
+  // Dragged is last: insert after previous active + trailing archived items
+  const prevActive = newActiveOrder[dragIdx - 1]
+  if (prevActive) {
+    const prevIdx = without.findIndex(i => i.id === prevActive.id)
+    let insertAt = prevIdx + 1
+    while (insertAt < without.length && without[insertAt].archived) {
+      insertAt++
+    }
+    const result = [...without]
+    result.splice(insertAt, 0, dragged)
+    return result
+  }
+
+  return [dragged, ...without]
+}
+
+/**
+ * Category sort: active items get sorted, archived items stay at their
+ * exact positions in the full list.
+ */
+function reorderByCategory(
+  currentFull: ItemWithState[],
+  sortedActive: ItemWithState[],
+): ItemWithState[] {
+  const result = [...currentFull]
+  let activeIdx = 0
+  for (let i = 0; i < result.length; i++) {
+    if (!result[i].archived) {
+      result[i] = sortedActive[activeIdx++]
     }
   }
-
-  // Group archived items by their anchor
-  const attachedAfter = new Map<string | null, ItemWithState[]>()
-  for (const item of archivedItems) {
-    const anchor = anchorMap.get(item.id) ?? null
-    if (!attachedAfter.has(anchor)) attachedAfter.set(anchor, [])
-    attachedAfter.get(anchor)!.push(item)
-  }
-
-  // Build result: items anchored to null (top-of-list) go before the first
-  // active item; all others go right after their anchor.
-  const result: ItemWithState[] = []
-
-  // Top-glued archived items (no active item above them)
-  const topGlued = attachedAfter.get(null)
-  if (topGlued) result.push(...topGlued)
-
-  for (const active of newActiveOrder) {
-    result.push(active)
-    const trailing = attachedAfter.get(active.id)
-    if (trailing) result.push(...trailing)
-  }
-
   return result
 }
 
@@ -92,15 +103,7 @@ function makeCategoryComparators(order: number[]) {
     return (a.sort_order || 0) - (b.sort_order || 0)
   }
 
-  const archivedByCategory = (a: ItemWithState, b: ItemWithState) => {
-    const byCat = byCategory(a, b)
-    if (byCat !== 0) return byCat
-    const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
-    const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
-    return bTime - aTime
-  }
-
-  return { byCategory, archivedByCategory }
+  return { byCategory }
 }
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
@@ -422,9 +425,8 @@ export default function ListPage() {
     if (categorySortLoading || items.length === 0) return
     const { byCategory } = makeCategoryComparators(categoryOrder)
     const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    const active = currentFull.filter(i => !i.archived)
-    const sortedActive = [...active].sort(byCategory)
-    const fullOrder = buildFullOrder(currentFull, sortedActive)
+    const sortedActive = currentFull.filter(i => !i.archived).sort(byCategory)
+    const fullOrder = reorderByCategory(currentFull, sortedActive)
     setCategorySortLoading(true)
     const { error: reorderError } = await reorderItems(fullOrder)
     setCategorySortLoading(false)
@@ -468,7 +470,7 @@ export default function ListPage() {
         const [removed] = newActiveOrder.splice(oldIndex, 1)
         newActiveOrder.splice(newIndex, 0, removed)
         const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-        const fullOrder = buildFullOrder(currentFull, newActiveOrder)
+        const fullOrder = reorderWithDrag(currentFull, newActiveOrder, active.id as string)
         const { error: reorderError } = await reorderItems(fullOrder)
         if (reorderError) {
           showError(reorderError.message || 'Failed to reorder items')
