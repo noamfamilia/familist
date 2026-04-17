@@ -613,15 +613,13 @@ export function useList(listId: string) {
       }
 
       const restoredItem = { ...previousItem, ...persistedUpdates }
-      const newOrder = [...activeItems]
-      newOrder.splice(insertIdx, 0, restoredItem)
-      const reordered = newOrder.map((item, i) => ({ ...item, sort_order: i }))
+      const newActiveOrder = [...activeItems]
+      newActiveOrder.splice(insertIdx, 0, restoredItem)
+      const reordered = newActiveOrder.map((item, i) => ({ ...item, sort_order: i }))
+      const remainingArchived = items.filter(i => i.archived && i.id !== itemId)
 
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 3000)
-      setItems(prev => {
-        const archived = prev.filter(i => i.archived && i.id !== itemId)
-        return [...reordered, ...archived]
-      })
+      setItems([...reordered, ...remainingArchived])
 
       const { error: updateError } = await trackSaveOperation(
         supabase.from('items').update(persistedUpdates).eq('id', itemId)
@@ -631,10 +629,11 @@ export function useList(listId: string) {
         return { error: updateError }
       }
 
+      const allIds = [...reordered.map(i => i.id), ...remainingArchived.map(i => i.id)]
       const { error: reorderError } = await trackSaveOperation(
         supabase.rpc('reorder_list_items', {
           p_list_id: listId,
-          p_item_ids: reordered.map(i => i.id),
+          p_item_ids: allIds,
         })
       )
       if (reorderError) {
