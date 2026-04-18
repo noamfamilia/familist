@@ -511,7 +511,7 @@ export default function ListPage() {
             aria-label="Share settings"
             data-tour="share-settings"
           >
-            <ShareCardIcon className="w-10 h-10" emphasized />
+            <ShareCardIcon className="w-[30px] h-[30px]" emphasized />
           </button>
         )}
       </div>
