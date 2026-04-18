@@ -427,7 +427,7 @@ export function MemberHeader({
             style={{ width: itemTextWidth }}
             data-tour="item-text-width"
           >
-            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[80px] flex items-center justify-between">
+            <div className="absolute inset-y-0 left-0 w-[80px] flex items-center justify-between">
               <button
                 type="button"
                 onClick={(e) => {

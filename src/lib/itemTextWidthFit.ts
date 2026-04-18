@@ -26,6 +26,6 @@ export function measureFitItemTextWidthPx(texts: string[]): number {
     if (w > maxPx) maxPx = w
   }
 
-  const padded = Math.ceil(maxPx + 16)
+  const padded = Math.ceil(maxPx)
   return Math.min(ITEM_TEXT_WIDTH_MAX, Math.max(ITEM_TEXT_WIDTH_MIN, padded))
 }
