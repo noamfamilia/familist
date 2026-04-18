@@ -7,7 +7,7 @@ interface ProgressRingsProps {
 
 export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 36 }: ProgressRingsProps) {
   const outerR = size / 2 - 2
-  const innerR = outerR - 5
+  const innerR = outerR - 3
   const cx = size / 2
   const cy = size / 2
   const strokeWidth = 3
