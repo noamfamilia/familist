@@ -127,7 +127,6 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
       }
 
       const parsed = parseSheetCsv(csv)
-      console.log('IMPORT DEBUG:', { ok: parsed.ok, hasTargets: parsed.ok && parsed.hasTargets, headerRow: csv.split('\n')[0], rowsSample: parsed.ok && parsed.rows.slice(0, 2) })
       if (!parsed.ok) {
         setError(parsed.error)
         return
