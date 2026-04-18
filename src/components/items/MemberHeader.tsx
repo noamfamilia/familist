@@ -571,11 +571,11 @@ export function MemberHeader({
                     })
                   }
                 }}
-                className="flex items-center justify-center rounded-lg w-[32px] h-[32px] touch-manipulation transition-colors bg-teal text-white hover:opacity-80"
+                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-teal text-white hover:opacity-80"
                 data-tour="add-member"
                 aria-label="Add task"
               >
-                <AddIcon className="w-5 h-5" />
+                <AddIcon className="w-[30px] h-[30px]" />
               </button>
               {isAdding && addMemberPopoverPos && (
                 <div
@@ -625,12 +625,12 @@ export function MemberHeader({
                 data-tour="category-sort"
                 disabled={actionsMenuLoading}
                 onClick={handleToggleActions}
-                className="flex items-center justify-center rounded-lg w-[32px] h-[32px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
+                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
                 aria-label="List actions"
                 aria-expanded={actionsOpen}
                 aria-haspopup="menu"
               >
-                <GearIcon className="w-5 h-5" />
+                <GearIcon className="w-[30px] h-[30px]" />
               </button>
               {actionsOpen && actionsMenuPos && (
                 <div
