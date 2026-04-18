@@ -145,7 +145,7 @@ export function parseSheetCsv(csvText: string): ParseSheetCsvResult {
   })
   const targetIdx = columnIndex(headerCells, h => {
     const n = normalizeHeader(h)
-    return n === 'target' || n === 'targets'
+    return n === 'quantity' || n === 'quantities' || n === 'target' || n === 'targets'
   })
   const hasTargets = targetIdx !== -1
 

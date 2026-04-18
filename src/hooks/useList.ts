@@ -1173,7 +1173,7 @@ export function useList(listId: string) {
     const optimisticTarget: MemberWithCreator = {
       id: tempId,
       list_id: listId,
-      name: 'Targets',
+      name: 'Qty',
       created_by: userId,
       sort_order: maxSortOrder + 1,
       is_public: false,
@@ -1190,7 +1190,7 @@ export function useList(listId: string) {
         .from('members')
         .insert({
           list_id: listId,
-          name: 'Targets',
+          name: 'Qty',
           created_by: userId,
           sort_order: maxSortOrder + 1,
           is_public: false,

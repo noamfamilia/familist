@@ -650,7 +650,7 @@ export function MemberHeader({
                           onCreateTargets()
                         }}
                       >
-                        Create Targets
+                        Add Qty targets
                       </button>
                       <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
                     </>

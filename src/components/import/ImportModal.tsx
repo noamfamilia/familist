@@ -173,7 +173,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
       <div className="space-y-5">
         <p className="text-sm text-gray-500 dark:text-gray-400">
           First row must include an <strong>Items</strong> column. Optional:{' '}
-          <strong>comments</strong>, <strong>category</strong>, <strong>target</strong>. Share the sheet so anyone with the link can view.
+          <strong>comments</strong>, <strong>category</strong>, <strong>quantity</strong>. Share the sheet so anyone with the link can view.
         </p>
 
         <div className="space-y-2">
