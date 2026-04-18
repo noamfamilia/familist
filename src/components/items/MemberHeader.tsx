@@ -471,7 +471,7 @@ export function MemberHeader({
           </div>
           
           {/* Members section */}
-          <div className="flex items-center ml-2 flex-shrink-0 gap-2.5">
+          <div className="flex items-center ml-10 flex-shrink-0 gap-10">
             {members.map(member => {
               const isMenuOpen = openMenuId === member.id
               const isRenaming = editingMemberId === member.id
@@ -543,7 +543,7 @@ export function MemberHeader({
           </div>
 
           {/* Gear menu + Add task - aligned to right edge matching item card trailing section */}
-          <div className="flex-shrink-0 flex items-center ml-auto pl-2.5 gap-2">
+          <div className="flex-shrink-0 flex items-center ml-auto pl-10 gap-2">
           {showAddMember && (
             <div ref={addMemberContainerRef} className="relative flex-shrink-0">
               <button
@@ -568,7 +568,7 @@ export function MemberHeader({
                     })
                   }
                 }}
-                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-coral text-white hover:opacity-80"
+                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-teal text-white hover:opacity-80"
                 data-tour="add-member"
                 aria-label="Add task"
               >

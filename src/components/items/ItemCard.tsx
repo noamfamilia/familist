@@ -316,8 +316,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Item name - click to toggle archive (collapsed) or rename (expanded) */}
         <div
-          className="flex-shrink-0 relative"
-          style={{ width: itemTextWidth }}
+          className={`relative ${members.length > 0 ? 'flex-shrink-0' : 'flex-1 mr-10'}`}
+          style={members.length > 0 ? { width: itemTextWidth } : undefined}
           data-tour="item-name"
         >
           {showMenu ? (
@@ -388,7 +388,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Per-member controls - aligned under header */}
         <div 
-          className="flex items-center ml-2 flex-shrink-0 gap-2.5"
+          className="flex items-center ml-10 flex-shrink-0 gap-10"
           {...(members.length > 0 ? { 'data-tour': 'item-state' } : {})}
         >
           {members.map(member => {
