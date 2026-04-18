@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/Toast'
 import type { CategoryNames, Member, MemberWithCreator } from '@/lib/supabase/types'
 import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
+import { AddIcon } from '@/components/icons/AddIcon'
 
 const CategoryNamesModal = dynamic(() => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
   ssr: false,
@@ -422,8 +423,7 @@ export function MemberHeader({
         <div className="relative flex items-center gap-0.5 pl-3 pr-1 py-1 whitespace-nowrap">
           <div className="w-5 flex-shrink-0 h-[40px]" />
           <div
-            className="flex-shrink-0 h-[40px] flex items-center justify-between"
-            style={{ width: itemTextWidth }}
+            className="flex-shrink-0 h-[40px] flex items-center justify-between w-[120px]"
             data-tour="item-text-width"
           >
             <button
@@ -542,9 +542,10 @@ export function MemberHeader({
             })}
           </div>
 
-          {/* +Task button */}
+          {/* Gear menu + Add task - aligned to right edge matching item card trailing section */}
+          <div className="flex-shrink-0 flex items-center ml-auto pl-2.5 gap-2">
           {showAddMember && (
-            <div ref={addMemberContainerRef} className="relative ml-2.5 flex-shrink-0">
+            <div ref={addMemberContainerRef} className="relative flex-shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -567,10 +568,11 @@ export function MemberHeader({
                     })
                   }
                 }}
-                className={`flex items-center justify-center rounded-lg text-lg hover:opacity-80 transition-colors h-[40px] w-[90px] ${isAdding ? 'bg-cyan text-white font-medium' : 'bg-white dark:bg-slate-800 text-black dark:text-gray-200 border border-gray-200 dark:border-slate-600'}`}
+                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-coral text-white hover:opacity-80"
                 data-tour="add-member"
+                aria-label="Add task"
               >
-                +Task
+                <AddIcon className="w-5 h-5" />
               </button>
               {isAdding && addMemberPopoverPos && (
                 <div
@@ -612,9 +614,6 @@ export function MemberHeader({
               )}
             </div>
           )}
-
-          {/* Gear menu - aligned to right edge matching item card trailing section */}
-          <div className="flex-shrink-0 flex items-center ml-auto pl-2.5">
           {showActionsMenu && (
             <div className="relative">
               <button
