@@ -423,51 +423,54 @@ export function MemberHeader({
         <div className="relative flex items-center gap-0.5 pl-3 pr-1 py-1 whitespace-nowrap">
           <div className="w-5 flex-shrink-0 h-[40px]" />
           <div
-            className="flex-shrink-0 h-[40px] flex items-center justify-between w-[120px]"
+            className="flex-shrink-0 h-[40px] relative"
+            style={{ width: itemTextWidth }}
             data-tour="item-text-width"
           >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onWidthChange?.(-20)
-              }}
-              disabled={itemTextWidth <= 80}
-              className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
-                itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
-              }`}
-              aria-label="Narrow item name column"
-            >
-              ◀
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                if (itemTextWidthMode !== 'auto') onWidthModeToggle?.()
-              }}
-              className={`text-[11px] font-medium leading-none touch-manipulation select-none ${
-                itemTextWidthMode === 'auto' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
-              }`}
-            >
-              Auto
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onWidthChange?.(20)
-              }}
-              className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
-                itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
-              }`}
-              aria-label="Widen item name column"
-            >
-              ▶
-            </button>
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[80px] flex items-center justify-between">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onWidthChange?.(-20)
+                }}
+                disabled={itemTextWidth <= 80}
+                className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
+                  itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
+                }`}
+                aria-label="Narrow item name column"
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (itemTextWidthMode !== 'auto') onWidthModeToggle?.()
+                }}
+                className={`text-[11px] font-medium leading-none touch-manipulation select-none ${
+                  itemTextWidthMode === 'auto' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
+                }`}
+              >
+                Auto
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onWidthChange?.(20)
+                }}
+                className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
+                  itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
+                }`}
+                aria-label="Widen item name column"
+              >
+                ▶
+              </button>
+            </div>
           </div>
           
           {/* Members section */}
