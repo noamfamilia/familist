@@ -16,6 +16,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
+import { ShareCardIcon } from '@/components/ui/ShareIcons'
 import type { ItemWithState, ItemCategory } from '@/lib/supabase/types'
 import { normalizeItemCategory, ITEM_CATEGORIES } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
@@ -109,6 +110,9 @@ function makeCategoryComparators(order: number[]) {
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
 })
+const ShareModal = dynamic(() => import('@/components/lists/ShareModal').then(mod => mod.ShareModal), {
+  ssr: false,
+})
 
 const GOALS_OPTIONS: { value: 'hide' | 'mine' | 'all'; label: string }[] = [
   { value: 'hide', label: 'Hide all Tasks' },
@@ -120,8 +124,8 @@ const GOALS_OPTIONS: { value: 'hide' | 'mine' | 'all'; label: string }[] = [
 // Order: add-item → item-text-width → row (name, drag, item menu, quantity); +Goal then sort; member kebab.
 const listTourSteps: Step[] = [
   {
-    target: '[data-tour="view-toggle"]',
-    content: 'Choose which tasks to display: all, yours, or none.',
+    target: '[data-tour="share-settings"]',
+    content: 'Share this list with others.',
     disableBeacon: true,
   },
   {
@@ -284,22 +288,7 @@ export default function ListPage() {
   const addItemFormRef = useRef<HTMLFormElement>(null)
   const addItemInputRef = useRef<HTMLInputElement>(null)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
-  const [goalsDropdownOpen, setGoalsDropdownOpen] = useState(false)
-  const goalsDropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!goalsDropdownOpen) return
-    const close = (e: MouseEvent) => {
-      if (goalsDropdownRef.current && !goalsDropdownRef.current.contains(e.target as Node)) {
-        e.preventDefault()
-        e.stopPropagation()
-        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        setGoalsDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', close, true)
-    return () => document.removeEventListener('mousedown', close, true)
-  }, [goalsDropdownOpen])
+  const [showShareModal, setShowShareModal] = useState(false)
 
   const handleBackToLists = () => {
     navigateBackToHome(router)
@@ -514,34 +503,17 @@ export default function ListPage() {
         >
           ← Back to lists
         </button>
-        <div data-tour="view-toggle" className="relative" ref={goalsDropdownRef}>
+        {list && list.owner_id === user?.id && (
           <button
             type="button"
-            onClick={() => setGoalsDropdownOpen(o => !o)}
-            className="h-8 px-3 pr-7 rounded-lg bg-teal text-white text-sm font-medium focus:outline-none relative"
+            onClick={() => setShowShareModal(true)}
+            className="text-teal hover:opacity-70"
+            aria-label="Share settings"
+            data-tour="share-settings"
           >
-            {GOALS_OPTIONS.find(o => o.value === memberFilter)?.label}
-            <svg className="absolute right-2 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 12 12"><path fill="white" d="M3 5l3 3 3-3"/></svg>
+            <ShareCardIcon className="w-10 h-10" emphasized />
           </button>
-          {goalsDropdownOpen && (
-            <div className="absolute right-0 mt-1 rounded-lg border border-teal bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 z-50 min-w-full overflow-hidden">
-              {GOALS_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => { updateMemberFilter(opt.value); setGoalsDropdownOpen(false) }}
-                  className={`w-full text-left px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
-                    opt.value === memberFilter
-                      ? 'bg-teal/10 text-teal'
-                      : 'text-teal hover:bg-teal/5'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Header */}
@@ -802,6 +774,14 @@ export default function ListPage() {
         </div>
       </Modal>
 
+      {list && list.owner_id === user?.id && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          list={list}
+          onUpdate={refresh}
+        />
+      )}
     </div>
   )
 }

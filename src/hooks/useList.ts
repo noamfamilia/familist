@@ -69,7 +69,7 @@ type MemberFilter = 'all' | 'mine' | 'hide'
 const VALID_MEMBER_FILTERS: MemberFilter[] = ['all', 'mine', 'hide']
 
 function getCachedPrefs(listId: string, userId?: string) {
-  const defaults = { memberFilter: 'hide' as MemberFilter, itemTextWidth: 'auto' as string }
+  const defaults = { memberFilter: 'all' as MemberFilter, itemTextWidth: 'auto' as string }
   if (typeof window === 'undefined') return defaults
   const prefsKey = getPrefsKey(listId, userId)
   if (!prefsKey) return defaults
@@ -79,7 +79,7 @@ function getCachedPrefs(listId: string, userId?: string) {
     try {
       const parsed = JSON.parse(cached)
       return {
-        memberFilter: VALID_MEMBER_FILTERS.includes(parsed.memberFilter) ? parsed.memberFilter as MemberFilter : 'hide' as MemberFilter,
+        memberFilter: VALID_MEMBER_FILTERS.includes(parsed.memberFilter) ? parsed.memberFilter as MemberFilter : 'all' as MemberFilter,
         itemTextWidth: typeof parsed.itemTextWidth === 'string' ? parsed.itemTextWidth : 'auto',
       }
     } catch { /* ignore */ }
@@ -316,7 +316,7 @@ export function useList(listId: string) {
         if (listUserData) {
           const serverFilter = VALID_MEMBER_FILTERS.includes(listUserData.member_filter as MemberFilter)
             ? listUserData.member_filter as MemberFilter
-            : 'hide' as MemberFilter
+            : 'all' as MemberFilter
           setMemberFilter(serverFilter)
           setCachedPrefs(listId, { memberFilter: serverFilter }, userId)
           const serverVal = listUserData.item_text_width
