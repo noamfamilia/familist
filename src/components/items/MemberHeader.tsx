@@ -425,9 +425,8 @@ export function MemberHeader({
           <div
             className="flex-shrink-0 h-[40px] relative"
             style={{ width: itemTextWidth }}
-            data-tour="item-text-width"
           >
-            <div className="absolute inset-y-0 left-0 w-[80px] flex items-center justify-between">
+            <div className="absolute inset-y-0 left-0 w-[80px] flex items-center justify-between" data-tour="item-text-width">
               <button
                 type="button"
                 onClick={(e) => {

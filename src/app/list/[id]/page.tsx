@@ -159,11 +159,11 @@ const listTourSteps: Step[] = [
   },
   {
     target: '[data-tour="category-sort"]',
-    content: 'List actions: sort, expand/collapse, and manage archived items.',
+    content: 'List actions menu.',
   },
   {
     target: '[data-tour="member-chip"]',
-    content: 'Tap a member to see menu options.',
+    content: 'Tap a member to view, edit and filter.',
     spotlightPadding: 2,
   },
 ]
