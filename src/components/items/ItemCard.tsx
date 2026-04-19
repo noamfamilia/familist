@@ -29,9 +29,11 @@ interface ItemCardProps {
   collapseSignal?: number
   categoryNames?: CategoryNames
   categoryOrder?: number[]
+  /** Clear the "add item" draft when user interacts with this card (pointer down, capture). */
+  onClearAddItemDraft?: () => void
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft }: ItemCardProps) {
   const { user } = useAuth()
   const { success: showSuccess, error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -305,7 +307,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   return (
-    <div className="min-w-full">
+    <div
+      className="min-w-full"
+      onPointerDownCapture={onClearAddItemDraft}
+    >
       {/* Main card content */}
       <div className={`rounded-lg transition-colors ${shellClass} ${item.archived ? 'opacity-60' : ''}`}>
         {/* Card row */}

@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -276,6 +276,8 @@ export default function ListPage() {
     })
   )
   const [newItemText, setNewItemText] = useState('')
+  const newItemTextRef = useRef('')
+  newItemTextRef.current = newItemText
   const [adding, setAdding] = useState(false)
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
   const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
@@ -311,6 +313,12 @@ export default function ListPage() {
     setNewItemText('')
     setNewItemCategory(1)
   }
+
+  const handleClearAddItemDraftIfTyped = useCallback(() => {
+    if (!newItemTextRef.current.trim()) return
+    setNewItemText('')
+    setNewItemCategory(1)
+  }, [])
 
   if (authLoading || loading) {
     return (
@@ -665,6 +673,7 @@ export default function ListPage() {
                       collapseSignal={collapseSignal}
                       categoryNames={categoryNames}
                       categoryOrder={categoryOrder}
+                      onClearAddItemDraft={handleClearAddItemDraftIfTyped}
                     />
                   ))}
                 </SortableContext>
@@ -704,6 +713,7 @@ export default function ListPage() {
                     collapseSignal={collapseSignal}
                     categoryNames={categoryNames}
                     categoryOrder={categoryOrder}
+                    onClearAddItemDraft={handleClearAddItemDraftIfTyped}
                   />
                 ))}
               </div>

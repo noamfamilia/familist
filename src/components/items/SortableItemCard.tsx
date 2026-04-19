@@ -19,9 +19,10 @@ interface SortableItemCardProps {
   collapseSignal?: number
   categoryNames?: CategoryNames
   categoryOrder?: number[]
+  onClearAddItemDraft?: () => void
 }
 
-export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -55,6 +56,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
         collapseSignal={collapseSignal}
         categoryNames={categoryNames}
         categoryOrder={categoryOrder}
+        onClearAddItemDraft={onClearAddItemDraft}
       />
     </div>
   )

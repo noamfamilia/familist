@@ -1168,7 +1168,7 @@ export function useList(listId: string) {
       creator: null,
     }
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setMembers(prev => [...prev, optimisticTarget])
+    setMembers(prev => [optimisticTarget, ...prev])
 
     const { data, error: insertError } = await trackSaveOperation(
       supabase
