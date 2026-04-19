@@ -467,7 +467,7 @@ export function useLists() {
       updated_at: now,
       role: 'owner',
       userArchived: false,
-      memberCount: 0,
+      memberCount: sourceList?.memberCount ?? 0,
       activeItemCount: sourceList?.activeItemCount || 0,
       label: label || '',
     }
@@ -496,11 +496,12 @@ export function useLists() {
       return { error: new Error('Failed to duplicate list') }
     }
 
+    const dupMembers = (data.members ?? []) as { is_target?: boolean }[]
     const duplicatedList: ListWithRole = {
       ...data.list,
       role: 'owner',
       userArchived: false,
-      memberCount: 0,
+      memberCount: dupMembers.filter(m => !m.is_target).length,
       activeItemCount: data.items?.filter((item: { archived: boolean }) => !item.archived).length || 0,
       label: label || '',
     }

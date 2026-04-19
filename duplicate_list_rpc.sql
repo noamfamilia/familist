@@ -9,6 +9,8 @@ declare
   v_trimmed_name text := btrim(coalesce(p_new_name, ''));
   v_new_list public.lists%rowtype;
   v_result jsonb;
+  v_source_target_id uuid;
+  v_new_target_id uuid;
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -58,22 +60,59 @@ begin
   where list_id = v_new_list.id
     and user_id = v_user_id;
 
-  select jsonb_build_object(
-    'list', to_jsonb(v_new_list),
-    'items', coalesce(
-      (
-        select jsonb_agg(
-          to_jsonb(i) || jsonb_build_object('memberStates', '{}'::jsonb)
-          order by i.archived, i.sort_order nulls last, i.created_at, i.id
-        )
-        from public.items i
-        where i.list_id = v_new_list.id
-      ),
-      '[]'::jsonb
-    ),
-    'members', '[]'::jsonb
-  )
-  into v_result;
+  -- Copy Qty (target) member and per-item target quantities if the source list has one
+  select m.id
+    into v_source_target_id
+  from public.members m
+  where m.list_id = p_source_list_id
+    and m.is_target = true
+  limit 1;
+
+  if v_source_target_id is not null then
+    insert into public.members (list_id, name, created_by, sort_order, is_public, is_target)
+    select
+      v_new_list.id,
+      m.name,
+      v_user_id,
+      0,
+      false,
+      true
+    from public.members m
+    where m.id = v_source_target_id
+    returning id into v_new_target_id;
+
+    insert into public.item_member_state (item_id, member_id, quantity, done, assigned, updated_at)
+    select
+      map.new_item_id,
+      v_new_target_id,
+      ims.quantity,
+      ims.done,
+      ims.assigned,
+      now()
+    from (
+      select o.id as old_item_id, n.id as new_item_id
+      from (
+        select
+          id,
+          row_number() over (order by archived, sort_order nulls last, created_at, id) as rn
+        from public.items
+        where list_id = p_source_list_id
+      ) o
+      join (
+        select
+          id,
+          row_number() over (order by archived, sort_order nulls last, created_at, id) as rn
+        from public.items
+        where list_id = v_new_list.id
+      ) n using (rn)
+    ) map
+    join public.item_member_state ims
+      on ims.item_id = map.old_item_id
+     and ims.member_id = v_source_target_id;
+  end if;
+
+  -- Same shape as opening a list (members, items with memberStates)
+  v_result := (select get_list_data(v_new_list.id))::jsonb;
 
   return v_result;
 end;
