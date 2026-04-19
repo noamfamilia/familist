@@ -199,6 +199,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleOpenQuantityEditor = (memberId: string, containerEl: HTMLElement) => {
+    const m = members.find(x => x.id === memberId)
+    if (!m) return
+    const canEditMember = m.created_by === user?.id || m.is_public
+    if (!canEditMember || item.archived) return
+
     const state = item.memberStates[memberId]
     const rect = containerEl.getBoundingClientRect()
     const vw = window.innerWidth
@@ -404,15 +409,17 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   if (s.done) totalDoneQty += s.quantity || 0
                 }
               }
+              const isCreator = member.created_by === user?.id
+              const canEdit = isCreator || member.is_public
               const isEditingThis = editingQuantityMember === member.id
 
               return (
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`flex items-center justify-center w-[90px] h-[40px] ${item.archived ? '' : 'cursor-pointer'}`}
+                    className={`flex items-center justify-center w-[90px] h-[40px] ${canEdit && !item.archived ? 'cursor-pointer' : 'cursor-default'}`}
                     onClick={(e) => {
-                      if (item.archived) return
+                      if (!canEdit || item.archived) return
                       e.stopPropagation()
                       const container = e.currentTarget as HTMLElement
                       handleOpenQuantityEditor(member.id, container)
