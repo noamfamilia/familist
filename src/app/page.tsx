@@ -12,7 +12,6 @@ import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
 import { resetTutorial } from '@/components/ui/TutorialTour'
-import { useTheme } from 'next-themes'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
@@ -69,11 +68,9 @@ function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, profile, loading, updateProfile } = useAuth()
-  const { theme, setTheme } = useTheme()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
-  const [showDenote, setShowDenote] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
@@ -310,33 +307,11 @@ function HomeContent() {
                   role="menuitem"
                   className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   onClick={() => {
-                    setTheme(theme === 'dark' ? 'light' : 'dark')
-                    setProfileMenuOpen(false)
-                  }}
-                >
-                  {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
-                  onClick={() => {
                     setProfileMenuOpen(false)
                     setShowFeedback(true)
                   }}
                 >
                   User feedback
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
-                  onClick={() => {
-                    setProfileMenuOpen(false)
-                    setShowDenote(true)
-                  }}
-                >
-                  Denote
                 </button>
               </div>
             )}
@@ -556,17 +531,6 @@ function HomeContent() {
           </button>
         </div>
       </Modal>
-
-      {showDenote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDenote(false)} />
-          <div
-            className="relative w-full max-w-md aspect-square rounded-xl bg-cover bg-center shadow-xl cursor-pointer"
-            style={{ backgroundImage: 'url(/denote.jpg)' }}
-            onClick={() => setShowDenote(false)}
-          />
-        </div>
-      )}
     </div>
   )
 }
