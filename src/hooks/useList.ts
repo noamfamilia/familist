@@ -644,7 +644,6 @@ export function useList(listId: string) {
   const addMember = async (name: string, creatorNickname?: string) => {
     if (!userId) return { error: new Error('Not authenticated') }
 
-    const targetMember = members.find(m => m.is_target)
     const nonTargetMembers = members.filter(m => !m.is_target)
     const maxSortOrder = nonTargetMembers.reduce((max, member) => 
       Math.max(max, member.sort_order || 0), 0)
@@ -665,21 +664,7 @@ export function useList(listId: string) {
     }
 
     skipRealtimeUntilRef.current = Date.now() + 2000
-    if (targetMember) {
-      setMembers(prev => {
-        const withoutTarget = prev.filter(m => !m.is_target)
-        return [...withoutTarget, optimisticMember, { ...targetMember, sort_order: newSortOrder + 1 }]
-      })
-    } else {
-      setMembers(prev => [...prev, optimisticMember])
-    }
-
-    if (targetMember) {
-      await supabase
-        .from('members')
-        .update({ sort_order: newSortOrder + 1 })
-        .eq('id', targetMember.id)
-    }
+    setMembers(prev => [...prev, optimisticMember])    
 
     const { data, error } = await trackSaveOperation(
       supabase
@@ -1175,7 +1160,7 @@ export function useList(listId: string) {
       list_id: listId,
       name: 'Qty',
       created_by: userId,
-      sort_order: maxSortOrder + 1,
+      sort_order: 0,
       is_public: false,
       is_target: true,
       created_at: now,
@@ -1192,7 +1177,7 @@ export function useList(listId: string) {
           list_id: listId,
           name: 'Qty',
           created_by: userId,
-          sort_order: maxSortOrder + 1,
+          sort_order: 0,
           is_public: false,
           is_target: true,
         })

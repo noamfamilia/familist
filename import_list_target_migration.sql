@@ -68,7 +68,7 @@ begin
   -- Create Targets member and item_member_state rows if target column was present
   if p_has_targets and v_len > 0 then
     insert into public.members (list_id, name, created_by, sort_order, is_public, is_target)
-    values (v_new_list.id, 'Qty', v_user_id, 1, false, true)
+    values (v_new_list.id, 'Qty', v_user_id, 0, false, true)
     returning id into v_target_member_id;
 
     insert into public.item_member_state (item_id, member_id, quantity, done, assigned)
