@@ -29,7 +29,7 @@ interface ItemCardProps {
   collapseSignal?: number
   categoryNames?: CategoryNames
   categoryOrder?: number[]
-  /** Clear the "add item" draft when user interacts with this card (pointer down, capture). */
+  /** Clear the "add item" draft after a click on this card bubbles up (runs after child click handlers). */
   onClearAddItemDraft?: () => void
 }
 
@@ -309,7 +309,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   return (
     <div
       className="min-w-full"
-      onPointerDownCapture={onClearAddItemDraft}
+      onClick={onClearAddItemDraft}
     >
       {/* Main card content */}
       <div className={`rounded-lg transition-colors ${shellClass} ${item.archived ? 'opacity-60' : ''}`}>
