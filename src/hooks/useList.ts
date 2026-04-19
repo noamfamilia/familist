@@ -138,7 +138,7 @@ function rpcFailureMessage(err: unknown): string {
 }
 
 export function useList(listId: string) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const cached = getCachedList(undefined, listId)
   
   // Initialize from cache for instant load
@@ -1155,6 +1155,7 @@ export function useList(listId: string) {
     const maxSortOrder = members.reduce((max, m) => Math.max(max, m.sort_order || 0), 0)
     const tempId = createTempId('member')
     const now = new Date().toISOString()
+    const creatorFromProfile = profile?.nickname ? { nickname: profile.nickname } : null
     const optimisticTarget: MemberWithCreator = {
       id: tempId,
       list_id: listId,
@@ -1165,7 +1166,7 @@ export function useList(listId: string) {
       is_target: true,
       created_at: now,
       updated_at: now,
-      creator: null,
+      creator: creatorFromProfile,
     }
     skipRealtimeUntilRef.current = Date.now() + 2000
     setMembers(prev => [optimisticTarget, ...prev])
@@ -1191,9 +1192,13 @@ export function useList(listId: string) {
     }
 
     const realMemberId = data.id
+    const targetWithCreator: MemberWithCreator = {
+      ...data,
+      creator: creatorFromProfile,
+    }
 
     setMembers(prev => {
-      const next = prev.map(m => m.id === tempId ? { ...data, creator: null } : m)
+      const next = prev.map(m => m.id === tempId ? targetWithCreator : m)
       const deduped: MemberWithCreator[] = []
       for (const m of next) {
         if (!deduped.some(e => e.id === m.id)) deduped.push(m)
