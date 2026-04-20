@@ -13,15 +13,13 @@ const ROW_INSET_Y = 3.25
 /** Gap between adjacent cells (viewBox units). */
 const CELL_GAP = 2.75
 
-/** Theme `teal` (same as Add-member `bg-teal`); dim via `opacity` so SVG fill stays reliable. */
+/** Theme `teal` (same as Add-member `bg-teal`); opacity by lit count. */
 function litCellClass(filled: number): string {
   if (filled <= 0) return ''
   const base = 'fill-current text-teal'
-  if (filled === 1) return `${base} opacity-30`
-  if (filled === 2) return `${base} opacity-45`
-  if (filled === 3) return `${base} opacity-60`
-  if (filled === 4) return `${base} opacity-80`
-  return `${base} opacity-100`
+  if (filled <= 2) return `${base} opacity-45`
+  if (filled <= 4) return `${base} opacity-60`
+  return `${base} opacity-80`
 }
 
 /**
