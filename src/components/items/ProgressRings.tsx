@@ -25,6 +25,10 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
 
   return (
     <svg width={size} height={size} className="flex-shrink-0">
+      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
+        className="fill-primary dark:fill-gray-100 text-[0.9rem] font-medium select-none">
+        {targetQty}
+      </text>
       {/* Inner fill: quantity progress */}
       {qtyProgress > 0 && (
         <circle cx={cx} cy={cy} r={innerR} fill="none"
@@ -43,11 +47,6 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
           strokeLinecap="round"
           transform={`rotate(-90 ${cx} ${cy})`} />
       )}
-      {/* Target quantity in center */}
-      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-        className="fill-primary dark:fill-gray-100 text-[0.9rem] font-medium select-none">
-        {targetQty}
-      </text>
     </svg>
   )
 }
