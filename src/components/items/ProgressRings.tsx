@@ -29,15 +29,6 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
       <circle cx={cx} cy={cy} r={outerR} fill="none"
         stroke="currentColor" className="text-gray-200 dark:text-slate-600"
         strokeWidth={strokeWidth} />
-      {/* Outer fill: done progress */}
-      {doneProgress > 0 && (
-        <circle cx={cx} cy={cy} r={outerR} fill="none"
-          className="stroke-black"
-          strokeWidth={strokeWidth}
-          strokeDasharray={`${outerDash} ${outerGap}`}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${cx} ${cy})`} />
-      )}
       {/* Inner track */}
       <circle cx={cx} cy={cy} r={innerR} fill="none"
         stroke="currentColor" className="text-gray-200 dark:text-slate-600"
@@ -48,6 +39,15 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
           className="stroke-gray-500"
           strokeWidth={strokeWidth}
           strokeDasharray={`${innerDash} ${innerGap}`}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${cx} ${cy})`} />
+      )}
+      {/* Outer fill: done progress */}
+      {doneProgress > 0 && (
+        <circle cx={cx} cy={cy} r={outerR} fill="none"
+          className="stroke-black"
+          strokeWidth={strokeWidth}
+          strokeDasharray={`${outerDash} ${outerGap}`}
           strokeLinecap="round"
           transform={`rotate(-90 ${cx} ${cy})`} />
       )}
