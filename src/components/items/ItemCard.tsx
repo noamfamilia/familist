@@ -420,6 +420,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               const isEditingThis = editingQuantityMember === member.id
               const qtyTargetMet = targetQty > 0 && totalDoneQty >= targetQty
               const qtyFillRatio = targetQty <= 0 ? 1 : Math.min(totalQty / targetQty, 1)
+              const qtyTargetDigitCount = String(Math.trunc(targetQty)).replace(/^-/, '').length || 1
+              const qtyTargetTextClass =
+                qtyTargetDigitCount >= 4 ? 'text-xs' : qtyTargetDigitCount >= 3 ? 'text-sm' : 'text-lg'
 
               return (
                 <div key={member.id} className="relative">
@@ -433,8 +436,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <div className="relative flex min-h-0 flex-1 items-center justify-center">
-                      <span className="text-center text-lg text-primary dark:text-gray-100">{targetQty}</span>
+                    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-0.5">
+                      <span
+                        className={`text-center leading-tight tabular-nums text-primary dark:text-gray-100 ${qtyTargetTextClass}`}
+                      >
+                        {targetQty}
+                      </span>
                       {qtyTargetMet && (
                         <svg
                           width="14"
@@ -454,7 +461,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       )}
                     </div>
                     <div className="mt-auto w-full shrink-0">
-                      <QtyProgressBarIcon ratio={qtyFillRatio} className="block h-[14px] w-full" />
+                      <QtyProgressBarIcon ratio={qtyFillRatio} className="block h-[18px] w-full" />
                     </div>
                   </div>
 

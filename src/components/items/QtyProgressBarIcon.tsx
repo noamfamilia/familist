@@ -4,33 +4,50 @@ interface QtyProgressBarIconProps {
   ratio: number
 }
 
+/** Inner slot from Noun frame path (6.356 … 93.644). */
+const INNER_LEFT = 6.356
+const INNER_WIDTH = 87.288
+const CELL_COUNT = 5
+const CELL_WIDTH = INNER_WIDTH / CELL_COUNT
+const CELL_Y = 44.369
+const CELL_H = 11.565
+
 /**
- * Pill track + inner progress bar. viewBox 100×16 — inner bar height 4 (2× the previous 2-unit bar).
- * At 100%, fill spans almost the full inner width (2 viewBox units inset each side).
+ * Noun-style segmented bar: frame path + five equal cells spanning the inner width.
+ * Filled cell count steps with `ratio` (rounded).
  */
 export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
-  const inset = 2
-  const innerMaxW = 100 - inset * 2
-  const barW = innerMaxW * r
+  const filled = Math.min(CELL_COUNT, Math.max(0, Math.round(CELL_COUNT * r)))
 
   return (
     <svg
       className={className}
-      viewBox="0 0 100 16"
-      preserveAspectRatio="none"
+      viewBox="4 39 92 22"
+      preserveAspectRatio="xMidYMid meet"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <rect x="0" y="0" width="100" height="16" rx="8" className="fill-gray-200 dark:fill-slate-600" />
-      <rect
-        x={inset}
-        y="6"
-        width={barW}
-        height="4"
-        rx="2"
-        className="fill-primary dark:fill-gray-200"
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M5,41.692v16.615h90V41.692H5z M93.644,56.951H6.356V43.048h87.288V56.951z"
+        className="fill-gray-200 dark:fill-slate-600"
       />
+      {Array.from({ length: CELL_COUNT }, (_, i) => (
+        <rect
+          key={i}
+          x={INNER_LEFT + i * CELL_WIDTH}
+          y={CELL_Y}
+          width={CELL_WIDTH}
+          height={CELL_H}
+          className={
+            i < filled
+              ? 'fill-primary dark:fill-gray-200'
+              : 'fill-gray-100 dark:fill-slate-700'
+          }
+        />
+      ))}
     </svg>
   )
 }
