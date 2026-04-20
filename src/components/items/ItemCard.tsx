@@ -425,7 +425,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`flex h-[40px] w-[112px] flex-row items-stretch gap-1.5 overflow-hidden rounded-lg border border-gray-200 bg-white px-1.5 py-1 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    className={`relative grid h-[40px] w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-1.5 py-1 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
@@ -433,29 +433,29 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <QtyProgressBarIconVertical ratio={qtyFillRatio} className="h-full w-[33px] shrink-0 self-stretch" />
-                    <div className="relative flex min-h-0 min-w-0 w-full flex-1 items-center justify-center overflow-hidden">
-                      <span className="pointer-events-none text-lg text-primary dark:text-gray-100">
-                        {targetQty}
-                      </span>
-                      {qtyTargetMet && (
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-coral"
-                          aria-hidden
-                        >
-                          <path
-                            d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      )}
+                    <span className="pointer-events-none col-start-1 row-start-1 z-0 flex h-full w-full items-center justify-center text-lg text-primary dark:text-gray-100">
+                      {targetQty}
+                    </span>
+                    <div className="pointer-events-none col-start-1 row-start-1 z-10 flex h-full w-[33px] items-stretch self-stretch justify-self-start">
+                      <QtyProgressBarIconVertical ratio={qtyFillRatio} className="h-full w-full" />
                     </div>
+                    {qtyTargetMet && (
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="pointer-events-none col-start-1 row-start-1 z-20 justify-self-end self-center pr-0.5 text-coral"
+                        aria-hidden
+                      >
+                        <path
+                          d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    )}
                   </div>
 
                   {isEditingThis && editorPos && (

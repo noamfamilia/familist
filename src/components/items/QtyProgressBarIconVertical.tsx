@@ -112,7 +112,7 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
           height={SMALL_H}
           rx={SEG_RX}
           ry={SEG_RX}
-          className="fill-current text-coral"
+          className="fill-current text-coral opacity-60"
         />
       )}
       {smallLit && !mid2On && (
