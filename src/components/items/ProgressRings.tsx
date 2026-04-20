@@ -36,7 +36,7 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
         dominantBaseline="central"
         fill="currentColor"
         style={{ fontSize: `${centerFontSizePx}px` }}
-        className="text-primary dark:text-gray-100 font-medium select-none"
+        className="text-primary dark:text-gray-100 select-none"
       >
         {targetQty}
       </text>
