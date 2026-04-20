@@ -4,12 +4,21 @@ interface QtyProgressBarIconVerticalProps {
   ratio: number
 }
 
-const VB_W = 12
+/** 3× prior 12-wide bar for a thicker strip */
+const VB_W = 36
 const VB_H = 100
 const INSET = 3
 const GAP = 2
-/** Bottom sliver height (smaller than each large segment). */
+const LARGE_H = 30
+/** Bottom sliver for (0, ⅓); bottom-aligned with INSET from frame bottom */
 const SMALL_H = 10
+
+/** Inner bottom (y + h for rects anchored to bottom inset) */
+const Y_INNER_BOTTOM = VB_H - INSET
+const Y_SMALL = Y_INNER_BOTTOM - SMALL_H
+const Y_BOTTOM_LARGE = Y_INNER_BOTTOM - LARGE_H
+const Y_MID_LARGE = Y_BOTTOM_LARGE - GAP - LARGE_H
+const Y_TOP_LARGE = Y_MID_LARGE - GAP - LARGE_H
 
 function largeLitOpacityClass(largeLit: number): string {
   const base = 'fill-current text-teal'
@@ -22,8 +31,9 @@ function largeLitOpacityClass(largeLit: number): string {
 const oneSegmentLit = 'fill-current text-teal opacity-40'
 
 /**
- * Vertical track: 3 large steps (≥⅓, ≥⅔, 100%) + smaller bottom cell for (0, ⅓).
- * Large segments share opacity by how many of the three are lit; tiny cell uses same as “one segment” (40%).
+ * Vertical track: 3 large steps (≥⅓, ≥⅔, 100%) + 10px bottom cell for (0, ⅓).
+ * Bottom large shares the column with the small sliver; when ≥⅓ the large is drawn on top and hides the small.
+ * Large segments share opacity by how many of the three are lit; tiny cell matches “one segment” (40%).
  */
 export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarIconVerticalProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
@@ -34,22 +44,14 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
   if (r >= 1) largeLit++
   const largeClass = largeLitOpacityClass(largeLit)
 
-  const innerH = VB_H - 2 * INSET
-  const largeH = (innerH - SMALL_H - 3 * GAP) / 3
-  const cellW = 8
+  const cellW = 24
   const x = (VB_W - cellW) / 2
-  const smallW = 6
-  const smallX = (VB_W - smallW) / 2
-
-  // Top → bottom in SVG: y increases down. Top = 100% cell, bottom = small sliver.
-  const yTop = INSET
-  const yMid1 = yTop + largeH + GAP
-  const yMid2 = yMid1 + largeH + GAP
-  const ySmall = yMid2 + largeH + GAP
 
   const topOn = r >= 1
   const mid1On = r >= 2 / 3
   const mid2On = r >= 1 / 3
+
+  const trackMuted = 'fill-gray-50 dark:fill-slate-600/80'
 
   return (
     <svg
@@ -62,32 +64,27 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
       <rect x="0" y="0" width={VB_W} height={VB_H} className="fill-gray-100 dark:fill-slate-700/90" />
       <rect
         x={x}
-        y={yTop}
+        y={Y_TOP_LARGE}
         width={cellW}
-        height={largeH}
-        className={topOn ? largeClass : 'fill-gray-50 dark:fill-slate-600/80'}
+        height={LARGE_H}
+        className={topOn ? largeClass : trackMuted}
       />
       <rect
         x={x}
-        y={yMid1}
+        y={Y_MID_LARGE}
         width={cellW}
-        height={largeH}
-        className={mid1On ? largeClass : 'fill-gray-50 dark:fill-slate-600/80'}
+        height={LARGE_H}
+        className={mid1On ? largeClass : trackMuted}
       />
-      <rect
-        x={x}
-        y={yMid2}
-        width={cellW}
-        height={largeH}
-        className={mid2On ? largeClass : 'fill-gray-50 dark:fill-slate-600/80'}
-      />
-      <rect
-        x={smallX}
-        y={ySmall}
-        width={smallW}
-        height={SMALL_H}
-        className={smallLit ? oneSegmentLit : 'fill-gray-50 dark:fill-slate-600/80'}
-      />
+      {!mid2On && (
+        <rect x={x} y={Y_BOTTOM_LARGE} width={cellW} height={LARGE_H} className={trackMuted} />
+      )}
+      {smallLit && !mid2On && (
+        <rect x={x} y={Y_SMALL} width={cellW} height={SMALL_H} className={oneSegmentLit} />
+      )}
+      {mid2On && (
+        <rect x={x} y={Y_BOTTOM_LARGE} width={cellW} height={LARGE_H} className={largeClass} />
+      )}
     </svg>
   )
 }

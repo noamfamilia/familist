@@ -425,7 +425,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`flex h-[40px] w-[90px] flex-row items-stretch gap-1.5 overflow-hidden rounded-lg border border-gray-200 bg-white px-1.5 py-1 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    className={`flex h-[40px] w-[112px] flex-row items-stretch gap-1.5 overflow-hidden rounded-lg border border-gray-200 bg-white px-1.5 py-1 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
@@ -433,9 +433,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <QtyProgressBarIconVertical ratio={qtyFillRatio} className="h-full w-[11px] shrink-0 self-stretch" />
-                    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-                      <span className="text-center text-lg leading-tight tabular-nums text-primary dark:text-gray-100">
+                    <QtyProgressBarIconVertical ratio={qtyFillRatio} className="h-full w-[33px] shrink-0 self-stretch" />
+                    <div className="relative min-h-0 flex-1 overflow-hidden">
+                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-center text-lg leading-tight tabular-nums text-primary dark:text-gray-100">
                         {targetQty}
                       </span>
                       {qtyTargetMet && (
@@ -444,7 +444,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                           height="14"
                           viewBox="0 0 24 24"
                           fill="none"
-                          className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-coral"
+                          className="pointer-events-none absolute right-0.5 top-1/2 -translate-y-1/2 text-coral"
                           aria-hidden
                         >
                           <path
