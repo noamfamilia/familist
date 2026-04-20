@@ -23,10 +23,20 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
   const innerDash = qtyProgress * innerCircumference
   const innerGap = innerCircumference - innerDash
 
+  const targetDigitCount = String(Math.trunc(targetQty)).replace(/^-/, '').length || 1
+  const centerFontSizePx =
+    targetDigitCount >= 3 ? 16 : targetDigitCount === 2 ? 17 : 18
+
   return (
     <svg width={size} height={size} className="flex-shrink-0">
-      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-        className="fill-primary dark:fill-gray-100 text-[0.9rem] font-medium select-none">
+      <text
+        x={cx}
+        y={cy}
+        textAnchor="middle"
+        dominantBaseline="central"
+        style={{ fontSize: `${centerFontSizePx}px` }}
+        className="fill-primary dark:fill-gray-100 font-medium select-none"
+      >
         {targetQty}
       </text>
       {/* Inner fill: quantity progress */}
