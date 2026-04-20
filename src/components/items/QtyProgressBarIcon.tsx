@@ -14,17 +14,18 @@ const ROW_INSET_Y = 3.25
 /** Gap between adjacent cells (viewBox units). */
 const CELL_GAP = 2.75
 
+/** Same hue as `bg-teal` (Add task); intensity steps via opacity so 1…5 read as one family. */
 function litCellClass(filled: number): string {
   if (filled <= 0) return ''
-  if (filled === 1) return 'fill-teal-300 dark:fill-teal-400'
-  if (filled === 2) return 'fill-teal-400 dark:fill-teal-400'
-  if (filled === 3) return 'fill-teal-500 dark:fill-teal-500'
-  if (filled === 4) return 'fill-teal-600 dark:fill-teal-400'
-  return 'fill-teal-700 dark:fill-teal-300'
+  if (filled === 1) return 'fill-teal/35 dark:fill-teal/45'
+  if (filled === 2) return 'fill-teal/50 dark:fill-teal/55'
+  if (filled === 3) return 'fill-teal/65 dark:fill-teal/70'
+  if (filled === 4) return 'fill-teal/82 dark:fill-teal/85'
+  return 'fill-teal dark:fill-teal'
 }
 
 /**
- * Rounded pill frame + five cells; lit cells use stronger teal as more segments fill.
+ * Rounded pill frame + five cells; lit cells use theme teal (Add-task button) with higher opacity as more segments fill.
  */
 export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
