@@ -30,7 +30,8 @@ function litCellClass(filled: number): string {
  */
 export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
-  const filled = Math.min(CELL_COUNT, Math.max(0, Math.round(CELL_COUNT * r)))
+  /** 0 lit if <20%, then one cell per 20% band (≥20%→1 … ≥100%→5). */
+  const filled = Math.min(CELL_COUNT, Math.max(0, Math.floor(r * CELL_COUNT)))
   const innerW = VB_W - 2 * ROW_INSET_X
   const cellH = VB_H - 2 * ROW_INSET_Y
   const usableW = innerW - (CELL_COUNT - 1) * CELL_GAP
@@ -51,7 +52,8 @@ export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps
         width={VB_W}
         height={VB_H}
         rx={FRAME_RX}
-        className="fill-gray-100 dark:fill-slate-700/90"
+        className="fill-gray-200 stroke-gray-300 dark:fill-slate-700 dark:stroke-slate-500"
+        strokeWidth={1}
       />
       {Array.from({ length: CELL_COUNT }, (_, i) => (
         <rect
