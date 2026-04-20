@@ -475,7 +475,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                           strokeLinecap="round"
                         />
                         <path
-                          d="M9.5 16.5L19 6.5"
+                          d="M7 8L20 16"
                           stroke="currentColor"
                           strokeWidth="2"
                           strokeLinecap="round"
