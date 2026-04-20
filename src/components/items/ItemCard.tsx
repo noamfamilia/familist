@@ -445,7 +445,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                           height="14"
                           viewBox="0 0 24 24"
                           fill="none"
-                          className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-primary/70 dark:text-gray-400"
+                          className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-coral"
                           aria-hidden
                         >
                           <path
