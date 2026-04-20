@@ -7,7 +7,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
-import { QtyProgressBarIcon } from '@/components/items/QtyProgressBarIcon'
+import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -425,7 +425,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`flex h-[40px] w-[90px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-2 py-1 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    className={`flex h-[40px] w-[90px] flex-row items-stretch gap-1.5 overflow-hidden rounded-lg border border-gray-200 bg-white px-1.5 py-1 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
@@ -433,10 +433,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-0.5">
-                      <span
-                        className="text-center text-sm leading-tight tabular-nums text-primary dark:text-gray-100"
-                      >
+                    <QtyProgressBarIconVertical ratio={qtyFillRatio} className="h-full w-[11px] shrink-0 self-stretch" />
+                    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+                      <span className="text-center text-lg leading-tight tabular-nums text-primary dark:text-gray-100">
                         {targetQty}
                       </span>
                       {qtyTargetMet && (
@@ -456,9 +455,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                           />
                         </svg>
                       )}
-                    </div>
-                    <div className="mt-auto w-full shrink-0">
-                      <QtyProgressBarIcon ratio={qtyFillRatio} className="block h-[13px] w-full" />
                     </div>
                   </div>
 

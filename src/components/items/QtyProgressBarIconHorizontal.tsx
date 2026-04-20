@@ -1,4 +1,4 @@
-interface QtyProgressBarIconProps {
+interface QtyProgressBarIconHorizontalProps {
   className?: string
   /** 0–1: sum of assigned members’ quantities divided by Qty target */
   ratio: number
@@ -7,10 +7,8 @@ interface QtyProgressBarIconProps {
 const CELL_COUNT = 5
 const VB_W = 100
 const VB_H = 16
-/** Padding from frame inner edge to cell row. */
 const ROW_INSET_X = 3.5
 const ROW_INSET_Y = 3.25
-/** Gap between adjacent cells (viewBox units). */
 const CELL_GAP = 2.75
 
 /** Theme `teal` (same as Add-member `bg-teal`); opacity by lit count. */
@@ -23,11 +21,10 @@ function litCellClass(filled: number): string {
 }
 
 /**
- * Sharp rectangular frame + five cells; lit cells use theme teal with higher opacity as more segments fill.
+ * Horizontal 5-cell bar (20% steps). Kept for easy switch-back from vertical layout.
  */
-export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps) {
+export function QtyProgressBarIconHorizontal({ className, ratio }: QtyProgressBarIconHorizontalProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
-  /** 0 lit if <20%, then one cell per 20% band (≥20%→1 … ≥100%→5). */
   const filled = Math.min(CELL_COUNT, Math.max(0, Math.floor(r * CELL_COUNT)))
   const innerW = VB_W - 2 * ROW_INSET_X
   const cellH = VB_H - 2 * ROW_INSET_Y
@@ -43,13 +40,7 @@ export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <rect
-        x="0"
-        y="0"
-        width={VB_W}
-        height={VB_H}
-        className="fill-gray-100 dark:fill-slate-700/90"
-      />
+      <rect x="0" y="0" width={VB_W} height={VB_H} className="fill-gray-100 dark:fill-slate-700/90" />
       {Array.from({ length: CELL_COUNT }, (_, i) => (
         <rect
           key={i}
@@ -57,11 +48,7 @@ export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps
           y={ROW_INSET_Y}
           width={cellW}
           height={cellH}
-          className={
-            i < filled
-              ? litClass
-              : 'fill-gray-50 dark:fill-slate-600/80'
-          }
+          className={i < filled ? litClass : 'fill-gray-50 dark:fill-slate-600/80'}
         />
       ))}
     </svg>
