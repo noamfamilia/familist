@@ -14,14 +14,15 @@ const ROW_INSET_Y = 3.25
 /** Gap between adjacent cells (viewBox units). */
 const CELL_GAP = 2.75
 
-/** Same hue as `bg-teal` (Add task); intensity steps via opacity so 1…5 read as one family. */
+/** Theme `teal` (same as Add-member `bg-teal`); dim via `opacity` so SVG fill stays reliable. */
 function litCellClass(filled: number): string {
   if (filled <= 0) return ''
-  if (filled === 1) return 'fill-teal/35 dark:fill-teal/45'
-  if (filled === 2) return 'fill-teal/50 dark:fill-teal/55'
-  if (filled === 3) return 'fill-teal/65 dark:fill-teal/70'
-  if (filled === 4) return 'fill-teal/82 dark:fill-teal/85'
-  return 'fill-teal dark:fill-teal'
+  const base = 'fill-current text-teal'
+  if (filled === 1) return `${base} opacity-30`
+  if (filled === 2) return `${base} opacity-45`
+  if (filled === 3) return `${base} opacity-60`
+  if (filled === 4) return `${base} opacity-80`
+  return `${base} opacity-100`
 }
 
 /**
