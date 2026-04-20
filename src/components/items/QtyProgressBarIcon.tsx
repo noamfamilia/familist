@@ -5,28 +5,32 @@ interface QtyProgressBarIconProps {
 }
 
 /**
- * Horizontal progress track + fill (Carbon / SVG Repo style). viewBox 0 0 32 32.
- * Fill bar: x=6, max width 14 in icon coordinates.
+ * Pill track + inner progress bar. viewBox 100×16 — inner bar height 4 (2× the previous 2-unit bar).
+ * At 100%, fill spans almost the full inner width (2 viewBox units inset each side).
  */
 export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
-  const barWidth = 14 * r
+  const inset = 2
+  const innerMaxW = 100 - inset * 2
+  const barW = innerMaxW * r
 
   return (
     <svg
       className={className}
-      viewBox="0 0 32 32"
+      viewBox="0 0 100 16"
       preserveAspectRatio="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M28,21H4a2.0021,2.0021,0,0,1-2-2V13a2.0021,2.0021,0,0,1,2-2H28a2.0021,2.0021,0,0,1,2,2v6A2.0021,2.0021,0,0,1,28,21ZM4,13v6H28V13Z"
-        className="fill-gray-200 dark:fill-slate-600"
+      <rect x="0" y="0" width="100" height="16" rx="8" className="fill-gray-200 dark:fill-slate-600" />
+      <rect
+        x={inset}
+        y="6"
+        width={barW}
+        height="4"
+        rx="2"
+        className="fill-primary dark:fill-gray-200"
       />
-      <rect x="6" y="15" width={barWidth} height="2" className="fill-primary dark:fill-gray-200" />
     </svg>
   )
 }
