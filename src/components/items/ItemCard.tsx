@@ -418,12 +418,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               const isCreator = member.created_by === user?.id
               const canEdit = isCreator || member.is_public
               const isEditingThis = editingQuantityMember === member.id
+              const qtyTargetMet = targetQty > 0 && totalDoneQty >= targetQty
 
               return (
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`flex items-center justify-center w-[90px] h-[40px] ${canEdit && !item.archived ? 'cursor-pointer' : 'cursor-default'}`}
+                    className={`relative flex items-center justify-center w-[90px] h-[40px] ${canEdit && !item.archived ? 'cursor-pointer' : 'cursor-default'}`}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
@@ -432,6 +433,23 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     }}
                   >
                     <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} size={40} />
+                    {qtyTargetMet && (
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="pointer-events-none absolute bottom-0.5 right-0.5 text-black"
+                        aria-hidden
+                      >
+                        <path
+                          d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    )}
                   </div>
 
                   {isEditingThis && editorPos && (
