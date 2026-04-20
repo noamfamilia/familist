@@ -434,8 +434,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     }}
                   >
                     <QtyProgressBarIconVertical ratio={qtyFillRatio} className="h-full w-[33px] shrink-0 self-stretch" />
-                    <div className="relative min-h-0 flex-1 overflow-hidden">
-                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-center text-lg leading-tight tabular-nums text-primary dark:text-gray-100">
+                    <div className="relative flex min-h-0 min-w-0 w-full flex-1 items-center justify-center overflow-hidden">
+                      <span className="pointer-events-none text-lg text-primary dark:text-gray-100">
                         {targetQty}
                       </span>
                       {qtyTargetMet && (
@@ -444,7 +444,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                           height="14"
                           viewBox="0 0 24 24"
                           fill="none"
-                          className="pointer-events-none absolute right-0.5 top-1/2 -translate-y-1/2 text-coral"
+                          className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-coral"
                           aria-hidden
                         >
                           <path
