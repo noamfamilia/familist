@@ -7,7 +7,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
-import { ProgressRings } from '@/components/items/ProgressRings'
+import { QtyProgressBarIcon } from '@/components/items/QtyProgressBarIcon'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -419,12 +419,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               const canEdit = isCreator || member.is_public
               const isEditingThis = editingQuantityMember === member.id
               const qtyTargetMet = targetQty > 0 && totalDoneQty >= targetQty
+              const qtyFillRatio = targetQty <= 0 ? 1 : Math.min(totalQty / targetQty, 1)
 
               return (
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`relative flex items-center justify-center w-[90px] h-[40px] ${canEdit && !item.archived ? 'cursor-pointer' : 'cursor-default'}`}
+                    className={`flex h-[40px] w-[90px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-2 py-1 transition-colors dark:border-slate-600 dark:bg-slate-800 ${!canEdit || item.archived ? 'cursor-default opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
@@ -432,24 +433,29 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} size={40} />
-                    {qtyTargetMet && (
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="pointer-events-none absolute bottom-0.5 right-3 text-black"
-                        aria-hidden
-                      >
-                        <path
-                          d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    )}
+                    <div className="relative flex min-h-0 flex-1 items-center justify-center">
+                      <span className="text-center text-lg text-primary dark:text-gray-100">{targetQty}</span>
+                      {qtyTargetMet && (
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-black"
+                          aria-hidden
+                        >
+                          <path
+                            d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="mx-auto w-[80%] shrink-0 pb-0.5 pt-0">
+                      <QtyProgressBarIcon ratio={qtyFillRatio} className="block h-[11px] w-full" />
+                    </div>
                   </div>
 
                   {isEditingThis && editorPos && (
