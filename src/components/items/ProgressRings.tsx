@@ -52,7 +52,7 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
       {/* Outer fill: done progress */}
       {doneProgress > 0 && (
         <circle cx={cx} cy={cy} r={outerR} fill="none"
-          className="stroke-gray-600"
+          className="stroke-gray-500"
           strokeWidth={strokeWidth}
           strokeDasharray={`${outerDash} ${outerGap}`}
           strokeLinecap="round"
