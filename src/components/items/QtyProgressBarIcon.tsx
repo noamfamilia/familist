@@ -8,10 +8,10 @@ interface QtyProgressBarIconProps {
 const INNER_LEFT = 6.356
 const INNER_WIDTH = 87.288
 const CELL_COUNT = 5
-/** Horizontal padding inside the inner opening (cell ↔ frame). */
-const CELL_INSET = 4
+/** Horizontal padding inside the inner opening (cell ↔ SVG frame). */
+const CELL_INSET = 5
 /** Gap between adjacent cells (viewBox units). */
-const CELL_GAP = 2.75
+const CELL_GAP = 3.25
 const CELL_Y = 44.55
 const CELL_H = 11.2
 
@@ -37,7 +37,7 @@ export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps
         fillRule="evenodd"
         clipRule="evenodd"
         d="M5,41.692v16.615h90V41.692H5z M93.644,56.951H6.356V43.048h87.288V56.951z"
-        className="fill-gray-100 dark:fill-slate-700/90"
+        className="fill-primary/45 dark:fill-gray-500"
       />
       {Array.from({ length: CELL_COUNT }, (_, i) => (
         <rect

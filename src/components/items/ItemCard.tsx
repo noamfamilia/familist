@@ -425,7 +425,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`flex h-[40px] w-[90px] flex-col overflow-hidden rounded-lg border border-primary/45 bg-white px-2 py-1 transition-colors dark:border-gray-500 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    className={`flex h-[40px] w-[90px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-2 py-1 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
