@@ -419,6 +419,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               const canEdit = isCreator || member.is_public
               const isEditingThis = editingQuantityMember === member.id
               const qtyTargetMet = targetQty > 0 && totalDoneQty >= targetQty
+              const qtyTargetPartial =
+                targetQty > 0 && totalDoneQty > 0 && totalDoneQty < targetQty
               const qtyFillRatio = targetQty <= 0 ? 1 : Math.min(totalQty / targetQty, 1)
 
               return (
@@ -450,6 +452,30 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       >
                         <path
                           d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    )}
+                    {qtyTargetPartial && (
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        role="img"
+                        aria-label="Part of target quantity completed"
+                        className="pointer-events-none col-start-1 row-start-1 z-20 justify-self-end self-center pr-0.5 text-coral"
+                      >
+                        <path
+                          d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M9.5 16.5L19 6.5"
                           stroke="currentColor"
                           strokeWidth="2"
                           strokeLinecap="round"
