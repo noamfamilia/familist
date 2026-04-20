@@ -25,7 +25,7 @@ const topLit = 'fill-current text-teal opacity-80'
 const midLit = 'fill-current text-teal opacity-60'
 const bottomLit = 'fill-current text-teal opacity-40'
 const smallLitClass = 'fill-current text-teal opacity-40'
-const zeroCoral = 'fill-current text-coral opacity-40'
+const zeroCoral = 'fill-current text-coral opacity-60'
 
 /** Rounded “pill” caps for vertical segments (viewBox units) */
 const FRAME_RX = 6
@@ -34,7 +34,7 @@ const SEG_RX = 4
 /**
  * Vertical track: 3 large steps (≥⅓, ≥⅔, 100%) + 10px bottom cell for (0, ⅓).
  * Bottom large shares the column with the small sliver; when ≥⅓ the large is drawn on top and hides the small.
- * Opacity is fixed per row: bottom/small 40%, middle 60%, top 80%.
+ * Opacity is fixed per row: top 80%, middle 60%, bottom large & teal small 40%, coral zero small 60%.
  */
 export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarIconVerticalProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
