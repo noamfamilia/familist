@@ -37,7 +37,7 @@ export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps
         fillRule="evenodd"
         clipRule="evenodd"
         d="M5,41.692v16.615h90V41.692H5z M93.644,56.951H6.356V43.048h87.288V56.951z"
-        className="fill-gray-200 dark:fill-slate-600"
+        className="fill-gray-100 dark:fill-slate-700/90"
       />
       {Array.from({ length: CELL_COUNT }, (_, i) => (
         <rect
@@ -48,8 +48,8 @@ export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps
           height={CELL_H}
           className={
             i < filled
-              ? 'fill-primary dark:fill-gray-200'
-              : 'fill-gray-100 dark:fill-slate-700'
+              ? 'fill-primary/45 dark:fill-gray-500'
+              : 'fill-gray-50 dark:fill-slate-600/80'
           }
         />
       ))}

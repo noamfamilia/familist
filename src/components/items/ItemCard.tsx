@@ -425,7 +425,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`flex h-[46px] w-[90px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-2 pb-px pt-1 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    className={`flex h-[40px] w-[90px] flex-col overflow-hidden rounded-lg border border-primary/45 bg-white px-2 py-1 transition-colors dark:border-gray-500 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
@@ -445,7 +445,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                           height="14"
                           viewBox="0 0 24 24"
                           fill="none"
-                          className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-black"
+                          className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-primary/70 dark:text-gray-400"
                           aria-hidden
                         >
                           <path
@@ -458,7 +458,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       )}
                     </div>
                     <div className="mt-auto w-full shrink-0">
-                      <QtyProgressBarIcon ratio={qtyFillRatio} className="block h-[18px] w-full" />
+                      <QtyProgressBarIcon ratio={qtyFillRatio} className="block h-[13px] w-full" />
                     </div>
                   </div>
 
