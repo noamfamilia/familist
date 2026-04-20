@@ -49,8 +49,9 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
   if (r >= 1) largeLit++
   const largeClass = largeLitOpacityClass(largeLit)
 
-  const cellW = 24
-  const x = (VB_W - cellW) / 2
+  /** Full-bleed column: no horizontal gutter inside the SVG */
+  const cellW = VB_W
+  const x = 0
 
   const topOn = r >= 1
   const mid1On = r >= 2 / 3
