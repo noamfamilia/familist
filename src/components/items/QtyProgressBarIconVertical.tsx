@@ -20,15 +20,12 @@ const Y_BOTTOM_LARGE = Y_INNER_BOTTOM - LARGE_H
 const Y_MID_LARGE = Y_BOTTOM_LARGE - GAP - LARGE_H
 const Y_TOP_LARGE = Y_MID_LARGE - GAP - LARGE_H
 
-function largeLitOpacityClass(largeLit: number): string {
-  const base = 'fill-current text-teal'
-  if (largeLit <= 0) return ''
-  if (largeLit === 1) return `${base} opacity-40`
-  if (largeLit === 2) return `${base} opacity-60`
-  return `${base} opacity-80`
-}
-
-const oneSegmentLit = 'fill-current text-teal opacity-40'
+/** Per-tier teal opacity (fixed by cell position, not by how many tiers are lit) */
+const topLit = 'fill-current text-teal opacity-80'
+const midLit = 'fill-current text-teal opacity-60'
+const bottomLit = 'fill-current text-teal opacity-40'
+const smallLitClass = 'fill-current text-teal opacity-40'
+const zeroCoral = 'fill-current text-coral opacity-40'
 
 /** Rounded “pill” caps for vertical segments (viewBox units) */
 const FRAME_RX = 6
@@ -37,17 +34,12 @@ const SEG_RX = 4
 /**
  * Vertical track: 3 large steps (≥⅓, ≥⅔, 100%) + 10px bottom cell for (0, ⅓).
  * Bottom large shares the column with the small sliver; when ≥⅓ the large is drawn on top and hides the small.
- * Large segments share opacity by how many of the three are lit; tiny cell matches “one segment” (40%).
+ * Opacity is fixed per row: bottom/small 40%, middle 60%, top 80%.
  */
 export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarIconVerticalProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
   const zeroFill = r === 0
   const smallLit = r > 0 && r < 1 / 3
-  let largeLit = 0
-  if (r >= 1 / 3) largeLit++
-  if (r >= 2 / 3) largeLit++
-  if (r >= 1) largeLit++
-  const largeClass = largeLitOpacityClass(largeLit)
 
   /** Full-bleed column: no horizontal gutter inside the SVG */
   const cellW = VB_W
@@ -83,7 +75,7 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
         height={LARGE_H}
         rx={SEG_RX}
         ry={SEG_RX}
-        className={topOn ? largeClass : trackMuted}
+        className={topOn ? topLit : trackMuted}
       />
       <rect
         x={x}
@@ -92,7 +84,7 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
         height={LARGE_H}
         rx={SEG_RX}
         ry={SEG_RX}
-        className={mid1On ? largeClass : trackMuted}
+        className={mid1On ? midLit : trackMuted}
       />
       {!mid2On && (
         <rect
@@ -113,7 +105,7 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
           height={SMALL_H}
           rx={SEG_RX}
           ry={SEG_RX}
-          className="fill-current text-coral opacity-60"
+          className={zeroCoral}
         />
       )}
       {smallLit && !mid2On && (
@@ -124,7 +116,7 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
           height={SMALL_H}
           rx={SEG_RX}
           ry={SEG_RX}
-          className={oneSegmentLit}
+          className={smallLitClass}
         />
       )}
       {mid2On && (
@@ -135,7 +127,7 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
           height={LARGE_H}
           rx={SEG_RX}
           ry={SEG_RX}
-          className={largeClass}
+          className={bottomLit}
         />
       )}
     </svg>
