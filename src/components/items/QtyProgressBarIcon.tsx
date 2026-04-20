@@ -7,7 +7,6 @@ interface QtyProgressBarIconProps {
 const CELL_COUNT = 5
 const VB_W = 100
 const VB_H = 16
-const FRAME_RX = 8
 /** Padding from frame inner edge to cell row. */
 const ROW_INSET_X = 3.5
 const ROW_INSET_Y = 3.25
@@ -26,7 +25,7 @@ function litCellClass(filled: number): string {
 }
 
 /**
- * Rounded pill frame + five cells; lit cells use theme teal (Add-task button) with higher opacity as more segments fill.
+ * Sharp rectangular frame + five cells; lit cells use theme teal with higher opacity as more segments fill.
  */
 export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
@@ -51,9 +50,7 @@ export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps
         y="0"
         width={VB_W}
         height={VB_H}
-        rx={FRAME_RX}
-        className="fill-gray-200 stroke-gray-300 dark:fill-slate-700 dark:stroke-slate-500"
-        strokeWidth={1}
+        className="fill-gray-100 dark:fill-slate-700/90"
       />
       {Array.from({ length: CELL_COUNT }, (_, i) => (
         <rect
@@ -62,7 +59,6 @@ export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps
           y={ROW_INSET_Y}
           width={cellW}
           height={cellH}
-          rx="1.25"
           className={
             i < filled
               ? litClass
