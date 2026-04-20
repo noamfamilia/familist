@@ -431,7 +431,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} size={36} />
+                    <ProgressRings targetQty={targetQty} totalQty={totalQty} totalDoneQty={totalDoneQty} size={40} />
                   </div>
 
                   {isEditingThis && editorPos && (

@@ -5,12 +5,12 @@ interface ProgressRingsProps {
   size?: number
 }
 
-export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 36 }: ProgressRingsProps) {
+export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: ProgressRingsProps) {
   const cx = size / 2
   const cy = size / 2
   const strokeWidth = 2
-  const innerR = 14
-  const outerR = 16
+  const innerR = 18
+  const outerR = 18
 
   const outerCircumference = 2 * Math.PI * outerR
   const innerCircumference = 2 * Math.PI * innerR
@@ -53,7 +53,7 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 36 }: 
       )}
       {/* Target quantity in center */}
       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-        className="fill-primary dark:fill-gray-100 text-xs font-medium select-none">
+        className="fill-primary dark:fill-gray-100 text-[0.9rem] font-medium select-none">
         {targetQty}
       </text>
     </svg>
