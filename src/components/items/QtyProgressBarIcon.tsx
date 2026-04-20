@@ -4,51 +4,64 @@ interface QtyProgressBarIconProps {
   ratio: number
 }
 
-/** Inner slot from Noun frame path (6.356 … 93.644). */
-const INNER_LEFT = 6.356
-const INNER_WIDTH = 87.288
 const CELL_COUNT = 5
-/** Horizontal padding inside the inner opening (cell ↔ SVG frame). */
-const CELL_INSET = 5
+const VB_W = 100
+const VB_H = 16
+const FRAME_RX = 8
+/** Padding from frame inner edge to cell row. */
+const ROW_INSET_X = 3.5
+const ROW_INSET_Y = 3.25
 /** Gap between adjacent cells (viewBox units). */
-const CELL_GAP = 3.25
-const CELL_Y = 44.55
-const CELL_H = 11.2
+const CELL_GAP = 2.75
+
+function litCellClass(filled: number): string {
+  if (filled <= 0) return ''
+  if (filled === 1) return 'fill-teal-300 dark:fill-teal-400'
+  if (filled === 2) return 'fill-teal-400 dark:fill-teal-400'
+  if (filled === 3) return 'fill-teal-500 dark:fill-teal-500'
+  if (filled === 4) return 'fill-teal-600 dark:fill-teal-400'
+  return 'fill-teal-700 dark:fill-teal-300'
+}
 
 /**
- * Noun-style segmented bar: frame path + five equal cells spanning the inner width.
- * Filled cell count steps with `ratio` (rounded).
+ * Rounded pill frame + five cells; lit cells use stronger teal as more segments fill.
  */
 export function QtyProgressBarIcon({ className, ratio }: QtyProgressBarIconProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
   const filled = Math.min(CELL_COUNT, Math.max(0, Math.round(CELL_COUNT * r)))
-  const usableW = INNER_WIDTH - 2 * CELL_INSET - (CELL_COUNT - 1) * CELL_GAP
+  const innerW = VB_W - 2 * ROW_INSET_X
+  const cellH = VB_H - 2 * ROW_INSET_Y
+  const usableW = innerW - (CELL_COUNT - 1) * CELL_GAP
   const cellW = usableW / CELL_COUNT
+  const litClass = litCellClass(filled)
 
   return (
     <svg
       className={className}
-      viewBox="4 39 92 22"
+      viewBox={`0 0 ${VB_W} ${VB_H}`}
       preserveAspectRatio="xMidYMid meet"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M5,41.692v16.615h90V41.692H5z M93.644,56.951H6.356V43.048h87.288V56.951z"
-        className="fill-primary/45 dark:fill-gray-500"
+      <rect
+        x="0"
+        y="0"
+        width={VB_W}
+        height={VB_H}
+        rx={FRAME_RX}
+        className="fill-gray-100 dark:fill-slate-700/90"
       />
       {Array.from({ length: CELL_COUNT }, (_, i) => (
         <rect
           key={i}
-          x={INNER_LEFT + CELL_INSET + i * (cellW + CELL_GAP)}
-          y={CELL_Y}
+          x={ROW_INSET_X + i * (cellW + CELL_GAP)}
+          y={ROW_INSET_Y}
           width={cellW}
-          height={CELL_H}
+          height={cellH}
+          rx="1.25"
           className={
             i < filled
-              ? 'fill-primary/45 dark:fill-gray-500'
+              ? litClass
               : 'fill-gray-50 dark:fill-slate-600/80'
           }
         />
