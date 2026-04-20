@@ -8,12 +8,9 @@ interface ProgressRingsProps {
 export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 36 }: ProgressRingsProps) {
   const cx = size / 2
   const cy = size / 2
-  const edgePadding = 2
-  const outerStrokeWidth = 4
-  const innerStrokeWidth = 2
-  // Centerlines: inner ring outside (innerR + inner/2) meets outer ring inside (outerR - outer/2) with no gap.
-  const outerR = size / 2 - edgePadding - outerStrokeWidth / 2
-  const innerR = outerR - (innerStrokeWidth + outerStrokeWidth) / 2
+  const strokeWidth = 2
+  const innerR = 14
+  const outerR = 16
 
   const outerCircumference = 2 * Math.PI * outerR
   const innerCircumference = 2 * Math.PI * innerR
@@ -31,12 +28,12 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 36 }: 
       {/* Outer track */}
       <circle cx={cx} cy={cy} r={outerR} fill="none"
         stroke="currentColor" className="text-gray-200 dark:text-slate-600"
-        strokeWidth={outerStrokeWidth} />
+        strokeWidth={strokeWidth} />
       {/* Outer fill: done progress */}
       {doneProgress > 0 && (
         <circle cx={cx} cy={cy} r={outerR} fill="none"
           className="stroke-black"
-          strokeWidth={outerStrokeWidth}
+          strokeWidth={strokeWidth}
           strokeDasharray={`${outerDash} ${outerGap}`}
           strokeLinecap="round"
           transform={`rotate(-90 ${cx} ${cy})`} />
@@ -44,12 +41,12 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 36 }: 
       {/* Inner track */}
       <circle cx={cx} cy={cy} r={innerR} fill="none"
         stroke="currentColor" className="text-gray-200 dark:text-slate-600"
-        strokeWidth={innerStrokeWidth} />
+        strokeWidth={strokeWidth} />
       {/* Inner fill: quantity progress */}
       {qtyProgress > 0 && (
         <circle cx={cx} cy={cy} r={innerR} fill="none"
-          className="stroke-black"
-          strokeWidth={innerStrokeWidth}
+          className="stroke-gray-500"
+          strokeWidth={strokeWidth}
           strokeDasharray={`${innerDash} ${innerGap}`}
           strokeLinecap="round"
           transform={`rotate(-90 ${cx} ${cy})`} />
