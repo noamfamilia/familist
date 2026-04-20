@@ -34,15 +34,16 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
         y={cy}
         textAnchor="middle"
         dominantBaseline="central"
+        fill="currentColor"
         style={{ fontSize: `${centerFontSizePx}px` }}
-        className="fill-primary dark:fill-gray-100 font-medium select-none"
+        className="text-primary dark:text-gray-100 font-medium select-none"
       >
         {targetQty}
       </text>
       {/* Inner fill: quantity progress */}
       {qtyProgress > 0 && (
         <circle cx={cx} cy={cy} r={innerR} fill="none"
-          className="stroke-gray-400"
+          className="stroke-gray-300"
           strokeWidth={strokeWidth}
           strokeDasharray={`${innerDash} ${innerGap}`}
           strokeLinecap="round"
@@ -51,7 +52,7 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
       {/* Outer fill: done progress */}
       {doneProgress > 0 && (
         <circle cx={cx} cy={cy} r={outerR} fill="none"
-          className="stroke-black"
+          className="stroke-gray-600"
           strokeWidth={strokeWidth}
           strokeDasharray={`${outerDash} ${outerGap}`}
           strokeLinecap="round"
