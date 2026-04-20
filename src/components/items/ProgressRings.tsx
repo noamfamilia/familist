@@ -25,18 +25,10 @@ export function ProgressRings({ targetQty, totalQty, totalDoneQty, size = 40 }: 
 
   return (
     <svg width={size} height={size} className="flex-shrink-0">
-      {/* Outer track */}
-      <circle cx={cx} cy={cy} r={outerR} fill="none"
-        stroke="currentColor" className="text-gray-200 dark:text-slate-600"
-        strokeWidth={strokeWidth} />
-      {/* Inner track */}
-      <circle cx={cx} cy={cy} r={innerR} fill="none"
-        stroke="currentColor" className="text-gray-200 dark:text-slate-600"
-        strokeWidth={strokeWidth} />
       {/* Inner fill: quantity progress */}
       {qtyProgress > 0 && (
         <circle cx={cx} cy={cy} r={innerR} fill="none"
-          className="stroke-gray-500"
+          className="stroke-gray-400"
           strokeWidth={strokeWidth}
           strokeDasharray={`${innerDash} ${innerGap}`}
           strokeLinecap="round"
