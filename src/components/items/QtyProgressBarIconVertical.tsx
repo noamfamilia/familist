@@ -1,5 +1,3 @@
-import { useId } from 'react'
-
 interface QtyProgressBarIconVerticalProps {
   className?: string
   /** 0–1: sum of assigned members’ quantities divided by Qty target */
@@ -32,8 +30,9 @@ function largeLitOpacityClass(largeLit: number): string {
 
 const oneSegmentLit = 'fill-current text-teal opacity-40'
 
-/** Rounded outer silhouette; segments are square rects clipped to this shape */
+/** Rounded “pill” caps for vertical segments (viewBox units) */
 const FRAME_RX = 6
+const SEG_RX = 4
 
 /**
  * Vertical track: 3 large steps (≥⅓, ≥⅔, 100%) + 10px bottom cell for (0, ⅓).
@@ -41,7 +40,6 @@ const FRAME_RX = 6
  * Large segments share opacity by how many of the three are lit; tiny cell matches “one segment” (40%).
  */
 export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarIconVerticalProps) {
-  const clipPathId = `qtyBarClip-${useId().replace(/:/g, '')}`
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
   const zeroFill = r === 0
   const smallLit = r > 0 && r < 1 / 3
@@ -69,11 +67,6 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <defs>
-        <clipPath id={clipPathId}>
-          <rect x="0" y="0" width={VB_W} height={VB_H} rx={FRAME_RX} ry={FRAME_RX} />
-        </clipPath>
-      </defs>
       <rect
         x="0"
         y="0"
@@ -83,28 +76,68 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
         ry={FRAME_RX}
         className="fill-gray-100 dark:fill-slate-700/90"
       />
-      <g clipPath={`url(#${clipPathId})`}>
-        <rect x={x} y={Y_TOP_LARGE} width={cellW} height={LARGE_H} className={topOn ? largeClass : trackMuted} />
-        <rect x={x} y={Y_MID_LARGE} width={cellW} height={LARGE_H} className={mid1On ? largeClass : trackMuted} />
-        {!mid2On && (
-          <rect x={x} y={Y_BOTTOM_LARGE} width={cellW} height={LARGE_H} className={trackMuted} />
-        )}
-        {zeroFill && !mid2On && (
-          <rect
-            x={x}
-            y={Y_SMALL}
-            width={cellW}
-            height={SMALL_H}
-            className="fill-current text-coral opacity-60"
-          />
-        )}
-        {smallLit && !mid2On && (
-          <rect x={x} y={Y_SMALL} width={cellW} height={SMALL_H} className={oneSegmentLit} />
-        )}
-        {mid2On && (
-          <rect x={x} y={Y_BOTTOM_LARGE} width={cellW} height={LARGE_H} className={largeClass} />
-        )}
-      </g>
+      <rect
+        x={x}
+        y={Y_TOP_LARGE}
+        width={cellW}
+        height={LARGE_H}
+        rx={SEG_RX}
+        ry={SEG_RX}
+        className={topOn ? largeClass : trackMuted}
+      />
+      <rect
+        x={x}
+        y={Y_MID_LARGE}
+        width={cellW}
+        height={LARGE_H}
+        rx={SEG_RX}
+        ry={SEG_RX}
+        className={mid1On ? largeClass : trackMuted}
+      />
+      {!mid2On && (
+        <rect
+          x={x}
+          y={Y_BOTTOM_LARGE}
+          width={cellW}
+          height={LARGE_H}
+          rx={SEG_RX}
+          ry={SEG_RX}
+          className={trackMuted}
+        />
+      )}
+      {zeroFill && !mid2On && (
+        <rect
+          x={x}
+          y={Y_SMALL}
+          width={cellW}
+          height={SMALL_H}
+          rx={SEG_RX}
+          ry={SEG_RX}
+          className="fill-current text-coral opacity-60"
+        />
+      )}
+      {smallLit && !mid2On && (
+        <rect
+          x={x}
+          y={Y_SMALL}
+          width={cellW}
+          height={SMALL_H}
+          rx={SEG_RX}
+          ry={SEG_RX}
+          className={oneSegmentLit}
+        />
+      )}
+      {mid2On && (
+        <rect
+          x={x}
+          y={Y_BOTTOM_LARGE}
+          width={cellW}
+          height={LARGE_H}
+          rx={SEG_RX}
+          ry={SEG_RX}
+          className={largeClass}
+        />
+      )}
     </svg>
   )
 }
