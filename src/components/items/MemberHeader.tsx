@@ -8,6 +8,12 @@ import type { CategoryNames, Member, MemberWithCreator } from '@/lib/supabase/ty
 import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
 import { AddIcon } from '@/components/icons/AddIcon'
+import { FontSizeIcon } from '@/components/icons/FontSizeIcon'
+import {
+  ITEM_NAME_FONT_MAX,
+  ITEM_NAME_FONT_MIN,
+  ITEM_NAME_FONT_DEFAULT,
+} from '@/lib/itemNameFontStep'
 
 const CategoryNamesModal = dynamic(() => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
   ssr: false,
@@ -20,6 +26,14 @@ const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(m
 const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
   ssr: false,
 })
+
+function isFontSizePlusKey(e: KeyboardEvent): boolean {
+  return e.key === '+' || e.code === 'NumpadAdd' || (e.key === '=' && e.shiftKey)
+}
+
+function isFontSizeMinusKey(e: KeyboardEvent): boolean {
+  return e.key === '-' || e.code === 'NumpadSubtract'
+}
 
 interface MemberHeaderProps {
   members: MemberWithCreator[]
@@ -38,6 +52,8 @@ interface MemberHeaderProps {
   itemTextWidthMode?: 'auto' | 'manual'
   onWidthChange?: (delta: number) => void
   onWidthModeToggle?: () => void
+  itemNameFontStep?: number
+  onItemNameFontStepChange?: (step: number) => void
   showActionsMenu?: boolean
   actionsMenuLoading?: boolean
   hasArchivedItems?: boolean
@@ -72,6 +88,8 @@ export function MemberHeader({
   itemTextWidthMode = 'auto',
   onWidthChange,
   onWidthModeToggle,
+  itemNameFontStep = ITEM_NAME_FONT_DEFAULT,
+  onItemNameFontStepChange,
   showActionsMenu = false,
   actionsMenuLoading = false,
   hasArchivedItems = false,
@@ -295,6 +313,10 @@ export function MemberHeader({
   const renamePopoverRef = useRef<HTMLDivElement>(null)
   const addMemberPopoverRef = useRef<HTMLDivElement>(null)
   const addMemberContainerRef = useRef<HTMLDivElement>(null)
+  const itemNameFontBtnRef = useRef<HTMLButtonElement>(null)
+  const itemNameFontPopoverRef = useRef<HTMLDivElement>(null)
+  const [itemNameFontOpen, setItemNameFontOpen] = useState(false)
+  const [itemNameFontPos, setItemNameFontPos] = useState<{ top: number; left: number } | null>(null)
 
   const MENU_WIDTH = 224 // w-56
   const RENAME_WIDTH = 160
@@ -342,6 +364,40 @@ export function MemberHeader({
     setMemberMenuPos(null)
   }, [])
 
+  const handleItemNameFontButtonClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!onItemNameFontStepChange) return
+      if (itemNameFontOpen) {
+        setItemNameFontOpen(false)
+        setItemNameFontPos(null)
+        return
+      }
+      requestAnimationFrame(() => {
+        const el = itemNameFontBtnRef.current
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        const vw = window.innerWidth
+        const popoverWidth = 220
+        const left = Math.min(Math.max(8, r.left), vw - popoverWidth - 8)
+        setItemNameFontPos({ top: r.bottom + 6, left })
+        setItemNameFontOpen(true)
+      })
+    },
+    [itemNameFontOpen, onItemNameFontStepChange],
+  )
+
+  const handleFontBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    if (!onItemNameFontStepChange) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const ratio = rect.width <= 0 ? 0 : Math.min(1, Math.max(0, x / rect.width))
+    const step = Math.round(ratio * ITEM_NAME_FONT_MAX)
+    onItemNameFontStepChange(step)
+  }
+
   // Escape to close member menu / rename / add member
   useEffect(() => {
     if (!openMenuId && !isAdding) return
@@ -381,14 +437,20 @@ export function MemberHeader({
 
   // Unified outside-click: clicks inside header area are allowed, clicks outside close popups and are blocked
   useEffect(() => {
-    const anyOpen = !!openMenuId || isAdding || actionsOpen
+    const anyOpen = !!openMenuId || isAdding || actionsOpen || itemNameFontOpen
     if (!anyOpen) return
 
     const isInsideFloating = (target: Node) => {
-      return memberMenuRef.current?.contains(target) ||
+      const fontFloating =
+        itemNameFontOpen &&
+        (itemNameFontPopoverRef.current?.contains(target) || itemNameFontBtnRef.current?.contains(target))
+      return (
+        fontFloating ||
+        memberMenuRef.current?.contains(target) ||
         actionsMenuRef.current?.contains(target) ||
         renamePopoverRef.current?.contains(target) ||
         addMemberPopoverRef.current?.contains(target)
+      )
     }
 
     const closeAll = () => {
@@ -400,6 +462,18 @@ export function MemberHeader({
 
     const handleMouseDown = (e: MouseEvent) => {
       const target = e.target as Node
+
+      if (itemNameFontOpen) {
+        if (itemNameFontPopoverRef.current?.contains(target) || itemNameFontBtnRef.current?.contains(target)) {
+          return
+        }
+        e.preventDefault()
+        e.stopPropagation()
+        blockNextClickRef.current = true
+        setItemNameFontOpen(false)
+        setItemNameFontPos(null)
+        return
+      }
 
       // Inside floating menus — let through entirely
       if (isInsideFloating(target)) return
@@ -413,7 +487,34 @@ export function MemberHeader({
 
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
-  }, [openMenuId, isAdding, actionsOpen, editingMemberId, closeMemberMenu])
+  }, [openMenuId, isAdding, actionsOpen, itemNameFontOpen, editingMemberId, closeMemberMenu])
+
+  useEffect(() => {
+    if (!itemNameFontOpen || !onItemNameFontStepChange) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isFontSizePlusKey(e)) {
+        e.preventDefault()
+        onItemNameFontStepChange(Math.min(ITEM_NAME_FONT_MAX, itemNameFontStep + 1))
+        return
+      }
+      if (isFontSizeMinusKey(e)) {
+        e.preventDefault()
+        onItemNameFontStepChange(Math.max(ITEM_NAME_FONT_MIN, itemNameFontStep - 1))
+        return
+      }
+      e.preventDefault()
+      setItemNameFontOpen(false)
+      setItemNameFontPos(null)
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [itemNameFontOpen, itemNameFontStep, onItemNameFontStepChange])
+
+  useEffect(() => {
+    if (!itemNameFontOpen) return
+    const id = requestAnimationFrame(() => itemNameFontPopoverRef.current?.focus())
+    return () => cancelAnimationFrame(id)
+  }, [itemNameFontOpen])
 
   return (
     <div className="mb-3 min-w-full w-max">
@@ -426,7 +527,24 @@ export function MemberHeader({
             className="flex-shrink-0 h-[40px] relative"
             style={{ width: itemTextWidth }}
           >
-            <div className="absolute inset-y-0 left-0 w-[80px] flex items-center justify-between" data-tour="item-text-width">
+            {onItemNameFontStepChange && (
+              <button
+                ref={itemNameFontBtnRef}
+                type="button"
+                onClick={handleItemNameFontButtonClick}
+                className="absolute left-0 top-1/2 z-10 -translate-y-1/2 p-0.5 text-teal touch-manipulation hover:opacity-80"
+                aria-label="Item name font size"
+                aria-expanded={itemNameFontOpen}
+              >
+                <FontSizeIcon className="h-5 w-5" />
+              </button>
+            )}
+            <div
+              className={`absolute inset-y-0 flex items-center justify-between ${
+                onItemNameFontStepChange ? 'left-6 right-0' : 'left-0 w-[80px]'
+              }`}
+              data-tour="item-text-width"
+            >
               <button
                 type="button"
                 onClick={(e) => {
@@ -908,6 +1026,57 @@ export function MemberHeader({
           </div>
         </div>
       </Modal>
+
+      {itemNameFontOpen && itemNameFontPos && onItemNameFontStepChange && (
+        <div
+          ref={itemNameFontPopoverRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-label="Item name font size"
+          className="fixed z-[60] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-800 dark:shadow-slate-900/50"
+          style={{ top: itemNameFontPos.top, left: itemNameFontPos.left }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-lg font-semibold text-teal touch-manipulation hover:bg-teal/10"
+              aria-label="Smaller text"
+              onClick={(e) => {
+                e.stopPropagation()
+                onItemNameFontStepChange(Math.max(ITEM_NAME_FONT_MIN, itemNameFontStep - 1))
+              }}
+            >
+              −
+            </button>
+            <div
+              role="slider"
+              aria-valuemin={ITEM_NAME_FONT_MIN}
+              aria-valuemax={ITEM_NAME_FONT_MAX}
+              aria-valuenow={itemNameFontStep}
+              aria-label="Font size"
+              className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-slate-500 dark:bg-slate-900"
+              onClick={handleFontBarClick}
+            >
+              <div
+                className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal transition-[width] duration-150"
+                style={{ width: `${(itemNameFontStep / ITEM_NAME_FONT_MAX) * 100}%` }}
+              />
+            </div>
+            <button
+              type="button"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-lg font-semibold text-teal touch-manipulation hover:bg-teal/10"
+              aria-label="Larger text"
+              onClick={(e) => {
+                e.stopPropagation()
+                onItemNameFontStepChange(Math.min(ITEM_NAME_FONT_MAX, itemNameFontStep + 1))
+              }}
+            >
+              +
+            </button>
+          </div>
+        </div>
+      )}
 
       {onUpdateCategoryNames && onUpdateCategoryOrder && categoryNames && (
         <CategoryNamesModal

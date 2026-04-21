@@ -31,6 +31,8 @@ interface ItemCardProps {
   categoryOrder?: number[]
   /** Clear the "add item" draft after a click on this card bubbles up (runs after child click handlers). */
   onClearAddItemDraft?: () => void
+  /** Tailwind text size classes for the item title (aligned with list header font control). */
+  itemNameFontClassName?: string
 }
 
 /** Stroke check; short leg shortened (option 1) to reduce bleed when stacked */
@@ -161,7 +163,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
   )
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug' }: ItemCardProps) {
   const { user } = useAuth()
   const { success: showSuccess, error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -465,7 +467,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 setEditText(item.text)
                 setIsEditing(true)
               }}
-              className={`flex items-center gap-1 text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              className={`flex items-center gap-1 ${itemNameFontClassName} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               data-tour="item-archive"
             >
               <span className="truncate" dir="auto">{item.text}</span>
@@ -476,7 +478,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           ) : (
             <span
               onClick={handleArchive}
-              className={`block truncate text-lg cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              className={`block truncate ${itemNameFontClassName} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
               data-tour="item-archive"
               dir="auto"

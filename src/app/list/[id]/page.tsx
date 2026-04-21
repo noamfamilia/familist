@@ -16,6 +16,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
+import { itemNameFontClassForStep } from '@/lib/itemNameFontStep'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
 import type { ItemWithState, ItemCategory } from '@/lib/supabase/types'
 import { normalizeItemCategory, ITEM_CATEGORIES } from '@/lib/supabase/types'
@@ -188,6 +189,8 @@ export default function ListPage() {
     memberFilter,
     itemTextWidth,
     itemTextWidthMode,
+    itemNameFontStep,
+    updateItemNameFontStep,
     categoryNames,
     categoryOrder,
     refresh,
@@ -308,6 +311,8 @@ export default function ListPage() {
   const handleWidthModeToggle = () => {
     updateItemTextWidthMode('auto')
   }
+
+  const itemNameFontClassName = itemNameFontClassForStep(itemNameFontStep)
 
   const [newItemCategory, setNewItemCategory] = useState<ItemCategory>(1)
 
@@ -643,6 +648,8 @@ export default function ListPage() {
               itemTextWidthMode={itemTextWidthMode}
               onWidthChange={handleWidthChange}
               onWidthModeToggle={handleWidthModeToggle}
+              itemNameFontStep={itemNameFontStep}
+              onItemNameFontStepChange={updateItemNameFontStep}
               showActionsMenu
               actionsMenuLoading={categorySortLoading || bulkLoading}
               hasArchivedItems={archivedItems.length > 0}
@@ -687,6 +694,7 @@ export default function ListPage() {
                       categoryNames={categoryNames}
                       categoryOrder={categoryOrder}
                       onClearAddItemDraft={handleClearAddItemDraftIfTyped}
+                      itemNameFontClassName={itemNameFontClassName}
                     />
                   ))}
                 </SortableContext>
@@ -727,6 +735,7 @@ export default function ListPage() {
                     categoryNames={categoryNames}
                     categoryOrder={categoryOrder}
                     onClearAddItemDraft={handleClearAddItemDraftIfTyped}
+                    itemNameFontClassName={itemNameFontClassName}
                   />
                 ))}
               </div>

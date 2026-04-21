@@ -6,6 +6,12 @@ import { useAuth } from '@/providers/AuthProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
+  ITEM_NAME_FONT_DEFAULT,
+  ITEM_NAME_FONT_MAX,
+  ITEM_NAME_FONT_MIN,
+  parseItemNameFontStep,
+} from '@/lib/itemNameFontStep'
+import {
   normalizeItemCategory,
   type CategoryNames,
   type Database,
@@ -69,7 +75,11 @@ type MemberFilter = 'all' | 'mine' | 'hide'
 const VALID_MEMBER_FILTERS: MemberFilter[] = ['all', 'mine', 'hide']
 
 function getCachedPrefs(listId: string, userId?: string) {
-  const defaults = { memberFilter: 'all' as MemberFilter, itemTextWidth: 'auto' as string }
+  const defaults = {
+    memberFilter: 'all' as MemberFilter,
+    itemTextWidth: 'auto' as string,
+    itemNameFontStep: ITEM_NAME_FONT_DEFAULT,
+  }
   if (typeof window === 'undefined') return defaults
   const prefsKey = getPrefsKey(listId, userId)
   if (!prefsKey) return defaults
@@ -81,13 +91,18 @@ function getCachedPrefs(listId: string, userId?: string) {
       return {
         memberFilter: VALID_MEMBER_FILTERS.includes(parsed.memberFilter) ? parsed.memberFilter as MemberFilter : 'all' as MemberFilter,
         itemTextWidth: typeof parsed.itemTextWidth === 'string' ? parsed.itemTextWidth : 'auto',
+        itemNameFontStep: parseItemNameFontStep(parsed.itemNameFontStep),
       }
     } catch { /* ignore */ }
   }
   return defaults
 }
 
-function setCachedPrefs(listId: string, prefs: { memberFilter?: MemberFilter, itemTextWidth?: string }, userId?: string) {
+function setCachedPrefs(
+  listId: string,
+  prefs: { memberFilter?: MemberFilter; itemTextWidth?: string; itemNameFontStep?: number },
+  userId?: string,
+) {
   if (typeof window === 'undefined') return
   const prefsKey = getPrefsKey(listId, userId)
   if (!prefsKey) return
@@ -155,6 +170,7 @@ export function useList(listId: string) {
   const [memberFilter, setMemberFilter] = useState<MemberFilter>(() => getCachedPrefs(listId).memberFilter)
   const [itemTextWidthMode, setItemTextWidthMode] = useState<WidthMode>(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).mode)
   const [itemTextWidth, setItemTextWidth] = useState(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).width)
+  const [itemNameFontStep, setItemNameFontStep] = useState(() => getCachedPrefs(listId).itemNameFontStep)
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
   const [lastViewedMembers, setLastViewedMembers] = useState<string | null>(null)
@@ -179,6 +195,7 @@ export function useList(listId: string) {
     setItems(normalizeItemsCategory(cachedData?.items || []))
     setMembers(cachedData?.members || [])
     setMemberFilter(cachedPrefs.memberFilter)
+    setItemNameFontStep(cachedPrefs.itemNameFontStep)
     const parsed = parseWidthValue(cachedPrefs.itemTextWidth)
     setItemTextWidthMode(parsed.mode)
     setItemTextWidth(parsed.width)
@@ -1097,6 +1114,15 @@ export function useList(listId: string) {
     }
   }
 
+  const updateItemNameFontStep = useCallback(
+    (step: number) => {
+      const s = Math.min(ITEM_NAME_FONT_MAX, Math.max(ITEM_NAME_FONT_MIN, Math.round(step)))
+      setItemNameFontStep(s)
+      setCachedPrefs(listId, { itemNameFontStep: s }, userId)
+    },
+    [listId, userId],
+  )
+
   const updateCategoryNames = async (names: CategoryNames) => {
     const prev = categoryNames
     const prevList = list
@@ -1259,6 +1285,8 @@ export function useList(listId: string) {
     memberFilter,
     itemTextWidth,
     itemTextWidthMode,
+    itemNameFontStep,
+    updateItemNameFontStep,
     categoryNames,
     categoryOrder,
     refresh: fetchList,
