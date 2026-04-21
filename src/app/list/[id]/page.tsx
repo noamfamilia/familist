@@ -289,6 +289,8 @@ export default function ListPage() {
   const [bulkLoading, setBulkLoading] = useState(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
   const addItemInputRef = useRef<HTMLInputElement>(null)
+  /** True when the add-item form was submitted via Enter in the text field (refocus after success). */
+  const addItemSubmitFromKeyboardRef = useRef(false)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
   const [showShareModal, setShowShareModal] = useState(false)
 
@@ -364,7 +366,10 @@ export default function ListPage() {
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newItemText.trim()) return
+    if (!newItemText.trim()) {
+      addItemSubmitFromKeyboardRef.current = false
+      return
+    }
 
     const itemText = newItemText.trim()
     const cat = newItemCategory
@@ -377,7 +382,12 @@ export default function ListPage() {
       showError(error.message || 'Failed to add item')
     }
     setAdding(false)
-    requestAnimationFrame(() => addItemInputRef.current?.focus())
+    const refocus =
+      !!error || addItemSubmitFromKeyboardRef.current
+    addItemSubmitFromKeyboardRef.current = false
+    if (refocus) {
+      requestAnimationFrame(() => addItemInputRef.current?.focus())
+    }
   }
 
   const searchText = newItemText.trim().toLowerCase()
@@ -570,6 +580,9 @@ export default function ListPage() {
               value={newItemText}
               onChange={(e) => setNewItemText(e.target.value)}
               onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  addItemSubmitFromKeyboardRef.current = true
+                }
                 if (e.key === 'Escape') {
                   clearNewItem()
                 }

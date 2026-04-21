@@ -58,6 +58,8 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const [error, setError] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  /** True when create/join form was submitted via Enter in the text field (refocus after success). */
+  const createListSubmitFromKeyboardRef = useRef(false)
 
   useEffect(() => {
     onLabelsChange?.(labels)
@@ -98,16 +100,22 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inputValue.trim()) return
+    if (!inputValue.trim()) {
+      createListSubmitFromKeyboardRef.current = false
+      return
+    }
 
     const submittedValue = inputValue.trim()
     setSubmitting(true)
     setError('')
 
+    let refocusInput = false
+
     if (isJoinMode) {
       const token = inputValue.slice(1).trim()
       if (!token) {
         setSubmitting(false)
+        createListSubmitFromKeyboardRef.current = false
         return
       }
       
@@ -116,6 +124,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       if (error) {
         setError(error.message)
         showError(error.message || 'Failed to join list')
+        refocusInput = true
       } else {
         setInputValue('')
         onSelectLabel?.('Any')
@@ -130,6 +139,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         } else {
           success('Joined list!')
         }
+        refocusInput = createListSubmitFromKeyboardRef.current
       }
     } else {
       const chosenLabel = selectedLabel
@@ -145,13 +155,18 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         setInputValue(submittedValue)
         setError(error.message)
         showError('Failed to create list')
+        refocusInput = true
       } else {
         onSelectLabel?.(filterAfterCreate)
+        refocusInput = createListSubmitFromKeyboardRef.current
       }
     }
     
     setSubmitting(false)
-    requestAnimationFrame(() => inputRef.current?.focus())
+    createListSubmitFromKeyboardRef.current = false
+    if (refocusInput) {
+      requestAnimationFrame(() => inputRef.current?.focus())
+    }
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -244,6 +259,9 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                createListSubmitFromKeyboardRef.current = true
+              }
               if (e.key === 'Escape') {
                 clearCreateInput()
               }
