@@ -535,7 +535,7 @@ export function LabelManagerModal({
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-3 min-h-[1.25rem]">{summaryText}</p>
         </section>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 pt-2 min-h-[2.5rem] items-center">
           <button
             type="button"
             onClick={handleModalClose}
@@ -545,9 +545,16 @@ export function LabelManagerModal({
           </button>
           <button
             type="button"
-            disabled={!canApply}
-            onClick={() => void handleApply()}
-            className="px-4 py-2 text-sm font-medium text-white bg-teal rounded-lg hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-disabled={!canApply || applying}
+            onClick={() => {
+              if (!canApply || applying) return
+              void handleApply()
+            }}
+            className={`px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] ${
+              canApply && !applying
+                ? 'text-white bg-teal hover:opacity-80'
+                : 'text-white/75 bg-teal/35 cursor-not-allowed'
+            }`}
           >
             {applying ? 'Applying…' : 'OK'}
           </button>
