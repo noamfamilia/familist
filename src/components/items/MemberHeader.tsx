@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
@@ -521,10 +522,10 @@ export function MemberHeader({
       {/* Header card container */}
       <div ref={headerCardRef} className="bg-gray-50 dark:bg-slate-900 rounded-lg">
         {/* Header row - matching item card styling */}
-        <div className="relative flex items-center gap-0.5 pl-3 pr-1 py-1 whitespace-nowrap">
+        <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
           <div className="w-5 flex-shrink-0 h-[40px]" />
           <div
-            className="flex-shrink-0 h-[40px] relative"
+            className={`flex-shrink-0 h-[40px] relative ${onItemNameFontStepChange ? '-ml-0.5' : ''}`}
             style={{ width: itemTextWidth }}
           >
             {onItemNameFontStepChange && (
@@ -532,7 +533,7 @@ export function MemberHeader({
                 ref={itemNameFontBtnRef}
                 type="button"
                 onClick={handleItemNameFontButtonClick}
-                className="absolute left-0 top-1/2 z-10 -translate-y-1/2 p-0.5 text-teal touch-manipulation hover:opacity-80"
+                className="absolute -left-1 top-1/2 z-10 -translate-y-1/2 p-0 text-teal touch-manipulation hover:opacity-80 min-h-[32px] min-w-[32px] flex items-center justify-center"
                 aria-label="Item name font size"
                 aria-expanded={itemNameFontOpen}
               >
@@ -541,7 +542,7 @@ export function MemberHeader({
             )}
             <div
               className={`absolute inset-y-0 flex items-center justify-between ${
-                onItemNameFontStepChange ? 'left-6 right-0' : 'left-0 w-[80px]'
+                onItemNameFontStepChange ? 'left-[18px] right-0' : 'left-0 w-[80px]'
               }`}
               data-tour="item-text-width"
             >
@@ -1027,56 +1028,59 @@ export function MemberHeader({
         </div>
       </Modal>
 
-      {itemNameFontOpen && itemNameFontPos && onItemNameFontStepChange && (
-        <div
-          ref={itemNameFontPopoverRef}
-          tabIndex={-1}
-          role="dialog"
-          aria-label="Item name font size"
-          className="fixed z-[60] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-800 dark:shadow-slate-900/50"
-          style={{ top: itemNameFontPos.top, left: itemNameFontPos.left }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-lg font-semibold text-teal touch-manipulation hover:bg-teal/10"
-              aria-label="Smaller text"
-              onClick={(e) => {
-                e.stopPropagation()
-                onItemNameFontStepChange(Math.max(ITEM_NAME_FONT_MIN, itemNameFontStep - 1))
-              }}
-            >
-              −
-            </button>
-            <div
-              role="slider"
-              aria-valuemin={ITEM_NAME_FONT_MIN}
-              aria-valuemax={ITEM_NAME_FONT_MAX}
-              aria-valuenow={itemNameFontStep}
-              aria-label="Font size"
-              className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-slate-500 dark:bg-slate-900"
-              onClick={handleFontBarClick}
-            >
+      {itemNameFontOpen && itemNameFontPos && onItemNameFontStepChange &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={itemNameFontPopoverRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-label="Item name font size"
+            className="fixed z-[10000] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-800 dark:shadow-slate-900/50"
+            style={{ top: itemNameFontPos.top, left: itemNameFontPos.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-lg font-semibold text-teal touch-manipulation hover:bg-teal/10"
+                aria-label="Smaller text"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onItemNameFontStepChange(Math.max(ITEM_NAME_FONT_MIN, itemNameFontStep - 1))
+                }}
+              >
+                −
+              </button>
               <div
-                className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal transition-[width] duration-150"
-                style={{ width: `${(itemNameFontStep / ITEM_NAME_FONT_MAX) * 100}%` }}
-              />
+                role="slider"
+                aria-valuemin={ITEM_NAME_FONT_MIN}
+                aria-valuemax={ITEM_NAME_FONT_MAX}
+                aria-valuenow={itemNameFontStep}
+                aria-label="Font size"
+                className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-slate-500 dark:bg-slate-900"
+                onClick={handleFontBarClick}
+              >
+                <div
+                  className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal transition-[width] duration-150"
+                  style={{ width: `${(itemNameFontStep / ITEM_NAME_FONT_MAX) * 100}%` }}
+                />
+              </div>
+              <button
+                type="button"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-lg font-semibold text-teal touch-manipulation hover:bg-teal/10"
+                aria-label="Larger text"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onItemNameFontStepChange(Math.min(ITEM_NAME_FONT_MAX, itemNameFontStep + 1))
+                }}
+              >
+                +
+              </button>
             </div>
-            <button
-              type="button"
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-lg font-semibold text-teal touch-manipulation hover:bg-teal/10"
-              aria-label="Larger text"
-              onClick={(e) => {
-                e.stopPropagation()
-                onItemNameFontStepChange(Math.min(ITEM_NAME_FONT_MAX, itemNameFontStep + 1))
-              }}
-            >
-              +
-            </button>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
 
       {onUpdateCategoryNames && onUpdateCategoryOrder && categoryNames && (
         <CategoryNamesModal

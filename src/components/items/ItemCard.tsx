@@ -444,7 +444,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       {/* Main card content */}
       <div className={`rounded-lg transition-colors ${shellClass} ${item.archived ? 'opacity-60' : ''}`}>
         {/* Card row */}
-        <div className="flex items-center gap-0.5 px-3 py-1 whitespace-nowrap" data-tour="item-row">
+        <div className="flex items-center gap-0.5 px-2 py-1 whitespace-nowrap" data-tour="item-row">
         {/* Drag handle - only shown for draggable (active) items */}
         <div 
           className={`w-5 text-gray-400 dark:text-gray-500 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${isDraggable ? 'cursor-grab' : ''}`}

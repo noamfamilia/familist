@@ -630,7 +630,7 @@ export default function ListPage() {
         {/* Inner container that sizes based on content */}
         <div className="inline-block min-w-full">
           {/* Members header with hide done toggles */}
-          <div className="sticky top-0 z-10 bg-white dark:bg-slate-800" data-tour="members-header">
+          <div className="sticky top-0 z-40 bg-white dark:bg-slate-800" data-tour="members-header">
             <MemberHeader
               members={filteredMembers}
               allMembers={members}
