@@ -37,8 +37,8 @@ const QTY_DONE_CHECK_PATH =
   'M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6'
 
 const QTY_CHECK_SIZE = 22
-/** Horizontal offset between stacked checks (~1px gap, like strokeWidth 1); rightmost stays fixed */
-const QTY_CHECK_STACK_STEP = 21
+/** Offset between stacked checks’ right edges (~2px ≈ stroke-thin; smaller = tighter overlap) */
+const QTY_CHECK_STACK_STEP = 2
 
 function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
   const d = Math.min(1, Math.max(0, doneRatio))
@@ -57,7 +57,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         fill="none"
         role="img"
         aria-label="Started on target quantity"
-        className={`${gridSlot} ${baseSvg} opacity-40`}
+        className={`${gridSlot} ${baseSvg} block shrink-0 opacity-40`}
       >
         <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
       </svg>
@@ -73,7 +73,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         fill="none"
         role="img"
         aria-label="At least one third of target quantity completed"
-        className={`${gridSlot} ${baseSvg} opacity-40`}
+        className={`${gridSlot} ${baseSvg} block shrink-0 opacity-40`}
       >
         <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
@@ -94,7 +94,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
           height={QTY_CHECK_SIZE}
           viewBox="0 0 24 24"
           fill="none"
-          className={`${baseSvg} absolute top-0 opacity-40`}
+          className={`${baseSvg} absolute top-0 block shrink-0 opacity-40`}
           style={{ right: 0 }}
           aria-hidden
         >
@@ -105,7 +105,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
           height={QTY_CHECK_SIZE}
           viewBox="0 0 24 24"
           fill="none"
-          className={`${baseSvg} absolute top-0 opacity-60`}
+          className={`${baseSvg} absolute top-0 block shrink-0 opacity-60`}
           style={{ right: QTY_CHECK_STACK_STEP }}
           aria-hidden
         >
@@ -128,7 +128,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         height={QTY_CHECK_SIZE}
         viewBox="0 0 24 24"
         fill="none"
-        className={`${baseSvg} absolute top-0 opacity-40`}
+        className={`${baseSvg} absolute top-0 block shrink-0 opacity-40`}
         style={{ right: 0 }}
         aria-hidden
       >
@@ -139,7 +139,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         height={QTY_CHECK_SIZE}
         viewBox="0 0 24 24"
         fill="none"
-        className={`${baseSvg} absolute top-0 opacity-60`}
+        className={`${baseSvg} absolute top-0 block shrink-0 opacity-60`}
         style={{ right: QTY_CHECK_STACK_STEP }}
         aria-hidden
       >
@@ -150,7 +150,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         height={QTY_CHECK_SIZE}
         viewBox="0 0 24 24"
         fill="none"
-        className={`${baseSvg} absolute top-0 opacity-80`}
+        className={`${baseSvg} absolute top-0 block shrink-0 opacity-80`}
         style={{ right: 2 * QTY_CHECK_STACK_STEP }}
         aria-hidden
       >
