@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -54,6 +54,8 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   )
   const { success, error: showError } = useToast()
   const [inputValue, setInputValue] = useState('')
+  const inputValueRef = useRef('')
+  inputValueRef.current = inputValue
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
@@ -74,6 +76,12 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const clearCreateInput = () => {
     setInputValue('')
   }
+
+  /** Clear create/join draft only when the field has text (same idea as add-item draft on list page). */
+  const clearCreateInputIfTyped = useCallback(() => {
+    if (!inputValueRef.current.trim()) return
+    setInputValue('')
+  }, [])
 
   useEffect(() => {
     if (showImport) clearCreateInput()
@@ -349,6 +357,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onSelectLabel={onSelectLabel}
                     currentFilter={selectedLabel}
                     onClearCreateInput={clearCreateInput}
+                    onClearCreateInputIfTyped={clearCreateInputIfTyped}
                   />
                 ))}
               </div>
@@ -384,6 +393,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onSelectLabel={onSelectLabel}
                     currentFilter={selectedLabel}
                     onClearCreateInput={clearCreateInput}
+                    onClearCreateInputIfTyped={clearCreateInputIfTyped}
                   />
             ))}
           </div>
