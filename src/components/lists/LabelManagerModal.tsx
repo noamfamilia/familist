@@ -176,6 +176,10 @@ export function LabelManagerModal({
   }, [isOpen])
 
   useEffect(() => {
+    if (!isOpen) setApplying(false)
+  }, [isOpen])
+
+  useEffect(() => {
     if (!isOpen) return
     setSelectedIds(new Set(scopedLists.map(l => l.id)))
   }, [isOpen, scopedLists])
