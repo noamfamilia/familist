@@ -13,6 +13,7 @@ import { useToast } from '@/components/ui/Toast'
 import { SortableListCard } from './SortableListCard'
 import { ListCard } from './ListCard'
 import { ImportModal } from '@/components/import/ImportModal'
+import { LabelManagerModal } from './LabelManagerModal'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 
@@ -35,9 +36,11 @@ interface ListsViewProps {
   showImport?: boolean
   onCloseImport?: () => void
   onAddLocalLabel?: (label: string) => void
+  labelManagerOpen?: boolean
+  onCloseLabelManager?: () => void
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager }: ListsViewProps) {
   const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, labels } = useLists()
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
@@ -425,6 +428,18 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         onAddLocalLabel={onAddLocalLabel}
         importList={importList}
         existingLists={lists}
+      />
+
+      <LabelManagerModal
+        isOpen={labelManagerOpen}
+        onClose={() => onCloseLabelManager?.()}
+        lists={lists}
+        availableLabels={labels}
+        mergedLabels={mergedLabels}
+        updateListLabel={updateListLabel}
+        onAddLocalLabel={onAddLocalLabel ?? (() => {})}
+        onSuccess={success}
+        onError={showError}
       />
     </div>
   )

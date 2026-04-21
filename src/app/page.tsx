@@ -88,6 +88,7 @@ function HomeContent() {
   const [localLabels, setLocalLabels] = useState<string[]>([])
   const [addingLabel, setAddingLabel] = useState(false)
   const [newLabelText, setNewLabelText] = useState('')
+  const [labelManagerOpen, setLabelManagerOpen] = useState(false)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
 
@@ -390,6 +391,18 @@ function HomeContent() {
                   >
                     + Add label
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLabelDropdownOpen(false)
+                      setAddingLabel(false)
+                      setNewLabelText('')
+                      setLabelManagerOpen(true)
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                  >
+                    Label manager
+                  </button>
                 </div>
               )}
               {addingLabel && !labelDropdownOpen && (
@@ -467,6 +480,8 @@ function HomeContent() {
             showImport={showImport}
             onCloseImport={() => setShowImport(false)}
             onAddLocalLabel={(label) => setLocalLabels(prev => prev.includes(label) ? prev : [...prev, label])}
+            labelManagerOpen={labelManagerOpen}
+            onCloseLabelManager={() => setLabelManagerOpen(false)}
           />
         </>
       ) : (
