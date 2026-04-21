@@ -383,7 +383,8 @@ export function LabelManagerModal({
       }}
       title="Label manager"
       size="lg"
-      contentClassName="!max-w-lg"
+      contentClassName="!max-w-lg max-sm:!max-w-none"
+      fullScreenMobile
     >
       <div className="relative space-y-6 text-left min-h-[200px]">
         {applying && (
