@@ -640,7 +640,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   ) : done ? (
                     <>
                       <span className="text-xs text-gray-400 dark:text-gray-500 absolute left-1.5 top-1/2 -translate-y-1/2">{quantity}</span>
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-coral">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-coral opacity-80">
                         <path d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                       </svg>
                     </>
