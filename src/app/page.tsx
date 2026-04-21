@@ -223,7 +223,7 @@ function HomeContent() {
     setLocalLabels(prev => prev.filter(l => !availableLabels.includes(l)))
   }, [availableLabels])
 
-  const allLabels = [...availableLabels, ...localLabels]
+  const allLabels = [...availableLabels, ...localLabels.filter(l => !availableLabels.includes(l))]
 
   useEffect(() => {
     if (availableLabels.length === 0) return

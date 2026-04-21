@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
+import { Spinner } from '@/components/ui/Spinner'
 import type { ListWithRole } from '@/lib/supabase/types'
 
 const UNLABELED_KEY = '__unlabeled__'
@@ -46,7 +47,6 @@ export interface LabelManagerModalProps {
   mergedLabels: string[]
   updateListLabel: (listId: string, label: string) => Promise<{ error: Error | null }>
   onAddLocalLabel: (label: string) => void
-  onSuccess: (message: string) => void
   onError: (message: string) => void
 }
 
@@ -58,7 +58,6 @@ export function LabelManagerModal({
   mergedLabels,
   updateListLabel,
   onAddLocalLabel,
-  onSuccess,
   onError,
 }: LabelManagerModalProps) {
   const [scopeSelected, setScopeSelected] = useState<Set<string>>(new Set())
@@ -320,15 +319,17 @@ export function LabelManagerModal({
         if (cur === next) continue
         const { error } = await updateListLabel(id, next)
         if (error) {
-          onError(error.message || 'Failed to update label')
+          const detail = error.message?.trim() || 'Unknown error'
+          onError(`Could not update label for "${list.name}": ${detail}`)
           setApplying(false)
           return
         }
       }
-      onSuccess('Labels updated')
       handleModalClose()
-    } finally {
+    } catch (e) {
       setApplying(false)
+      const detail = e instanceof Error ? e.message : String(e)
+      onError(`Could not finish updating labels: ${detail}`)
     }
   }
 
@@ -349,8 +350,27 @@ export function LabelManagerModal({
   if (!isOpen) return null
 
   return (
-    <Modal isOpen={isOpen} onClose={handleModalClose} title="Label manager" size="lg" contentClassName="!max-w-lg">
-      <div className="space-y-6 text-left">
+    <Modal
+      isOpen={isOpen}
+      onClose={() => {
+        if (applying) return
+        handleModalClose()
+      }}
+      title="Label manager"
+      size="lg"
+      contentClassName="!max-w-lg"
+    >
+      <div className="relative space-y-6 text-left min-h-[200px]">
+        {applying && (
+          <div
+            className="absolute inset-0 z-[100] flex flex-col items-center justify-center gap-3 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-[1px]"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <Spinner size="lg" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Applying…</span>
+          </div>
+        )}
         {/* 1. Filter by labels */}
         <section>
           <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Filter lists by labels</h3>

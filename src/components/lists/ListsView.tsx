@@ -438,7 +438,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         mergedLabels={mergedLabels}
         updateListLabel={updateListLabel}
         onAddLocalLabel={onAddLocalLabel ?? (() => {})}
-        onSuccess={success}
         onError={showError}
       />
     </div>
