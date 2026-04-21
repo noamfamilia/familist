@@ -4,6 +4,14 @@ export const ITEM_NAME_FONT_MIN = 0
 export const ITEM_NAME_FONT_MAX = 6
 export const ITEM_NAME_FONT_DEFAULT = 3
 
+/** Font sizes (px) at default 16px root — matches Tailwind text-* used in {@link itemNameFontClassForStep}. */
+export const ITEM_NAME_FONT_CANVAS_PX: readonly number[] = [12, 14, 16, 18, 20, 24, 30]
+
+export function itemNameFontCanvasPx(step: number): number {
+  const s = Math.min(ITEM_NAME_FONT_MAX, Math.max(ITEM_NAME_FONT_MIN, Math.round(step)))
+  return ITEM_NAME_FONT_CANVAS_PX[s] ?? ITEM_NAME_FONT_CANVAS_PX[ITEM_NAME_FONT_DEFAULT]
+}
+
 const CLASS_NAMES = [
   'text-xs leading-tight',
   'text-sm leading-tight',

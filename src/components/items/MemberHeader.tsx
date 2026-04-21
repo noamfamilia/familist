@@ -539,7 +539,7 @@ export function MemberHeader({
           </div>
           <div className="relative h-[40px] flex-shrink-0" style={{ width: itemTextWidth }}>
             <div
-              className="absolute inset-y-0 left-0 flex w-[80px] items-center justify-between"
+              className="absolute inset-y-0 left-0 box-border flex w-[80px] shrink-0 items-center justify-between pl-2.5"
               data-tour="item-text-width"
             >
               <button
@@ -562,7 +562,7 @@ export function MemberHeader({
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  if (itemTextWidthMode !== 'auto') onWidthModeToggle?.()
+                  onWidthModeToggle?.()
                 }}
                 className={`text-[11px] font-medium leading-none touch-manipulation select-none ${
                   itemTextWidthMode === 'auto' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'

@@ -1097,6 +1097,11 @@ export function useList(listId: string) {
   const updateItemTextWidthMode = async (mode: WidthMode) => {
     const prevMode = itemTextWidthMode
     const prevWidth = itemTextWidth
+    if (mode === 'auto') {
+      const texts = items.map(i => i.text ?? '')
+      const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
+      setItemTextWidth(fitWidth)
+    }
     setItemTextWidthMode(mode)
     const value = mode === 'auto' ? 'auto' : String(itemTextWidth)
     setCachedPrefs(listId, { itemTextWidth: value }, userId)
@@ -1272,9 +1277,9 @@ export function useList(listId: string) {
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
     const texts = items.map(i => i.text ?? '')
-    const fitWidth = measureFitItemTextWidthPx(texts)
+    const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
     setItemTextWidth(fitWidth)
-  }, [itemTextWidthMode, items])
+  }, [itemTextWidthMode, items, itemNameFontStep])
 
   return {
     list,
