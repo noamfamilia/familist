@@ -33,6 +33,133 @@ interface ItemCardProps {
   onClearAddItemDraft?: () => void
 }
 
+const QTY_DONE_CHECK_PATH =
+  'M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6'
+
+const QTY_CHECK_SIZE = 22
+/** ~2px gap between checks + overlap (22 − overlap + 2); rightmost check stays fixed */
+const QTY_CHECK_STACK_STEP = 14
+
+function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
+  const d = Math.min(1, Math.max(0, doneRatio))
+  if (d <= 0) return null
+
+  const baseSvg = 'text-coral pointer-events-none'
+  const gridSlot =
+    'col-start-1 row-start-1 z-20 justify-self-end self-center pr-0.5'
+
+  if (d < 1 / 3) {
+    return (
+      <svg
+        width={QTY_CHECK_SIZE}
+        height={QTY_CHECK_SIZE}
+        viewBox="0 0 24 24"
+        fill="none"
+        role="img"
+        aria-label="Started on target quantity"
+        className={`${gridSlot} ${baseSvg} opacity-40`}
+      >
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  if (d < 2 / 3) {
+    return (
+      <svg
+        width={QTY_CHECK_SIZE}
+        height={QTY_CHECK_SIZE}
+        viewBox="0 0 24 24"
+        fill="none"
+        role="img"
+        aria-label="At least one third of target quantity completed"
+        className={`${gridSlot} ${baseSvg} opacity-40`}
+      >
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  if (d < 1) {
+    const w = QTY_CHECK_SIZE + QTY_CHECK_STACK_STEP
+    return (
+      <div
+        role="img"
+        aria-label="At least two thirds of target quantity completed"
+        className={`${gridSlot} relative h-[22px]`}
+        style={{ width: w }}
+      >
+        <svg
+          width={QTY_CHECK_SIZE}
+          height={QTY_CHECK_SIZE}
+          viewBox="0 0 24 24"
+          fill="none"
+          className={`${baseSvg} absolute top-0 opacity-40`}
+          style={{ right: 0 }}
+          aria-hidden
+        >
+          <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <svg
+          width={QTY_CHECK_SIZE}
+          height={QTY_CHECK_SIZE}
+          viewBox="0 0 24 24"
+          fill="none"
+          className={`${baseSvg} absolute top-0 opacity-60`}
+          style={{ right: QTY_CHECK_STACK_STEP }}
+          aria-hidden
+        >
+          <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </div>
+    )
+  }
+
+  const w3 = QTY_CHECK_SIZE + 2 * QTY_CHECK_STACK_STEP
+  return (
+    <div
+      role="img"
+      aria-label="Target quantity fully completed"
+      className={`${gridSlot} relative h-[22px]`}
+      style={{ width: w3 }}
+    >
+      <svg
+        width={QTY_CHECK_SIZE}
+        height={QTY_CHECK_SIZE}
+        viewBox="0 0 24 24"
+        fill="none"
+        className={`${baseSvg} absolute top-0 opacity-40`}
+        style={{ right: 0 }}
+        aria-hidden
+      >
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+      <svg
+        width={QTY_CHECK_SIZE}
+        height={QTY_CHECK_SIZE}
+        viewBox="0 0 24 24"
+        fill="none"
+        className={`${baseSvg} absolute top-0 opacity-60`}
+        style={{ right: QTY_CHECK_STACK_STEP }}
+        aria-hidden
+      >
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+      <svg
+        width={QTY_CHECK_SIZE}
+        height={QTY_CHECK_SIZE}
+        viewBox="0 0 24 24"
+        fill="none"
+        className={`${baseSvg} absolute top-0 opacity-80`}
+        style={{ right: 2 * QTY_CHECK_STACK_STEP }}
+        aria-hidden
+      >
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </div>
+  )
+}
+
 export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft }: ItemCardProps) {
   const { user } = useAuth()
   const { success: showSuccess, error: showError } = useToast()
@@ -418,9 +545,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               const isCreator = member.created_by === user?.id
               const canEdit = isCreator || member.is_public
               const isEditingThis = editingQuantityMember === member.id
-              const qtyTargetMet = targetQty > 0 && totalDoneQty >= targetQty
-              const qtyTargetPartial =
-                targetQty > 0 && totalDoneQty > 0 && totalDoneQty < targetQty
+              const doneRatio = targetQty <= 0 ? 0 : Math.min(1, totalDoneQty / targetQty)
               const qtyFillRatio = targetQty <= 0 ? 1 : Math.min(totalQty / targetQty, 1)
 
               return (
@@ -441,47 +566,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     <div className="pointer-events-none col-start-1 row-start-1 z-10 flex h-full w-[33px] items-stretch self-stretch justify-self-start">
                       <QtyProgressBarIconVertical ratio={qtyFillRatio} className="h-full w-full" />
                     </div>
-                    {qtyTargetMet && (
-                      <svg
-                        width="22"
-                        height="22"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="pointer-events-none col-start-1 row-start-1 z-20 justify-self-end self-center pr-0.5 text-coral"
-                        aria-hidden
-                      >
-                        <path
-                          d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    )}
-                    {qtyTargetPartial && (
-                      <svg
-                        width="22"
-                        height="22"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        role="img"
-                        aria-label="Part of target quantity completed"
-                        className="pointer-events-none col-start-1 row-start-1 z-20 justify-self-end self-center pr-0.5 text-coral"
-                      >
-                        <path
-                          d="M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                        <path
-                          d="M10.86 8.72L16.74 13.53"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    )}
+                    <QtyTargetDoneChecks doneRatio={doneRatio} />
                   </div>
 
                   {isEditingThis && editorPos && (
