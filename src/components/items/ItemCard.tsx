@@ -33,9 +33,9 @@ interface ItemCardProps {
   onClearAddItemDraft?: () => void
 }
 
-/** Solid filled check (24×24); occludes layers when stacked (option 3) */
-const QTY_DONE_CHECK_FILL_PATH =
-  'M9 16.17L4.83 12l-1.42 1.41L9 19L21 7l-1.41-1.41L9 16.17z'
+/** Stroke check; short leg shortened (option 1) to reduce bleed when stacked */
+const QTY_DONE_CHECK_PATH =
+  'M6.25 14.95L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6'
 
 const QTY_CHECK_SIZE = 22
 /** Offset between stacked checks’ right edges (px; smaller = tighter overlap) */
@@ -60,9 +60,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         aria-label="Started on target quantity"
         className={`${gridSlot} ${baseSvg} block shrink-0 opacity-40`}
       >
-        <g transform="translate(12 12) scale(0.86) translate(-12 -12)">
-          <path d={QTY_DONE_CHECK_FILL_PATH} fill="currentColor" />
-        </g>
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
       </svg>
     )
   }
@@ -78,7 +76,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         aria-label="At least one third of target quantity completed"
         className={`${gridSlot} ${baseSvg} block shrink-0 opacity-40`}
       >
-        <path d={QTY_DONE_CHECK_FILL_PATH} fill="currentColor" />
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
     )
   }
@@ -101,7 +99,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
           style={{ right: 0 }}
           aria-hidden
         >
-          <path d={QTY_DONE_CHECK_FILL_PATH} fill="currentColor" />
+          <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
         <svg
           width={QTY_CHECK_SIZE}
@@ -112,7 +110,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
           style={{ right: QTY_CHECK_STACK_STEP }}
           aria-hidden
         >
-          <path d={QTY_DONE_CHECK_FILL_PATH} fill="currentColor" />
+          <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
       </div>
     )
@@ -135,7 +133,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         style={{ right: 0 }}
         aria-hidden
       >
-        <path d={QTY_DONE_CHECK_FILL_PATH} fill="currentColor" />
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
       <svg
         width={QTY_CHECK_SIZE}
@@ -146,7 +144,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         style={{ right: QTY_CHECK_STACK_STEP }}
         aria-hidden
       >
-        <path d={QTY_DONE_CHECK_FILL_PATH} fill="currentColor" />
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
       <svg
         width={QTY_CHECK_SIZE}
@@ -157,7 +155,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         style={{ right: 2 * QTY_CHECK_STACK_STEP }}
         aria-hidden
       >
-        <path d={QTY_DONE_CHECK_FILL_PATH} fill="currentColor" />
+        <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
     </div>
   )
