@@ -523,27 +523,23 @@ export function MemberHeader({
       <div ref={headerCardRef} className="bg-gray-50 dark:bg-slate-900 rounded-lg">
         {/* Header row - matching item card styling */}
         <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
-          <div className="w-5 flex-shrink-0 h-[40px]" />
-          <div
-            className={`flex-shrink-0 h-[40px] relative ${onItemNameFontStepChange ? '-ml-0.5' : ''}`}
-            style={{ width: itemTextWidth }}
-          >
+          <div className="flex h-[40px] w-5 flex-shrink-0 items-center justify-center">
             {onItemNameFontStepChange && (
               <button
                 ref={itemNameFontBtnRef}
                 type="button"
                 onClick={handleItemNameFontButtonClick}
-                className="absolute -left-1 top-1/2 z-10 -translate-y-1/2 p-0 text-teal touch-manipulation hover:opacity-80 min-h-[32px] min-w-[32px] flex items-center justify-center"
+                className="flex h-8 w-8 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
                 aria-label="Item name font size"
                 aria-expanded={itemNameFontOpen}
               >
                 <FontSizeIcon className="h-5 w-5" />
               </button>
             )}
+          </div>
+          <div className="relative h-[40px] flex-shrink-0" style={{ width: itemTextWidth }}>
             <div
-              className={`absolute inset-y-0 flex items-center justify-between ${
-                onItemNameFontStepChange ? 'left-[18px] right-0' : 'left-0 w-[80px]'
-              }`}
+              className="absolute inset-y-0 left-0 flex w-[80px] items-center justify-between"
               data-tour="item-text-width"
             >
               <button

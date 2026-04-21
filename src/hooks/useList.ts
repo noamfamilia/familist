@@ -171,6 +171,8 @@ export function useList(listId: string) {
   const [itemTextWidthMode, setItemTextWidthMode] = useState<WidthMode>(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).mode)
   const [itemTextWidth, setItemTextWidth] = useState(() => parseWidthValue(getCachedPrefs(listId).itemTextWidth).width)
   const [itemNameFontStep, setItemNameFontStep] = useState(() => getCachedPrefs(listId).itemNameFontStep)
+  const itemNameFontStepRef = useRef(itemNameFontStep)
+  itemNameFontStepRef.current = itemNameFontStep
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
   const [lastViewedMembers, setLastViewedMembers] = useState<string | null>(null)
@@ -1117,8 +1119,12 @@ export function useList(listId: string) {
   const updateItemNameFontStep = useCallback(
     (step: number) => {
       const s = Math.min(ITEM_NAME_FONT_MAX, Math.max(ITEM_NAME_FONT_MIN, Math.round(step)))
+      const prev = itemNameFontStepRef.current
+      if (s === prev) return
+      itemNameFontStepRef.current = s
       setItemNameFontStep(s)
       setCachedPrefs(listId, { itemNameFontStep: s }, userId)
+      // When persisting to list_users: await update; on error restore prev + setCachedPrefs(..., { itemNameFontStep: prev }).
     },
     [listId, userId],
   )
