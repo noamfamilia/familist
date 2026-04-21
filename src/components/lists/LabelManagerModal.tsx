@@ -28,7 +28,7 @@ function TriCheckbox({
     <input
       ref={ref}
       type="checkbox"
-      className="h-4 w-4 rounded border-gray-300 text-teal focus:ring-teal pointer-events-none"
+      className="h-4 w-4 rounded border-teal/60 accent-teal/60 focus:ring-teal/60 focus:ring-offset-0 pointer-events-none"
       checked={checked}
       readOnly
       aria-label={ariaLabel}
@@ -354,7 +354,7 @@ export function LabelManagerModal({
           {scopeKeysList.length === 0 ? (
             <p className="text-sm text-gray-500">No labels yet. Create lists or add labels on a list first.</p>
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-slate-600 divide-y divide-gray-200 dark:divide-slate-600 max-h-40 overflow-y-auto">
+            <div className="rounded-lg border border-gray-200 dark:border-slate-600 divide-y divide-gray-200 dark:divide-slate-600">
               <button
                 type="button"
                 onClick={toggleScopeSelectAll}
@@ -372,7 +372,7 @@ export function LabelManagerModal({
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-teal focus:ring-teal pointer-events-none"
+                    className="h-4 w-4 rounded border-teal/60 accent-teal/60 focus:ring-teal/60 focus:ring-offset-0 pointer-events-none"
                     checked={scopeSelected.has(row.key)}
                     readOnly
                     aria-hidden
@@ -399,7 +399,7 @@ export function LabelManagerModal({
           {scopedLists.length === 0 ? (
             <p className="text-sm text-gray-500">No lists match the label filter above.</p>
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-slate-600 divide-y divide-gray-200 dark:divide-slate-600 max-h-48 overflow-y-auto">
+            <div className="rounded-lg border border-gray-200 dark:border-slate-600 divide-y divide-gray-200 dark:divide-slate-600">
               <button
                 type="button"
                 onClick={toggleVisibleSelectAll}
@@ -417,7 +417,7 @@ export function LabelManagerModal({
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-teal focus:ring-teal pointer-events-none"
+                    className="h-4 w-4 rounded border-teal/60 accent-teal/60 focus:ring-teal/60 focus:ring-offset-0 pointer-events-none"
                     checked={selectedIds.has(list.id)}
                     readOnly
                     aria-hidden
@@ -455,7 +455,7 @@ export function LabelManagerModal({
               </svg>
             </button>
             {destDropdownOpen && (
-              <div className="absolute left-0 right-0 mt-1 z-[60] rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg max-h-48 overflow-y-auto">
+              <div className="absolute left-0 right-0 bottom-full mb-1 z-[60] rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg">
                 <button
                   type="button"
                   className="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
@@ -494,7 +494,7 @@ export function LabelManagerModal({
             {addingDestLabel && !destDropdownOpen && (
               <div
                 ref={addDestPopoverRef}
-                className="absolute left-0 right-0 top-full mt-1 z-[60] bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 w-full max-w-[200px]"
+                className="absolute left-0 right-0 bottom-full mb-1 z-[60] bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 w-full max-w-[200px]"
               >
                 <input
                   ref={addDestInputRef}
