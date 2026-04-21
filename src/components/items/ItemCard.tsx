@@ -37,8 +37,8 @@ const QTY_DONE_CHECK_PATH =
   'M5 14L8.23309 16.4248C8.66178 16.7463 9.26772 16.6728 9.60705 16.2581L18 6'
 
 const QTY_CHECK_SIZE = 22
-/** ~2px gap between checks + overlap (22 − overlap + 2); rightmost check stays fixed */
-const QTY_CHECK_STACK_STEP = 14
+/** Horizontal offset between stacked checks (~1px gap, like strokeWidth 1); rightmost stays fixed */
+const QTY_CHECK_STACK_STEP = 21
 
 function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
   const d = Math.min(1, Math.max(0, doneRatio))
