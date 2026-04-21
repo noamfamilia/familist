@@ -28,7 +28,7 @@ function TriCheckbox({
     <input
       ref={ref}
       type="checkbox"
-      className="h-4 w-4 rounded border-teal/60 accent-teal/60 focus:ring-teal/60 focus:ring-offset-0 pointer-events-none"
+      className="h-4 w-4 rounded border-gray-400 bg-white text-white accent-gray-500 focus:ring-gray-400/80 focus:ring-offset-0 pointer-events-none dark:border-gray-500 dark:bg-slate-700 dark:accent-gray-500"
       checked={checked}
       readOnly
       aria-label={ariaLabel}
@@ -276,6 +276,9 @@ export function LabelManagerModal({
     if (trimmed && trimmed.toLowerCase() !== 'any') {
       setDestination({ kind: 'label', name: trimmed })
       setSessionCreatedLabels(prev => (prev.includes(trimmed) ? prev : [...prev, trimmed]))
+      if (!availableLabels.includes(trimmed)) {
+        onAddLocalLabel(trimmed)
+      }
     }
     setAddingDestLabel(false)
     setNewDestLabelText('')
@@ -372,7 +375,7 @@ export function LabelManagerModal({
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-teal/60 accent-teal/60 focus:ring-teal/60 focus:ring-offset-0 pointer-events-none"
+                    className="h-4 w-4 rounded border-teal/60 bg-white text-white accent-teal focus:ring-teal/60 focus:ring-offset-0 pointer-events-none dark:bg-slate-700"
                     checked={scopeSelected.has(row.key)}
                     readOnly
                     aria-hidden
@@ -417,7 +420,7 @@ export function LabelManagerModal({
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-teal/60 accent-teal/60 focus:ring-teal/60 focus:ring-offset-0 pointer-events-none"
+                    className="h-4 w-4 rounded border-teal/60 bg-white text-white accent-teal focus:ring-teal/60 focus:ring-offset-0 pointer-events-none dark:bg-slate-700"
                     checked={selectedIds.has(list.id)}
                     readOnly
                     aria-hidden
