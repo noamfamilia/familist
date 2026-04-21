@@ -73,9 +73,6 @@ export function LabelManagerModal({
   const [applying, setApplying] = useState(false)
   const [sessionCreatedLabels, setSessionCreatedLabels] = useState<string[]>([])
   const prevModalOpenRef = useRef(false)
-  const listsRef = useRef(lists)
-  listsRef.current = lists
-
   const scopeRows = useMemo(() => {
     const unlabeledCount = lists.filter(l => !l.label?.trim()).length
     const labelCounts = new Map<string, number>()
@@ -154,18 +151,7 @@ export function LabelManagerModal({
     if (prevModalOpenRef.current) return
     prevModalOpenRef.current = true
 
-    const L = listsRef.current
-    const unlabeledCount = L.filter(l => !l.label?.trim()).length
-    const labelCounts = new Map<string, number>()
-    for (const l of L) {
-      const lab = l.label?.trim()
-      if (lab) labelCounts.set(lab, (labelCounts.get(lab) ?? 0) + 1)
-    }
-    const sortedNames = Array.from(labelCounts.keys()).sort((a, b) => a.localeCompare(b))
-    const allKeys = new Set<string>()
-    if (unlabeledCount > 0) allKeys.add(UNLABELED_KEY)
-    for (const n of sortedNames) allKeys.add(n)
-    setScopeSelected(allKeys)
+    setScopeSelected(new Set())
     setListSearch('')
     setSelectedIds(new Set())
     setDestination('unset')
@@ -181,8 +167,8 @@ export function LabelManagerModal({
 
   useEffect(() => {
     if (!isOpen) return
-    setSelectedIds(new Set(scopedLists.map(l => l.id)))
-  }, [isOpen, scopedLists])
+    setSelectedIds(new Set())
+  }, [isOpen, scopeSelected])
 
   const toggleScopeKey = (key: string) => {
     setScopeSelected(prev => {
@@ -357,6 +343,13 @@ export function LabelManagerModal({
         handleModalClose()
       } else {
         setApplying(false)
+        setScopeSelected(new Set())
+        setSelectedIds(new Set())
+        setListSearch('')
+        setDestination('unset')
+        setDestDropdownOpen(false)
+        setAddingDestLabel(false)
+        setNewDestLabelText('')
       }
     } catch (e) {
       setApplying(false)
