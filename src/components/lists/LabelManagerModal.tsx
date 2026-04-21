@@ -274,6 +274,28 @@ export function LabelManagerModal({
     onClose()
   }
 
+  /** When every list that had label L was in this batch and lists move to a different label, keep L as a local-only name (zero lists). */
+  const registerVacatedLabelsAsLocal = useCallback(
+    (listsSnapshot: ListWithRole[], selected: Set<string>, nextLabel: string) => {
+      const labelsOnSelected = new Set<string>()
+      for (const id of selected) {
+        const list = listsSnapshot.find(l => l.id === id)
+        const lab = (list?.label ?? '').trim()
+        if (lab) labelsOnSelected.add(lab)
+      }
+      for (const L of labelsOnSelected) {
+        if (L === nextLabel) continue
+        const idsWithL = listsSnapshot
+          .filter(l => (l.label ?? '').trim() === L)
+          .map(l => l.id)
+        if (idsWithL.length === 0) continue
+        if (!idsWithL.every(id => selected.has(id))) continue
+        onAddLocalLabel(L)
+      }
+    },
+    [onAddLocalLabel]
+  )
+
   const handleAddDestLabelDone = () => {
     const trimmed = newDestLabelText.trim()
     if (trimmed && trimmed.toLowerCase() !== 'any') {
@@ -311,11 +333,12 @@ export function LabelManagerModal({
     return () => document.removeEventListener('mousedown', close, true)
   }, [destDropdownOpen, addingDestLabel])
 
-  const handleApply = async () => {
+  const handleApply = async (closeAfter: boolean) => {
     if (!canApply || targetLabelString === null) return
+    const listsSnapshot = lists
+    const next = targetLabelString
     setApplying(true)
     try {
-      const next = targetLabelString
       for (const id of Array.from(selectedIds)) {
         const list = lists.find(l => l.id === id)
         if (!list) continue
@@ -329,7 +352,12 @@ export function LabelManagerModal({
           return
         }
       }
-      handleModalClose()
+      registerVacatedLabelsAsLocal(listsSnapshot, selectedIds, next)
+      if (closeAfter) {
+        handleModalClose()
+      } else {
+        setApplying(false)
+      }
     } catch (e) {
       setApplying(false)
       const detail = e instanceof Error ? e.message : String(e)
@@ -562,7 +590,7 @@ export function LabelManagerModal({
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-3 min-h-[1.25rem]">{summaryText}</p>
         </section>
 
-        <div className="flex justify-end gap-2 pt-2 min-h-[2.5rem] items-center">
+        <div className="flex justify-end gap-2 pt-2 min-h-[2.5rem] items-center flex-wrap">
           <button
             type="button"
             onClick={handleModalClose}
@@ -575,7 +603,22 @@ export function LabelManagerModal({
             aria-disabled={!canApply || applying}
             onClick={() => {
               if (!canApply || applying) return
-              void handleApply()
+              void handleApply(false)
+            }}
+            className={`px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] ${
+              canApply && !applying
+                ? 'text-white bg-cyan hover:opacity-80'
+                : 'text-white/75 bg-cyan/35 cursor-not-allowed'
+            }`}
+          >
+            {applying ? 'Applying…' : 'Apply'}
+          </button>
+          <button
+            type="button"
+            aria-disabled={!canApply || applying}
+            onClick={() => {
+              if (!canApply || applying) return
+              void handleApply(true)
             }}
             className={`px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] ${
               canApply && !applying
