@@ -593,9 +593,10 @@ export function LabelManagerModal({
           <button
             type="button"
             onClick={handleModalClose}
-            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg"
+            disabled={applying}
+            className="px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] text-white bg-gray-400 hover:bg-gray-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-gray-500 dark:hover:bg-gray-600"
           >
-            Cancel
+            Close
           </button>
           <button
             type="button"
@@ -606,26 +607,11 @@ export function LabelManagerModal({
             }}
             className={`px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] ${
               canApply && !applying
-                ? 'text-white bg-cyan hover:opacity-80'
-                : 'text-white/75 bg-cyan/35 cursor-not-allowed'
-            }`}
-          >
-            {applying ? 'Applying…' : 'Apply'}
-          </button>
-          <button
-            type="button"
-            aria-disabled={!canApply || applying}
-            onClick={() => {
-              if (!canApply || applying) return
-              void handleApply(true)
-            }}
-            className={`px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] ${
-              canApply && !applying
                 ? 'text-white bg-teal hover:opacity-80'
                 : 'text-white/75 bg-teal/35 cursor-not-allowed'
             }`}
           >
-            {applying ? 'Applying…' : 'OK'}
+            {applying ? 'Applying…' : 'Apply'}
           </button>
         </div>
       </div>
