@@ -40,7 +40,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
   }
 
   return (
-    <div ref={setNodeRef} style={style} className={members.length === 0 ? 'w-full min-w-0' : undefined}>
+    <div ref={setNodeRef} style={style} className={members.length === 0 ? 'block min-w-full w-max' : undefined}>
       <ItemCard
         item={item}
         members={members}

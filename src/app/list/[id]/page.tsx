@@ -509,7 +509,7 @@ export default function ListPage() {
   const noMemberColumns = filteredMembers.length === 0
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full max-w-4xl sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
@@ -639,13 +639,16 @@ export default function ListPage() {
         </p>
       )}
 
-      {/* Horizontal scroll only: nested vertical overflow breaks react-joyride spotlight alignment */}
-      <div className="overflow-x-auto">
-        {/* Inner: min-w-full keeps horizontal scroll when member row is wide; w-full when no members so cards match form width */}
-        <div className={noMemberColumns ? 'w-full min-w-full' : 'inline-block min-w-full'}>
+      {/* With member columns: horizontal scroll when row is wider than the shell. Without: shell grows (sm:w-fit) so cards/backgrounds widen — no inner scrollbar. */}
+      <div className={noMemberColumns ? 'w-full min-w-0' : 'overflow-x-auto'}>
+        <div
+          className={
+            noMemberColumns ? 'inline-block w-max min-w-full' : 'inline-block min-w-full'
+          }
+        >
           {/* Members header with hide done toggles */}
           <div
-            className={`sticky top-0 z-40 bg-white dark:bg-slate-800${noMemberColumns ? ' w-full' : ''}`}
+            className={`sticky top-0 z-40 bg-white dark:bg-slate-800${noMemberColumns ? ' block min-w-full w-max' : ''}`}
             data-tour="members-header"
           >
             <MemberHeader
@@ -684,8 +687,8 @@ export default function ListPage() {
             />
           </div>
 
-          {/* Active items list — full-width cards when no member columns (align with Add row) */}
-          <div className={noMemberColumns ? 'flex w-full flex-col gap-2' : 'space-y-2'}>
+          {/* Active items — min-w-full w-max children so widest row sets column width */}
+          <div className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}>
             {activeItems.length > 0 ? (
               <DndContext
                 sensors={sensors}
@@ -732,7 +735,7 @@ export default function ListPage() {
               </div>
 
               {/* Archived items list (no drag) */}
-              <div className={noMemberColumns ? 'flex w-full flex-col gap-2' : 'space-y-2'}>
+              <div className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}>
                 {archivedItems.map(item => (
                   <ItemCard
                     key={item.id}

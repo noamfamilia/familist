@@ -466,16 +466,18 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   return (
     <div
-      className={compactRow ? 'w-full min-w-0' : 'min-w-full'}
+      className={compactRow ? 'block min-w-full w-max' : 'min-w-full'}
       onClick={onClearAddItemDraft}
     >
-      {/* Main card content */}
-      <div className={`rounded-lg transition-colors ${shellClass} ${item.archived ? 'opacity-60' : ''}`}>
-        {/* Card row — full-width shell when no members; icons stay on the right (same idea as Add row) */}
+      {/* Main card content — min-w-full w-max matches list column: at least shell width, grows with wide rows */}
+      <div
+        className={`block min-w-full w-max rounded-lg transition-colors ${shellClass} ${item.archived ? 'opacity-60' : ''}`}
+      >
+        {/* Card row */}
         <div
           className={
             compactRow
-              ? 'flex w-full min-w-0 max-w-full items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              ? 'flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
               : 'flex items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
           data-tour="item-row"
@@ -808,7 +810,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
-          <div className="px-3 py-2 space-y-2">
+          <div className={`px-3 py-2 space-y-2${compactRow ? ' min-w-full' : ''}`}>
             {/* Comment display / editor */}
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               {comment ? (
