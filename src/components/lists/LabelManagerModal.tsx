@@ -45,7 +45,8 @@ export interface LabelManagerModalProps {
   availableLabels: string[]
   /** merged labels for destination picker (DB + local), sorted */
   mergedLabels: string[]
-  updateListLabel: (listId: string, label: string) => Promise<{ error: Error | null }>
+  /** Single user action: applies many label updates under one mutation lock */
+  applyListLabelsBatch: (changes: Array<{ listId: string; label: string }>) => Promise<{ error: Error | null }>
   onAddLocalLabel: (label: string) => void
   onError: (message: string) => void
 }
@@ -56,7 +57,7 @@ export function LabelManagerModal({
   lists,
   availableLabels,
   mergedLabels,
-  updateListLabel,
+  applyListLabelsBatch,
   onAddLocalLabel,
   onError,
 }: LabelManagerModalProps) {
@@ -325,15 +326,19 @@ export function LabelManagerModal({
     const next = targetLabelString
     setApplying(true)
     try {
+      const changes: Array<{ listId: string; label: string }> = []
       for (const id of Array.from(selectedIds)) {
         const list = lists.find(l => l.id === id)
         if (!list) continue
         const cur = (list.label ?? '').trim()
         if (cur === next) continue
-        const { error } = await updateListLabel(id, next)
+        changes.push({ listId: id, label: next })
+      }
+      if (changes.length > 0) {
+        const { error } = await applyListLabelsBatch(changes)
         if (error) {
           const detail = error.message?.trim() || 'Unknown error'
-          onError(`Could not update label for "${list.name}": ${detail}`)
+          onError(`Could not update labels: ${detail}`)
           setApplying(false)
           return
         }

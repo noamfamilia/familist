@@ -9,6 +9,7 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { useAuth } from '@/providers/AuthProvider'
 import { useList } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
+import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -174,7 +175,7 @@ export default function ListPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const listId = params.id as string
-  const { error: showError } = useToast()
+  const { error: showError, warning: showWarning } = useToast()
   
   const {
     list,
@@ -209,8 +210,7 @@ export default function ListPage() {
     updateMemberFilter,
     updateItemTextWidth,
     updateItemTextWidthMode,
-    updateCategoryNames,
-    updateCategoryOrder,
+    saveCategorySettings,
     lastViewedMembers,
     createTargets,
   } = useList(listId)
@@ -294,6 +294,7 @@ export default function ListPage() {
   const addItemInputRef = useRef<HTMLInputElement>(null)
   /** True when the add-item form was submitted via Enter in the text field (refocus after success). */
   const addItemSubmitFromKeyboardRef = useRef(false)
+  const addItemInFlightRef = useRef(false)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
   const [showShareModal, setShowShareModal] = useState(false)
 
@@ -375,20 +376,31 @@ export default function ListPage() {
       addItemSubmitFromKeyboardRef.current = false
       return
     }
+    if (addItemInFlightRef.current) {
+      showWarning(USER_MUTATION_WAIT_MSG)
+      return
+    }
 
     const itemText = newItemText.trim()
     const cat = newItemCategory
+    addItemInFlightRef.current = true
     setAdding(true)
     clearNewItem()
-    const { error } = await addItem(itemText, cat)
-    if (error) {
-      setNewItemText(itemText)
-      setNewItemCategory(cat)
-      showError(error.message || 'Failed to add item')
+    let err: { message?: string } | null | undefined
+    try {
+      const result = await addItem(itemText, cat)
+      err = result.error as { message?: string } | null | undefined
+      if (err) {
+        setNewItemText(itemText)
+        setNewItemCategory(cat)
+        showError(err.message || 'Failed to add item')
+      }
+    } finally {
+      addItemInFlightRef.current = false
+      setAdding(false)
     }
-    setAdding(false)
     const refocus =
-      !!error || addItemSubmitFromKeyboardRef.current
+      !!err || addItemSubmitFromKeyboardRef.current
     addItemSubmitFromKeyboardRef.current = false
     if (refocus) {
       requestAnimationFrame(() => addItemInputRef.current?.focus())
@@ -663,8 +675,7 @@ export default function ListPage() {
               onCreateTargets={createTargets}
               categoryNames={categoryNames}
               categoryOrder={categoryOrder}
-              onUpdateCategoryNames={updateCategoryNames}
-              onUpdateCategoryOrder={updateCategoryOrder}
+              onSaveCategorySettings={saveCategorySettings}
             />
           </div>
 

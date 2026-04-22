@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useToast } from '@/components/ui/Toast'
+import { createUserMutationGate, USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
@@ -39,6 +41,14 @@ export function useLists() {
   const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const pendingRealtimeRef = useRef(false)
   const userId = user?.id
+
+  const { warning: warnMutation } = useToast()
+  const warnMutationRef = useRef(warnMutation)
+  warnMutationRef.current = warnMutation
+  const mutationGate = useMemo(
+    () => createUserMutationGate(m => warnMutationRef.current(m)),
+    [],
+  )
 
   useEffect(() => {
     const cachedLists = getCachedLists(userId)?.lists || []
@@ -276,7 +286,10 @@ export function useLists() {
 
   const createList = async (name: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    }
+    try {
     const tempId = createTempId('list')
     const now = new Date().toISOString()
     const optimisticList: ListWithRole = {
@@ -328,55 +341,75 @@ export function useLists() {
     setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])
 
     return { data, error: null }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const updateList = async (listId: string, updates: { name?: string; archived?: boolean; comment?: string | null; category_names?: string | null; category_order?: string | null }) => {
-    const previousList = lists.find(list => list.id === listId)
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => prev.map(list => 
-      list.id === listId ? { ...list, ...updates } : list
-    ))
-
-    const { error } = await trackSaveOperation(
-      supabase
-        .from('lists')
-        .update(updates)
-        .eq('id', listId)
-    )
-
-    if (error) {
-      if (previousList) {
-        setLists(prev => prev.map(list => list.id === listId ? previousList : list))
-      }
-      if (error.code === '23505') {
-        return { error: new Error('You already have a list with this name') }
-      }
-      return { error }
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
     }
+    try {
+      const previousList = lists.find(list => list.id === listId)
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      setLists(prev => prev.map(list =>
+        list.id === listId ? { ...list, ...updates } : list
+      ))
 
-    return { error: null }
+      const { error } = await trackSaveOperation(
+        supabase
+          .from('lists')
+          .update(updates)
+          .eq('id', listId)
+      )
+
+      if (error) {
+        if (previousList) {
+          setLists(prev => prev.map(list => list.id === listId ? previousList : list))
+        }
+        if (error.code === '23505') {
+          return { error: new Error('You already have a list with this name') }
+        }
+        return { error }
+      }
+
+      return { error: null }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const deleteList = async (listId: string) => {
-    const { error } = await trackSaveOperation(
-      supabase
-        .from('lists')
-        .delete()
-        .eq('id', listId)
-    )
-
-    if (!error) {
-      skipRealtimeUntilRef.current = Date.now() + 2000
-      setLists(prev => prev.filter(list => list.id !== listId))
-      removeCachedList(userId, listId)
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
     }
+    try {
+      const { error } = await trackSaveOperation(
+        supabase
+          .from('lists')
+          .delete()
+          .eq('id', listId)
+      )
 
-    return { error }
+      if (!error) {
+        skipRealtimeUntilRef.current = Date.now() + 2000
+        setLists(prev => prev.filter(list => list.id !== listId))
+        removeCachedList(userId, listId)
+      }
+
+      return { error }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const updateUserListState = async (listId: string, updates: { archived?: boolean; sort_order?: number }) => {
     if (!user) return { error: new Error('Not authenticated') }
-
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    }
+    try {
     const previousLists = lists
     const nextLists = updates.archived !== undefined
       ? moveListBetweenSections(lists, listId, updates.archived)
@@ -409,43 +442,62 @@ export function useLists() {
     }
 
     return { error: null }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const joinListByToken = async (token: string) => {
-    const freshClient = forceNewClient()
-    const { data, error } = await trackSaveOperation(
-      freshClient.rpc('join_list_by_token', { p_token: token })
-    )
-
-    if (!error) {
-      skipRealtimeUntilRef.current = Date.now() + 2000
-      await fetchLists()
+    if (!mutationGate.tryBegin()) {
+      return { data: null, error: new Error(USER_MUTATION_WAIT_MSG) }
     }
+    try {
+      const freshClient = forceNewClient()
+      const { data, error } = await trackSaveOperation(
+        freshClient.rpc('join_list_by_token', { p_token: token })
+      )
 
-    return { data, error }
+      if (!error) {
+        skipRealtimeUntilRef.current = Date.now() + 2000
+        await fetchLists()
+      }
+
+      return { data, error }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const leaveList = async (listId: string) => {
     if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    }
+    try {
+      const { error } = await trackSaveOperation(
+        supabase.rpc('leave_list', {
+          p_list_id: listId,
+        })
+      )
 
-    const { error } = await trackSaveOperation(
-      supabase.rpc('leave_list', {
-        p_list_id: listId,
-      })
-    )
+      if (error) return { error }
 
-    if (error) return { error }
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      setLists(prev => prev.filter(list => list.id !== listId))
+      removeCachedList(userId, listId)
 
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => prev.filter(list => list.id !== listId))
-    removeCachedList(userId, listId)
-
-    return { error: null }
+      return { error: null }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const duplicateList = async (listId: string, newName: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    }
+    try {
     const sourceList = lists.find(l => l.id === listId)
     const tempId = createTempId('list')
     const now = new Date().toISOString()
@@ -526,11 +578,17 @@ export function useLists() {
     })
 
     return { data: data.list, error: null }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const importList = async (name: string, label?: string, categoryNames?: string, rows?: Json, hasTargets?: boolean) => {
     if (!user) return { error: new Error('Not authenticated') }
-
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    }
+    try {
     const tempId = createTempId('list')
     const now = new Date().toISOString()
     const itemCount = Array.isArray(rows) ? rows.length : 0
@@ -589,11 +647,12 @@ export function useLists() {
     setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])
 
     return { data, error: null }
+    } finally {
+      mutationGate.end()
+    }
   }
 
-  const updateListLabel = async (listId: string, label: string) => {
-    if (!user) return { error: new Error('Not authenticated') }
-
+  const persistListLabelOnly = async (listId: string, label: string) => {
     const previousLists = lists
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => prev.map(list =>
@@ -605,7 +664,7 @@ export function useLists() {
         .from('list_users')
         .update({ label })
         .eq('list_id', listId)
-        .eq('user_id', user.id)
+        .eq('user_id', user!.id)
     )
 
     if (error) {
@@ -613,6 +672,34 @@ export function useLists() {
     }
 
     return { error }
+  }
+
+  const updateListLabel = async (listId: string, label: string) => {
+    if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    }
+    try {
+      return await persistListLabelOnly(listId, label)
+    } finally {
+      mutationGate.end()
+    }
+  }
+
+  const applyListLabelsBatch = async (changes: Array<{ listId: string; label: string }>) => {
+    if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    }
+    try {
+      for (const { listId, label } of changes) {
+        const { error } = await persistListLabelOnly(listId, label)
+        if (error) return { error }
+      }
+      return { error: null }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const labels = useMemo(() => {
@@ -625,7 +712,10 @@ export function useLists() {
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
     if (!user) return
-
+    if (!mutationGate.tryBegin()) {
+      return
+    }
+    try {
     const previousLists = lists
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(reorderedLists)
@@ -644,6 +734,9 @@ export function useLists() {
 
     if (results.some(r => (r as { error?: unknown }).error)) {
       setLists(previousLists)
+    }
+    } finally {
+      mutationGate.end()
     }
   }
 
@@ -666,6 +759,7 @@ export function useLists() {
     importList,
     reorderLists,
     updateListLabel,
+    applyListLabelsBatch,
     labels,
   }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
@@ -23,6 +23,8 @@ import {
   type MemberWithCreator,
 } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { useToast } from '@/components/ui/Toast'
+import { createUserMutationGate, USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
 const supabase = createClient()
 
@@ -188,6 +190,14 @@ export function useList(listId: string) {
   const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const pendingRealtimeRef = useRef(false)
   const userId = user?.id
+
+  const { warning: warnMutation } = useToast()
+  const warnMutationRef = useRef(warnMutation)
+  warnMutationRef.current = warnMutation
+  const mutationGate = useMemo(
+    () => createUserMutationGate(m => warnMutationRef.current(m)),
+    [],
+  )
 
   useEffect(() => {
     const cachedData = getCachedList(userId, listId)
@@ -502,167 +512,191 @@ export function useList(listId: string) {
   }, [userId, listId, fetchList])
 
   const addItem = async (text: string, category?: number, comment?: string | null) => {
-    const maxSortOrder = items.length > 0
-      ? items.reduce((max, item) => Math.max(max, item.sort_order ?? 0), 0)
-      : 0
-    const newSortOrder = items.length > 0 ? maxSortOrder + 1 : 0
-    const tempId = createTempId('item')
-    const now = new Date().toISOString()
-    const optimisticItem: ItemWithState = {
-      id: tempId,
-      list_id: listId,
-      text,
-      comment: comment || null,
-      archived: false,
-      archived_at: null,
-      sort_order: newSortOrder,
-      category: category ?? 1,
-      created_at: now,
-      updated_at: now,
-      memberStates: {},
+    if (!mutationGate.tryBegin()) {
+      return { data: null, error: { message: USER_MUTATION_WAIT_MSG } }
     }
-
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setItems(prev => [...prev, optimisticItem])
-
-    const { data, error } = await trackSaveOperation(
-      supabase
-        .from('items')
-        .insert({
-          list_id: listId,
-          text,
-          sort_order: newSortOrder,
-          ...(category != null && { category }),
-          ...(comment != null && { comment }),
-        })
-        .select()
-        .single()
-    )
-
-    if (error) {
-      setItems(prev => prev.filter(item => item.id !== tempId))
-      if (error.code === '23505') {
-        return { data: null, error: { ...error, message: 'An item with this name already exists' } }
+    try {
+      const maxSortOrder = items.length > 0
+        ? items.reduce((max, item) => Math.max(max, item.sort_order ?? 0), 0)
+        : 0
+      const newSortOrder = items.length > 0 ? maxSortOrder + 1 : 0
+      const tempId = createTempId('item')
+      const now = new Date().toISOString()
+      const optimisticItem: ItemWithState = {
+        id: tempId,
+        list_id: listId,
+        text,
+        comment: comment || null,
+        archived: false,
+        archived_at: null,
+        sort_order: newSortOrder,
+        category: category ?? 1,
+        created_at: now,
+        updated_at: now,
+        memberStates: {},
       }
-      return { data: null, error }
-    }
 
-    const targetMember = members.find(m => m.is_target)
-    const newMemberStates: Record<string, ItemMemberState> = {}
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      setItems(prev => [...prev, optimisticItem])
 
-    if (targetMember) {
-      const targetState: ItemMemberState = {
-        item_id: data.id,
-        member_id: targetMember.id,
-        quantity: 1,
-        done: false,
-        assigned: true,
-        updated_at: new Date().toISOString(),
+      const { data, error } = await trackSaveOperation(
+        supabase
+          .from('items')
+          .insert({
+            list_id: listId,
+            text,
+            sort_order: newSortOrder,
+            ...(category != null && { category }),
+            ...(comment != null && { comment }),
+          })
+          .select()
+          .single()
+      )
+
+      if (error) {
+        setItems(prev => prev.filter(item => item.id !== tempId))
+        if (error.code === '23505') {
+          return { data: null, error: { ...error, message: 'An item with this name already exists' } }
+        }
+        return { data: null, error }
       }
-      newMemberStates[targetMember.id] = targetState
 
-      trackSaveOperation(
-        supabase.from('item_member_state').insert({
+      const targetMember = members.find(m => m.is_target)
+      const newMemberStates: Record<string, ItemMemberState> = {}
+
+      if (targetMember) {
+        const targetState: ItemMemberState = {
           item_id: data.id,
           member_id: targetMember.id,
           quantity: 1,
           done: false,
           assigned: true,
-        })
-      )
-    }
-
-    const newItem: ItemWithState = { ...data, memberStates: newMemberStates }
-    setItems(prev => {
-      let replaced = false
-      const next = prev.map(item => {
-        if (item.id === tempId) {
-          replaced = true
-          return newItem
+          updated_at: new Date().toISOString(),
         }
-        return item
-      })
+        newMemberStates[targetMember.id] = targetState
 
-      const deduped: ItemWithState[] = []
-      for (const item of next) {
-        if (!deduped.some(existing => existing.id === item.id)) {
-          deduped.push(item)
-        }
+        await trackSaveOperation(
+          supabase.from('item_member_state').insert({
+            item_id: data.id,
+            member_id: targetMember.id,
+            quantity: 1,
+            done: false,
+            assigned: true,
+          }),
+        )
       }
 
-      return replaced ? deduped : [...deduped, newItem]
-    })
-    return { data, error: null }
+      const newItem: ItemWithState = { ...data, memberStates: newMemberStates }
+      setItems(prev => {
+        let replaced = false
+        const next = prev.map(item => {
+          if (item.id === tempId) {
+            replaced = true
+            return newItem
+          }
+          return item
+        })
+
+        const deduped: ItemWithState[] = []
+        for (const item of next) {
+          if (!deduped.some(existing => existing.id === item.id)) {
+            deduped.push(item)
+          }
+        }
+
+        return replaced ? deduped : [...deduped, newItem]
+      })
+      return { data, error: null }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
-    const previousItem = items.find(item => item.id === itemId)
-    const persistedUpdates = { ...updates }
-
-    const skipMs = 'category' in persistedUpdates ? 4500 : 2000
-    skipRealtimeUntilRef.current = Math.max(
-      skipRealtimeUntilRef.current,
-      Date.now() + skipMs
-    )
-    setItems(prev => prev.map(item =>
-      item.id === itemId ? { ...item, ...persistedUpdates } : item
-    ))
-
-    const { error } = await trackSaveOperation(
-      supabase
-        .from('items')
-        .update(persistedUpdates)
-        .eq('id', itemId)
-    )
-
-    if (error) {
-      if (previousItem) {
-        setItems(prev => prev.map(item => item.id === itemId ? previousItem : item))
-      }
-      if (error.code === '23505') {
-        return { error: { ...error, message: 'An item with this name already exists' } }
-      }
-      return { error }
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
+    try {
+      const previousItem = items.find(item => item.id === itemId)
+      const persistedUpdates = { ...updates }
 
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'item_updated',
-        payload: { itemId }
-      })
-    }
-    
-    return { error: null }
-  }
+      const skipMs = 'category' in persistedUpdates ? 4500 : 2000
+      skipRealtimeUntilRef.current = Math.max(
+        skipRealtimeUntilRef.current,
+        Date.now() + skipMs
+      )
+      setItems(prev => prev.map(item =>
+        item.id === itemId ? { ...item, ...persistedUpdates } : item
+      ))
 
-  const deleteItem = async (itemId: string) => {
-    const { error } = await trackSaveOperation(
-      supabase
-        .from('items')
-        .delete()
-        .eq('id', itemId)
-    )
+      const { error } = await trackSaveOperation(
+        supabase
+          .from('items')
+          .update(persistedUpdates)
+          .eq('id', itemId)
+      )
 
-    if (!error) {
-      skipRealtimeUntilRef.current = Date.now() + 2000
-      setItems(prev => prev.filter(item => item.id !== itemId))
-      
+      if (error) {
+        if (previousItem) {
+          setItems(prev => prev.map(item => item.id === itemId ? previousItem : item))
+        }
+        if (error.code === '23505') {
+          return { error: { ...error, message: 'An item with this name already exists' } }
+        }
+        return { error }
+      }
+
       if (channelRef.current) {
         channelRef.current.send({
           type: 'broadcast',
-          event: 'item_deleted',
+          event: 'item_updated',
           payload: { itemId }
         })
       }
-    }
 
-    return { error }
+      return { error: null }
+    } finally {
+      mutationGate.end()
+    }
+  }
+
+  const deleteItem = async (itemId: string) => {
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
+    }
+    try {
+      const { error } = await trackSaveOperation(
+        supabase
+          .from('items')
+          .delete()
+          .eq('id', itemId)
+      )
+
+      if (!error) {
+        skipRealtimeUntilRef.current = Date.now() + 2000
+        setItems(prev => prev.filter(item => item.id !== itemId))
+
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'item_deleted',
+            payload: { itemId }
+          })
+        }
+      }
+
+      return { error }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const addMember = async (name: string, creatorNickname?: string) => {
     if (!userId) return { error: new Error('Not authenticated') }
-
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
+    }
+    try {
     const nonTargetMembers = members.filter(m => !m.is_target)
     const maxSortOrder = nonTargetMembers.reduce((max, member) => 
       Math.max(max, member.sort_order || 0), 0)
@@ -736,107 +770,131 @@ export function useList(listId: string) {
     }
 
     return { data, error }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const updateMember = async (memberId: string, updates: Partial<Member>) => {
-    const previousMember = members.find(member => member.id === memberId)
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setMembers(prev => prev.map(member =>
-      member.id === memberId ? { ...member, ...updates } : member
-    ))
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
+    }
+    try {
+      const previousMember = members.find(member => member.id === memberId)
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      setMembers(prev => prev.map(member =>
+        member.id === memberId ? { ...member, ...updates } : member
+      ))
 
-    const { error } = await trackSaveOperation(
-      supabase.rpc('update_member', {
-        p_member_id: memberId,
-        p_name: updates.name !== undefined ? updates.name : null,
-        p_is_public: updates.is_public !== undefined ? updates.is_public : null,
-      })
-    )
+      const { error } = await trackSaveOperation(
+        supabase.rpc('update_member', {
+          p_member_id: memberId,
+          p_name: updates.name !== undefined ? updates.name : null,
+          p_is_public: updates.is_public !== undefined ? updates.is_public : null,
+        })
+      )
 
-    if (error) {
-      if (previousMember) {
-        setMembers(prev => prev.map(member => member.id === memberId ? previousMember : member))
+      if (error) {
+        if (previousMember) {
+          setMembers(prev => prev.map(member => member.id === memberId ? previousMember : member))
+        }
+        return { error: { ...error, message: error.message || 'Failed to update member' } }
       }
-      return { error: { ...error, message: error.message || 'Failed to update member' } }
-    }
 
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'member_updated',
-        payload: { memberId }
-      })
-    }
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'member_updated',
+          payload: { memberId }
+        })
+      }
 
-    return { error: null }
+      return { error: null }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const deleteMember = async (memberId: string) => {
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
+    }
+    try {
       const { error } = await trackSaveOperation(
         supabase.rpc('delete_member', {
-        p_member_id: memberId,
-      })
-    )
+          p_member_id: memberId,
+        })
+      )
 
-    if (error) {
-      return { error: { ...error, message: error.message || 'Failed to delete member' } }
+      if (error) {
+        return { error: { ...error, message: error.message || 'Failed to delete member' } }
+      }
+
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      setMembers(prev => prev.filter(member => member.id !== memberId))
+      setItems(prev => prev.map(item => ({
+        ...item,
+        memberStates: Object.fromEntries(
+          Object.entries(item.memberStates).filter(([mid]) => mid !== memberId)
+        ),
+      })))
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'member_deleted',
+          payload: { memberId }
+        })
+      }
+
+      return { error: null }
+    } finally {
+      mutationGate.end()
     }
-
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setMembers(prev => prev.filter(member => member.id !== memberId))
-    setItems(prev => prev.map(item => ({
-      ...item,
-      memberStates: Object.fromEntries(
-        Object.entries(item.memberStates).filter(([mid]) => mid !== memberId)
-      ),
-    })))
-
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'member_deleted',
-        payload: { memberId }
-      })
-    }
-
-    return { error: null }
   }
 
   const ownMember = async (memberId: string, creatorNickname?: string) => {
-    const { data, error } = await trackSaveOperation(
-      supabase.rpc('own_member', { p_member_id: memberId })
-    )
-
-    if (error) {
-      return { error: { ...error, message: error.message || 'Failed to take ownership' } }
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
+    try {
+      const { data, error } = await trackSaveOperation(
+        supabase.rpc('own_member', { p_member_id: memberId })
+      )
 
-    const newMember: MemberWithCreator = {
-      ...data.member,
-      creator: creatorNickname ? { nickname: creatorNickname } : (data.member.creator ?? null),
-    }
-
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setMembers(prev => prev.map(m => m.id === memberId ? newMember : m))
-    setItems(prev => prev.map(item => {
-      const oldState = item.memberStates[memberId]
-      if (!oldState) return item
-      const { [memberId]: _, ...rest } = item.memberStates
-      return {
-        ...item,
-        memberStates: { ...rest, [newMember.id]: { ...oldState, member_id: newMember.id } },
+      if (error) {
+        return { error: { ...error, message: error.message || 'Failed to take ownership' } }
       }
-    }))
 
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'member_owned',
-        payload: { oldMemberId: memberId, newMemberId: newMember.id }
-      })
+      const newMember: MemberWithCreator = {
+        ...data.member,
+        creator: creatorNickname ? { nickname: creatorNickname } : (data.member.creator ?? null),
+      }
+
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      setMembers(prev => prev.map(m => m.id === memberId ? newMember : m))
+      setItems(prev => prev.map(item => {
+        const oldState = item.memberStates[memberId]
+        if (!oldState) return item
+        const { [memberId]: _, ...rest } = item.memberStates
+        return {
+          ...item,
+          memberStates: { ...rest, [newMember.id]: { ...oldState, member_id: newMember.id } },
+        }
+      }))
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'member_owned',
+          payload: { oldMemberId: memberId, newMemberId: newMember.id }
+        })
+      }
+
+      return { error: null, newMemberId: newMember.id }
+    } finally {
+      mutationGate.end()
     }
-
-    return { error: null, newMemberId: newMember.id }
   }
 
   const updateMemberState = async (
@@ -844,6 +902,10 @@ export function useList(listId: string) {
     memberId: string,
     updates: { quantity?: number; done?: boolean; assigned?: boolean }
   ) => {
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
+    }
+    try {
     const existingState = items.find(i => i.id === itemId)?.memberStates[memberId]
     const optimisticState: ItemMemberState = {
       item_id: itemId,
@@ -912,49 +974,59 @@ export function useList(listId: string) {
 
       return { error: null }
     }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   const changeQuantity = async (itemId: string, memberId: string, delta: number) => {
-    const previousState = items.find(item => item.id === itemId)?.memberStates[memberId]
-    const optimisticState: ItemMemberState = {
-      item_id: itemId,
-      member_id: memberId,
-      quantity: Math.max(1, (previousState?.quantity || 1) + delta),
-      done: previousState?.done || false,
-      assigned: previousState?.assigned ?? true,
-      updated_at: new Date().toISOString(),
+    if (!mutationGate.tryBegin()) {
+      return { data: null, error: { message: USER_MUTATION_WAIT_MSG } }
     }
+    try {
+      const previousState = items.find(item => item.id === itemId)?.memberStates[memberId]
+      const optimisticState: ItemMemberState = {
+        item_id: itemId,
+        member_id: memberId,
+        quantity: Math.max(1, (previousState?.quantity || 1) + delta),
+        done: previousState?.done || false,
+        assigned: previousState?.assigned ?? true,
+        updated_at: new Date().toISOString(),
+      }
 
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setLocalMemberState(itemId, memberId, optimisticState)
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      setLocalMemberState(itemId, memberId, optimisticState)
 
-    const { data, error } = await trackSaveOperation(
-      supabase.rpc('change_quantity', {
-        p_item_id: itemId,
-        p_member_id: memberId,
-        p_delta: delta,
+      const { data, error } = await trackSaveOperation(
+        supabase.rpc('change_quantity', {
+          p_item_id: itemId,
+          p_member_id: memberId,
+          p_delta: delta,
+        })
+      )
+
+      if (error) {
+        setLocalMemberState(itemId, memberId, previousState || null)
+        return { data, error }
+      }
+
+      setLocalMemberState(itemId, memberId, {
+        ...optimisticState,
+        quantity: typeof data === 'number' ? data : optimisticState.quantity,
       })
-    )
 
-    if (error) {
-      setLocalMemberState(itemId, memberId, previousState || null)
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'member_state_updated',
+          payload: { listId, itemId, memberId }
+        })
+      }
+
       return { data, error }
+    } finally {
+      mutationGate.end()
     }
-
-    setLocalMemberState(itemId, memberId, {
-      ...optimisticState,
-      quantity: typeof data === 'number' ? data : optimisticState.quantity,
-    })
-
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'member_state_updated',
-        payload: { listId, itemId, memberId }
-      })
-    }
-
-    return { data, error }
   }
 
   const deleteArchivedItems = async () => {
@@ -962,27 +1034,34 @@ export function useList(listId: string) {
     const archivedIds = new Set(items.filter(i => i.archived).map(i => i.id))
     if (archivedIds.size === 0) return { error: null, count: 0 }
 
-    skipRealtimeUntilRef.current = Date.now() + 3000
-    setItems(prev => prev.filter(i => !archivedIds.has(i.id)))
-
-    const { data, error } = await trackSaveOperation(
-      supabase.rpc('delete_archived_items', { p_list_id: listId })
-    )
-
-    if (error) {
-      setItems(previousItems)
-      return { error, count: 0 }
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG }, count: 0 }
     }
+    try {
+      skipRealtimeUntilRef.current = Date.now() + 3000
+      setItems(prev => prev.filter(i => !archivedIds.has(i.id)))
 
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'item_deleted',
-        payload: { listId, bulkDelete: true },
-      })
+      const { data, error } = await trackSaveOperation(
+        supabase.rpc('delete_archived_items', { p_list_id: listId })
+      )
+
+      if (error) {
+        setItems(previousItems)
+        return { error, count: 0 }
+      }
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'item_deleted',
+          payload: { listId, bulkDelete: true },
+        })
+      }
+
+      return { error: null, count: typeof data === 'number' ? data : archivedIds.size }
+    } finally {
+      mutationGate.end()
     }
-
-    return { error: null, count: typeof data === 'number' ? data : archivedIds.size }
   }
 
   const restoreArchivedItems = async () => {
@@ -990,134 +1069,169 @@ export function useList(listId: string) {
     const hasArchived = items.some(i => i.archived)
     if (!hasArchived) return { error: null, count: 0 }
 
-    skipRealtimeUntilRef.current = Date.now() + 3000
-    setItems(prev => prev.map(i => {
-      if (!i.archived) return i
-      return { ...i, archived: false, archived_at: null }
-    }))
-
-    const { data, error } = await trackSaveOperation(
-      supabase.rpc('restore_archived_items', { p_list_id: listId })
-    )
-
-    if (error) {
-      setItems(previousItems)
-      return { error, count: 0 }
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG }, count: 0 }
     }
+    try {
+      skipRealtimeUntilRef.current = Date.now() + 3000
+      setItems(prev => prev.map(i => {
+        if (!i.archived) return i
+        return { ...i, archived: false, archived_at: null }
+      }))
 
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'item_updated',
-        payload: { listId, bulkRestore: true },
-      })
+      const { data, error } = await trackSaveOperation(
+        supabase.rpc('restore_archived_items', { p_list_id: listId })
+      )
+
+      if (error) {
+        setItems(previousItems)
+        return { error, count: 0 }
+      }
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'item_updated',
+          payload: { listId, bulkRestore: true },
+        })
+      }
+
+      return { error: null, count: typeof data === 'number' ? data : 0 }
+    } finally {
+      mutationGate.end()
     }
-
-    return { error: null, count: typeof data === 'number' ? data : 0 }
   }
 
   const reorderItems = async (reorderedItems: ItemWithState[]) => {
-    const previousItems = items
-    skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
-    const itemsWithUpdatedOrder = reorderedItems.map((item, index) => ({
-      ...item,
-      sort_order: index
-    }))
-    setItems(itemsWithUpdatedOrder)
-
-    const { error } = await trackSaveOperation(
-      supabase.rpc('reorder_list_items', {
-        p_list_id: listId,
-        p_item_ids: reorderedItems.map(item => item.id),
-      })
-    )
-
-    if (error) {
-      setItems(previousItems)
-      return { error }
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
+    try {
+      const previousItems = items
+      skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
+      const itemsWithUpdatedOrder = reorderedItems.map((item, index) => ({
+        ...item,
+        sort_order: index
+      }))
+      setItems(itemsWithUpdatedOrder)
 
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'item_updated',
-        payload: { listId, bulkReorder: true },
-      })
+      const { error } = await trackSaveOperation(
+        supabase.rpc('reorder_list_items', {
+          p_list_id: listId,
+          p_item_ids: reorderedItems.map(item => item.id),
+        })
+      )
+
+      if (error) {
+        setItems(previousItems)
+        return { error }
+      }
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'item_updated',
+          payload: { listId, bulkReorder: true },
+        })
+      }
+
+      return { error: null }
+    } finally {
+      mutationGate.end()
     }
-
-    return { error: null }
   }
 
   const updateMemberFilter = async (filter: MemberFilter) => {
-    const prev = memberFilter
-    setMemberFilter(filter)
-    setCachedPrefs(listId, { memberFilter: filter }, userId)
-    if (prev === 'all' && filter !== 'all') {
-      setLastViewedMembers(new Date().toISOString())
+    if (!mutationGate.tryBegin()) {
+      return
     }
-    if (userId) {
-      const { error } = await trackSaveOperation(
-        supabase
-          .from('list_users')
-          .update({ member_filter: filter })
-          .eq('list_id', listId)
-          .eq('user_id', userId)
-      )
-      if (error) {
-        setMemberFilter(prev)
-        setCachedPrefs(listId, { memberFilter: prev }, userId)
+    try {
+      const prev = memberFilter
+      setMemberFilter(filter)
+      setCachedPrefs(listId, { memberFilter: filter }, userId)
+      if (prev === 'all' && filter !== 'all') {
+        setLastViewedMembers(new Date().toISOString())
       }
+      if (userId) {
+        const { error } = await trackSaveOperation(
+          supabase
+            .from('list_users')
+            .update({ member_filter: filter })
+            .eq('list_id', listId)
+            .eq('user_id', userId)
+        )
+        if (error) {
+          setMemberFilter(prev)
+          setCachedPrefs(listId, { memberFilter: prev }, userId)
+        }
+      }
+    } finally {
+      mutationGate.end()
     }
   }
 
   const updateItemTextWidth = async (width: number) => {
-    const newWidth = Math.max(80, width)
-    const prevWidth = itemTextWidth
-    const prevMode = itemTextWidthMode
-    const value = String(newWidth)
-    setItemTextWidth(newWidth)
-    setItemTextWidthMode('manual')
-    setCachedPrefs(listId, { itemTextWidth: value }, userId)
-    if (userId) {
-      const { error } = await trackSaveOperation(
-        supabase
-          .from('list_users')
-          .update({ item_text_width: value })
-          .eq('list_id', listId)
-          .eq('user_id', userId)
-      )
-      if (error) {
-        setItemTextWidth(prevWidth)
-        setItemTextWidthMode(prevMode)
-        setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
+    if (!mutationGate.tryBegin()) {
+      return
+    }
+    try {
+      const newWidth = Math.max(80, width)
+      const prevWidth = itemTextWidth
+      const prevMode = itemTextWidthMode
+      const value = String(newWidth)
+      setItemTextWidth(newWidth)
+      setItemTextWidthMode('manual')
+      setCachedPrefs(listId, { itemTextWidth: value }, userId)
+      if (userId) {
+        const { error } = await trackSaveOperation(
+          supabase
+            .from('list_users')
+            .update({ item_text_width: value })
+            .eq('list_id', listId)
+            .eq('user_id', userId)
+        )
+        if (error) {
+          setItemTextWidth(prevWidth)
+          setItemTextWidthMode(prevMode)
+          setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
+        }
       }
+    } finally {
+      mutationGate.end()
     }
   }
 
   const updateItemTextWidthMode = async (mode: WidthMode) => {
-    const prevMode = itemTextWidthMode
-    const prevWidth = itemTextWidth
-    if (mode === 'auto') {
-      const texts = items.map(i => i.text ?? '')
-      const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
-      setItemTextWidth(fitWidth)
+    if (!mutationGate.tryBegin()) {
+      return
     }
-    setItemTextWidthMode(mode)
-    const value = mode === 'auto' ? 'auto' : String(itemTextWidth)
-    setCachedPrefs(listId, { itemTextWidth: value }, userId)
-    if (userId) {
-      const { error } = await trackSaveOperation(
-        supabase
-          .from('list_users')
-          .update({ item_text_width: value })
-          .eq('list_id', listId)
-          .eq('user_id', userId)
-      )
-      if (error) {
-        setItemTextWidthMode(prevMode)
-        setItemTextWidth(prevWidth)
-        setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
+    try {
+      const prevMode = itemTextWidthMode
+      const prevWidth = itemTextWidth
+      if (mode === 'auto') {
+        const texts = items.map(i => i.text ?? '')
+        const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
+        setItemTextWidth(fitWidth)
       }
+      setItemTextWidthMode(mode)
+      const value = mode === 'auto' ? 'auto' : String(itemTextWidth)
+      setCachedPrefs(listId, { itemTextWidth: value }, userId)
+      if (userId) {
+        const { error } = await trackSaveOperation(
+          supabase
+            .from('list_users')
+            .update({ item_text_width: value })
+            .eq('list_id', listId)
+            .eq('user_id', userId)
+        )
+        if (error) {
+          setItemTextWidthMode(prevMode)
+          setItemTextWidth(prevWidth)
+          setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
+        }
+      }
+    } finally {
+      mutationGate.end()
     }
   }
 
@@ -1134,7 +1248,7 @@ export function useList(listId: string) {
     [listId, userId],
   )
 
-  const updateCategoryNames = async (names: CategoryNames) => {
+  const persistCategoryNamesOnly = async (names: CategoryNames) => {
     const prev = categoryNames
     const prevList = list
     const nonEmpty: Record<string, string> = {}
@@ -1159,7 +1273,7 @@ export function useList(listId: string) {
     return { error: null }
   }
 
-  const updateCategoryOrder = async (order: number[]) => {
+  const persistCategoryOrderOnly = async (order: number[]) => {
     const prev = categoryOrder
     const prevList = list
     const serialized = JSON.stringify(order)
@@ -1180,11 +1294,50 @@ export function useList(listId: string) {
     return { error: null }
   }
 
+  const updateCategoryNames = async (names: CategoryNames) => {
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
+    }
+    try {
+      return await persistCategoryNamesOnly(names)
+    } finally {
+      mutationGate.end()
+    }
+  }
+
+  const updateCategoryOrder = async (order: number[]) => {
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
+    }
+    try {
+      return await persistCategoryOrderOnly(order)
+    } finally {
+      mutationGate.end()
+    }
+  }
+
+  const saveCategorySettings = async (names: CategoryNames, order: number[]) => {
+    if (!mutationGate.tryBegin()) {
+      return { error: { message: USER_MUTATION_WAIT_MSG } }
+    }
+    try {
+      const r1 = await persistCategoryNamesOnly(names)
+      if (r1.error) return r1
+      return await persistCategoryOrderOnly(order)
+    } finally {
+      mutationGate.end()
+    }
+  }
+
   const createTargets = async () => {
     if (!userId) return
     const hasTarget = members.some(m => m.is_target)
     if (hasTarget) return
 
+    if (!mutationGate.tryBegin()) {
+      return
+    }
+    try {
     if (memberFilter !== 'all') {
       await updateMemberFilter('all')
     }
@@ -1271,6 +1424,9 @@ export function useList(listId: string) {
         supabase.from('item_member_state').insert(stateRows)
       )
     }
+    } finally {
+      mutationGate.end()
+    }
   }
 
   // Auto-fit width when mode is 'auto' and items change
@@ -1318,6 +1474,7 @@ export function useList(listId: string) {
     updateItemTextWidthMode,
     updateCategoryNames,
     updateCategoryOrder,
+    saveCategorySettings,
     lastViewedMembers,
     createTargets,
   }

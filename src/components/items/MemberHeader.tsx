@@ -66,8 +66,7 @@ interface MemberHeaderProps {
   isOwner?: boolean
   categoryNames?: CategoryNames
   categoryOrder?: number[]
-  onUpdateCategoryNames?: (names: CategoryNames) => Promise<{ error: unknown }>
-  onUpdateCategoryOrder?: (order: number[]) => Promise<{ error: unknown }>
+  onSaveCategorySettings?: (names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
   hasTargetMember?: boolean
   onCreateTargets?: () => void
 }
@@ -102,8 +101,7 @@ export function MemberHeader({
   isOwner = false,
   categoryNames,
   categoryOrder,
-  onUpdateCategoryNames,
-  onUpdateCategoryOrder,
+  onSaveCategorySettings,
   hasTargetMember = false,
   onCreateTargets,
 }: MemberHeaderProps) {
@@ -771,7 +769,7 @@ export function MemberHeader({
                       <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
                     </>
                   )}
-                  {onUpdateCategoryNames && (
+                  {onSaveCategorySettings && (
                     <button
                       type="button"
                       role="menuitem"
@@ -797,7 +795,7 @@ export function MemberHeader({
                       Sort by category
                     </button>
                   )}
-                  {(onUpdateCategoryNames || onCategorySortClick) && (
+                  {(onSaveCategorySettings || onCategorySortClick) && (
                     <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
                   )}
                   {onExpandAll && (
@@ -1079,17 +1077,13 @@ export function MemberHeader({
           document.body,
         )}
 
-      {onUpdateCategoryNames && onUpdateCategoryOrder && categoryNames && (
+      {onSaveCategorySettings && categoryNames && (
         <CategoryNamesModal
           isOpen={showCategoryModal}
           onClose={() => setShowCategoryModal(false)}
           categoryNames={categoryNames}
           categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
-          onSave={async (names, order) => {
-            const r1 = await onUpdateCategoryNames(names)
-            const r2 = await onUpdateCategoryOrder(order)
-            return { error: r1.error || r2.error }
-          }}
+          onSave={async (names, order) => onSaveCategorySettings(names, order)}
         />
       )}
     </div>

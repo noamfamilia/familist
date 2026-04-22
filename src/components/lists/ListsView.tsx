@@ -15,6 +15,7 @@ import { ListCard } from './ListCard'
 import { ImportModal } from '@/components/import/ImportModal'
 import { LabelManagerModal } from './LabelManagerModal'
 import type { ListWithRole } from '@/lib/supabase/types'
+import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 import type { Step } from 'react-joyride'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
@@ -41,7 +42,7 @@ interface ListsViewProps {
 }
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager }: ListsViewProps) {
-  const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, labels } = useLists()
+  const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels } = useLists()
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
   
@@ -55,7 +56,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
-  const { success, error: showError } = useToast()
+  const { success, error: showError, warning: showWarning } = useToast()
   const [inputValue, setInputValue] = useState('')
   const inputValueRef = useRef('')
   inputValueRef.current = inputValue
@@ -65,6 +66,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const inputRef = useRef<HTMLInputElement>(null)
   /** True when create form was submitted via Enter in the text field (refocus after success). */
   const createListSubmitFromKeyboardRef = useRef(false)
+  const createListInFlightRef = useRef(false)
 
   useEffect(() => {
     onLabelsChange?.(labels)
@@ -114,13 +116,19 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       createListSubmitFromKeyboardRef.current = false
       return
     }
+    if (createListInFlightRef.current) {
+      showWarning(USER_MUTATION_WAIT_MSG)
+      return
+    }
 
     const submittedValue = inputValue.trim()
+    createListInFlightRef.current = true
     setSubmitting(true)
     setError('')
 
     let refocusInput = false
 
+    try {
     const chosenLabel = selectedLabel
     const labelToAssign = chosenLabel && chosenLabel !== 'Any' && chosenLabel !== '' ? chosenLabel : undefined
     const isSpecificLabel = !!labelToAssign
@@ -139,8 +147,10 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       onSelectLabel?.(filterAfterCreate)
       refocusInput = createListSubmitFromKeyboardRef.current
     }
-    
-    setSubmitting(false)
+    } finally {
+      createListInFlightRef.current = false
+      setSubmitting(false)
+    }
     createListSubmitFromKeyboardRef.current = false
     if (refocusInput) {
       requestAnimationFrame(() => inputRef.current?.focus())
@@ -403,7 +413,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         lists={lists}
         availableLabels={labels}
         mergedLabels={mergedLabels}
-        updateListLabel={updateListLabel}
+        applyListLabelsBatch={applyListLabelsBatch}
         onAddLocalLabel={onAddLocalLabel ?? (() => {})}
         onError={showError}
       />
