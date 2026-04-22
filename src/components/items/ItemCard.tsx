@@ -349,16 +349,30 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setEditQuantityValue(String(state?.quantity || 1))
   }
 
-  const handleSaveQuantity = async (memberId: string) => {
-    const newQuantity = parseInt(editQuantityValue, 10)
+  const handleSaveQuantity = (memberId: string) => {
     const minQty = 1
-    if (!isNaN(newQuantity) && newQuantity >= minQty) {
-      const { error } = await onUpdateMemberState(item.id, memberId, { quantity: newQuantity, assigned: true })
-      if (error) showError(error.message || 'Failed to update quantity')
+    const trimmed = editQuantityValue.trim()
+    if (trimmed === '') {
+      showError('Enter a whole number quantity')
+      return
     }
+    const newQuantity = Number(trimmed)
+    if (!Number.isFinite(newQuantity) || !Number.isInteger(newQuantity)) {
+      showError('Enter a whole number quantity')
+      return
+    }
+    if (newQuantity < minQty) {
+      showError(`Quantity must be at least ${minQty}`)
+      return
+    }
+
     setEditingQuantityMember(null)
     setEditQuantityValue('')
     setEditorPos(null)
+
+    void onUpdateMemberState(item.id, memberId, { quantity: newQuantity, assigned: true }).then(({ error }) => {
+      if (error) showError(error.message || 'Failed to update quantity')
+    })
   }
 
   const handleCancelQuantityEdit = () => {
