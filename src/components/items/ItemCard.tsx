@@ -299,13 +299,14 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     nameInputRef.current?.focus()
   }
 
-  const handleSaveText = async () => {
+  const handleSaveText = () => {
     if (editText.trim() && editText !== item.text) {
-      const { error } = await onUpdateItem(item.id, { text: editText.trim() })
-      if (error) {
-        showError(error.message || 'Failed to rename item')
-        setEditText(item.text) // Revert to original
-      }
+      const trimmed = editText.trim()
+      setIsEditing(false)
+      void onUpdateItem(item.id, { text: trimmed }).then(({ error }) => {
+        if (error) showError(error.message || 'Failed to rename item')
+      })
+      return
     }
     setIsEditing(false)
   }

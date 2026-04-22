@@ -236,27 +236,28 @@ export function MemberHeader({
     })
   }
 
-  const handleSaveEdit = async () => {
-    if (editingMemberId && editName.trim()) {
-      const trimmedName = editName.trim()
-      
-      const nameExists = members.some(m => 
-        !m.is_target && m.id !== editingMemberId && m.name.toLowerCase() === trimmedName.toLowerCase()
-      )
-      if (nameExists) {
-        showError(`Member "${trimmedName}" already exists`)
-        const originalMember = members.find(m => m.id === editingMemberId)
-        setEditName(originalMember?.name || '')
-        return
-      }
-      
-      const { error } = await onUpdateMember(editingMemberId, { name: trimmedName })
-      if (error) {
-        showError(error.message || 'Failed to update member')
-        return
-      }
+  const handleSaveEdit = () => {
+    if (!editingMemberId || !editName.trim()) {
+      handleCancelEdit()
+      return
     }
+    const memberId = editingMemberId
+    const trimmedName = editName.trim()
+
+    const nameExists = members.some(
+      m => !m.is_target && m.id !== memberId && m.name.toLowerCase() === trimmedName.toLowerCase(),
+    )
+    if (nameExists) {
+      showError(`Member "${trimmedName}" already exists`)
+      const originalMember = members.find(m => m.id === memberId)
+      setEditName(originalMember?.name || '')
+      return
+    }
+
     handleCancelEdit()
+    void onUpdateMember(memberId, { name: trimmedName }).then(({ error }) => {
+      if (error) showError(error.message || 'Failed to update member')
+    })
   }
 
   const handleDeleteClick = (member: Member) => {

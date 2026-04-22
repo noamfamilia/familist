@@ -22,7 +22,6 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
   const [isEditingNickname, setIsEditingNickname] = useState(false)
   const [editNickname, setEditNickname] = useState(displayNickname)
-  const [savingNickname, setSavingNickname] = useState(false)
 
   useEffect(() => {
     setEditNickname(displayNickname)
@@ -35,19 +34,16 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     }
   }, [isOpen])
 
-  const handleSaveNickname = async () => {
+  const handleSaveNickname = () => {
     if (!editNickname.trim() || editNickname === displayNickname) {
       setIsEditingNickname(false)
       return
     }
-    setSavingNickname(true)
     setError('')
-    const { error: upErr } = await updateProfile({ nickname: editNickname.trim() })
-    if (upErr) {
-      setError(upErr.message)
-    }
-    setSavingNickname(false)
     setIsEditingNickname(false)
+    void updateProfile({ nickname: editNickname.trim() }).then(({ error: upErr }) => {
+      if (upErr) setError(upErr.message)
+    })
   }
 
   const handleSignOut = async () => {
@@ -87,9 +83,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   }}
                   className="flex-1 px-3 py-1.5 border border-teal rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal/20"
                   autoFocus
-                  disabled={savingNickname}
                 />
-                <Button size="sm" onClick={() => void handleSaveNickname()} loading={savingNickname}>
+                <Button size="sm" onClick={() => void handleSaveNickname()}>
                   Save
                 </Button>
               </div>

@@ -285,13 +285,17 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     await onArchive(list.id, { archived: !list.userArchived })
   }
 
-  const handleRename = async () => {
+  const handleRename = () => {
     if (newName.trim() && newName !== list.name) {
-      const { error } = await onUpdate(list.id, { name: newName.trim() })
-      if (error) {
-        showError('Failed to rename list')
-        setNewName(list.name)
-      }
+      const trimmed = newName.trim()
+      setIsRenaming(false)
+      void onUpdate(list.id, { name: trimmed }).then(({ error }) => {
+        if (error) {
+          showError('Failed to rename list')
+          setNewName(list.name)
+        }
+      })
+      return
     }
     setIsRenaming(false)
   }
