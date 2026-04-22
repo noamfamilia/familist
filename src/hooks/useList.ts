@@ -337,7 +337,7 @@ export function useList(listId: string) {
         prefsFetchedRef.current = true
         const { data: listUserData } = await supabase
           .from('list_users')
-          .select('member_filter, item_text_width, last_viewed_members')
+          .select('member_filter, item_text_width, last_viewed_members, item_name_font_step')
           .eq('list_id', listId)
           .eq('user_id', userId)
           .single()
@@ -355,6 +355,10 @@ export function useList(listId: string) {
           if (parsed.mode === 'manual') {
             setItemTextWidth(parsed.width)
           }
+          const serverFontStep = parseItemNameFontStep(listUserData.item_name_font_step)
+          itemNameFontStepRef.current = serverFontStep
+          setItemNameFontStep(serverFontStep)
+          setCachedPrefs(listId, { itemNameFontStep: serverFontStep }, userId)
           setLastViewedMembers(listUserData.last_viewed_members ?? null)
         }
       }
@@ -1236,16 +1240,36 @@ export function useList(listId: string) {
   }
 
   const updateItemNameFontStep = useCallback(
-    (step: number) => {
+    async (step: number) => {
       const s = Math.min(ITEM_NAME_FONT_MAX, Math.max(ITEM_NAME_FONT_MIN, Math.round(step)))
       const prev = itemNameFontStepRef.current
       if (s === prev) return
-      itemNameFontStepRef.current = s
-      setItemNameFontStep(s)
-      setCachedPrefs(listId, { itemNameFontStep: s }, userId)
-      // When persisting to list_users: await update; on error restore prev + setCachedPrefs(..., { itemNameFontStep: prev }).
+      if (!mutationGate.tryBegin()) {
+        return
+      }
+      try {
+        itemNameFontStepRef.current = s
+        setItemNameFontStep(s)
+        setCachedPrefs(listId, { itemNameFontStep: s }, userId)
+        if (userId) {
+          const { error } = await trackSaveOperation(
+            supabase
+              .from('list_users')
+              .update({ item_name_font_step: s })
+              .eq('list_id', listId)
+              .eq('user_id', userId)
+          )
+          if (error) {
+            itemNameFontStepRef.current = prev
+            setItemNameFontStep(prev)
+            setCachedPrefs(listId, { itemNameFontStep: prev }, userId)
+          }
+        }
+      } finally {
+        mutationGate.end()
+      }
     },
-    [listId, userId],
+    [listId, userId, mutationGate],
   )
 
   const persistCategoryNamesOnly = async (names: CategoryNames) => {

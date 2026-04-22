@@ -105,6 +105,7 @@ export interface Database {
           sort_order: number | null
           member_filter: string | null
           item_text_width: string | null
+          item_name_font_step: number
           show_targets: boolean
           label: string
           created_at: string
@@ -117,6 +118,7 @@ export interface Database {
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: string | null
+          item_name_font_step?: number
           show_targets?: boolean
           label?: string
           created_at?: string
@@ -129,6 +131,7 @@ export interface Database {
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: string | null
+          item_name_font_step?: number
           show_targets?: boolean
           label?: string
           created_at?: string
