@@ -466,16 +466,16 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   return (
     <div
-      className={compactRow ? 'w-max max-w-full' : 'min-w-full'}
+      className={compactRow ? 'w-full min-w-0' : 'min-w-full'}
       onClick={onClearAddItemDraft}
     >
       {/* Main card content */}
       <div className={`rounded-lg transition-colors ${shellClass} ${item.archived ? 'opacity-60' : ''}`}>
-        {/* Card row */}
+        {/* Card row — full-width shell when no members; icons stay on the right (same idea as Add row) */}
         <div
           className={
             compactRow
-              ? 'inline-flex max-w-full items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              ? 'flex w-full min-w-0 max-w-full items-center gap-0.5 px-2 py-1 whitespace-nowrap'
               : 'flex items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
           data-tour="item-row"
@@ -743,11 +743,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         </div>
         ) : null}
 
-        {/* Trailing section — full-width rows use ml-auto; compact rows sit after the name */}
+        {/* Trailing section — ml-auto pins icons to the right when the row is full width */}
         <div
           className={
             compactRow
-              ? 'flex flex-shrink-0 items-center justify-end gap-1 pl-2'
+              ? 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 pl-2'
               : 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 pl-4'
           }
         >
