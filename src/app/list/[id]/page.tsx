@@ -316,15 +316,19 @@ export default function ListPage() {
 
   const [newItemCategory, setNewItemCategory] = useState<ItemCategory>(1)
 
-  const clearNewItem = () => {
+  /** New list in the URL: reset add-item draft and category picker (sticky category is per visit, per list). */
+  useEffect(() => {
     setNewItemText('')
     setNewItemCategory(1)
+  }, [listId])
+
+  const clearNewItem = () => {
+    setNewItemText('')
   }
 
   const handleClearAddItemDraftIfTyped = useCallback(() => {
     if (!newItemTextRef.current.trim()) return
     setNewItemText('')
-    setNewItemCategory(1)
   }, [])
 
   if (authLoading || loading) {
@@ -383,7 +387,7 @@ export default function ListPage() {
     const itemText = newItemText.trim()
     const cat = newItemCategory
     addItemInFlightRef.current = true
-    clearNewItem()
+    setNewItemText('')
     let err: { message?: string } | null | undefined
     try {
       const result = await addItem(itemText, cat)
