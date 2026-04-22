@@ -506,8 +506,10 @@ export default function ListPage() {
     }
   }
 
+  const noMemberColumns = filteredMembers.length === 0
+
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full sm:w-fit sm:min-w-[400px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
@@ -639,10 +641,19 @@ export default function ListPage() {
 
       {/* Horizontal scroll only: nested vertical overflow breaks react-joyride spotlight alignment */}
       <div className="overflow-x-auto">
-        {/* Inner container that sizes based on content */}
-        <div className="inline-block min-w-full">
+        {/* Inner: full width when member columns exist; shrink-to-content when none, min width = viewport (min-w-full) or home column (sm:min-w-[450px]) */}
+        <div
+          className={
+            noMemberColumns
+              ? 'inline-block w-max min-w-full sm:min-w-[450px]'
+              : 'inline-block min-w-full'
+          }
+        >
           {/* Members header with hide done toggles */}
-          <div className="sticky top-0 z-40 bg-white dark:bg-slate-800" data-tour="members-header">
+          <div
+            className={`sticky top-0 z-40 bg-white dark:bg-slate-800${noMemberColumns ? ' w-max' : ''}`}
+            data-tour="members-header"
+          >
             <MemberHeader
               members={filteredMembers}
               allMembers={members}
@@ -679,8 +690,8 @@ export default function ListPage() {
             />
           </div>
 
-          {/* Active items list */}
-          <div className="space-y-2">
+          {/* Active items list — items-start + w-max children when no member columns so list width follows content */}
+          <div className={noMemberColumns ? 'flex flex-col gap-2 items-start' : 'space-y-2'}>
             {activeItems.length > 0 ? (
               <DndContext
                 sensors={sensors}
@@ -727,7 +738,7 @@ export default function ListPage() {
               </div>
 
               {/* Archived items list (no drag) */}
-              <div className="space-y-2">
+              <div className={noMemberColumns ? 'flex flex-col gap-2 items-start' : 'space-y-2'}>
                 {archivedItems.map(item => (
                   <ItemCard
                     key={item.id}

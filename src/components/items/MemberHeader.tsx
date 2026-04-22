@@ -521,7 +521,7 @@ export function MemberHeader({
   const headerItemNameSlotWidthPx = members.length > 0 ? itemTextWidth : ITEM_TEXT_WIDTH_MIN
 
   return (
-    <div className="mb-3 min-w-full w-max">
+    <div className={members.length > 0 ? 'mb-3 min-w-full w-max' : 'mb-3 w-max'}>
       {/* Header card container */}
       <div ref={headerCardRef} className="bg-gray-50 dark:bg-slate-900 rounded-lg">
         {/* Header row - matching item card styling */}

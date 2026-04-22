@@ -462,15 +462,24 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     }
   }
 
+  const compactRow = members.length === 0
+
   return (
     <div
-      className="min-w-full"
+      className={compactRow ? 'w-max max-w-full' : 'min-w-full'}
       onClick={onClearAddItemDraft}
     >
       {/* Main card content */}
       <div className={`rounded-lg transition-colors ${shellClass} ${item.archived ? 'opacity-60' : ''}`}>
         {/* Card row */}
-        <div className="flex items-center gap-0.5 px-2 py-1 whitespace-nowrap" data-tour="item-row">
+        <div
+          className={
+            compactRow
+              ? 'inline-flex max-w-full items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              : 'flex items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+          }
+          data-tour="item-row"
+        >
         {/* Drag handle - only shown for draggable (active) items */}
         <div 
           className={`w-5 text-gray-400 dark:text-gray-500 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${isDraggable ? 'cursor-grab' : ''}`}
@@ -555,9 +564,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         </div>
 
         {/* Per-member controls - aligned under header */}
+        {members.length > 0 ? (
         <div 
           className="flex items-center ml-2.5 flex-shrink-0 gap-2.5"
-          {...(members.length > 0 ? { 'data-tour': 'item-state' } : {})}
+          data-tour="item-state"
         >
           {members.map(member => {
             if (member.is_target) {
@@ -731,9 +741,16 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             )
           })}
         </div>
+        ) : null}
 
-        {/* Trailing section - pushed to right with ml-auto */}
-        <div className="flex-shrink-0 flex justify-end items-center gap-1 ml-auto pl-4">
+        {/* Trailing section — full-width rows use ml-auto; compact rows sit after the name */}
+        <div
+          className={
+            compactRow
+              ? 'flex flex-shrink-0 items-center justify-end gap-1 pl-2'
+              : 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 pl-4'
+          }
+        >
           {/* Comment indicator - hidden when expanded */}
           {hasComment && !showMenu && (
             <span className="text-teal text-sm opacity-80" title="Has comment">💬</span>
