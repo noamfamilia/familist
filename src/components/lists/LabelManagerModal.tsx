@@ -391,17 +391,15 @@ export function LabelManagerModal({
       contentClassName="!max-w-lg max-sm:!max-w-none"
       fullScreenMobile
     >
-      <div className="relative space-y-6 text-left min-h-[200px]">
-        {applying && (
-          <div
-            className="absolute inset-0 z-[100] flex flex-col items-center justify-center gap-3 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-[1px]"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <Spinner size="lg" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Applying…</span>
-          </div>
-        )}
+      <div
+        className="relative min-h-[200px] text-left"
+        aria-busy={applying}
+        aria-describedby={applying ? 'label-manager-busy-status' : undefined}
+      >
+        <div
+          className={`space-y-6 ${applying ? 'opacity-[0.72]' : ''}`}
+          {...(applying ? { inert: true } : {})}
+        >
         {/* 1. Filter by labels */}
         <section>
           <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Filter lists by labels</h3>
@@ -600,7 +598,7 @@ export function LabelManagerModal({
           </button>
           <button
             type="button"
-            aria-disabled={!canApply || applying}
+            disabled={!canApply || applying}
             onClick={() => {
               if (!canApply || applying) return
               void handleApply(false)
@@ -614,6 +612,21 @@ export function LabelManagerModal({
             {applying ? 'Applying…' : 'Apply'}
           </button>
         </div>
+        </div>
+
+        {applying && (
+          <div
+            className="pointer-events-auto absolute inset-0 z-[100] flex flex-col items-center justify-center gap-3 rounded-lg bg-white/45 dark:bg-slate-900/40 backdrop-blur-[2px]"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <Spinner size="lg" />
+            <span id="label-manager-busy-status" className="text-sm font-medium text-gray-800 dark:text-gray-100">
+              Applying…
+            </span>
+          </div>
+        )}
       </div>
     </Modal>
   )
