@@ -108,7 +108,7 @@ export function MemberHeader({
   onCreateTargets,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
-  const { success: showSuccess, error: showError } = useToast()
+  const { error: showError } = useToast()
 
   const suggestedName = useMemo(() => {
     const base = profile?.nickname?.trim()

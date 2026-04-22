@@ -174,7 +174,7 @@ export default function ListPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const listId = params.id as string
-  const { error: showError, success: showSuccess, info: showInfo } = useToast()
+  const { error: showError } = useToast()
   
   const {
     list,

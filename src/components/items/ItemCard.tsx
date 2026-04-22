@@ -165,7 +165,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
 
 export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug' }: ItemCardProps) {
   const { user } = useAuth()
-  const { success: showSuccess, error: showError } = useToast()
+  const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(item.text)
   const [comment, setComment] = useState(item.comment || '')
@@ -310,24 +310,19 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setIsEditing(false)
   }
 
-  const getMemberName = (memberId: string) => members.find(m => m.id === memberId)?.name || 'member'
-
   const handleAssign = async (memberId: string) => {
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: true })
     if (error) showError(error.message || 'Failed to assign')
-    else showSuccess(`${item.text} for ${getMemberName(memberId)} is assigned`)
   }
 
   const handleMarkDone = async (memberId: string) => {
     const { error } = await onUpdateMemberState(item.id, memberId, { done: true })
     if (error) showError(error.message || 'Failed to mark done')
-    else showSuccess(`${item.text} for ${getMemberName(memberId)} is completed`)
   }
 
   const handleUnassign = async (memberId: string) => {
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: false, done: false })
     if (error) showError(error.message || 'Failed to unassign')
-    else showSuccess(`${item.text} for ${getMemberName(memberId)} is unassigned`)
   }
 
   const handleOpenQuantityEditor = (memberId: string, containerEl: HTMLElement) => {
