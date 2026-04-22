@@ -32,7 +32,7 @@ interface ListCardProps {
   onSelectLabel?: (label: string) => void
   currentFilter?: string
   onClearCreateInput?: () => void
-  /** Like clearing add-item draft when archiving an item: clear home create/join field if it had text. */
+  /** Like clearing add-item draft when archiving an item: clear home create field if it had text. */
   onClearCreateInputIfTyped?: () => void
 }
 

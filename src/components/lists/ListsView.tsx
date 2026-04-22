@@ -63,15 +63,15 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const [error, setError] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  /** True when create/join form was submitted via Enter in the text field (refocus after success). */
+  /** True when create form was submitted via Enter in the text field (refocus after success). */
   const createListSubmitFromKeyboardRef = useRef(false)
 
   useEffect(() => {
     onLabelsChange?.(labels)
   }, [labels, onLabelsChange])
 
-  // Notify parent when creating state changes
-  const isCreating = !!inputValue && !inputValue.startsWith('@')
+  // Notify parent when create field has draft text
+  const isCreating = !!inputValue.trim()
   useEffect(() => {
     onCreatingChange?.(isCreating)
   }, [isCreating, onCreatingChange])
@@ -80,7 +80,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     setInputValue('')
   }
 
-  /** Clear create/join draft only when the field has text (same idea as add-item draft on list page). */
+  /** Clear create draft only when the field has text (same idea as add-item draft on list page). */
   const clearCreateInputIfTyped = useCallback(() => {
     if (!inputValueRef.current.trim()) return
     setInputValue('')
@@ -90,8 +90,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     if (showImport) clearCreateInput()
   }, [showImport])
 
-  const isJoinMode = inputValue.startsWith('@')
-  const searchText = isJoinMode ? '' : inputValue.trim().toLowerCase()
+  const searchText = inputValue.trim().toLowerCase()
 
   // Filter lists based on ownership, search text, and label
   const filteredLists = lists.filter(list => {
@@ -122,55 +121,23 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
     let refocusInput = false
 
-    if (isJoinMode) {
-      const token = inputValue.slice(1).trim()
-      if (!token) {
-        setSubmitting(false)
-        createListSubmitFromKeyboardRef.current = false
-        return
-      }
-      
-      const { data, error } = await joinListByToken(token)
-      
-      if (error) {
-        setError(error.message)
-        showError(error.message || 'Failed to join list')
-        refocusInput = true
-      } else {
-        setInputValue('')
-        onSelectLabel?.('Any')
-        if (typeof data === 'string' && data) {
-          const joined = lists.find(l => l.id === data)
-          if (joined) {
-            const by = joined.ownerNickname ? ` (by ${joined.ownerNickname})` : ''
-            success(`Joined list "${joined.name}"${by}`)
-          } else {
-            success('Joined list!')
-          }
-        } else {
-          success('Joined list!')
-        }
-        refocusInput = createListSubmitFromKeyboardRef.current
-      }
+    const chosenLabel = selectedLabel
+    const labelToAssign = chosenLabel && chosenLabel !== 'Any' && chosenLabel !== '' ? chosenLabel : undefined
+    const isSpecificLabel = !!labelToAssign
+    const filterAfterCreate = isSpecificLabel
+      ? chosenLabel
+      : (preCreateFilter !== null && preCreateFilter !== 'Any' && preCreateFilter !== '' ? 'Any' : (preCreateFilter ?? 'Any'))
+    clearCreateInput()
+    const { error } = await createList(submittedValue, labelToAssign)
+
+    if (error) {
+      setInputValue(submittedValue)
+      setError(error.message)
+      showError('Failed to create list')
+      refocusInput = true
     } else {
-      const chosenLabel = selectedLabel
-      const labelToAssign = chosenLabel && chosenLabel !== 'Any' && chosenLabel !== '' ? chosenLabel : undefined
-      const isSpecificLabel = !!labelToAssign
-      const filterAfterCreate = isSpecificLabel
-        ? chosenLabel
-        : (preCreateFilter !== null && preCreateFilter !== 'Any' && preCreateFilter !== '' ? 'Any' : (preCreateFilter ?? 'Any'))
-      clearCreateInput()
-      const { error } = await createList(submittedValue, labelToAssign)
-      
-      if (error) {
-        setInputValue(submittedValue)
-        setError(error.message)
-        showError('Failed to create list')
-        refocusInput = true
-      } else {
-        onSelectLabel?.(filterAfterCreate)
-        refocusInput = createListSubmitFromKeyboardRef.current
-      }
+      onSelectLabel?.(filterAfterCreate)
+      refocusInput = createListSubmitFromKeyboardRef.current
     }
     
     setSubmitting(false)
@@ -262,7 +229,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         </div>
       )}
 
-      {/* Create or Join */}
+      {/* Create list */}
       <form ref={formRef} onSubmit={handleSubmit} className="flex gap-3" data-tour="create-list">
         <div className="flex-1 relative">
           <Input
@@ -294,7 +261,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
           )}
         </div>
         <Button type="submit" loading={submitting} className={`bg-red-500 hover:bg-red-600 ${inputValue ? 'animate-button-nudge' : ''}`}>
-          {isJoinMode ? 'Join' : 'Create'}
+          Create
         </Button>
       </form>
 
