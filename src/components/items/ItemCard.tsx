@@ -466,8 +466,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Item name - click to toggle archive (collapsed) or rename (expanded) */}
         <div
-          className="relative flex-shrink-0"
+          className="relative flex-shrink-0 text-left"
           style={{ width: itemTextWidth }}
+          dir="ltr"
           data-tour="item-name"
         >
           {showMenu ? (
@@ -480,7 +481,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               className={`flex items-center gap-1 ${itemNameFontClassName} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               data-tour="item-archive"
             >
-              <span className="truncate" dir="auto">{item.text}</span>
+              <span className="truncate">{item.text}</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40">
                 <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
               </svg>
@@ -491,7 +492,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               className={`block truncate ${itemNameFontClassName} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
               data-tour="item-archive"
-              dir="auto"
             >
               {item.text}
             </span>
@@ -511,7 +511,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   if (e.key === 'Enter') void handleSaveText()
                   if (e.key === 'Escape') handleCancelEditText()
                 }}
-                className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                className="w-full text-left text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                dir="ltr"
                 aria-label="Item name"
                 autoFocus
               />

@@ -54,10 +54,6 @@ const homeTourSteps: Step[] = [
     spotlightPadding: 2,
   },
   {
-    target: '[data-tour="list-share"]',
-    content: 'List sharing options.',
-  },
-  {
     target: '[data-tour="list-menu"]',
     content: 'List menu options',
     spotlightPadding: 2,

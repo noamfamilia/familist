@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
-import { ShareCardIcon } from '@/components/ui/ShareIcons'
+import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
 import type { ListWithRole } from '@/lib/supabase/types'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
@@ -486,28 +486,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         <span className="text-teal text-sm opacity-80">💬</span>
       )}
 
-      {/* Visibility icon - only for owned lists, clickable to open share modal (except archived) */}
-      {isOwner && (
-        list.userArchived ? (
-          <span
-            className={`flex-shrink-0 opacity-40 ${list.visibility === 'link' ? 'text-cyan' : 'text-red-500'}`}
-          >
-            <ShareCardIcon emphasized={list.visibility === 'link'} />
-          </span>
-        ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowShareModal(true)
-            }}
-            className={`flex-shrink-0 opacity-60 hover:opacity-100 ${
-              list.visibility === 'link' ? 'text-cyan' : 'text-red-500'
-            }`}
-            data-tour="list-share"
-          >
-            <ShareCardIcon emphasized={list.visibility === 'link'} />
-          </button>
-        )
+      {/* Link-enabled indicator — owned lists only; decorative (share settings: list ⋮ menu) */}
+      {isOwner && list.visibility === 'link' && (
+        <span
+          className={`flex-shrink-0 pointer-events-none select-none text-cyan ${list.userArchived ? 'opacity-40' : 'opacity-70'}`}
+          aria-label="Link sharing enabled"
+        >
+          <LinkEnabledCardIcon className="w-5 h-5" />
+        </span>
       )}
 
       {/* Kebab menu button */}
@@ -588,6 +574,19 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               </div>
             )}
           </div>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenuOpen(false)
+                setShowShareModal(true)
+              }}
+              className="w-full rounded-md px-2 py-1.5 text-left text-sm text-teal hover:bg-gray-100 dark:hover:bg-slate-700"
+            >
+              Share & link settings
+            </button>
+          )}
           {/* Label selector + action buttons (label left, buttons right, label wraps below if needed) */}
           <div className="flex items-center gap-2 flex-wrap-reverse" onClick={(e) => e.stopPropagation()}>
             {/* Label selector */}
