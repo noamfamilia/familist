@@ -275,6 +275,22 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     }
   }, [editingComment, autoGrow])
 
+  const category = normalizeItemCategory(item.category)
+  const categoryTitle = categoryNames?.[String(category)]?.trim() ?? ''
+  const [categoryLabelChipWidthPx, setCategoryLabelChipWidthPx] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    if (members.length > 0) {
+      setCategoryLabelChipWidthPx(null)
+      return
+    }
+    if (!categoryTitle) {
+      setCategoryLabelChipWidthPx(null)
+      return
+    }
+    setCategoryLabelChipWidthPx(measureCategoryLabelChipWidthPx(categoryTitle))
+  }, [members.length, categoryTitle, category])
+
   const shouldHide = members.some(member => {
     if (member.is_target) return false
     const state = item.memberStates[member.id]
@@ -436,23 +452,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const hasComment = item.comment && item.comment.trim().length > 0
-  const category = normalizeItemCategory(item.category)
   const shellClass = ITEM_CATEGORY_STYLES[category].shell
-  const categoryTitle = categoryNames?.[String(category)]?.trim() ?? ''
-
-  const [categoryLabelChipWidthPx, setCategoryLabelChipWidthPx] = useState<number | null>(null)
-
-  useLayoutEffect(() => {
-    if (members.length > 0) {
-      setCategoryLabelChipWidthPx(null)
-      return
-    }
-    if (!categoryTitle) {
-      setCategoryLabelChipWidthPx(null)
-      return
-    }
-    setCategoryLabelChipWidthPx(measureCategoryLabelChipWidthPx(categoryTitle))
-  }, [members.length, categoryTitle, category])
 
   const handlePickCategory = async (next: ItemCategory) => {
     if (next === category) return
