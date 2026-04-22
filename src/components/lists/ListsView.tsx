@@ -60,7 +60,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const [inputValue, setInputValue] = useState('')
   const inputValueRef = useRef('')
   inputValueRef.current = inputValue
-  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -123,7 +122,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
     const submittedValue = inputValue.trim()
     createListInFlightRef.current = true
-    setSubmitting(true)
     setError('')
 
     let refocusInput = false
@@ -149,7 +147,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     }
     } finally {
       createListInFlightRef.current = false
-      setSubmitting(false)
     }
     createListSubmitFromKeyboardRef.current = false
     if (refocusInput) {
@@ -255,7 +252,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
               }
             }}
             placeholder="List name"
-            disabled={submitting}
           />
           {inputValue && (
             <button
@@ -270,7 +266,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
             </button>
           )}
         </div>
-        <Button type="submit" loading={submitting} className={`bg-red-500 hover:bg-red-600 ${inputValue ? 'animate-button-nudge' : ''}`}>
+        <Button type="submit" className={`bg-red-500 hover:bg-red-600 ${inputValue ? 'animate-button-nudge' : ''}`}>
           Create
         </Button>
       </form>

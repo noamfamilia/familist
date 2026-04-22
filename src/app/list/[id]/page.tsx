@@ -281,7 +281,6 @@ export default function ListPage() {
   const [newItemText, setNewItemText] = useState('')
   const newItemTextRef = useRef('')
   newItemTextRef.current = newItemText
-  const [adding, setAdding] = useState(false)
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
   const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
   const [categorySortLoading, setCategorySortLoading] = useState(false)
@@ -384,7 +383,6 @@ export default function ListPage() {
     const itemText = newItemText.trim()
     const cat = newItemCategory
     addItemInFlightRef.current = true
-    setAdding(true)
     clearNewItem()
     let err: { message?: string } | null | undefined
     try {
@@ -397,7 +395,6 @@ export default function ListPage() {
       }
     } finally {
       addItemInFlightRef.current = false
-      setAdding(false)
     }
     const refocus =
       !!err || addItemSubmitFromKeyboardRef.current
@@ -605,7 +602,6 @@ export default function ListPage() {
                 }
               }}
               placeholder="Add an item..."
-              disabled={adding}
               aria-label="New item name"
             />
             {newItemText && (
@@ -621,7 +617,7 @@ export default function ListPage() {
               </button>
             )}
           </div>
-          <Button type="submit" loading={adding} className={`bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''}`}>
+          <Button type="submit" className={`bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''}`}>
             Add
           </Button>
         </form>
