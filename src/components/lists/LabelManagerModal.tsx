@@ -391,15 +391,8 @@ export function LabelManagerModal({
       contentClassName="!max-w-lg max-sm:!max-w-none"
       fullScreenMobile
     >
-      <div
-        className="relative min-h-[200px] text-left"
-        aria-busy={applying}
-        aria-describedby={applying ? 'label-manager-busy-status' : undefined}
-      >
-        <div
-          className={`space-y-6 ${applying ? 'opacity-[0.72]' : ''}`}
-          {...(applying ? { inert: true } : {})}
-        >
+      <div className="relative min-h-[200px] text-left" aria-busy={applying}>
+        <div className="space-y-6" {...(applying ? { inert: true } : {})}>
         {/* 1. Filter by labels */}
         <section>
           <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Filter lists by labels</h3>
@@ -592,41 +585,41 @@ export function LabelManagerModal({
             type="button"
             onClick={handleModalClose}
             disabled={applying}
-            className="px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] text-white bg-gray-400 hover:bg-gray-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-gray-500 dark:hover:bg-gray-600"
+            className={`px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] disabled:cursor-default ${
+              applying
+                ? 'cursor-not-allowed text-white/75 bg-gray-400/50 dark:bg-gray-500/50'
+                : 'text-white bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-600'
+            }`}
           >
             Close
           </button>
           <button
             type="button"
             disabled={!canApply || applying}
+            aria-busy={applying}
             onClick={() => {
               if (!canApply || applying) return
               void handleApply(false)
             }}
-            className={`px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] ${
+            className={`inline-flex min-h-[2.5rem] min-w-[4.5rem] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
               canApply && !applying
                 ? 'text-white bg-teal hover:opacity-80'
                 : 'text-white/75 bg-teal/35 cursor-not-allowed'
             }`}
           >
-            {applying ? 'Applying…' : 'Apply'}
+            {applying ? (
+              <>
+                <span className="sr-only">Applying label changes</span>
+                <span aria-hidden="true" className="inline-flex shrink-0">
+                  <Spinner size="sm" className="h-5 w-5 border-2 border-white border-t-transparent" />
+                </span>
+              </>
+            ) : (
+              'Apply'
+            )}
           </button>
         </div>
         </div>
-
-        {applying && (
-          <div
-            className="pointer-events-auto absolute inset-0 z-[100] flex flex-col items-center justify-center gap-3 rounded-lg bg-white/45 dark:bg-slate-900/40 backdrop-blur-[2px]"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            <Spinner size="lg" />
-            <span id="label-manager-busy-status" className="text-sm font-medium text-gray-800 dark:text-gray-100">
-              Applying…
-            </span>
-          </div>
-        )}
       </div>
     </Modal>
   )
