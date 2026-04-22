@@ -13,7 +13,6 @@ interface SortableListCardProps {
   onArchive: (listId: string, updates: { archived?: boolean }) => Promise<{ error: Error | null }>
   onDuplicate: (listId: string, newName: string, label?: string) => Promise<{ error: Error | null; warning?: string | null }>
   onLeave: (listId: string) => Promise<{ error: Error | null }>
-  onRefresh?: () => void
   labels?: string[]
   onUpdateLabel?: (listId: string, label: string) => Promise<{ error: Error | null }>
   onSelectLabel?: (label: string) => void
@@ -22,7 +21,7 @@ interface SortableListCardProps {
   onClearCreateInputIfTyped?: () => void
 }
 
-export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, labels, onUpdateLabel, onSelectLabel, currentFilter, onClearCreateInput, onClearCreateInputIfTyped }: SortableListCardProps) {
+export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, labels, onUpdateLabel, onSelectLabel, currentFilter, onClearCreateInput, onClearCreateInputIfTyped }: SortableListCardProps) {
   const {
     attributes,
     listeners,
@@ -48,7 +47,6 @@ export function SortableListCard({ list, existingListNames, onUpdate, onDelete, 
         onArchive={onArchive}
         onDuplicate={onDuplicate}
         onLeave={onLeave}
-        onRefresh={onRefresh}
         dragHandleProps={{ ...attributes, ...listeners }}
         labels={labels}
         onUpdateLabel={onUpdateLabel}

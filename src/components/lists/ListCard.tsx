@@ -13,10 +13,6 @@ const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(m
 const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
   ssr: false,
 })
-const ShareModal = dynamic(() => import('./ShareModal').then(mod => mod.ShareModal), {
-  ssr: false,
-})
-
 interface ListCardProps {
   list: ListWithRole
   existingListNames: string[]
@@ -25,7 +21,6 @@ interface ListCardProps {
   onArchive: (listId: string, updates: { archived?: boolean }) => Promise<{ error: Error | null }>
   onDuplicate: (listId: string, newName: string, label?: string) => Promise<{ error: Error | null; warning?: string | null }>
   onLeave: (listId: string) => Promise<{ error: Error | null }>
-  onRefresh?: () => void
   dragHandleProps?: Record<string, unknown>
   labels?: string[]
   onUpdateLabel?: (listId: string, label: string) => Promise<{ error: Error | null }>
@@ -36,14 +31,13 @@ interface ListCardProps {
   onClearCreateInputIfTyped?: () => void
 }
 
-export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, onRefresh, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any', onClearCreateInput, onClearCreateInputIfTyped }: ListCardProps) {
+export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any', onClearCreateInput, onClearCreateInputIfTyped }: ListCardProps) {
   const { error: showError } = useToast()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [newName, setNewName] = useState(list.name)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
-  const [showShareModal, setShowShareModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -574,19 +568,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               </div>
             )}
           </div>
-          {isOwner && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setMenuOpen(false)
-                setShowShareModal(true)
-              }}
-              className="w-full rounded-md px-2 py-1.5 text-left text-sm text-teal hover:bg-gray-100 dark:hover:bg-slate-700"
-            >
-              Share & link settings
-            </button>
-          )}
           {/* Label selector + action buttons (label left, buttons right, label wraps below if needed) */}
           <div className="flex items-center gap-2 flex-wrap-reverse" onClick={(e) => e.stopPropagation()}>
             {/* Label selector */}
@@ -741,15 +722,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       variant="danger"
       loading={leaving}
     />
-
-    {isOwner && (
-      <ShareModal
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        list={list}
-        onUpdate={() => onRefresh?.()}
-      />
-    )}
 
     <Modal
       isOpen={showDuplicateModal}
