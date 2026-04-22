@@ -15,6 +15,7 @@ import {
   ITEM_NAME_FONT_MIN,
   ITEM_NAME_FONT_DEFAULT,
 } from '@/lib/itemNameFontStep'
+import { ITEM_TEXT_WIDTH_MIN } from '@/lib/itemTextWidthFit'
 
 const CategoryNamesModal = dynamic(() => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
   ssr: false,
@@ -516,6 +517,9 @@ export function MemberHeader({
     return () => cancelAnimationFrame(id)
   }, [itemNameFontOpen])
 
+  // With member chips, keep the name column aligned with item rows. With none, only the ◀ Auto ▶ band is needed.
+  const headerItemNameSlotWidthPx = members.length > 0 ? itemTextWidth : ITEM_TEXT_WIDTH_MIN
+
   return (
     <div className="mb-3 min-w-full w-max">
       {/* Header card container */}
@@ -536,7 +540,7 @@ export function MemberHeader({
               </button>
             )}
           </div>
-          <div className="relative h-[40px] flex-shrink-0" style={{ width: itemTextWidth }}>
+          <div className="relative h-[40px] flex-shrink-0" style={{ width: headerItemNameSlotWidthPx }}>
             <div
               className="absolute inset-y-0 left-0 box-border flex w-[80px] shrink-0 items-center justify-between pl-2.5"
               data-tour="item-text-width"
