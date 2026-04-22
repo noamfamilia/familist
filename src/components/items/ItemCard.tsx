@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
 import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
+import { measureCategoryLabelChipWidthPx } from '@/lib/itemTextWidthFit'
 import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
@@ -437,6 +438,21 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const hasComment = item.comment && item.comment.trim().length > 0
   const category = normalizeItemCategory(item.category)
   const shellClass = ITEM_CATEGORY_STYLES[category].shell
+  const categoryTitle = categoryNames?.[String(category)]?.trim() ?? ''
+
+  const [categoryLabelChipWidthPx, setCategoryLabelChipWidthPx] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    if (members.length > 0) {
+      setCategoryLabelChipWidthPx(null)
+      return
+    }
+    if (!categoryTitle) {
+      setCategoryLabelChipWidthPx(null)
+      return
+    }
+    setCategoryLabelChipWidthPx(measureCategoryLabelChipWidthPx(categoryTitle))
+  }, [members.length, categoryTitle, category])
 
   const handlePickCategory = async (next: ItemCategory) => {
     if (next === category) return
@@ -740,11 +756,25 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </button>
           )}
 
-          {/* Category name label (non-empty names only) */}
-          {categoryNames?.[String(category)] ? (
-            <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[60px]">
-              {categoryNames[String(category)]}
-            </span>
+          {/* Category name label (non-empty names only); per-item width when no member columns */}
+          {categoryTitle ? (
+            members.length > 0 ? (
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[60px]">
+                {categoryTitle}
+              </span>
+            ) : (
+              <span
+                className="inline-block whitespace-nowrap text-[10px] text-gray-400 dark:text-gray-500 truncate align-middle"
+                style={
+                  categoryLabelChipWidthPx != null
+                    ? { width: `${categoryLabelChipWidthPx}px`, maxWidth: 200 }
+                    : { maxWidth: 60 }
+                }
+                title={categoryTitle}
+              >
+                {categoryTitle}
+              </span>
+            )
           ) : null}
 
           {/* Kebab menu button */}
