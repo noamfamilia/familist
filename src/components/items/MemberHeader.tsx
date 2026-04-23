@@ -172,6 +172,11 @@ export function MemberHeader({
   })
   const [ownLoading, setOwnLoading] = useState(false)
 
+  const closeMemberMenu = useCallback(() => {
+    setOpenMenuId(null)
+    setMemberMenuPos(null)
+  }, [])
+
   const handleAddMember = async () => {
     const fallbackName = suggestedName
     const nameToAdd = newMemberName.trim() || fallbackName
@@ -211,10 +216,10 @@ export function MemberHeader({
   }
 
   const handleStartEdit = (member: Member) => {
+    closeMemberMenu()
     setEditingMemberId(member.id)
     setEditName(member.name)
     setOpenMenuId(member.id)
-    setMemberMenuPos(null)
     requestAnimationFrame(() => {
       const chipEl = chipRefsMap.current.get(member.id)
       if (!chipEl) return
@@ -260,8 +265,8 @@ export function MemberHeader({
   }
 
   const handleDeleteClick = (member: Member) => {
-    setDeleteConfirm({ open: true, memberId: member.id, memberName: member.name })
     closeMemberMenu()
+    setDeleteConfirm({ open: true, memberId: member.id, memberName: member.name })
   }
 
   const handleConfirmDelete = async () => {
@@ -278,6 +283,7 @@ export function MemberHeader({
   }
 
   const handleTogglePublic = async (member: MemberWithCreator) => {
+    closeMemberMenu()
     const { error } = await onUpdateMember(member.id, { is_public: !member.is_public })
     if (error) {
       showError(error.message || 'Failed to update member')
@@ -285,8 +291,8 @@ export function MemberHeader({
   }
 
   const handleOwnClick = (member: MemberWithCreator) => {
-    setOwnConfirm({ open: true, memberId: member.id, memberName: member.name })
     closeMemberMenu()
+    setOwnConfirm({ open: true, memberId: member.id, memberName: member.name })
   }
 
   const handleConfirmOwn = async () => {
@@ -296,8 +302,6 @@ export function MemberHeader({
     setOwnLoading(false)
     if (error) {
       showError(error.message || 'Failed to take ownership')
-    } else {
-      closeMemberMenu()
     }
     setOwnConfirm({ open: false, memberId: null, memberName: '' })
   }
@@ -349,8 +353,7 @@ export function MemberHeader({
 
   const handleChipClick = useCallback((memberId: string) => {
     if (openMenuId === memberId) {
-      setOpenMenuId(null)
-      setMemberMenuPos(null)
+      closeMemberMenu()
       return
     }
     setEditingMemberId(null)
@@ -358,12 +361,7 @@ export function MemberHeader({
     setOpenMenuId(memberId)
     const chipEl = chipRefsMap.current.get(memberId)
     if (chipEl) computeMenuPos(chipEl)
-  }, [openMenuId, computeMenuPos])
-
-  const closeMemberMenu = useCallback(() => {
-    setOpenMenuId(null)
-    setMemberMenuPos(null)
-  }, [])
+  }, [openMenuId, computeMenuPos, closeMemberMenu])
 
   const handleItemNameFontButtonClick = useCallback(
     (e: React.MouseEvent) => {
@@ -908,6 +906,7 @@ export function MemberHeader({
                     role="menuitem"
                     className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                     onClick={() => {
+                      closeMemberMenu()
                       const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
                       if (isShowingAll) {
                         if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
@@ -964,6 +963,7 @@ export function MemberHeader({
                     role="menuitem"
                     className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                     onClick={() => {
+                      closeMemberMenu()
                       const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
                       if (isShowingAll) {
                         if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
