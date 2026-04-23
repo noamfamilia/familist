@@ -209,17 +209,23 @@ export function MemberHeader({
     setAddMemberPopoverPos(null)
   }
 
-  const handleCancelEdit = () => {
-    setEditingMemberId(null)
+  const handleCancelEdit = useCallback(() => {
+    let clearedId: string | null = null
+    setEditingMemberId(prev => {
+      clearedId = prev
+      return null
+    })
     setEditName('')
     setRenamePopoverPos(null)
-  }
+    if (clearedId != null) {
+      setOpenMenuId(prev => (prev === clearedId ? null : prev))
+    }
+  }, [])
 
   const handleStartEdit = (member: Member) => {
     closeMemberMenu()
     setEditingMemberId(member.id)
     setEditName(member.name)
-    setOpenMenuId(member.id)
     requestAnimationFrame(() => {
       const chipEl = chipRefsMap.current.get(member.id)
       if (!chipEl) return
@@ -413,7 +419,7 @@ export function MemberHeader({
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [openMenuId, closeMemberMenu, editingMemberId, isAdding])
+  }, [openMenuId, closeMemberMenu, editingMemberId, isAdding, handleCancelEdit])
 
   // Block mouseup/click after we intercepted a mousedown outside header
   const blockNextClickRef = useRef(false)
@@ -486,7 +492,7 @@ export function MemberHeader({
 
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
-  }, [openMenuId, isAdding, actionsOpen, itemNameFontOpen, editingMemberId, closeMemberMenu])
+  }, [openMenuId, isAdding, actionsOpen, itemNameFontOpen, editingMemberId, closeMemberMenu, handleCancelEdit])
 
   useEffect(() => {
     if (!itemNameFontOpen || !onItemNameFontStepChange) return
