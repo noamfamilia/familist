@@ -191,7 +191,11 @@ export function useList(listId: string) {
   const pendingRealtimeRef = useRef(false)
   const userId = user?.id
 
-  const { warning: warnMutation } = useToast()
+  const { warning: warnMutation, showToast, dismissToast, error: showErrorToast } = useToast()
+  const archiveUndoToastIdRef = useRef<string | null>(null)
+  const updateItemRef = useRef<
+    (itemId: string, updates: Partial<Item>) => Promise<{ error: { message?: string } | null }>
+  >(async () => ({ error: null }))
   const warnMutationRef = useRef(warnMutation)
   warnMutationRef.current = warnMutation
   const mutationGate = useMemo(
@@ -658,11 +662,46 @@ export function useList(listId: string) {
         })
       }
 
+      const becameArchived =
+        previousItem &&
+        !previousItem.archived &&
+        persistedUpdates.archived === true
+
+      if (becameArchived) {
+        if (archiveUndoToastIdRef.current) {
+          dismissToast(archiveUndoToastIdRef.current)
+        }
+        const label =
+          previousItem.text.length > 48 ? `${previousItem.text.slice(0, 45)}…` : previousItem.text
+        const toastId = showToast(`Archived "${label}"`, 'info', {
+          durationMs: 8000,
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              dismissToast(toastId)
+              if (archiveUndoToastIdRef.current === toastId) {
+                archiveUndoToastIdRef.current = null
+              }
+              void updateItemRef.current(itemId, { archived: false, archived_at: null }).then(
+                ({ error: undoErr }) => {
+                  if (undoErr?.message) {
+                    showErrorToast(undoErr.message)
+                  }
+                },
+              )
+            },
+          },
+        })
+        archiveUndoToastIdRef.current = toastId
+      }
+
       return { error: null }
     } finally {
       mutationGate.end()
     }
   }
+
+  updateItemRef.current = updateItem
 
   const deleteItem = async (itemId: string) => {
     if (!mutationGate.tryBegin()) {
