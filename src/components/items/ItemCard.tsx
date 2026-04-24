@@ -13,7 +13,6 @@ import {
   ITEM_NAME_FONT_DEFAULT,
   itemCardRowHeightWithMembersPx,
   itemMemberCellHeightPx,
-  itemNameFontCanvasPx,
   itemQtyProgressBarTrackHeightPx,
 } from '@/lib/itemNameFontStep'
 
@@ -319,7 +318,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const itemRowHeightPx = useMemo(() => itemCardRowHeightWithMembersPx(itemNameFontStep), [itemNameFontStep])
   const memberCellPx = useMemo(() => itemMemberCellHeightPx(itemNameFontStep), [itemNameFontStep])
   const qtyProgressTrackPx = useMemo(() => itemQtyProgressBarTrackHeightPx(itemNameFontStep), [itemNameFontStep])
-  const nameFontPx = useMemo(() => itemNameFontCanvasPx(itemNameFontStep), [itemNameFontStep])
   const qtyDoneCheckPx = useMemo(
     () => Math.min(QTY_CHECK_SIZE, Math.max(12, Math.floor(memberCellPx - 6))),
     [memberCellPx],
@@ -625,8 +623,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     }}
                   >
                     <span
-                      className="pointer-events-none col-start-1 row-start-1 z-0 flex h-full w-full items-center justify-center font-medium tabular-nums leading-none text-primary dark:text-gray-100"
-                      style={{ fontSize: nameFontPx }}
+                      className={`pointer-events-none col-start-1 row-start-1 z-0 flex h-full w-full items-center justify-center truncate ${itemNameFontClassName} ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
                     >
                       {targetQty}
                     </span>
