@@ -478,7 +478,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           className={
             compactRow
               ? 'flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
-              : 'flex items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              : 'flex h-10 min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
           data-tour="item-row"
         >
@@ -594,7 +594,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`relative grid h-[40px] w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 px-0 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    className={`relative grid h-[32px] w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
@@ -602,7 +602,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <span className="pointer-events-none col-start-1 row-start-1 z-0 flex h-full w-full items-center justify-center text-lg text-primary dark:text-gray-100">
+                    <span className="pointer-events-none col-start-1 row-start-1 z-0 flex h-full w-full items-center justify-center text-base font-medium tabular-nums text-primary dark:text-gray-100">
                       {targetQty}
                     </span>
                     <div className="pointer-events-none col-start-1 row-start-1 z-10 flex h-full w-[33px] items-stretch self-stretch justify-self-start">
@@ -661,7 +661,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               <div key={member.id} className="relative">
                 <div
                   data-state-container
-                  className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                  className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[32px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                   onClick={() => {
                     if (!canEdit || isEditingThis || item.archived) return
                     if (!assigned) {
@@ -687,7 +687,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     </>
                   ) : (
                     <>
-                      <span className="text-lg text-primary dark:text-gray-100 flex-1 text-center">{quantity}</span>
+                      <span className="text-base font-medium tabular-nums text-primary dark:text-gray-100 flex-1 text-center">{quantity}</span>
                       <button
                         type="button"
                         onClick={(e) => {
