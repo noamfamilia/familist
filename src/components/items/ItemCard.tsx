@@ -6,6 +6,7 @@ import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
 import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
+import { ITEM_NAME_FONT_DEFAULT, itemNameRowMinHeightPx } from '@/lib/itemNameFontStep'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import { measureCategoryLabelChipWidthPx } from '@/lib/itemTextWidthFit'
 import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
@@ -34,6 +35,8 @@ interface ItemCardProps {
   onClearAddItemDraft?: () => void
   /** Tailwind text size classes for the item title (aligned with list header font control). */
   itemNameFontClassName?: string
+  /** Font step (0–6); drives collapsed row min-height so the card scales with item title size. */
+  itemNameFontStep?: number
 }
 
 /** Stroke check; short leg shortened (option 1) to reduce bleed when stacked */
@@ -164,7 +167,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
   )
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug' }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -463,6 +466,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const compactRow = members.length === 0
+  const itemRowMinHeightPx = itemNameRowMinHeightPx(itemNameFontStep)
 
   return (
     <div
@@ -477,14 +481,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         <div
           className={
             compactRow
-              ? 'flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
-              : 'flex items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              ? 'flex min-w-full w-max flex-nowrap items-stretch gap-0.5 px-2 py-1 whitespace-nowrap'
+              : 'flex items-stretch gap-0.5 px-2 py-1 whitespace-nowrap'
           }
+          style={{ minHeight: itemRowMinHeightPx }}
           data-tour="item-row"
         >
         {/* Drag handle - only shown for draggable (active) items */}
         <div 
-          className={`w-5 text-gray-400 dark:text-gray-500 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${isDraggable ? 'cursor-grab' : ''}`}
+          className={`flex w-5 flex-shrink-0 items-center justify-center text-gray-400 dark:text-gray-500 select-none text-lg tracking-tighter touch-none ${isDraggable ? 'cursor-grab' : ''}`}
           {...(isDraggable ? dragHandleProps : {})}
           data-tour="drag-handle"
         >
@@ -493,7 +498,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Item name - click to toggle archive (collapsed) or rename (expanded) */}
         <div
-          className="relative flex-shrink-0 text-left"
+          className="relative flex flex-shrink-0 items-center text-left"
           style={{ width: itemTextWidth }}
           dir="ltr"
           data-tour="item-name"
@@ -568,7 +573,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         {/* Per-member controls - aligned under header */}
         {members.length > 0 ? (
         <div 
-          className="flex items-center ml-2.5 flex-shrink-0 gap-2.5"
+          className="flex items-stretch ml-2.5 flex-shrink-0 gap-2.5"
           data-tour="item-state"
         >
           {members.map(member => {
@@ -591,10 +596,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               const qtyFillRatio = targetQty <= 0 ? 1 : Math.min(totalQty / targetQty, 1)
 
               return (
-                <div key={member.id} className="relative">
+                <div key={member.id} className="relative flex self-stretch">
                   <div
                     data-state-container
-                    className={`relative grid h-[40px] w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 px-0 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    className={`relative grid min-h-[40px] h-full w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 px-0 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
@@ -658,10 +663,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             const isEditingThis = editingQuantityMember === member.id
 
             return (
-              <div key={member.id} className="relative">
+              <div key={member.id} className="relative flex self-stretch">
                 <div
                   data-state-container
-                  className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[40px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                  className={`flex min-h-[40px] h-full w-[90px] items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                   onClick={() => {
                     if (!canEdit || isEditingThis || item.archived) return
                     if (!assigned) {
@@ -749,8 +754,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         <div
           className={
             compactRow
-              ? 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 pl-2'
-              : 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 pl-4'
+              ? 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 self-stretch pl-2'
+              : 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 self-stretch pl-4'
           }
         >
           {/* Comment indicator - hidden when expanded */}

@@ -12,6 +12,15 @@ export function itemNameFontCanvasPx(step: number): number {
   return ITEM_NAME_FONT_CANVAS_PX[s] ?? ITEM_NAME_FONT_CANVAS_PX[ITEM_NAME_FONT_DEFAULT]
 }
 
+/**
+ * Min height (px) for the item title row (and list header control row) so card height scales with
+ * {@link itemNameFontClassForStep}. Expanded item menu below the row is not affected.
+ */
+export function itemNameRowMinHeightPx(step: number): number {
+  const px = itemNameFontCanvasPx(step)
+  return Math.max(40, Math.ceil(px * 1.35 + 10))
+}
+
 const CLASS_NAMES = [
   'text-xs leading-tight',
   'text-sm leading-tight',
