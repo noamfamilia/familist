@@ -714,7 +714,6 @@ export default function ListPage() {
                       categoryOrder={categoryOrder}
                       onClearAddItemDraft={handleClearAddItemDraftIfTyped}
                       itemNameFontClassName={itemNameFontClassName}
-                      itemNameFontStep={itemNameFontStep}
                     />
                   ))}
                 </SortableContext>
@@ -756,7 +755,6 @@ export default function ListPage() {
                     categoryOrder={categoryOrder}
                     onClearAddItemDraft={handleClearAddItemDraftIfTyped}
                     itemNameFontClassName={itemNameFontClassName}
-                    itemNameFontStep={itemNameFontStep}
                   />
                 ))}
               </div>
