@@ -714,8 +714,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   ) : (
                     <>
                       <span
-                        className="font-medium tabular-nums leading-none text-primary dark:text-gray-100 flex-1 text-center"
-                        style={{ fontSize: nameFontPx }}
+                        className={`flex-1 text-center truncate ${itemNameFontClassName} ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
                       >
                         {quantity}
                       </span>
