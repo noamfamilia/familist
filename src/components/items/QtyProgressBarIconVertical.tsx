@@ -1,5 +1,7 @@
 interface QtyProgressBarIconVerticalProps {
   className?: string
+  /** When set, SVG height in px (width fills); scales the bar with the cell. */
+  trackHeightPx?: number
   /** 0–1: sum of assigned members’ quantities divided by Qty target */
   ratio: number
 }
@@ -36,7 +38,7 @@ const SEG_RX = 4
  * Bottom large shares the column with the small sliver; when ≥⅓ the large is drawn on top and hides the small.
  * Opacity is fixed per row: top 80%, middle 60%, bottom large & teal small 40%, coral zero small 60%.
  */
-export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarIconVerticalProps) {
+export function QtyProgressBarIconVertical({ className, trackHeightPx, ratio }: QtyProgressBarIconVerticalProps) {
   const r = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
   const zeroFill = r === 0
   const smallLit = r > 0 && r < 1 / 3
@@ -58,6 +60,7 @@ export function QtyProgressBarIconVertical({ className, ratio }: QtyProgressBarI
       preserveAspectRatio="xMidYMid meet"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
+      style={trackHeightPx != null ? { height: trackHeightPx, width: '100%', display: 'block' } : undefined}
     >
       <rect
         x="0"

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/providers/AuthProvider'
@@ -9,6 +9,13 @@ import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import { measureCategoryLabelChipWidthPx } from '@/lib/itemTextWidthFit'
 import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
+import {
+  ITEM_NAME_FONT_DEFAULT,
+  itemCardRowHeightWithMembersPx,
+  itemMemberCellHeightPx,
+  itemNameFontCanvasPx,
+  itemQtyProgressBarTrackHeightPx,
+} from '@/lib/itemNameFontStep'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -34,6 +41,8 @@ interface ItemCardProps {
   onClearAddItemDraft?: () => void
   /** Tailwind text size classes for the item title (aligned with list header font control). */
   itemNameFontClassName?: string
+  /** Font step for row/cell/progress sizing (same delta as item name canvas px). */
+  itemNameFontStep?: number
 }
 
 /** Stroke check; short leg shortened (option 1) to reduce bleed when stacked */
@@ -44,10 +53,12 @@ const QTY_CHECK_SIZE = 22
 /** Offset between stacked checks’ right edges (px; smaller = tighter overlap) */
 const QTY_CHECK_STACK_STEP = 4
 
-function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
+function QtyTargetDoneChecks({ doneRatio, checkSizePx = QTY_CHECK_SIZE }: { doneRatio: number; checkSizePx?: number }) {
   const d = Math.min(1, Math.max(0, doneRatio))
   if (d <= 0) return null
 
+  const sz = checkSizePx
+  const stackStep = Math.max(2, Math.round(QTY_CHECK_STACK_STEP * (sz / QTY_CHECK_SIZE)))
   const baseSvg = 'text-coral pointer-events-none'
   const gridSlot =
     'col-start-1 row-start-1 z-20 justify-self-end self-center pr-0.5'
@@ -55,8 +66,8 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
   if (d < 1 / 3) {
     return (
       <svg
-        width={QTY_CHECK_SIZE}
-        height={QTY_CHECK_SIZE}
+        width={sz}
+        height={sz}
         viewBox="0 0 24 24"
         fill="none"
         role="img"
@@ -71,8 +82,8 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
   if (d < 2 / 3) {
     return (
       <svg
-        width={QTY_CHECK_SIZE}
-        height={QTY_CHECK_SIZE}
+        width={sz}
+        height={sz}
         viewBox="0 0 24 24"
         fill="none"
         role="img"
@@ -85,17 +96,17 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
   }
 
   if (d < 1) {
-    const w = QTY_CHECK_SIZE + QTY_CHECK_STACK_STEP
+    const w = sz + stackStep
     return (
       <div
         role="img"
         aria-label="At least two thirds of target quantity completed"
-        className={`${gridSlot} relative h-[22px]`}
-        style={{ width: w }}
+        className={`${gridSlot} relative shrink-0`}
+        style={{ width: w, height: sz }}
       >
         <svg
-          width={QTY_CHECK_SIZE}
-          height={QTY_CHECK_SIZE}
+          width={sz}
+          height={sz}
           viewBox="0 0 24 24"
           fill="none"
           className={`${baseSvg} absolute top-0 block shrink-0 opacity-40`}
@@ -105,12 +116,12 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
           <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
         <svg
-          width={QTY_CHECK_SIZE}
-          height={QTY_CHECK_SIZE}
+          width={sz}
+          height={sz}
           viewBox="0 0 24 24"
           fill="none"
           className={`${baseSvg} absolute top-0 block shrink-0 opacity-60`}
-          style={{ right: QTY_CHECK_STACK_STEP }}
+          style={{ right: stackStep }}
           aria-hidden
         >
           <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -119,17 +130,17 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
     )
   }
 
-  const w3 = QTY_CHECK_SIZE + 2 * QTY_CHECK_STACK_STEP
+  const w3 = sz + 2 * stackStep
   return (
     <div
       role="img"
       aria-label="Target quantity fully completed"
-      className={`${gridSlot} relative h-[22px]`}
-      style={{ width: w3 }}
+      className={`${gridSlot} relative shrink-0`}
+      style={{ width: w3, height: sz }}
     >
       <svg
-        width={QTY_CHECK_SIZE}
-        height={QTY_CHECK_SIZE}
+        width={sz}
+        height={sz}
         viewBox="0 0 24 24"
         fill="none"
         className={`${baseSvg} absolute top-0 block shrink-0 opacity-40`}
@@ -139,23 +150,23 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
         <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
       <svg
-        width={QTY_CHECK_SIZE}
-        height={QTY_CHECK_SIZE}
+        width={sz}
+        height={sz}
         viewBox="0 0 24 24"
         fill="none"
         className={`${baseSvg} absolute top-0 block shrink-0 opacity-60`}
-        style={{ right: QTY_CHECK_STACK_STEP }}
+        style={{ right: stackStep }}
         aria-hidden
       >
         <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
       <svg
-        width={QTY_CHECK_SIZE}
-        height={QTY_CHECK_SIZE}
+        width={sz}
+        height={sz}
         viewBox="0 0 24 24"
         fill="none"
         className={`${baseSvg} absolute top-0 block shrink-0 opacity-80`}
-        style={{ right: 2 * QTY_CHECK_STACK_STEP }}
+        style={{ right: 2 * stackStep }}
         aria-hidden
       >
         <path d={QTY_DONE_CHECK_PATH} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -164,7 +175,7 @@ function QtyTargetDoneChecks({ doneRatio }: { doneRatio: number }) {
   )
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug' }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -302,6 +313,17 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     
     return false
   })
+
+  const compactRow = members.length === 0
+
+  const itemRowHeightPx = useMemo(() => itemCardRowHeightWithMembersPx(itemNameFontStep), [itemNameFontStep])
+  const memberCellPx = useMemo(() => itemMemberCellHeightPx(itemNameFontStep), [itemNameFontStep])
+  const qtyProgressTrackPx = useMemo(() => itemQtyProgressBarTrackHeightPx(itemNameFontStep), [itemNameFontStep])
+  const nameFontPx = useMemo(() => itemNameFontCanvasPx(itemNameFontStep), [itemNameFontStep])
+  const qtyDoneCheckPx = useMemo(
+    () => Math.min(QTY_CHECK_SIZE, Math.max(12, Math.floor(memberCellPx - 6))),
+    [memberCellPx],
+  )
 
   if (shouldHide) return null
 
@@ -462,8 +484,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     }
   }
 
-  const compactRow = members.length === 0
-
   return (
     <div
       className={compactRow ? 'block min-w-full w-max' : 'min-w-full'}
@@ -477,9 +497,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         <div
           className={
             compactRow
-              ? 'flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
-              : 'flex h-10 min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              ? 'box-border flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
+          style={{ height: itemRowHeightPx }}
           data-tour="item-row"
         >
         {/* Drag handle - only shown for draggable (active) items */}
@@ -594,7 +615,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`relative grid h-[32px] w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    style={{ height: memberCellPx }}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
                       e.stopPropagation()
@@ -602,13 +624,16 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       handleOpenQuantityEditor(member.id, container)
                     }}
                   >
-                    <span className="pointer-events-none col-start-1 row-start-1 z-0 flex h-full w-full items-center justify-center text-base font-medium tabular-nums text-primary dark:text-gray-100">
+                    <span
+                      className="pointer-events-none col-start-1 row-start-1 z-0 flex h-full w-full items-center justify-center font-medium tabular-nums leading-none text-primary dark:text-gray-100"
+                      style={{ fontSize: nameFontPx }}
+                    >
                       {targetQty}
                     </span>
-                    <div className="pointer-events-none col-start-1 row-start-1 z-10 flex h-full w-[33px] items-stretch self-stretch justify-self-start">
-                      <QtyProgressBarIconVertical ratio={qtyFillRatio} className="h-full w-full" />
+                    <div className="pointer-events-none col-start-1 row-start-1 z-10 flex h-full w-[33px] items-center justify-center justify-self-start">
+                      <QtyProgressBarIconVertical ratio={qtyFillRatio} className="w-full shrink-0" trackHeightPx={qtyProgressTrackPx} />
                     </div>
-                    <QtyTargetDoneChecks doneRatio={doneRatio} />
+                    <QtyTargetDoneChecks doneRatio={doneRatio} checkSizePx={qtyDoneCheckPx} />
                   </div>
 
                   {isEditingThis && editorPos && (
@@ -661,7 +686,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               <div key={member.id} className="relative">
                 <div
                   data-state-container
-                  className={`flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] h-[32px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                  style={{ height: memberCellPx }}
                   onClick={() => {
                     if (!canEdit || isEditingThis || item.archived) return
                     if (!assigned) {
@@ -687,7 +713,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     </>
                   ) : (
                     <>
-                      <span className="text-base font-medium tabular-nums text-primary dark:text-gray-100 flex-1 text-center">{quantity}</span>
+                      <span
+                        className="font-medium tabular-nums leading-none text-primary dark:text-gray-100 flex-1 text-center"
+                        style={{ fontSize: nameFontPx }}
+                      >
+                        {quantity}
+                      </span>
                       <button
                         type="button"
                         onClick={(e) => {
