@@ -42,7 +42,7 @@ function CallbackHandler() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-black p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-700 p-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-8 w-full max-w-md text-center">
           <div className="text-red-500 text-5xl mb-4">✕</div>
           <h1 className="text-xl font-bold text-primary dark:text-gray-100 mb-2">Authentication Error</h1>
@@ -59,7 +59,7 @@ function CallbackHandler() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-black p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-700 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-8 w-full max-w-md text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal mx-auto mb-4"></div>
         <p className="text-gray-600 dark:text-gray-300">{message}</p>
@@ -71,7 +71,7 @@ function CallbackHandler() {
 export default function AuthCallbackPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-black p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-700 p-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-8 w-full max-w-md text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-300">Loading...</p>

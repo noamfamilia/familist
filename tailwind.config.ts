@@ -34,12 +34,6 @@ const config: Config = {
           DEFAULT: '#f5a623',
           dark: '#e0950a',
         },
-        /** Dark: list strip + cards (charcoal on pure black shell) */
-        listCharcoal: {
-          DEFAULT: '#121212',
-          hover: '#161616',
-        },
-        listName: '#d4d4d4',
       },
     },
   },

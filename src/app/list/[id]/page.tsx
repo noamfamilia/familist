@@ -333,7 +333,7 @@ export default function ListPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="bg-white dark:bg-black rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -341,7 +341,7 @@ export default function ListPage() {
 
   if (!list) {
     return (
-      <div className="bg-white dark:bg-black rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
+      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
         {error ? (
           <>
             <p className="text-center text-red-700 font-medium">Can&apos;t load this list right now.</p>
@@ -509,7 +509,7 @@ export default function ListPage() {
   const noMemberColumns = filteredMembers.length === 0
 
   return (
-    <div className="bg-white dark:bg-black rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full max-w-4xl sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full max-w-4xl sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
@@ -556,14 +556,14 @@ export default function ListPage() {
 
       {/* Header */}
       <header className="text-center mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-semibold text-teal dark:text-list-name">{list.name}</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-teal">{list.name}</h1>
       </header>
 
       {/* Add item form */}
       <div ref={addItemWrapperRef} className="relative mb-4 sm:mb-6">
           <div
             onMouseDown={(e) => e.preventDefault()}
-            className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg z-20 bg-white dark:bg-list-charcoal overflow-hidden transition-all duration-150 ease-out origin-bottom ${
+            className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg z-20 bg-white dark:bg-slate-800 overflow-hidden transition-all duration-150 ease-out origin-bottom ${
               newItemText
                 ? 'opacity-100 scale-y-100 translate-y-0'
                 : 'opacity-0 scale-y-95 translate-y-1 pointer-events-none'
@@ -583,7 +583,7 @@ export default function ListPage() {
                     aria-pressed={catId === newItemCategory}
                     onClick={() => setNewItemCategory(catId)}
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
-                      catId === newItemCategory ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-list-charcoal shadow-sm font-semibold text-primary dark:text-list-name' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
+                      catId === newItemCategory ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
                     }`}
                   >
                     <span className="truncate">{label}</span>
@@ -643,14 +643,12 @@ export default function ListPage() {
       <div className={noMemberColumns ? 'w-full min-w-0' : 'overflow-x-auto'}>
         <div
           className={
-            noMemberColumns
-              ? 'inline-block w-max min-w-full dark:bg-list-charcoal dark:rounded-lg dark:p-2'
-              : 'inline-block min-w-full dark:bg-list-charcoal dark:rounded-lg dark:p-2'
+            noMemberColumns ? 'inline-block w-max min-w-full' : 'inline-block min-w-full'
           }
         >
           {/* Members header with hide done toggles */}
           <div
-            className={`sticky top-0 z-40 bg-white dark:bg-list-charcoal${noMemberColumns ? ' block min-w-full w-max' : ''}`}
+            className={`sticky top-0 z-40 bg-white dark:bg-slate-800${noMemberColumns ? ' block min-w-full w-max' : ''}`}
             data-tour="members-header"
           >
             <MemberHeader

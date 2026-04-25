@@ -527,7 +527,7 @@ export function MemberHeader({
   return (
     <div className={members.length > 0 ? 'mb-3 min-w-full w-max' : 'mb-3 block min-w-full w-max'}>
       {/* Header card container */}
-      <div ref={headerCardRef} className="bg-gray-50 dark:bg-list-charcoal rounded-lg">
+      <div ref={headerCardRef} className="bg-gray-50 dark:bg-slate-900 rounded-lg">
         {/* Header row - matching item card styling */}
         <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
           <div className="flex h-[40px] w-5 flex-shrink-0 items-center justify-center">
@@ -609,7 +609,7 @@ export function MemberHeader({
                     className={`relative flex items-center justify-center px-2 py-1 rounded-lg border w-[90px] h-[40px] transition-colors ${
                       isMenuOpen
                         ? 'bg-cyan border-cyan text-white'
-                        : 'bg-white dark:bg-list-charcoal border-gray-200 dark:border-slate-600'
+                        : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600'
                     } ${!canEdit && !isMenuOpen ? 'opacity-50' : ''} ${!isRenaming ? 'cursor-pointer' : ''}`}
                     data-tour="member-chip"
                     onClick={() => {

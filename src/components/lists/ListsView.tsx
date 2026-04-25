@@ -297,7 +297,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       )}
 
       {/* Lists */}
-      <div className="space-y-2 min-h-[120px] dark:bg-list-charcoal dark:rounded-lg dark:p-2">
+      <div className="space-y-2 min-h-[120px]">
         {fetchError && lists.length === 0 && (
           <div className="text-center py-10 px-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 rounded-lg">
             <p className="text-red-700 font-medium">Can&apos;t load your lists right now.</p>
