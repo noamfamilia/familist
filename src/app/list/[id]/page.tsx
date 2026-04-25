@@ -333,7 +333,7 @@ export default function ListPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="bg-white dark:bg-black rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -341,7 +341,7 @@ export default function ListPage() {
 
   if (!list) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
+      <div className="bg-white dark:bg-black rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
         {error ? (
           <>
             <p className="text-center text-red-700 font-medium">Can&apos;t load this list right now.</p>
@@ -509,7 +509,7 @@ export default function ListPage() {
   const noMemberColumns = filteredMembers.length === 0
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full max-w-4xl sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white dark:bg-black rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full max-w-4xl sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
