@@ -509,7 +509,7 @@ export default function ListPage() {
   const noMemberColumns = filteredMembers.length === 0
 
   return (
-    <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-fit max-w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
@@ -532,7 +532,7 @@ export default function ListPage() {
       )}
 
       {/* Top bar with back button and member filter */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex w-full min-w-0 items-center justify-between mb-4">
         <button
           type="button"
           onClick={handleBackToLists}
@@ -595,7 +595,7 @@ export default function ListPage() {
             </div>
             </div>
           </div>
-        <form ref={addItemFormRef} onSubmit={handleAddItem} className="flex gap-2 sm:gap-3" data-tour="add-item">
+        <form ref={addItemFormRef} onSubmit={handleAddItem} className="flex w-full min-w-0 gap-2 sm:gap-3" data-tour="add-item">
           <div className="flex-1 relative">
             <Input
               ref={addItemInputRef}
@@ -642,8 +642,8 @@ export default function ListPage() {
         </p>
       )}
 
-      {/* With member columns: horizontal scroll when row is wider than the shell. Without: shell grows (sm:w-fit) so cards/backgrounds widen — no inner scrollbar. */}
-      <div className={noMemberColumns ? 'w-full min-w-0' : 'overflow-x-auto'}>
+      {/* With members: scroll horizontally if table exceeds viewport (outer is w-fit max-w-full). Without members: width follows widest item row. */}
+      <div className={noMemberColumns ? 'w-full min-w-0' : 'max-w-full overflow-x-auto'}>
         <div
           className={
             noMemberColumns ? 'inline-block w-max min-w-full' : 'inline-block min-w-full'
