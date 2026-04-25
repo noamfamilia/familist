@@ -290,8 +290,17 @@ function HomeContent() {
                   className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
                   role="menuitem"
                   onClick={() => {
+                    const prev: 'light' | 'dark' =
+                      themeMounted && resolvedTheme === 'dark' ? 'dark' : 'light'
+                    const next: 'light' | 'dark' = prev === 'dark' ? 'light' : 'dark'
                     setProfileMenuOpen(false)
-                    setTheme(themeMounted && resolvedTheme === 'dark' ? 'light' : 'dark')
+                    setTheme(next)
+                    void updateProfile({ theme: next }).then(({ error: themeErr }) => {
+                      if (themeErr) {
+                        setTheme(prev)
+                        showError(themeErr.message || 'Could not save theme')
+                      }
+                    })
                   }}
                 >
                   {themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}

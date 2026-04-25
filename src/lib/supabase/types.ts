@@ -26,6 +26,7 @@ export interface Database {
           email: string | null
           nickname: string | null
           label_filter: string
+          theme: 'light' | 'dark'
           created_at: string
         }
         Insert: {
@@ -33,6 +34,7 @@ export interface Database {
           email?: string | null
           nickname?: string | null
           label_filter?: string
+          theme?: 'light' | 'dark'
           created_at?: string
         }
         Update: {
@@ -40,6 +42,7 @@ export interface Database {
           email?: string | null
           nickname?: string | null
           label_filter?: string
+          theme?: 'light' | 'dark'
           created_at?: string
         }
       }

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { useTheme } from 'next-themes'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  const { setTheme } = useTheme()
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
@@ -52,7 +54,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle()
 
       if (error) return
-      setProfile(data)
+      if (!data) return
+      const row = data as Profile & { theme?: string }
+      setProfile({
+        ...row,
+        theme: row.theme === 'dark' ? 'dark' : 'light',
+      })
     } catch (err) {
       console.error('fetchProfile error:', err)
     }
@@ -106,6 +113,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchProfile, supabase.auth])
 
+  useEffect(() => {
+    const t = profile?.theme
+    if (t === 'light' || t === 'dark') {
+      setTheme(t)
+    }
+  }, [profile?.theme, setTheme])
 
   const signIn = async (email: string, password: string) => {
     try {
