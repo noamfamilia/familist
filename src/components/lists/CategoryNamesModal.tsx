@@ -57,7 +57,7 @@ function SortableCategoryRow({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="Add category name..."
-          className="w-full bg-transparent text-sm text-black focus:outline-none placeholder:text-gray-400 h-5 p-0 pr-5"
+          className="w-full bg-transparent text-sm text-black dark:text-neutral-200 focus:outline-none placeholder:text-gray-400 dark:placeholder:text-neutral-500 h-5 p-0 pr-5"
           maxLength={30}
         />
         {focused && value && (

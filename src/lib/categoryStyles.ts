@@ -1,35 +1,65 @@
 import type { ItemCategory } from '@/lib/supabase/types'
 
-/** Category 1–6: shell for item row bg, swatch for small picker chips, modal for modal input rows. */
-export const ITEM_CATEGORY_STYLES: Record<ItemCategory, { shell: string; swatch: string; modal: string }> = {
+/** Same row shell as list cards (`ListCard`). */
+export const ITEM_LIST_ROW_SHELL =
+  'bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700'
+
+/** Category chip / modal row surface (neutral; category is conveyed by text color). */
+const ITEM_CATEGORY_SURFACE =
+  'border border-gray-300 bg-gray-50 dark:border-neutral-600 dark:bg-neutral-900'
+
+const ITEM_CATEGORY_MODAL_ROW =
+  'bg-gray-50 border border-gray-200 dark:bg-neutral-900 dark:border-neutral-600'
+
+/** Item title color by category (row background is always `ITEM_LIST_ROW_SHELL`). */
+export const ITEM_CATEGORY_NAME_CLASS: Record<ItemCategory, string> = {
+  1: 'text-primary dark:text-neutral-100',
+  2: 'text-teal dark:text-teal-300',
+  3: 'text-coral dark:text-orange-300',
+  4: 'text-orange dark:text-amber-300',
+  5: 'text-violet-700 dark:text-violet-300',
+  6: 'text-sky-700 dark:text-sky-300',
+}
+
+/** Category 1–6: shell = list card row; swatch/modal = neutral surface + `itemName` for labels. */
+export const ITEM_CATEGORY_STYLES: Record<
+  ItemCategory,
+  { shell: string; swatch: string; modal: string; itemName: string }
+> = {
   1: {
-    shell: 'bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-800',
-    swatch: 'border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900',
-    modal: 'bg-gray-100 border border-gray-300 dark:bg-neutral-800 dark:border-neutral-500',
+    shell: ITEM_LIST_ROW_SHELL,
+    swatch: `${ITEM_CATEGORY_SURFACE} ${ITEM_CATEGORY_NAME_CLASS[1]}`,
+    modal: ITEM_CATEGORY_MODAL_ROW,
+    itemName: ITEM_CATEGORY_NAME_CLASS[1],
   },
   2: {
-    shell: 'bg-teal/10 hover:bg-teal/[0.18]',
-    swatch: 'border border-teal/40 bg-teal/10',
-    modal: 'bg-teal/20 border border-teal/40',
+    shell: ITEM_LIST_ROW_SHELL,
+    swatch: `${ITEM_CATEGORY_SURFACE} ${ITEM_CATEGORY_NAME_CLASS[2]}`,
+    modal: ITEM_CATEGORY_MODAL_ROW,
+    itemName: ITEM_CATEGORY_NAME_CLASS[2],
   },
   3: {
-    shell: 'bg-coral/10 hover:bg-coral/[0.18]',
-    swatch: 'border border-coral/40 bg-coral/10',
-    modal: 'bg-coral/20 border border-coral/40',
+    shell: ITEM_LIST_ROW_SHELL,
+    swatch: `${ITEM_CATEGORY_SURFACE} ${ITEM_CATEGORY_NAME_CLASS[3]}`,
+    modal: ITEM_CATEGORY_MODAL_ROW,
+    itemName: ITEM_CATEGORY_NAME_CLASS[3],
   },
   4: {
-    shell: 'bg-orange/10 hover:bg-orange/20',
-    swatch: 'border border-orange/45 bg-orange/10',
-    modal: 'bg-orange/20 border border-orange/45',
+    shell: ITEM_LIST_ROW_SHELL,
+    swatch: `${ITEM_CATEGORY_SURFACE} ${ITEM_CATEGORY_NAME_CLASS[4]}`,
+    modal: ITEM_CATEGORY_MODAL_ROW,
+    itemName: ITEM_CATEGORY_NAME_CLASS[4],
   },
   5: {
-    shell: 'bg-violet-100/90 hover:bg-violet-100',
-    swatch: 'border border-violet-300/55 bg-violet-100/90',
-    modal: 'bg-violet-200/80 border border-violet-300/55',
+    shell: ITEM_LIST_ROW_SHELL,
+    swatch: `${ITEM_CATEGORY_SURFACE} ${ITEM_CATEGORY_NAME_CLASS[5]}`,
+    modal: ITEM_CATEGORY_MODAL_ROW,
+    itemName: ITEM_CATEGORY_NAME_CLASS[5],
   },
   6: {
-    shell: 'bg-sky-100/60 hover:bg-sky-100/80 dark:bg-sky-900/40 dark:hover:bg-sky-900/60',
-    swatch: 'border border-sky-300/55 bg-sky-100/60 dark:bg-sky-900/40',
-    modal: 'bg-sky-200 border border-sky-300/55 dark:bg-sky-800/50',
+    shell: ITEM_LIST_ROW_SHELL,
+    swatch: `${ITEM_CATEGORY_SURFACE} ${ITEM_CATEGORY_NAME_CLASS[6]}`,
+    modal: ITEM_CATEGORY_MODAL_ROW,
+    itemName: ITEM_CATEGORY_NAME_CLASS[6],
   },
 }

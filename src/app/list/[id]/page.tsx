@@ -583,7 +583,9 @@ export default function ListPage() {
                     aria-pressed={catId === newItemCategory}
                     onClick={() => setNewItemCategory(catId)}
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
-                      catId === newItemCategory ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-neutral-950 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
+                      catId === newItemCategory
+                        ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-neutral-950 shadow-sm font-semibold'
+                        : 'hover:opacity-90 opacity-75'
                     }`}
                   >
                     <span className="truncate">{label}</span>
@@ -609,6 +611,7 @@ export default function ListPage() {
               }}
               placeholder="Add an item..."
               aria-label="New item name"
+              className={ITEM_CATEGORY_STYLES[newItemCategory].itemName}
             />
             {newItemText && (
               <button

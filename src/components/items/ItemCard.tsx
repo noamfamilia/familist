@@ -473,6 +473,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   const hasComment = item.comment && item.comment.trim().length > 0
   const shellClass = ITEM_CATEGORY_STYLES[category].shell
+  const itemNameColorClass = item.archived ? '' : ITEM_CATEGORY_STYLES[category].itemName
 
   const handlePickCategory = async (next: ItemCategory) => {
     if (next === category) return
@@ -524,7 +525,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 setEditText(item.text)
                 setIsEditing(true)
               }}
-              className={`flex items-center gap-1 ${itemNameFontClassName} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              className={`flex items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               data-tour="item-archive"
             >
               <span className="truncate">{item.text}</span>
@@ -535,7 +536,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           ) : (
             <span
               onClick={handleArchive}
-              className={`block truncate ${itemNameFontClassName} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              className={`block truncate ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
               data-tour="item-archive"
             >
@@ -920,7 +921,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       void handlePickCategory(catId)
                     }}
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
-                      catId === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-neutral-950 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
+                      catId === category
+                        ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-neutral-950 shadow-sm font-semibold'
+                        : 'hover:opacity-90 opacity-75'
                     }`}
                   >
                     <span className="truncate">{label}</span>
