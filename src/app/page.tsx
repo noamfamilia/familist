@@ -8,6 +8,7 @@ import { ProfileModal } from '@/components/profile/ProfileModal'
 
 
 import { Suspense, useState, useEffect, useRef, useCallback } from 'react'
+import { useTheme } from 'next-themes'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
@@ -73,6 +74,8 @@ function HomeContent() {
   const [feedbackText, setFeedbackText] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { success, error: showError } = useToast()
+  const { resolvedTheme, setTheme } = useTheme()
+  const [themeMounted, setThemeMounted] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
   const [selectedLabel, setSelectedLabel] = useState(() => getCachedLabelFilter() ?? profile?.label_filter ?? 'Any')
   const labelSyncedRef = useRef(false)
@@ -87,6 +90,10 @@ function HomeContent() {
   const [labelManagerOpen, setLabelManagerOpen] = useState(false)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setThemeMounted(true)
+  }, [])
 
   useEffect(() => {
     if (profile && !labelSyncedRef.current) {
@@ -277,6 +284,17 @@ function HomeContent() {
                   onClick={() => { setProfileMenuOpen(false); setShowProfile(true) }}
                 >
                   Profile settings
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  role="menuitem"
+                  onClick={() => {
+                    setProfileMenuOpen(false)
+                    setTheme(themeMounted && resolvedTheme === 'dark' ? 'light' : 'dark')
+                  }}
+                >
+                  {themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}
                 </button>
                 <button
                   type="button"
