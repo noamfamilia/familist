@@ -922,8 +922,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     }}
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
                       catId === category
-                        ? 'outline-2 shadow-sm font-semibold'
-                        : 'hover:opacity-90 opacity-75'
+                        ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary dark:ring-transparent dark:ring-offset-0 dark:outline-2 dark:outline-current'
+                        : 'text-gray-500 hover:opacity-90 opacity-75 dark:opacity-75 dark:hover:opacity-90'
                     }`}
                   >
                     <span className="truncate">{label}</span>
