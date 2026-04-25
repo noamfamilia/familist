@@ -794,7 +794,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 setShowDeleteConfirm(true)
                 setShowMenu(false)
               }}
-              className="text-red-500 hover:opacity-70 p-0.5"
+              className="text-red-500 hover:opacity-70 px-2 py-1 text-lg leading-none flex-shrink-0"
               title="Delete item"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -827,18 +827,18 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           {/* Kebab menu button */}
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 px-1 py-0.5 rounded hover:bg-gray-200"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-1 text-lg leading-none flex-shrink-0"
             title="More options"
             data-tour="item-menu"
           >
-            <span className="text-lg">{showMenu ? '✕' : '⋮'}</span>
+            {showMenu ? '✕' : '⋮'}
           </button>
         </div>
         </div>
 
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
-          <div className={`px-3 py-2 space-y-2${compactRow ? ' min-w-full' : ''}`}>
+          <div className={`px-3 py-2 bg-transparent space-y-2 rounded-b-lg${compactRow ? ' min-w-full' : ''}`}>
             {/* Comment display / editor */}
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               {comment ? (
