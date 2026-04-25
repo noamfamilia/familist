@@ -509,7 +509,7 @@ export default function ListPage() {
   const noMemberColumns = filteredMembers.length === 0
 
   return (
-    <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full max-w-4xl sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
@@ -585,7 +585,7 @@ export default function ListPage() {
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
                       catId === newItemCategory
                         ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary dark:ring-transparent dark:ring-offset-0 dark:outline-2 dark:outline-current'
-                        : 'text-gray-500 hover:opacity-90 opacity-75 dark:opacity-75 dark:hover:opacity-90'
+                        : 'text-gray-500 hover:opacity-90 dark:hover:opacity-90'
                     }`}
                   >
                     <span className="truncate">{label}</span>

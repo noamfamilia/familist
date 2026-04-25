@@ -1,9 +1,9 @@
 import type { ItemCategory } from '@/lib/supabase/types'
 
-/** Item row in dark mode: same as list card. Light mode: per-category tint below. */
+/** Item row in dark mode: same for every category (list card). Light: per-category tint below. */
 const DARK_ROW_SHELL = 'dark:bg-neutral-900 dark:hover:bg-neutral-700'
 
-/** Light-only row backgrounds (legacy). */
+/** Light-only row backgrounds (legacy, pre–home dark toggle). */
 const LIGHT_SHELL: Record<ItemCategory, string> = {
   1: 'bg-gray-50 hover:bg-gray-100',
   2: 'bg-teal/10 hover:bg-teal/[0.18]',
@@ -13,7 +13,7 @@ const LIGHT_SHELL: Record<ItemCategory, string> = {
   6: 'bg-sky-100/60 hover:bg-sky-100/80',
 }
 
-/** Light-only category chip (expanded / add-item picker). */
+/** Light-only category chips (item menu / add-item picker) — legacy translucent fills. */
 const LIGHT_SWATCH: Record<ItemCategory, string> = {
   1: 'border border-gray-300 bg-gray-50',
   2: 'border border-teal/40 bg-teal/10',
@@ -33,14 +33,6 @@ const LIGHT_MODAL: Record<ItemCategory, string> = {
   6: 'bg-sky-200 border border-sky-300/55',
 }
 
-/** Dark: neutral chip + category-colored text; outline follows `currentColor`. */
-const DARK_SWATCH_SUFFIX = (catId: ItemCategory) =>
-  `dark:border-neutral-600 dark:bg-neutral-900 ${ITEM_CATEGORY_NAME_DARK[catId]} dark:outline dark:outline-1 dark:outline-offset-0 dark:outline-current`
-
-/** Dark: Set Categories row surface + category text + outline. */
-const DARK_MODAL_SUFFIX = (catId: ItemCategory) =>
-  `dark:bg-neutral-900 dark:border-neutral-600 ${ITEM_CATEGORY_NAME_DARK[catId]} dark:outline dark:outline-1 dark:outline-offset-0 dark:outline-current`
-
 /** Per-category `dark:text-*` for chips, modal, and item title (light title uses `text-primary` via `itemName`). */
 export const ITEM_CATEGORY_NAME_DARK: Record<ItemCategory, string> = {
   1: 'dark:text-neutral-100',
@@ -51,20 +43,32 @@ export const ITEM_CATEGORY_NAME_DARK: Record<ItemCategory, string> = {
   6: 'dark:text-sky-300',
 }
 
+/** Dark: neutral chip + category-colored text; outline follows `currentColor`. */
+const DARK_SWATCH_SUFFIX = (catId: ItemCategory) =>
+  `dark:border-neutral-600 dark:bg-neutral-900 ${ITEM_CATEGORY_NAME_DARK[catId]} dark:outline dark:outline-1 dark:outline-offset-0 dark:outline-current`
+
+/** Dark: Set Categories row surface + category text + outline. */
+const DARK_MODAL_SUFFIX = (catId: ItemCategory) =>
+  `dark:bg-neutral-900 dark:border-neutral-600 ${ITEM_CATEGORY_NAME_DARK[catId]} dark:outline dark:outline-1 dark:outline-offset-0 dark:outline-current`
+
+function joinClasses(...parts: string[]): string {
+  return parts.filter(Boolean).join(' ')
+}
+
 function categoryShell(catId: ItemCategory): string {
-  return `${LIGHT_SHELL[catId]} ${DARK_ROW_SHELL}`
+  return joinClasses(LIGHT_SHELL[catId], DARK_ROW_SHELL)
 }
 
 function categorySwatch(catId: ItemCategory): string {
-  return `${LIGHT_SWATCH[catId]} ${DARK_SWATCH_SUFFIX(catId)}`
+  return joinClasses(LIGHT_SWATCH[catId], DARK_SWATCH_SUFFIX(catId))
 }
 
 function categoryModalRow(catId: ItemCategory): string {
-  return `${LIGHT_MODAL[catId]} ${DARK_MODAL_SUFFIX(catId)}`
+  return joinClasses(LIGHT_MODAL[catId], DARK_MODAL_SUFFIX(catId))
 }
 
 function categoryItemName(catId: ItemCategory): string {
-  return `text-primary ${ITEM_CATEGORY_NAME_DARK[catId]}`
+  return joinClasses('text-primary', ITEM_CATEGORY_NAME_DARK[catId])
 }
 
 /** Category 1–6: light = legacy fills; dark = neutral + text + outline on chips/modal, unified row shell. */
