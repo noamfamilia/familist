@@ -114,8 +114,8 @@ export function Modal({
   )
 
   const panelClass = fullScreenMobile
-    ? `relative mx-auto w-full bg-white dark:bg-neutral-950 shadow-lg dark:shadow-black/40 outline-none animate-in fade-in zoom-in-95 duration-200 max-sm:fixed max-sm:inset-0 max-sm:m-0 max-sm:flex max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:max-w-none max-sm:flex-col max-sm:overflow-hidden max-sm:rounded-none max-sm:p-0 sm:relative sm:mx-auto sm:my-4 sm:max-h-[calc(100vh-2rem)] sm:overflow-y-auto sm:rounded-xl sm:p-6 sm:p-8 sm:shadow-lg ${sizeClasses[size]} ${contentClassName}`
-    : `relative mx-auto my-4 bg-white dark:bg-neutral-950 rounded-xl shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full max-h-[calc(100vh-2rem)] overflow-y-auto outline-none ${sizeClasses[size]} animate-in fade-in zoom-in-95 duration-200 ${contentClassName}`
+    ? `relative mx-auto w-full bg-white dark:bg-neutral-800 shadow-lg dark:shadow-black/40 outline-none animate-in fade-in zoom-in-95 duration-200 max-sm:fixed max-sm:inset-0 max-sm:m-0 max-sm:flex max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:max-w-none max-sm:flex-col max-sm:overflow-hidden max-sm:rounded-none max-sm:p-0 sm:relative sm:mx-auto sm:my-4 sm:max-h-[calc(100vh-2rem)] sm:overflow-y-auto sm:rounded-xl sm:p-6 sm:p-8 sm:shadow-lg ${sizeClasses[size]} ${contentClassName}`
+    : `relative mx-auto my-4 bg-white dark:bg-neutral-800 rounded-xl shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full max-h-[calc(100vh-2rem)] overflow-y-auto outline-none ${sizeClasses[size]} animate-in fade-in zoom-in-95 duration-200 ${contentClassName}`
 
   const inner = (
     <>

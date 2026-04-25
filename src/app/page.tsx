@@ -248,14 +248,14 @@ function HomeContent() {
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-neutral-950 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white dark:bg-neutral-950 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
+    <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
       {/* Top bar */}
       <div className="flex items-center justify-between mb-4">
         {/* Auth button - top left */}
@@ -575,7 +575,7 @@ function HomeContent() {
 
 function HomeFallback() {
   return (
-    <div className="bg-white dark:bg-neutral-950 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+    <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
     </div>
   )

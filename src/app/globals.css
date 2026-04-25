@@ -24,13 +24,13 @@
 }
 
 .dark {
-  /* Outside main panel (desktop margin) + mobile chrome: lighter than panel */
-  --bg-page: #171717;
-  --bg-page-outer: #171717;
-  /* Cards / inputs / scroll track — a step above panel */
-  --bg-card: #262626;
-  --bg-card-hover: #404040;
-  --bg-input: #262626;
+  /* Page chrome outside main shells (darkest) */
+  --bg-page: #0a0a0a;
+  --bg-page-outer: #0a0a0a;
+  /* Cards / list rows / scroll track — darker than main panel (neutral-800) */
+  --bg-card: #171717;
+  --bg-card-hover: #262626;
+  --bg-input: #171717;
   --bg-overlay: rgba(0, 0, 0, 0.72);
   /* Neutral grays (no slate blue) */
   --text-primary: #f5f5f5;
