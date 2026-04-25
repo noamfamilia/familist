@@ -3,9 +3,9 @@ import type { ItemCategory } from '@/lib/supabase/types'
 /** Category 1–6: shell for item row bg, swatch for small picker chips, modal for modal input rows. */
 export const ITEM_CATEGORY_STYLES: Record<ItemCategory, { shell: string; swatch: string; modal: string }> = {
   1: {
-    shell: 'bg-gray-50 hover:bg-gray-100 dark:bg-slate-700 dark:hover:bg-slate-600',
-    swatch: 'border border-gray-300 bg-gray-50 dark:border-slate-500 dark:bg-slate-700',
-    modal: 'bg-gray-100 border border-gray-300 dark:bg-slate-600 dark:border-slate-500',
+    shell: 'bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-800',
+    swatch: 'border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900',
+    modal: 'bg-gray-100 border border-gray-300 dark:bg-neutral-800 dark:border-neutral-500',
   },
   2: {
     shell: 'bg-teal/10 hover:bg-teal/[0.18]',

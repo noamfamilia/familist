@@ -42,8 +42,8 @@ export default function ResetPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-700 p-4">
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-8 w-full max-w-md text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-neutral-900 p-4">
+        <div className="bg-white dark:bg-neutral-950 rounded-xl shadow-lg dark:shadow-black/40 p-8 w-full max-w-md text-center">
           <div className="text-green-500 text-5xl mb-4">✓</div>
           <h1 className="text-2xl font-bold text-primary dark:text-gray-100 mb-2">Password Updated</h1>
           <p className="text-gray-600 dark:text-gray-300 mb-6">Your password has been successfully reset.</p>
@@ -56,8 +56,8 @@ export default function ResetPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-700 p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-900/50 p-8 w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-neutral-900 p-4">
+      <div className="bg-white dark:bg-neutral-950 rounded-xl shadow-lg dark:shadow-black/40 p-8 w-full max-w-md">
         <h1 className="text-2xl font-bold text-primary dark:text-gray-100 text-center mb-6">Set New Password</h1>
         
         <form onSubmit={handleSubmit} className="space-y-4">

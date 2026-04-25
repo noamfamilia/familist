@@ -51,7 +51,7 @@ export function QtyProgressBarIconVertical({ className, trackHeightPx, ratio }: 
   const mid1On = r >= 2 / 3
   const mid2On = r >= 1 / 3
 
-  const trackMuted = 'fill-gray-50 dark:fill-slate-600/80'
+  const trackMuted = 'fill-gray-50 dark:fill-neutral-600/80'
 
   return (
     <svg
@@ -69,7 +69,7 @@ export function QtyProgressBarIconVertical({ className, trackHeightPx, ratio }: 
         height={VB_H}
         rx={FRAME_RX}
         ry={FRAME_RX}
-        className="fill-gray-100 dark:fill-slate-700/90"
+        className="fill-gray-100 dark:fill-neutral-700/90"
       />
       <rect
         x={x}

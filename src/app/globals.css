@@ -24,18 +24,21 @@
 }
 
 .dark {
-  --bg-page: #0f172a;
-  --bg-page-outer: #020617;
-  --bg-card: #1e293b;
-  --bg-card-hover: #334155;
-  --bg-input: #1e293b;
-  --bg-overlay: rgba(0, 0, 0, 0.7);
-  --text-primary: #e2e8f0;
-  --text-default: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --border-default: #334155;
-  --border-light: rgba(255, 255, 255, 0.1);
+  /* Outside main panel (desktop margin) + mobile chrome: lighter than panel */
+  --bg-page: #171717;
+  --bg-page-outer: #171717;
+  /* Cards / inputs / scroll track — a step above panel */
+  --bg-card: #262626;
+  --bg-card-hover: #404040;
+  --bg-input: #262626;
+  --bg-overlay: rgba(0, 0, 0, 0.72);
+  /* Neutral grays (no slate blue) */
+  --text-primary: #f5f5f5;
+  --text-default: #e5e5e5;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
+  --border-default: #404040;
+  --border-light: rgba(255, 255, 255, 0.08);
 }
 
 body {

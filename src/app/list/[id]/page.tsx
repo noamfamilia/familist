@@ -333,7 +333,7 @@ export default function ListPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="bg-white dark:bg-neutral-950 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -341,7 +341,7 @@ export default function ListPage() {
 
   if (!list) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
+      <div className="bg-white dark:bg-neutral-950 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex flex-col items-center justify-center">
         {error ? (
           <>
             <p className="text-center text-red-700 font-medium">Can&apos;t load this list right now.</p>
@@ -509,7 +509,7 @@ export default function ListPage() {
   const noMemberColumns = filteredMembers.length === 0
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full max-w-4xl sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div className="bg-white dark:bg-neutral-950 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full max-w-4xl sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Timeout message */}
       {(fetchTimedOut || saveTimedOut) && (
         <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
@@ -563,7 +563,7 @@ export default function ListPage() {
       <div ref={addItemWrapperRef} className="relative mb-4 sm:mb-6">
           <div
             onMouseDown={(e) => e.preventDefault()}
-            className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg z-20 bg-white dark:bg-slate-800 overflow-hidden transition-all duration-150 ease-out origin-bottom ${
+            className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg z-20 bg-white dark:bg-neutral-900 overflow-hidden transition-all duration-150 ease-out origin-bottom ${
               newItemText
                 ? 'opacity-100 scale-y-100 translate-y-0'
                 : 'opacity-0 scale-y-95 translate-y-1 pointer-events-none'
@@ -583,7 +583,7 @@ export default function ListPage() {
                     aria-pressed={catId === newItemCategory}
                     onClick={() => setNewItemCategory(catId)}
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
-                      catId === newItemCategory ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
+                      catId === newItemCategory ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-neutral-950 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
                     }`}
                   >
                     <span className="truncate">{label}</span>
@@ -648,7 +648,7 @@ export default function ListPage() {
         >
           {/* Members header with hide done toggles */}
           <div
-            className={`sticky top-0 z-40 bg-white dark:bg-slate-800${noMemberColumns ? ' block min-w-full w-max' : ''}`}
+            className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}`}
             data-tour="members-header"
           >
             <MemberHeader
@@ -730,9 +730,9 @@ export default function ListPage() {
           {archivedItems.length > 0 && (
             <>
               <div className="flex items-center gap-3 my-6">
-                <div className="flex-1 h-px bg-gray-300 dark:bg-slate-600" />
+                <div className="flex-1 h-px bg-gray-300 dark:bg-neutral-700" />
                 <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Archived</span>
-                <div className="flex-1 h-px bg-gray-300 dark:bg-slate-600" />
+                <div className="flex-1 h-px bg-gray-300 dark:bg-neutral-700" />
               </div>
 
               {/* Archived items list (no drag) */}
@@ -820,7 +820,7 @@ export default function ListPage() {
           <button
             type="button"
             onClick={() => setShowNewMemberAlert(false)}
-            className="px-5 py-2 text-base font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300"
+            className="px-5 py-2 text-base font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-neutral-700 rounded-lg hover:bg-gray-300"
           >
             Dismiss
           </button>

@@ -545,7 +545,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           {isEditing && (
             <div
               ref={renamePopoverRef}
-              className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+              className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
               onClick={(e) => e.stopPropagation()}
             >
               <input
@@ -613,7 +613,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-slate-600 dark:bg-slate-800 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-neutral-600 dark:bg-neutral-900 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                     style={{ height: memberCellPx }}
                     onClick={(e) => {
                       if (!canEdit || item.archived) return
@@ -634,7 +634,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   </div>
 
                   {isEditingThis && editorPos && (
-                    <div ref={quantityEditorRef} className="fixed bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 w-[200px]" style={{ top: editorPos.top, left: editorPos.left }}>
+                    <div ref={quantityEditorRef} className="fixed bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-600 rounded-lg shadow-lg dark:shadow-black/40 p-2 z-50 w-[200px]" style={{ top: editorPos.top, left: editorPos.left }}>
                       <input
                         type="number"
                         value={editQuantityValue}
@@ -683,7 +683,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               <div key={member.id} className="relative">
                 <div
                   data-state-container
-                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 w-[90px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 w-[90px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                   style={{ height: memberCellPx }}
                   onClick={() => {
                     if (!canEdit || isEditingThis || item.archived) return
@@ -733,7 +733,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 </div>
 
                 {isEditingThis && editorPos && (
-                  <div ref={quantityEditorRef} className="fixed bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg dark:shadow-slate-900/50 p-2 z-50 w-[200px]" style={{ top: editorPos.top, left: editorPos.left }}>
+                  <div ref={quantityEditorRef} className="fixed bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-600 rounded-lg shadow-lg dark:shadow-black/40 p-2 z-50 w-[200px]" style={{ top: editorPos.top, left: editorPos.left }}>
                     <input
                       type="number"
                       value={editQuantityValue}
@@ -861,7 +861,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               {editingComment && (
                 <div
                   ref={commentPopoverRef}
-                  className="absolute left-0 right-0 top-0 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2"
+                  className="absolute left-0 right-0 top-0 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2"
                 >
                   <textarea
                     ref={commentRef}
@@ -920,7 +920,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       void handlePickCategory(catId)
                     }}
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
-                      catId === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-slate-800 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
+                      catId === category ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-neutral-950 shadow-sm font-semibold text-primary dark:text-gray-100' : 'hover:opacity-90 text-gray-500 dark:text-gray-400'
                     }`}
                   >
                     <span className="truncate">{label}</span>

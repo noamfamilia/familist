@@ -19,8 +19,8 @@ export function Toggle<T extends string>({ options, value, onChange, className =
     : 'bg-teal text-white border-teal'
   
   const inactiveStyles = variant === 'menu'
-    ? 'bg-gray-200 dark:bg-slate-600 text-primary dark:text-gray-100 hover:opacity-80'
-    : 'bg-gray-50 dark:bg-slate-900 text-primary dark:text-gray-100 border-gray-200 dark:border-slate-600 hover:bg-cyan-light'
+    ? 'bg-gray-200 dark:bg-neutral-700 text-primary dark:text-gray-100 hover:opacity-80'
+    : 'bg-gray-50 dark:bg-neutral-900 text-primary dark:text-gray-100 border-gray-200 dark:border-neutral-600 hover:bg-cyan-light'
 
   return (
     <div className={`flex ${className}`}>

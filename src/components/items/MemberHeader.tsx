@@ -527,7 +527,7 @@ export function MemberHeader({
   return (
     <div className={members.length > 0 ? 'mb-3 min-w-full w-max' : 'mb-3 block min-w-full w-max'}>
       {/* Header card container */}
-      <div ref={headerCardRef} className="bg-gray-50 dark:bg-slate-900 rounded-lg">
+      <div ref={headerCardRef} className="bg-gray-50 dark:bg-neutral-900 rounded-lg">
         {/* Header row - matching item card styling */}
         <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
           <div className="flex h-[40px] w-5 flex-shrink-0 items-center justify-center">
@@ -609,7 +609,7 @@ export function MemberHeader({
                     className={`relative flex items-center justify-center px-2 py-1 rounded-lg border w-[90px] h-[40px] transition-colors ${
                       isMenuOpen
                         ? 'bg-cyan border-cyan text-white'
-                        : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600'
+                        : 'bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-600'
                     } ${!canEdit && !isMenuOpen ? 'opacity-50' : ''} ${!isRenaming ? 'cursor-pointer' : ''}`}
                     data-tour="member-chip"
                     onClick={() => {
@@ -627,7 +627,7 @@ export function MemberHeader({
                   {isRenaming && renamePopoverPos && (
                     <div
                       ref={renamePopoverRef}
-                      className="fixed z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+                      className="fixed z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
                       style={{ top: renamePopoverPos.top, left: renamePopoverPos.left }}
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -639,7 +639,7 @@ export function MemberHeader({
                           if (e.key === 'Enter') void handleSaveEdit()
                           if (e.key === 'Escape') handleCancelEdit()
                         }}
-                        className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                        className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
                         autoFocus
                       />
                       <div className="flex gap-1.5">
@@ -702,7 +702,7 @@ export function MemberHeader({
               {isAdding && addMemberPopoverPos && (
                 <div
                   ref={addMemberPopoverRef}
-                  className="fixed z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+                  className="fixed z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
                   style={{ top: addMemberPopoverPos.top, left: addMemberPopoverPos.left }}
                 >
                   <input
@@ -714,7 +714,7 @@ export function MemberHeader({
                       if (e.key === 'Escape') handleCancelAddMember()
                     }}
                     placeholder={suggestedName || 'Name'}
-                    className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                    className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
                     autoFocus
                   />
                   <div className="flex gap-1.5">
@@ -757,7 +757,7 @@ export function MemberHeader({
               {actionsOpen && actionsMenuPos && (
                 <div
                   ref={actionsMenuRef}
-                  className="fixed w-48 flex flex-col rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 py-1 z-50"
+                  className="fixed w-48 flex flex-col rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 py-1 z-50"
                   role="menu"
                   style={{ top: actionsMenuPos.top, right: actionsMenuPos.right }}
                 >
@@ -766,7 +766,7 @@ export function MemberHeader({
                       <button
                         type="button"
                         role="menuitem"
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                         onClick={() => {
                           closeActions()
                           onCreateTargets()
@@ -774,14 +774,14 @@ export function MemberHeader({
                       >
                         Add Qty targets
                       </button>
-                      <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
+                      <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
                     </>
                   )}
                   {onSaveCategorySettings && (
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         setShowCategoryModal(true)
@@ -794,7 +794,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         void onCategorySortClick()
@@ -804,13 +804,13 @@ export function MemberHeader({
                     </button>
                   )}
                   {(onSaveCategorySettings || onCategorySortClick) && (
-                    <div className="my-1 h-px bg-gray-200 dark:bg-slate-600" role="separator" />
+                    <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
                   )}
                   {onExpandAll && (
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onExpandAll()
@@ -823,7 +823,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onCollapseAll()
@@ -839,7 +839,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onRestoreAllArchived()
@@ -852,7 +852,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onDeleteAllArchived()
@@ -874,7 +874,7 @@ export function MemberHeader({
       {openMenuId && openMember && memberMenuPos && !editingMemberId && (
         <div
           ref={memberMenuRef}
-          className="fixed w-64 flex flex-col rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 py-1 z-50"
+          className="fixed w-64 flex flex-col rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 py-1 z-50"
           role="menu"
           style={{ top: memberMenuPos.top, left: memberMenuPos.left, right: memberMenuPos.right }}
         >
@@ -883,7 +883,7 @@ export function MemberHeader({
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center gap-2"
                 onClick={() => handleStartEdit(openMember)}
               >
                 Task: {openMember.name}
@@ -891,11 +891,11 @@ export function MemberHeader({
                   <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
                 </svg>
               </button>
-              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+              <hr className="border-gray-200 dark:border-neutral-600 mx-2" />
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                 onClick={() => void handleTogglePublic(openMember)}
               >
                 Owner: {openMember.creator?.nickname || 'Unknown'}
@@ -906,11 +906,11 @@ export function MemberHeader({
               </button>
               {!openMember.is_target && (
                 <>
-                  <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+                  <hr className="border-gray-200 dark:border-neutral-600 mx-2" />
                   <button
                     type="button"
                     role="menuitem"
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                     onClick={() => {
                       closeMemberMenu()
                       const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
@@ -929,11 +929,11 @@ export function MemberHeader({
                   </button>
                 </>
               )}
-              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+              <hr className="border-gray-200 dark:border-neutral-600 mx-2" />
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-slate-700"
+                className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-neutral-800"
                 onClick={() => handleDeleteClick(openMember)}
               >
                 Delete
@@ -944,12 +944,12 @@ export function MemberHeader({
               <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
                 Task: {openMember.name}
               </div>
-              <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+              <hr className="border-gray-200 dark:border-neutral-600 mx-2" />
               {openMember.is_public ? (
                 <button
                   type="button"
                   role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   onClick={() => handleOwnClick(openMember)}
                 >
                   Owner: {openMember.creator?.nickname || 'Unknown'}
@@ -963,11 +963,11 @@ export function MemberHeader({
               )}
               {!openMember.is_target && (
                 <>
-                  <hr className="border-gray-200 dark:border-slate-600 mx-2" />
+                  <hr className="border-gray-200 dark:border-neutral-600 mx-2" />
                   <button
                     type="button"
                     role="menuitem"
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                     onClick={() => {
                       closeMemberMenu()
                       const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
@@ -1041,7 +1041,7 @@ export function MemberHeader({
             tabIndex={-1}
             role="dialog"
             aria-label="Item name font size"
-            className="fixed z-[10000] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-800 dark:shadow-slate-900/50"
+            className="fixed z-[10000] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
             style={{ top: itemNameFontPos.top, left: itemNameFontPos.left }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1063,7 +1063,7 @@ export function MemberHeader({
                 aria-valuemax={ITEM_NAME_FONT_MAX}
                 aria-valuenow={itemNameFontStep}
                 aria-label="Font size"
-                className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-slate-500 dark:bg-slate-900"
+                className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
                 onClick={handleFontBarClick}
               >
                 <div

@@ -248,14 +248,14 @@ function HomeContent() {
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+      <div className="bg-white dark:bg-neutral-950 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
+    <div className="bg-white dark:bg-neutral-950 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
       {/* Top bar */}
       <div className="flex items-center justify-between mb-4">
         {/* Auth button - top left */}
@@ -274,12 +274,12 @@ function HomeContent() {
             </button>
             {profileMenuOpen && (
               <div
-                className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 py-1 z-50"
+                className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 py-1 z-50"
                 role="menu"
               >
                 <button
                   type="button"
-                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   role="menuitem"
                   onClick={() => { setProfileMenuOpen(false); setShowProfile(true) }}
                 >
@@ -287,7 +287,7 @@ function HomeContent() {
                 </button>
                 <button
                   type="button"
-                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   role="menuitem"
                   onClick={() => {
                     const prev: 'light' | 'dark' =
@@ -307,7 +307,7 @@ function HomeContent() {
                 </button>
                 <button
                   type="button"
-                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   role="menuitem"
                   onClick={() => { setProfileMenuOpen(false); setShowImport(true) }}
                 >
@@ -316,7 +316,7 @@ function HomeContent() {
                 <button
                   type="button"
                   role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   onClick={() => {
                     setProfileMenuOpen(false)
                     resetTutorial('home')
@@ -329,7 +329,7 @@ function HomeContent() {
                 <button
                   type="button"
                   role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   onClick={() => {
                     setProfileMenuOpen(false)
                     setShowFeedback(true)
@@ -357,7 +357,7 @@ function HomeContent() {
               <button
                 type="button"
                 onClick={() => { setLabelDropdownOpen(o => !o); setAddingLabel(false); setNewLabelText('') }}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm font-medium transition-colors bg-white dark:bg-slate-800 ${
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm font-medium transition-colors bg-white dark:bg-neutral-900 ${
                   isCreating ? 'text-red-500 border border-red-500' : 'text-teal border border-teal'
                 }`}
               >
@@ -372,7 +372,7 @@ function HomeContent() {
               </button>
 
               {labelDropdownOpen && (
-                <div className={`absolute right-0 mt-1 min-w-[160px] rounded-lg border bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 z-50 overflow-hidden ${
+                <div className={`absolute right-0 mt-1 min-w-[160px] rounded-lg border bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden ${
                   isCreating ? 'border-red-500' : 'border-teal'
                 }`}>
                   {!isCreating && (
@@ -380,7 +380,7 @@ function HomeContent() {
                       type="button"
                       onClick={() => { handleSelectLabel('Any'); setLabelDropdownOpen(false) }}
                       className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                        selectedLabel === 'Any' ? 'bg-teal/10 text-teal font-semibold' : 'text-teal hover:bg-gray-50 dark:hover:bg-slate-700'
+                        selectedLabel === 'Any' ? 'bg-teal/10 text-teal font-semibold' : 'text-teal hover:bg-gray-50 dark:hover:bg-neutral-800'
                       }`}
                     >
                       Any
@@ -392,7 +392,7 @@ function HomeContent() {
                       type="button"
                       onClick={() => { handleSelectLabel(l); setLabelDropdownOpen(false) }}
                       className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                        selectedLabel === l ? 'bg-teal/10 text-teal font-semibold' : 'text-teal hover:bg-gray-50 dark:hover:bg-slate-700'
+                        selectedLabel === l ? 'bg-teal/10 text-teal font-semibold' : 'text-teal hover:bg-gray-50 dark:hover:bg-neutral-800'
                       }`}
                     >
                       {l}
@@ -402,7 +402,7 @@ function HomeContent() {
                     type="button"
                     onClick={() => { handleSelectLabel(''); setLabelDropdownOpen(false) }}
                     className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                      selectedLabel === '' ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      selectedLabel === '' ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'
                     }`}
                   >
                     None
@@ -410,7 +410,7 @@ function HomeContent() {
                   <button
                     type="button"
                     onClick={() => { setLabelDropdownOpen(false); setAddingLabel(true) }}
-                    className="w-full text-left px-4 py-2 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                    className="w-full text-left px-4 py-2 text-sm text-teal hover:bg-gray-50 dark:hover:bg-neutral-800 border-t border-gray-200 dark:border-neutral-600"
                   >
                     + Add label
                   </button>
@@ -422,7 +422,7 @@ function HomeContent() {
                       setNewLabelText('')
                       setLabelManagerOpen(true)
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                    className="w-full text-left px-4 py-2 text-sm text-teal hover:bg-gray-50 dark:hover:bg-neutral-800 border-t border-gray-200 dark:border-neutral-600"
                   >
                     Label manager
                   </button>
@@ -431,7 +431,7 @@ function HomeContent() {
               {addingLabel && !labelDropdownOpen && (
                 <div
                   ref={addLabelPopoverRef}
-                  className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+                  className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
                 >
                   <input
                     ref={addLabelInputRef}
@@ -443,7 +443,7 @@ function HomeContent() {
                       if (e.key === 'Escape') { setAddingLabel(false); setNewLabelText('') }
                     }}
                     placeholder="Label name..."
-                    className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                    className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
                     autoFocus
                   />
                   <div className="flex gap-1.5">
@@ -535,7 +535,7 @@ function HomeContent() {
           value={feedbackText}
           onChange={(e) => setFeedbackText(e.target.value)}
           placeholder="Share your suggestions or feedback..."
-          className="w-full min-h-[120px] px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200 resize-y"
+          className="w-full min-h-[120px] px-3 py-2 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200 resize-y"
           maxLength={2000}
         />
         <div className="flex justify-end gap-2 mt-3">
@@ -575,7 +575,7 @@ function HomeContent() {
 
 function HomeFallback() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-slate-900/50 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+    <div className="bg-white dark:bg-neutral-950 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
     </div>
   )

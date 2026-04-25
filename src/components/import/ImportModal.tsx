@@ -185,7 +185,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
             value={sheetUrl}
             onChange={e => setSheetUrl(e.target.value)}
             rows={3}
-            className="w-full rounded-lg border border-gray-300 dark:border-slate-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal focus:border-transparent"
+            className="w-full rounded-lg border border-gray-300 dark:border-neutral-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal focus:border-transparent"
             placeholder="https://docs.google.com/spreadsheets/d/…"
             disabled={busy}
           />
@@ -211,7 +211,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
               type="button"
               onClick={() => { setLabelDropdownOpen(o => !o); setAddingLabel(false); setNewLabelText('') }}
               disabled={busy}
-              className="text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal cursor-pointer flex items-center gap-1 w-full"
+              className="text-sm bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-md px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal cursor-pointer flex items-center gap-1 w-full"
             >
               <svg className="h-6 w-6 flex-shrink-0" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
                 <path d="M746.5 575.9L579.2 743.6l-173-173.5-53.3-112.4 108.3-108.6 112.2 53.4z" fill="#FBBA22" />
@@ -223,14 +223,14 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
               </svg>
             </button>
             {labelDropdownOpen && (
-              <div className="absolute left-0 mt-1 min-w-[140px] w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 z-50 overflow-hidden">
+              <div className="absolute left-0 mt-1 min-w-[140px] w-full rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden">
                 {labels.map(l => (
                   <button
                     key={l}
                     type="button"
                     onClick={() => { setSelectedLabel(l); setLabelDropdownOpen(false) }}
                     className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                      selectedLabel === l ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      selectedLabel === l ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800'
                     }`}
                   >
                     {l}
@@ -240,7 +240,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
                   type="button"
                   onClick={() => { setSelectedLabel(''); setLabelDropdownOpen(false) }}
                   className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                    !selectedLabel ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
+                    !selectedLabel ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'
                   }`}
                 >
                   None
@@ -248,7 +248,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
                 <button
                   type="button"
                   onClick={() => { setLabelDropdownOpen(false); setAddingLabel(true) }}
-                  className="w-full text-left px-3 py-1.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                  className="w-full text-left px-3 py-1.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-neutral-800 border-t border-gray-200 dark:border-neutral-600"
                 >
                   + Add label
                 </button>
@@ -257,7 +257,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
             {addingLabel && !labelDropdownOpen && (
               <div
                 ref={addLabelPopoverRef}
-                className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+                className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
               >
                 <input
                   ref={addLabelInputRef}
@@ -269,7 +269,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
                     if (e.key === 'Escape') { setAddingLabel(false); setNewLabelText('') }
                   }}
                   placeholder="Label name..."
-                  className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                  className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
                   autoFocus
                 />
                 <div className="flex gap-1.5">

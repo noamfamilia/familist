@@ -29,7 +29,7 @@ function TriCheckbox({
     <input
       ref={ref}
       type="checkbox"
-      className="h-4 w-4 rounded border-gray-400 bg-white text-white accent-gray-500 focus:ring-gray-400/80 focus:ring-offset-0 pointer-events-none dark:border-gray-500 dark:bg-slate-700 dark:accent-gray-500"
+      className="h-4 w-4 rounded border-gray-400 bg-white text-white accent-gray-500 focus:ring-gray-400/80 focus:ring-offset-0 pointer-events-none dark:border-gray-500 dark:bg-neutral-800 dark:accent-gray-500"
       checked={checked}
       readOnly
       aria-label={ariaLabel}
@@ -399,11 +399,11 @@ export function LabelManagerModal({
           {scopeKeysList.length === 0 ? (
             <p className="text-sm text-gray-500">No labels yet. Create lists or add labels on a list first.</p>
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-slate-600 divide-y divide-gray-200 dark:divide-slate-600">
+            <div className="rounded-lg border border-gray-200 dark:border-neutral-600 divide-y divide-gray-200 dark:divide-neutral-600">
               <button
                 type="button"
                 onClick={toggleScopeSelectAll}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-neutral-800/50"
               >
                 <TriCheckbox value={scopeSelectAllValue} ariaLabel="Select all label filters" />
                 <span>(select all)</span>
@@ -413,11 +413,11 @@ export function LabelManagerModal({
                   key={row.key}
                   type="button"
                   onClick={() => toggleScopeKey(row.key)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-neutral-800/50"
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-teal/60 bg-white text-white accent-teal focus:ring-teal/60 focus:ring-offset-0 pointer-events-none dark:bg-slate-700"
+                    className="h-4 w-4 rounded border-teal/60 bg-white text-white accent-teal focus:ring-teal/60 focus:ring-offset-0 pointer-events-none dark:bg-neutral-800"
                     checked={scopeSelected.has(row.key)}
                     readOnly
                     aria-hidden
@@ -439,16 +439,16 @@ export function LabelManagerModal({
             value={listSearch}
             onChange={e => setListSearch(e.target.value)}
             placeholder="Search list…"
-            className="w-full mb-2 px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-teal/20"
+            className="w-full mb-2 px-3 py-2 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-teal/20"
           />
           {scopedLists.length === 0 ? (
             <p className="text-sm text-gray-500">No lists match the label filter above.</p>
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-slate-600 divide-y divide-gray-200 dark:divide-slate-600">
+            <div className="rounded-lg border border-gray-200 dark:border-neutral-600 divide-y divide-gray-200 dark:divide-neutral-600">
               <button
                 type="button"
                 onClick={toggleVisibleSelectAll}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-neutral-800/50"
               >
                 <TriCheckbox value={listSelectAllValue} ariaLabel={selectAllShownLabel} />
                 <span>{selectAllShownLabel}</span>
@@ -458,11 +458,11 @@ export function LabelManagerModal({
                   key={list.id}
                   type="button"
                   onClick={() => toggleListId(list.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-neutral-800/50"
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-teal/60 bg-white text-white accent-teal focus:ring-teal/60 focus:ring-offset-0 pointer-events-none dark:bg-slate-700"
+                    className="h-4 w-4 rounded border-teal/60 bg-white text-white accent-teal focus:ring-teal/60 focus:ring-offset-0 pointer-events-none dark:bg-neutral-800"
                     checked={selectedIds.has(list.id)}
                     readOnly
                     aria-hidden
@@ -488,7 +488,7 @@ export function LabelManagerModal({
                 if (addingDestLabel) return
                 setDestDropdownOpen(o => !o)
               }}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
             >
               <span className={destination === 'unset' ? 'text-gray-400' : ''}>{destButtonLabel}</span>
               <svg className={`h-4 w-4 flex-shrink-0 ${destDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
@@ -500,10 +500,10 @@ export function LabelManagerModal({
               </svg>
             </button>
             {destDropdownOpen && (
-              <div className="absolute left-0 right-0 bottom-full mb-1 z-[60] rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg">
+              <div className="absolute left-0 right-0 bottom-full mb-1 z-[60] rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg">
                 <button
                   type="button"
-                  className="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  className="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   onClick={() => {
                     setDestination({ kind: 'none' })
                     setDestDropdownOpen(false)
@@ -515,7 +515,7 @@ export function LabelManagerModal({
                   <button
                     key={l}
                     type="button"
-                    className="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+                    className="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800"
                     onClick={() => {
                       setDestination({ kind: 'label', name: l })
                       setDestDropdownOpen(false)
@@ -526,7 +526,7 @@ export function LabelManagerModal({
                 ))}
                 <button
                   type="button"
-                  className="w-full text-left px-3 py-1.5 text-sm text-teal border-t border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  className="w-full text-left px-3 py-1.5 text-sm text-teal border-t border-gray-200 dark:border-neutral-600 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   onClick={() => {
                     setDestDropdownOpen(false)
                     setAddingDestLabel(true)
@@ -539,7 +539,7 @@ export function LabelManagerModal({
             {addingDestLabel && !destDropdownOpen && (
               <div
                 ref={addDestPopoverRef}
-                className="absolute left-0 right-0 bottom-full mb-1 z-[60] bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg p-2 w-full max-w-[200px]"
+                className="absolute left-0 right-0 bottom-full mb-1 z-[60] bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg p-2 w-full max-w-[200px]"
               >
                 <input
                   ref={addDestInputRef}
@@ -554,7 +554,7 @@ export function LabelManagerModal({
                     if (e.key === 'Escape') handleAddDestLabelCancel()
                   }}
                   placeholder="Label name..."
-                  className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                  className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
                 />
                 <div className="flex gap-1.5">
                   <button

@@ -104,7 +104,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   return (
     <div
       className={`
-        pointer-events-auto flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50
+        pointer-events-auto flex items-center gap-3 px-4 py-3 bg-white dark:bg-neutral-900 rounded-lg shadow-lg dark:shadow-black/40
         border-l-4 ${colors[toast.type]} max-w-[350px]
         transition-transform duration-300 ease-out
         ${isVisible ? 'translate-x-0' : 'translate-x-[120%]'}

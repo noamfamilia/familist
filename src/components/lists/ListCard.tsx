@@ -375,7 +375,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   return (
     <>
     {/* Main card content */}
-    <div className="group bg-gray-50 dark:bg-slate-900 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors">
+    <div className="group bg-gray-50 dark:bg-neutral-900 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors">
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle - only for active lists */}
@@ -437,7 +437,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         {isRenaming && (
           <div
             ref={renamePopoverRef}
-            className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+            className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
             onClick={(e) => e.stopPropagation()}
           >
             <input
@@ -502,7 +502,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
       {/* Expanded menu with comment field and action buttons */}
       {menuOpen && (
-        <div className="px-3 py-2 bg-gray-50 dark:bg-slate-900 group-hover:bg-gray-100 dark:group-hover:bg-slate-700 transition-colors space-y-2 rounded-b-lg">
+        <div className="px-3 py-2 bg-gray-50 dark:bg-neutral-900 group-hover:bg-gray-100 dark:group-hover:bg-neutral-800 transition-colors space-y-2 rounded-b-lg">
           {/* Comment display / editor */}
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             {comment ? (
@@ -526,7 +526,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             {editingComment && (
               <div
                 ref={commentPopoverRef}
-                className="absolute left-0 right-0 top-0 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2"
+                className="absolute left-0 right-0 top-0 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2"
               >
                 <textarea
                   ref={commentRef}
@@ -576,7 +576,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <button
                   type="button"
                   onClick={() => { setLabelDropdownOpen(o => !o); setAddingLabel(false); setNewLabelText('') }}
-                  className="text-sm bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal cursor-pointer flex items-center gap-1"
+                  className="text-sm bg-white dark:bg-neutral-900 border border-gray-300 dark:border-neutral-600 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal cursor-pointer flex items-center gap-1"
                 >
                   <svg className="h-8 w-8 flex-shrink-0 -my-1.5" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
                     <path d="M746.5 575.9L579.2 743.6l-173-173.5-53.3-112.4 108.3-108.6 112.2 53.4z" fill="#FBBA22" />
@@ -588,14 +588,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   </svg>
                 </button>
                 {labelDropdownOpen && (
-                  <div className="absolute left-0 mt-1 min-w-[140px] rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 z-50 overflow-hidden">
+                  <div className="absolute left-0 mt-1 min-w-[140px] rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden">
                     {labels.map(l => (
                       <button
                         key={l}
                         type="button"
                         onClick={() => { void onUpdateLabel(list.id, l); setLabelDropdownOpen(false) }}
                         className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                          list.label === l ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                          list.label === l ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800'
                         }`}
                       >
                         {l}
@@ -605,7 +605,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                       type="button"
                       onClick={() => { void onUpdateLabel(list.id, ''); setLabelDropdownOpen(false) }}
                       className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                        !list.label ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
+                        !list.label ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'
                       }`}
                     >
                       None
@@ -613,7 +613,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     <button
                       type="button"
                       onClick={() => { setLabelDropdownOpen(false); setAddingLabel(true) }}
-                      className="w-full text-left px-3 py-1.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                      className="w-full text-left px-3 py-1.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-neutral-800 border-t border-gray-200 dark:border-neutral-600"
                     >
                       + Add label
                     </button>
@@ -622,7 +622,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 {addingLabel && !labelDropdownOpen && (
                   <div
                     ref={addLabelPopoverRef}
-                    className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+                    className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
                   >
                     <input
                       ref={addLabelInputRef}
@@ -741,7 +741,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             onKeyDown={(e) => {
               if (e.key === 'Enter') { e.preventDefault(); void handleDuplicateConfirm() }
             }}
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
           />
         </div>
         <div>
@@ -750,7 +750,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             <button
               type="button"
               onClick={() => { setDupLabelDropdownOpen(o => !o); setDupAddingLabel(false); setDupNewLabelText('') }}
-              className="text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal cursor-pointer flex items-center gap-1 w-full"
+              className="text-sm bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-md px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal cursor-pointer flex items-center gap-1 w-full"
             >
               <svg className="h-6 w-6 flex-shrink-0" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
                 <path d="M746.5 575.9L579.2 743.6l-173-173.5-53.3-112.4 108.3-108.6 112.2 53.4z" fill="#FBBA22" />
@@ -762,14 +762,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               </svg>
             </button>
             {dupLabelDropdownOpen && (
-              <div className="absolute left-0 mt-1 min-w-[140px] w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 z-50 overflow-hidden">
+              <div className="absolute left-0 mt-1 min-w-[140px] w-full rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden">
                 {labels.map(l => (
                   <button
                     key={l}
                     type="button"
                     onClick={() => { setDupLabel(l); setDupLabelDropdownOpen(false) }}
                     className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                      dupLabel === l ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      dupLabel === l ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800'
                     }`}
                   >
                     {l}
@@ -779,7 +779,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   type="button"
                   onClick={() => { setDupLabel(''); setDupLabelDropdownOpen(false) }}
                   className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                    !dupLabel ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
+                    !dupLabel ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'
                   }`}
                 >
                   None
@@ -787,7 +787,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <button
                   type="button"
                   onClick={() => { setDupLabelDropdownOpen(false); setDupAddingLabel(true) }}
-                  className="w-full text-left px-3 py-1.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-slate-700 border-t border-gray-200 dark:border-slate-600"
+                  className="w-full text-left px-3 py-1.5 text-sm text-teal hover:bg-gray-50 dark:hover:bg-neutral-800 border-t border-gray-200 dark:border-neutral-600"
                 >
                   + Add label
                 </button>
@@ -796,7 +796,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             {dupAddingLabel && !dupLabelDropdownOpen && (
               <div
                 ref={dupAddLabelPopoverRef}
-                className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 shadow-lg dark:shadow-slate-900/50 p-2 w-[200px]"
+                className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
               >
                 <input
                   ref={dupAddLabelInputRef}
@@ -808,7 +808,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     if (e.key === 'Escape') { setDupAddingLabel(false); setDupNewLabelText('') }
                   }}
                   placeholder="Label name..."
-                  className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-200"
+                  className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
                   autoFocus
                 />
                 <div className="flex gap-1.5">

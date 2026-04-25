@@ -40,7 +40,7 @@ export function QtyProgressBarIconHorizontal({ className, ratio }: QtyProgressBa
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <rect x="0" y="0" width={VB_W} height={VB_H} className="fill-gray-100 dark:fill-slate-700/90" />
+      <rect x="0" y="0" width={VB_W} height={VB_H} className="fill-gray-100 dark:fill-neutral-700/90" />
       {Array.from({ length: CELL_COUNT }, (_, i) => (
         <rect
           key={i}
@@ -48,7 +48,7 @@ export function QtyProgressBarIconHorizontal({ className, ratio }: QtyProgressBa
           y={ROW_INSET_Y}
           width={cellW}
           height={cellH}
-          className={i < filled ? litClass : 'fill-gray-50 dark:fill-slate-600/80'}
+          className={i < filled ? litClass : 'fill-gray-50 dark:fill-neutral-600/80'}
         />
       ))}
     </svg>
