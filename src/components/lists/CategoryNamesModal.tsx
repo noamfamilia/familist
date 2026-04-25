@@ -57,7 +57,7 @@ function SortableCategoryRow({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="Add category name..."
-          className="w-full bg-transparent text-sm text-black dark:text-neutral-200 focus:outline-none placeholder:text-gray-400 dark:placeholder:text-neutral-500 h-5 p-0 pr-5"
+          className="w-full bg-transparent text-sm text-inherit focus:outline-none placeholder:text-gray-400 placeholder:opacity-55 dark:placeholder:text-neutral-400 dark:placeholder:opacity-70 h-5 p-0 pr-5"
           maxLength={30}
         />
         {focused && value && (
@@ -65,7 +65,7 @@ function SortableCategoryRow({
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => { onChange(''); inputRef.current?.focus() }}
-            className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-0 top-1/2 -translate-y-1/2 text-current opacity-45 hover:opacity-80"
           >
             ✕
           </button>

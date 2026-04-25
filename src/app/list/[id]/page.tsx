@@ -584,7 +584,7 @@ export default function ListPage() {
                     onClick={() => setNewItemCategory(catId)}
                     className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
                       catId === newItemCategory
-                        ? 'ring-2 ring-teal ring-offset-1 ring-offset-white dark:ring-offset-neutral-950 shadow-sm font-semibold'
+                        ? 'outline-2 shadow-sm font-semibold'
                         : 'hover:opacity-90 opacity-75'
                     }`}
                   >
