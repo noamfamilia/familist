@@ -26,8 +26,9 @@
 .dark {
   --bg-page: #000000;
   --bg-page-outer: #000000;
-  --bg-card: #1e293b;
-  --bg-card-hover: #334155;
+  /* Match list cards / charcoal strip (not main black shell) */
+  --bg-card: #121212;
+  --bg-card-hover: #161616;
   --bg-input: #1e293b;
   --bg-overlay: rgba(0, 0, 0, 0.7);
   --text-primary: #e2e8f0;
