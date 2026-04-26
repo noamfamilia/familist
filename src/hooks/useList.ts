@@ -198,6 +198,9 @@ export function useList(listId: string) {
 
   const { warning: warnMutation, showToast, dismissToast, error: showErrorToast } = useToast()
   const archiveUndoToastIdRef = useRef<string | null>(null)
+  /** User intent while archive / undo requests settle (`true` = archived, `false` = not). Read after awaits, not from closures. */
+  const desiredArchivedByItemRef = useRef<Record<string, boolean>>({})
+  const archiveDbWriteInflightRef = useRef<Record<string, boolean>>({})
   const updateItemRef = useRef<
     (itemId: string, updates: Partial<Item>) => Promise<{ error: { message?: string } | null }>
   >(async () => ({ error: null }))
@@ -677,13 +680,159 @@ export function useList(listId: string) {
   }
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
+    const previousItem = items.find(item => item.id === itemId)
+    const persistedUpdates = { ...updates }
+
+    if (persistedUpdates.archived === false) {
+      desiredArchivedByItemRef.current[itemId] = false
+    }
+
+    const onlyArchiveFields = (u: Partial<Item>) => {
+      const keys = Object.keys(u).filter(k => (u as Record<string, unknown>)[k] !== undefined)
+      return keys.every(k => k === 'archived' || k === 'archived_at')
+    }
+
+    const optimisticArchiveWithImmediateUndoToast =
+      previousItem &&
+      !previousItem.archived &&
+      persistedUpdates.archived === true &&
+      onlyArchiveFields(persistedUpdates)
+
+    if (optimisticArchiveWithImmediateUndoToast) {
+      if (archiveDbWriteInflightRef.current[itemId]) {
+        return { error: { message: USER_MUTATION_WAIT_MSG } }
+      }
+      if (!mutationGate.tryBegin()) {
+        return { error: { message: USER_MUTATION_WAIT_MSG } }
+      }
+      try {
+        mutationVersionRef.current += 1
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[useList] archive start (optimistic + Undo toast), mutation version', mutationVersionRef.current, { listId, itemId })
+        }
+
+        desiredArchivedByItemRef.current[itemId] = true
+
+        const skipMs = 'category' in persistedUpdates ? 4500 : 2000
+        skipRealtimeUntilRef.current = Math.max(
+          skipRealtimeUntilRef.current,
+          Date.now() + skipMs
+        )
+        setItems(prev => prev.map(item =>
+          item.id === itemId ? { ...item, ...persistedUpdates } : item
+        ))
+
+        if (archiveUndoToastIdRef.current) {
+          dismissToast(archiveUndoToastIdRef.current)
+        }
+        const label =
+          previousItem.text.length > 48 ? `${previousItem.text.slice(0, 45)}…` : previousItem.text
+        const toastId = showToast(`Archived "${label}"`, 'info', {
+          durationMs: 8000,
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              dismissToast(toastId)
+              if (archiveUndoToastIdRef.current === toastId) {
+                archiveUndoToastIdRef.current = null
+              }
+              void updateItemRef.current(itemId, { archived: false, archived_at: null }).then(
+                ({ error: undoErr }) => {
+                  if (undoErr?.message) {
+                    showErrorToast(undoErr.message)
+                  }
+                },
+              )
+            },
+          },
+        })
+        archiveUndoToastIdRef.current = toastId
+      } finally {
+        mutationGate.end()
+      }
+
+      archiveDbWriteInflightRef.current[itemId] = true
+      const { error } = await trackSaveOperation(
+        supabase
+          .from('items')
+          .update(persistedUpdates)
+          .eq('id', itemId)
+      )
+      archiveDbWriteInflightRef.current[itemId] = false
+
+      const desiredNow = desiredArchivedByItemRef.current[itemId]
+
+      if (error) {
+        if (desiredNow === true) {
+          if (previousItem) {
+            setItems(prev => prev.map(item => item.id === itemId ? previousItem : item))
+          }
+          delete desiredArchivedByItemRef.current[itemId]
+          if (error.code === '23505') {
+            return { error: { ...error, message: 'An item with this name already exists' } }
+          }
+          return { error }
+        }
+        delete desiredArchivedByItemRef.current[itemId]
+        return { error: null }
+      }
+
+      if (desiredNow === true) {
+        delete desiredArchivedByItemRef.current[itemId]
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'item_updated',
+            payload: { itemId },
+          })
+        }
+        return { error: null }
+      }
+
+      if (desiredNow === false) {
+        delete desiredArchivedByItemRef.current[itemId]
+        mutationVersionRef.current += 1
+        skipRealtimeUntilRef.current = Math.max(
+          skipRealtimeUntilRef.current,
+          Date.now() + 2000
+        )
+        const { error: fixErr } = await trackSaveOperation(
+          supabase
+            .from('items')
+            .update({ archived: false, archived_at: null })
+            .eq('id', itemId)
+        )
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'item_updated',
+            payload: { itemId },
+          })
+        }
+        if (fixErr) {
+          if (fixErr.code === '23505') {
+            return { error: { ...fixErr, message: 'An item with this name already exists' } }
+          }
+          return { error: fixErr }
+        }
+        return { error: null }
+      }
+
+      delete desiredArchivedByItemRef.current[itemId]
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'item_updated',
+          payload: { itemId },
+        })
+      }
+      return { error: null }
+    }
+
     if (!mutationGate.tryBegin()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
-      const previousItem = items.find(item => item.id === itemId)
-      const persistedUpdates = { ...updates }
-
       mutationVersionRef.current += 1
       if (process.env.NODE_ENV === 'development') {
         const archiving = previousItem && !previousItem.archived && persistedUpdates.archived === true
@@ -729,12 +878,13 @@ export function useList(listId: string) {
         })
       }
 
-      const becameArchived =
+      const becameArchivedMixedOrAwaitedToast =
         previousItem &&
         !previousItem.archived &&
-        persistedUpdates.archived === true
+        persistedUpdates.archived === true &&
+        !onlyArchiveFields(persistedUpdates)
 
-      if (becameArchived) {
+      if (becameArchivedMixedOrAwaitedToast) {
         if (archiveUndoToastIdRef.current) {
           dismissToast(archiveUndoToastIdRef.current)
         }
@@ -785,6 +935,7 @@ export function useList(listId: string) {
       if (!error) {
         mutationVersionRef.current += 1
         skipRealtimeUntilRef.current = Date.now() + 2000
+        delete desiredArchivedByItemRef.current[itemId]
         setItems(prev => prev.filter(item => item.id !== itemId))
 
         if (channelRef.current) {
