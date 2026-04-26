@@ -40,6 +40,9 @@ export function useLists() {
   const hasInitialDataRef = useRef(false)
   const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const pendingRealtimeRef = useRef(false)
+  const mutationVersionRef = useRef(0)
+  const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
+  const scheduleRealtimeFetchRef = useRef<(delayMs: number, consumePending?: boolean) => void>(() => {})
   const userId = user?.id
 
   const { warning: warnMutation } = useToast()
@@ -115,7 +118,10 @@ export function useLists() {
     return [updatedList, ...activeLists, ...archivedLists]
   }
 
-  const fetchLists = useCallback(async () => {
+  const fetchLists = useCallback(async (options?: { staleCheckVersion?: number | null }) => {
+    const staleCheck = options?.staleCheckVersion
+    let staleDiscarded = false
+
     if (!userId) {
       setLists([])
       setLoading(false)
@@ -149,6 +155,24 @@ export function useLists() {
 
       if (rpcError) throw rpcError
 
+      if (staleCheck != null && staleCheck !== mutationVersionRef.current) {
+        staleDiscarded = true
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[useLists] delayed fetch discarded (stale)', {
+            capturedVersion: staleCheck,
+            currentMutationVersion: mutationVersionRef.current,
+          })
+        }
+        return
+      }
+
+      if (staleCheck != null && process.env.NODE_ENV === 'development') {
+        console.log('[useLists] delayed fetch applied', {
+          capturedVersion: staleCheck,
+          currentMutationVersion: mutationVersionRef.current,
+        })
+      }
+
       const listsData: ListWithRole[] = (data || []).map((item: UserListsRpcRow) => ({
         id: item.id,
         name: item.name,
@@ -180,10 +204,22 @@ export function useLists() {
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
       fetchingRef.current = false
+      if (staleCheck != null) {
+        realtimeScheduleCaptureVersionRef.current = null
+      }
+      if (staleDiscarded) {
+        queueMicrotask(() => {
+          scheduleRealtimeFetchRef.current(0)
+        })
+      }
     }
   }, [userId])
 
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && lists.length > 0
+
+  const refreshLists = useCallback(() => {
+    void fetchLists()
+  }, [fetchLists])
 
   // Initial fetch
   useEffect(() => {
@@ -199,6 +235,13 @@ export function useLists() {
     if (!userId) return
 
     const scheduleRealtimeFetch = (delayMs: number, consumePending = false) => {
+      if (realtimeScheduleCaptureVersionRef.current === null) {
+        realtimeScheduleCaptureVersionRef.current = mutationVersionRef.current
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[useLists] realtime fetch scheduled, captured mutation version', realtimeScheduleCaptureVersionRef.current)
+        }
+      }
+
       if (realtimeDebounceRef.current) {
         clearTimeout(realtimeDebounceRef.current)
       }
@@ -208,6 +251,7 @@ export function useLists() {
 
         if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
           if (consumePending) pendingRealtimeRef.current = true
+          realtimeScheduleCaptureVersionRef.current = null
           return
         }
 
@@ -220,9 +264,16 @@ export function useLists() {
         }
 
         if (consumePending) pendingRealtimeRef.current = false
-        fetchLists()
+        const cap = realtimeScheduleCaptureVersionRef.current
+        if (cap == null) {
+          void fetchLists()
+        } else {
+          void fetchLists({ staleCheckVersion: cap })
+        }
       }, Math.max(delayMs, 0))
     }
+
+    scheduleRealtimeFetchRef.current = scheduleRealtimeFetch
 
     const handleRealtimeChange = () => {
       // Skip fetch if we recently did a local optimistic update (within 2 seconds)
@@ -272,6 +323,7 @@ export function useLists() {
     channelRef.current = channel
 
     return () => {
+      scheduleRealtimeFetchRef.current = () => {}
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       if (realtimeDebounceRef.current) {
         clearTimeout(realtimeDebounceRef.current)
@@ -315,6 +367,7 @@ export function useLists() {
       label: label || '',
     }
 
+    mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => [optimisticList, ...prev])
 
@@ -352,6 +405,7 @@ export function useLists() {
     }
     try {
       const previousList = lists.find(list => list.id === listId)
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLists(prev => prev.map(list =>
         list.id === listId ? { ...list, ...updates } : list
@@ -393,6 +447,7 @@ export function useLists() {
       )
 
       if (!error) {
+        mutationVersionRef.current += 1
         skipRealtimeUntilRef.current = Date.now() + 2000
         setLists(prev => prev.filter(list => list.id !== listId))
         removeCachedList(userId, listId)
@@ -417,6 +472,7 @@ export function useLists() {
           list.id === listId ? { ...list, userArchived: updates.archived ?? list.userArchived } : list
         )
 
+    mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(nextLists)
 
@@ -482,6 +538,7 @@ export function useLists() {
 
       if (error) return { error }
 
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLists(prev => prev.filter(list => list.id !== listId))
       removeCachedList(userId, listId)
@@ -524,6 +581,7 @@ export function useLists() {
       label: label || '',
     }
 
+    mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => [optimisticList, ...prev])
 
@@ -615,6 +673,7 @@ export function useLists() {
       label: label || '',
     }
 
+    mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => [optimisticList, ...prev])
 
@@ -654,6 +713,7 @@ export function useLists() {
 
   const persistListLabelOnly = async (listId: string, label: string) => {
     const previousLists = lists
+    mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => prev.map(list =>
       list.id === listId ? { ...list, label } : list
@@ -717,6 +777,7 @@ export function useLists() {
     }
     try {
     const previousLists = lists
+    mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(reorderedLists)
 
@@ -748,7 +809,7 @@ export function useLists() {
     fetchTimedOut,
     saveTimedOut,
     error,
-    refresh: fetchLists,
+    refresh: refreshLists,
     createList,
     updateList,
     deleteList,

@@ -189,6 +189,11 @@ export function useList(listId: string) {
   const skipRealtimeUntilRef = useRef(0)
   const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const pendingRealtimeRef = useRef(false)
+  /** Bumped at the start of every mutation that optimistically changes list data a delayed `fetchList` could overwrite. */
+  const mutationVersionRef = useRef(0)
+  /** First mutation version captured when a debounced realtime fetch is scheduled; preserved across reschedules until that fetch completes. */
+  const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
+  const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
   const userId = user?.id
 
   const { warning: warnMutation, showToast, dismissToast, error: showErrorToast } = useToast()
@@ -265,7 +270,10 @@ export function useList(listId: string) {
     }))
   }
 
-  const fetchList = useCallback(async () => {
+  const fetchList = useCallback(async (options?: { staleCheckVersion?: number | null }) => {
+    const staleCheck = options?.staleCheckVersion
+    let staleDiscarded = false
+
     if (!userId || !listId) {
       setList(null)
       setItems([])
@@ -318,7 +326,27 @@ export function useList(listId: string) {
         }
         throw new Error('List not found')
       }
-      
+
+      if (staleCheck != null && staleCheck !== mutationVersionRef.current) {
+        staleDiscarded = true
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[useList] delayed fetch discarded (stale)', {
+            listId,
+            capturedVersion: staleCheck,
+            currentMutationVersion: mutationVersionRef.current,
+          })
+        }
+        return
+      }
+
+      if (staleCheck != null && process.env.NODE_ENV === 'development') {
+        console.log('[useList] delayed fetch applied', {
+          listId,
+          capturedVersion: staleCheck,
+          currentMutationVersion: mutationVersionRef.current,
+        })
+      }
+
       // Mark that we have access
       hadAccessRef.current = true
       setList(data.list)
@@ -375,10 +403,22 @@ export function useList(listId: string) {
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
       fetchingRef.current = false
+      if (staleCheck != null) {
+        realtimeScheduleCaptureVersionRef.current = null
+      }
+      if (staleDiscarded) {
+        queueMicrotask(() => {
+          scheduleRealtimeFetchRef.current(0)
+        })
+      }
     }
   }, [userId, listId])
 
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && !!list
+
+  const refreshList = useCallback(() => {
+    void fetchList()
+  }, [fetchList])
 
   // Initial fetch
   useEffect(() => {
@@ -401,6 +441,13 @@ export function useList(listId: string) {
     if (!userId || !listId) return
 
     const scheduleRealtimeFetch = (delayMs: number) => {
+      if (realtimeScheduleCaptureVersionRef.current === null) {
+        realtimeScheduleCaptureVersionRef.current = mutationVersionRef.current
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[useList] realtime fetch scheduled, captured mutation version', realtimeScheduleCaptureVersionRef.current, { listId })
+        }
+      }
+
       if (realtimeDebounceRef.current) {
         clearTimeout(realtimeDebounceRef.current)
       }
@@ -422,9 +469,16 @@ export function useList(listId: string) {
         }
 
         pendingRealtimeRef.current = false
-        fetchList()
+        const cap = realtimeScheduleCaptureVersionRef.current
+        if (cap == null) {
+          void fetchList()
+        } else {
+          void fetchList({ staleCheckVersion: cap })
+        }
       }, Math.max(delayMs, 0))
     }
+
+    scheduleRealtimeFetchRef.current = scheduleRealtimeFetch
 
     const handleRealtimeChange = () => {
       if (fetchingRef.current) {
@@ -440,7 +494,7 @@ export function useList(listId: string) {
         return
       }
 
-      fetchList()
+      void fetchList({ staleCheckVersion: mutationVersionRef.current })
     }
 
     const channel = supabase
@@ -510,6 +564,7 @@ export function useList(listId: string) {
     channelRef.current = channel
 
     return () => {
+      scheduleRealtimeFetchRef.current = () => {}
       if (realtimeDebounceRef.current) {
         clearTimeout(realtimeDebounceRef.current)
       }
@@ -544,6 +599,7 @@ export function useList(listId: string) {
         memberStates: {},
       }
 
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setItems(prev => [...prev, optimisticItem])
 
@@ -627,6 +683,17 @@ export function useList(listId: string) {
     try {
       const previousItem = items.find(item => item.id === itemId)
       const persistedUpdates = { ...updates }
+
+      mutationVersionRef.current += 1
+      if (process.env.NODE_ENV === 'development') {
+        const archiving = previousItem && !previousItem.archived && persistedUpdates.archived === true
+        const restoringUndo = previousItem?.archived && persistedUpdates.archived === false
+        if (archiving) {
+          console.log('[useList] archive start, mutation version', mutationVersionRef.current, { listId, itemId })
+        } else if (restoringUndo) {
+          console.log('[useList] undo/restore start, mutation version', mutationVersionRef.current, { listId, itemId })
+        }
+      }
 
       const skipMs = 'category' in persistedUpdates ? 4500 : 2000
       skipRealtimeUntilRef.current = Math.max(
@@ -716,6 +783,7 @@ export function useList(listId: string) {
       )
 
       if (!error) {
+        mutationVersionRef.current += 1
         skipRealtimeUntilRef.current = Date.now() + 2000
         setItems(prev => prev.filter(item => item.id !== itemId))
 
@@ -759,6 +827,7 @@ export function useList(listId: string) {
       creator: creatorNickname ? { nickname: creatorNickname } : null,
     }
 
+    mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setMembers(prev => [...prev, optimisticMember])    
 
@@ -824,6 +893,7 @@ export function useList(listId: string) {
     }
     try {
       const previousMember = members.find(member => member.id === memberId)
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setMembers(prev => prev.map(member =>
         member.id === memberId ? { ...member, ...updates } : member
@@ -873,6 +943,7 @@ export function useList(listId: string) {
         return { error: { ...error, message: error.message || 'Failed to delete member' } }
       }
 
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setMembers(prev => prev.filter(member => member.id !== memberId))
       setItems(prev => prev.map(item => ({
@@ -914,6 +985,7 @@ export function useList(listId: string) {
         creator: creatorNickname ? { nickname: creatorNickname } : (data.member.creator ?? null),
       }
 
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setMembers(prev => prev.map(m => m.id === memberId ? newMember : m))
       setItems(prev => prev.map(item => {
@@ -959,6 +1031,7 @@ export function useList(listId: string) {
       updated_at: new Date().toISOString(),
     }
 
+    mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLocalMemberState(itemId, memberId, optimisticState)
 
@@ -1037,6 +1110,7 @@ export function useList(listId: string) {
         updated_at: new Date().toISOString(),
       }
 
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLocalMemberState(itemId, memberId, optimisticState)
 
@@ -1081,6 +1155,7 @@ export function useList(listId: string) {
       return { error: { message: USER_MUTATION_WAIT_MSG }, count: 0 }
     }
     try {
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
       setItems(prev => prev.filter(i => !archivedIds.has(i.id)))
 
@@ -1116,6 +1191,7 @@ export function useList(listId: string) {
       return { error: { message: USER_MUTATION_WAIT_MSG }, count: 0 }
     }
     try {
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
       setItems(prev => prev.map(i => {
         if (!i.archived) return i
@@ -1151,6 +1227,7 @@ export function useList(listId: string) {
     }
     try {
       const previousItems = items
+      mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
       const itemsWithUpdatedOrder = reorderedItems.map((item, index) => ({
         ...item,
@@ -1319,6 +1396,7 @@ export function useList(listId: string) {
       if (v) nonEmpty[k] = v
     }
     const serialized = Object.keys(nonEmpty).length > 0 ? JSON.stringify(nonEmpty) : '{}'
+    mutationVersionRef.current += 1
     setCategoryNames({ ...EMPTY_CATEGORY_NAMES, ...names })
     setList(l => l ? { ...l, category_names: serialized } : l)
 
@@ -1340,6 +1418,7 @@ export function useList(listId: string) {
     const prev = categoryOrder
     const prevList = list
     const serialized = JSON.stringify(order)
+    mutationVersionRef.current += 1
     setCategoryOrder(order)
     setList(l => l ? { ...l, category_order: serialized } : l)
 
@@ -1421,6 +1500,7 @@ export function useList(listId: string) {
       updated_at: now,
       creator: creatorFromProfile,
     }
+    mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setMembers(prev => [optimisticTarget, ...prev])
 
@@ -1519,7 +1599,7 @@ export function useList(listId: string) {
     updateItemNameFontStep,
     categoryNames,
     categoryOrder,
-    refresh: fetchList,
+    refresh: refreshList,
     addItem,
     updateItem,
     deleteItem,
