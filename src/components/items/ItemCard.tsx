@@ -940,7 +940,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={handleDeleteConfirm}
         title="Delete Item"
-        message={`Delete "${item.text}"? This will also remove all member quantities and states for this item.`}
+        message={
+          members.length === 0
+            ? `Delete "${item.text}"?`
+            : `Delete "${item.text}"? This will also remove all member quantities and states for this item.`
+        }
         confirmText="Delete"
         variant="danger"
         loading={deleting}
