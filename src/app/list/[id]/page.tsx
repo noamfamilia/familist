@@ -705,23 +705,17 @@ export default function ListPage() {
           {/* Active items — min-w-full w-max children so widest row sets column width */}
           <div className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}>
             {sumScope !== 'none' && (
-              <>
-                <ListSumRowCard
-                  sumScope={sumScope}
-                  items={items}
-                  members={filteredMembers}
-                  itemTextWidth={itemTextWidth}
-                  itemNameFontClassName={itemNameFontClassName}
-                  itemNameFontStep={itemNameFontStep}
-                  onCycleScope={() => void persistSumScope(nextListUserSumScope(sumScope))}
-                  onRemove={() => void persistSumScope('none')}
-                  onClearAddItemDraft={handleClearAddItemDraftIfTyped}
-                />
-                <div className="my-6 flex min-w-0 w-full items-center gap-3" role="presentation">
-                  <div className="h-px min-w-0 flex-1 bg-gray-300 dark:bg-neutral-700" />
-                  <div className="h-px min-w-0 flex-1 bg-gray-300 dark:bg-neutral-700" />
-                </div>
-              </>
+              <ListSumRowCard
+                sumScope={sumScope}
+                items={items}
+                members={filteredMembers}
+                itemTextWidth={itemTextWidth}
+                itemNameFontClassName={itemNameFontClassName}
+                itemNameFontStep={itemNameFontStep}
+                onCycleScope={() => void persistSumScope(nextListUserSumScope(sumScope))}
+                onRemove={() => void persistSumScope('none')}
+                onClearAddItemDraft={handleClearAddItemDraftIfTyped}
+              />
             )}
             {activeItems.length > 0 ? (
               <DndContext

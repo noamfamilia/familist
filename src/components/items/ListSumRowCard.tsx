@@ -119,7 +119,7 @@ export function ListSumRowCard({
           >
             <button
               type="button"
-              className={`block w-full truncate text-left ${itemNameFontClassName} ${DEFAULT_ITEM.itemName} cursor-pointer hover:text-teal`}
+              className={`block w-full truncate text-left ${itemNameFontClassName} text-teal dark:text-teal-300 cursor-pointer hover:opacity-80`}
               onClick={e => {
                 e.stopPropagation()
                 onCycleScope()
