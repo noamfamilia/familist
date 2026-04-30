@@ -761,22 +761,6 @@ export function MemberHeader({
                   role="menu"
                   style={{ top: actionsMenuPos.top, right: actionsMenuPos.right }}
                 >
-                  {onCreateTargets && !hasTargetMember && (
-                    <>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                        onClick={() => {
-                          closeActions()
-                          onCreateTargets()
-                        }}
-                      >
-                        Add Qty targets
-                      </button>
-                      <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
-                    </>
-                  )}
                   {onSaveCategorySettings && (
                     <button
                       type="button"
@@ -860,6 +844,22 @@ export function MemberHeader({
                     >
                       Delete all archived
                     </button>
+                  )}
+                  {onCreateTargets && !hasTargetMember && (
+                    <>
+                      <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                        onClick={() => {
+                          closeActions()
+                          onCreateTargets()
+                        }}
+                      >
+                        Add Qty goals
+                      </button>
+                    </>
                   )}
                 </div>
               )}
