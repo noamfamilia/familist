@@ -90,9 +90,12 @@ export function nextListUserSumScope(current: ListUserSumScope): ListUserSumScop
   return 'all'
 }
 
-function sumRowTitlesForAutoWidth(sumScope: ListUserSumScope): string[] {
+function sumRowTitlesForAutoWidth(sumScope: ListUserSumScope, items: ItemWithState[]): string[] {
   if (sumScope === 'none') return []
-  return ['Sum all', 'Sum active', 'Sum archived']
+  const nAll = items.length
+  const nActive = items.filter(i => !i.archived).length
+  const nArchived = items.filter(i => i.archived).length
+  return [`Sum all - ${nAll}`, `Sum active - ${nActive}`, `Sum archived - ${nArchived}`]
 }
 
 function getCachedPrefs(listId: string, userId?: string) {
@@ -1506,7 +1509,7 @@ export function useList(listId: string) {
       if (mode === 'auto') {
         const texts = [
           ...items.map(i => i.text ?? ''),
-          ...sumRowTitlesForAutoWidth(sumScope),
+          ...sumRowTitlesForAutoWidth(sumScope, items),
         ]
         const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
         setItemTextWidth(fitWidth)
@@ -1782,7 +1785,7 @@ export function useList(listId: string) {
     if (itemTextWidthMode !== 'auto') return
     const texts = [
       ...items.map(i => i.text ?? ''),
-      ...sumRowTitlesForAutoWidth(sumScope),
+      ...sumRowTitlesForAutoWidth(sumScope, items),
     ]
     const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
     setItemTextWidth(fitWidth)

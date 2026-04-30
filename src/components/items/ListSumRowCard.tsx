@@ -71,8 +71,8 @@ export function ListSumRowCard({
   onClearAddItemDraft,
 }: ListSumRowCardProps) {
   const compactRow = members.length === 0
-  const title = titleForMode(sumScope)
   const scoped = useMemo(() => itemsInScope(sumScope, items), [sumScope, items])
+  const title = `${titleForMode(sumScope)} - ${scoped.length}`
 
   const itemRowHeightPx = itemCardRowHeightWithMembersPx(itemNameFontStep)
   const memberCellPx = itemMemberCellHeightPx(itemNameFontStep)
