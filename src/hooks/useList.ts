@@ -78,6 +78,7 @@ type MemberFilter = 'all' | 'mine' | 'hide'
 const VALID_MEMBER_FILTERS: MemberFilter[] = ['all', 'mine', 'hide']
 
 function parseListUserSumScope(raw: unknown): ListUserSumScope {
+  if (raw == null || raw === '') return 'none'
   if (raw === 'none' || raw === 'all' || raw === 'active' || raw === 'archived') return raw
   return 'none'
 }
@@ -90,8 +91,8 @@ export function nextListUserSumScope(current: ListUserSumScope): ListUserSumScop
   return 'all'
 }
 
-function sumRowTitlesForAutoWidth(sumScope: ListUserSumScope, items: ItemWithState[]): string[] {
-  if (sumScope === 'none') return []
+/** Labels used only for auto name-width measurement (always include all three so width fits any mode). */
+function sumRowTitlesForAutoWidth(items: ItemWithState[]): string[] {
   const nAll = items.length
   const nActive = items.filter(i => !i.archived).length
   const nArchived = items.filter(i => i.archived).length
@@ -103,6 +104,7 @@ function getCachedPrefs(listId: string, userId?: string) {
     memberFilter: 'all' as MemberFilter,
     itemTextWidth: 'auto' as string,
     itemNameFontStep: ITEM_NAME_FONT_DEFAULT,
+    sumScope: 'none' as ListUserSumScope,
   }
   if (typeof window === 'undefined') return defaults
   const prefsKey = getPrefsKey(listId, userId)
@@ -116,6 +118,7 @@ function getCachedPrefs(listId: string, userId?: string) {
         memberFilter: VALID_MEMBER_FILTERS.includes(parsed.memberFilter) ? parsed.memberFilter as MemberFilter : 'all' as MemberFilter,
         itemTextWidth: typeof parsed.itemTextWidth === 'string' ? parsed.itemTextWidth : 'auto',
         itemNameFontStep: parseItemNameFontStep(parsed.itemNameFontStep),
+        sumScope: parseListUserSumScope(parsed.sumScope),
       }
     } catch { /* ignore */ }
   }
@@ -124,7 +127,7 @@ function getCachedPrefs(listId: string, userId?: string) {
 
 function setCachedPrefs(
   listId: string,
-  prefs: { memberFilter?: MemberFilter; itemTextWidth?: string; itemNameFontStep?: number },
+  prefs: { memberFilter?: MemberFilter; itemTextWidth?: string; itemNameFontStep?: number; sumScope?: ListUserSumScope },
   userId?: string,
 ) {
   if (typeof window === 'undefined') return
@@ -200,7 +203,9 @@ export function useList(listId: string) {
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
   const [lastViewedMembers, setLastViewedMembers] = useState<string | null>(null)
-  const [sumScope, setSumScope] = useState<ListUserSumScope>('none')
+  const [sumScope, setSumScope] = useState<ListUserSumScope>(() =>
+    parseListUserSumScope(getCachedPrefs(listId).sumScope),
+  )
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -248,7 +253,7 @@ export function useList(listId: string) {
     setItemTextWidth(parsed.width)
     setCategoryNames(parseCategoryNames(cachedData?.list?.category_names))
     setCategoryOrder(parseCategoryOrder(cachedData?.list?.category_order))
-    setSumScope('none')
+    setSumScope(parseListUserSumScope(cachedPrefs.sumScope))
     setLoading(!!userId && !cachedData?.list)
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
@@ -421,7 +426,9 @@ export function useList(listId: string) {
           setItemNameFontStep(serverFontStep)
           setCachedPrefs(listId, { itemNameFontStep: serverFontStep }, userId)
           setLastViewedMembers(listUserData.last_viewed_members ?? null)
-          setSumScope(parseListUserSumScope(listUserData.sum_scope))
+          const serverSumScope = parseListUserSumScope(listUserData.sum_scope)
+          setSumScope(serverSumScope)
+          setCachedPrefs(listId, { sumScope: serverSumScope }, userId)
         }
       }
       setFetchTimedOut(false)
@@ -1509,7 +1516,7 @@ export function useList(listId: string) {
       if (mode === 'auto') {
         const texts = [
           ...items.map(i => i.text ?? ''),
-          ...sumRowTitlesForAutoWidth(sumScope, items),
+          ...sumRowTitlesForAutoWidth(items),
         ]
         const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
         setItemTextWidth(fitWidth)
@@ -1546,6 +1553,7 @@ export function useList(listId: string) {
     const prev = sumScope
     try {
       setSumScope(next)
+      setCachedPrefs(listId, { sumScope: next }, userId)
       const { error } = await trackSaveOperation(
         supabase
           .from('list_users')
@@ -1555,6 +1563,7 @@ export function useList(listId: string) {
       )
       if (error) {
         setSumScope(prev)
+        setCachedPrefs(listId, { sumScope: prev }, userId)
         return { error: new Error(error.message) }
       }
       return { error: null }
@@ -1785,7 +1794,7 @@ export function useList(listId: string) {
     if (itemTextWidthMode !== 'auto') return
     const texts = [
       ...items.map(i => i.text ?? ''),
-      ...sumRowTitlesForAutoWidth(sumScope, items),
+      ...sumRowTitlesForAutoWidth(items),
     ]
     const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
     setItemTextWidth(fitWidth)
@@ -1793,7 +1802,6 @@ export function useList(listId: string) {
     itemTextWidthMode,
     items,
     itemNameFontStep,
-    sumScope,
   ])
 
   return {

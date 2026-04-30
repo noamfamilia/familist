@@ -12,7 +12,8 @@ export const ITEM_TEXT_WIDTH_MAX = 560
  * Extra pixels added to the longest canvas-measured item name width in **auto** mode.
  * Previously 4; increased so slight font / subpixel differences do not clip the last glyphs.
  */
-export const ITEM_NAME_AUTO_FIT_EXTRA_PX = 12
+/** Slightly generous so long labels (e.g. “Sum archived - N”) do not clip vs canvas measureText. */
+export const ITEM_NAME_AUTO_FIT_EXTRA_PX = 18
 
 /** `text-[10px]` category chip next to the item ⋮ menu — horizontal padding on measured text. */
 export const CATEGORY_LABEL_CHIP_EXTRA_PX = 8
