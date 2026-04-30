@@ -817,7 +817,7 @@ export function MemberHeader({
                     </button>
                   )}
                   {hasArchivedItems && (onRestoreAllArchived || onDeleteAllArchived) && (
-                    <div className="my-1 h-px bg-gray-200" role="separator" />
+                    <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
                   )}
                   {hasArchivedItems && onRestoreAllArchived && (
                     <button
