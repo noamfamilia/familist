@@ -89,7 +89,7 @@ export function ListSumRowCard({
     return map
   }, [members, scoped])
 
-  const qtyTextClass = `${itemNameFontClassName} ${DEFAULT_ITEM.itemName}`
+  const qtyTextClass = `${itemNameFontClassName} text-teal dark:text-teal-300`
 
   return (
     <div
@@ -137,7 +137,7 @@ export function ListSumRowCard({
                 return (
                   <div
                     key={member.id}
-                    className="relative box-border flex w-[90px] flex-shrink-0 cursor-default items-center justify-center rounded-lg border border-gray-200 bg-white px-2 py-1 dark:border-neutral-600 dark:bg-neutral-900"
+                    className="relative box-border flex w-[90px] flex-shrink-0 cursor-default items-center justify-center rounded-lg border border-transparent bg-transparent px-2 py-1"
                     style={{ height: memberCellPx }}
                   >
                     <span className={`max-w-full truncate text-center ${qtyTextClass}`}>{value}</span>
