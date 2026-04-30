@@ -110,6 +110,9 @@ export interface Database {
           item_text_width: string | null
           item_name_font_step: number
           show_targets: boolean
+          sum_all: boolean
+          sum_active: boolean
+          sum_archived: boolean
           label: string
           created_at: string
         }
@@ -123,6 +126,9 @@ export interface Database {
           item_text_width?: string | null
           item_name_font_step?: number
           show_targets?: boolean
+          sum_all?: boolean
+          sum_active?: boolean
+          sum_archived?: boolean
           label?: string
           created_at?: string
         }
@@ -136,6 +142,9 @@ export interface Database {
           item_text_width?: string | null
           item_name_font_step?: number
           show_targets?: boolean
+          sum_all?: boolean
+          sum_active?: boolean
+          sum_archived?: boolean
           label?: string
           created_at?: string
         }

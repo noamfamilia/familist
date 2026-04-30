@@ -76,6 +76,16 @@ type MemberFilter = 'all' | 'mine' | 'hide'
 
 const VALID_MEMBER_FILTERS: MemberFilter[] = ['all', 'mine', 'hide']
 
+export type ListUserSumRowColumn = 'sum_all' | 'sum_active' | 'sum_archived'
+
+function sumRowTitlesForAutoWidth(sumAll: boolean, sumActive: boolean, sumArchived: boolean): string[] {
+  const titles: string[] = []
+  if (sumAll) titles.push('Sum all items')
+  if (sumActive) titles.push('Sum active items')
+  if (sumArchived) titles.push('Sum archived items')
+  return titles
+}
+
 function getCachedPrefs(listId: string, userId?: string) {
   const defaults = {
     memberFilter: 'all' as MemberFilter,
@@ -178,6 +188,9 @@ export function useList(listId: string) {
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
   const [lastViewedMembers, setLastViewedMembers] = useState<string | null>(null)
+  const [sumAllEnabled, setSumAllEnabled] = useState(false)
+  const [sumActiveEnabled, setSumActiveEnabled] = useState(false)
+  const [sumArchivedEnabled, setSumArchivedEnabled] = useState(false)
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -225,6 +238,9 @@ export function useList(listId: string) {
     setItemTextWidth(parsed.width)
     setCategoryNames(parseCategoryNames(cachedData?.list?.category_names))
     setCategoryOrder(parseCategoryOrder(cachedData?.list?.category_order))
+    setSumAllEnabled(false)
+    setSumActiveEnabled(false)
+    setSumArchivedEnabled(false)
     setLoading(!!userId && !cachedData?.list)
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
@@ -372,7 +388,9 @@ export function useList(listId: string) {
         prefsFetchedRef.current = true
         const { data: listUserData } = await supabase
           .from('list_users')
-          .select('member_filter, item_text_width, last_viewed_members, item_name_font_step')
+          .select(
+            'member_filter, item_text_width, last_viewed_members, item_name_font_step, sum_all, sum_active, sum_archived',
+          )
           .eq('list_id', listId)
           .eq('user_id', userId)
           .single()
@@ -395,6 +413,9 @@ export function useList(listId: string) {
           setItemNameFontStep(serverFontStep)
           setCachedPrefs(listId, { itemNameFontStep: serverFontStep }, userId)
           setLastViewedMembers(listUserData.last_viewed_members ?? null)
+          setSumAllEnabled(!!listUserData.sum_all)
+          setSumActiveEnabled(!!listUserData.sum_active)
+          setSumArchivedEnabled(!!listUserData.sum_archived)
         }
       }
       setFetchTimedOut(false)
@@ -1480,7 +1501,10 @@ export function useList(listId: string) {
       const prevMode = itemTextWidthMode
       const prevWidth = itemTextWidth
       if (mode === 'auto') {
-        const texts = items.map(i => i.text ?? '')
+        const texts = [
+          ...items.map(i => i.text ?? ''),
+          ...sumRowTitlesForAutoWidth(sumAllEnabled, sumActiveEnabled, sumArchivedEnabled),
+        ]
         const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
         setItemTextWidth(fitWidth)
       }
@@ -1501,6 +1525,39 @@ export function useList(listId: string) {
           setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
         }
       }
+    } finally {
+      mutationGate.end()
+    }
+  }
+
+  const updateListUserSumRow = async (column: ListUserSumRowColumn, enabled: boolean) => {
+    if (!userId) {
+      return { error: new Error('Not signed in') }
+    }
+    if (!mutationGate.tryBegin()) {
+      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    }
+    const prev =
+      column === 'sum_all' ? sumAllEnabled : column === 'sum_active' ? sumActiveEnabled : sumArchivedEnabled
+    try {
+      if (column === 'sum_all') setSumAllEnabled(enabled)
+      else if (column === 'sum_active') setSumActiveEnabled(enabled)
+      else setSumArchivedEnabled(enabled)
+
+      const { error } = await trackSaveOperation(
+        supabase
+          .from('list_users')
+          .update({ [column]: enabled })
+          .eq('list_id', listId)
+          .eq('user_id', userId),
+      )
+      if (error) {
+        if (column === 'sum_all') setSumAllEnabled(prev)
+        else if (column === 'sum_active') setSumActiveEnabled(prev)
+        else setSumArchivedEnabled(prev)
+        return { error: new Error(error.message) }
+      }
+      return { error: null }
     } finally {
       mutationGate.end()
     }
@@ -1726,10 +1783,20 @@ export function useList(listId: string) {
   // Auto-fit width when mode is 'auto' and items change
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
-    const texts = items.map(i => i.text ?? '')
+    const texts = [
+      ...items.map(i => i.text ?? ''),
+      ...sumRowTitlesForAutoWidth(sumAllEnabled, sumActiveEnabled, sumArchivedEnabled),
+    ]
     const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
     setItemTextWidth(fitWidth)
-  }, [itemTextWidthMode, items, itemNameFontStep])
+  }, [
+    itemTextWidthMode,
+    items,
+    itemNameFontStep,
+    sumAllEnabled,
+    sumActiveEnabled,
+    sumArchivedEnabled,
+  ])
 
   return {
     list,
@@ -1771,5 +1838,9 @@ export function useList(listId: string) {
     saveCategorySettings,
     lastViewedMembers,
     createTargets,
+    sumAllEnabled,
+    sumActiveEnabled,
+    sumArchivedEnabled,
+    updateListUserSumRow,
   }
 }

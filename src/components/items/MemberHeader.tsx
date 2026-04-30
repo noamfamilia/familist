@@ -70,6 +70,12 @@ interface MemberHeaderProps {
   onSaveCategorySettings?: (names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
   hasTargetMember?: boolean
   onCreateTargets?: () => void
+  sumAllEnabled?: boolean
+  sumActiveEnabled?: boolean
+  sumArchivedEnabled?: boolean
+  onEnableSumAll?: () => void
+  onEnableSumActive?: () => void
+  onEnableSumArchived?: () => void
 }
 
 export function MemberHeader({
@@ -105,6 +111,12 @@ export function MemberHeader({
   onSaveCategorySettings,
   hasTargetMember = false,
   onCreateTargets,
+  sumAllEnabled = false,
+  sumActiveEnabled = false,
+  sumArchivedEnabled = false,
+  onEnableSumAll,
+  onEnableSumActive,
+  onEnableSumArchived,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
@@ -859,6 +871,50 @@ export function MemberHeader({
                       >
                         Add Qty goals
                       </button>
+                    </>
+                  )}
+                  {(onEnableSumAll || onEnableSumActive || onEnableSumArchived) && (
+                    <>
+                      <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
+                      {onEnableSumAll && !sumAllEnabled && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                          onClick={() => {
+                            closeActions()
+                            onEnableSumAll()
+                          }}
+                        >
+                          Sum all items
+                        </button>
+                      )}
+                      {onEnableSumActive && !sumActiveEnabled && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                          onClick={() => {
+                            closeActions()
+                            onEnableSumActive()
+                          }}
+                        >
+                          Sum active items
+                        </button>
+                      )}
+                      {onEnableSumArchived && !sumArchivedEnabled && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                          onClick={() => {
+                            closeActions()
+                            onEnableSumArchived()
+                          }}
+                        >
+                          Sum archived items
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

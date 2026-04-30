@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
-import { useList } from '@/hooks/useList'
+import { useList, type ListUserSumRowColumn } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
+import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import { itemNameFontClassForStep } from '@/lib/itemNameFontStep'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
@@ -213,6 +214,10 @@ export default function ListPage() {
     saveCategorySettings,
     lastViewedMembers,
     createTargets,
+    sumAllEnabled,
+    sumActiveEnabled,
+    sumArchivedEnabled,
+    updateListUserSumRow,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -465,6 +470,13 @@ export default function ListPage() {
   const handleExpandAll = () => setExpandSignal(s => s + 1)
   const handleCollapseAll = () => setCollapseSignal(s => s + 1)
 
+  const persistSumRow = async (column: ListUserSumRowColumn, enabled: boolean) => {
+    const { error } = await updateListUserSumRow(column, enabled)
+    if (error) {
+      showError(error.message || (enabled ? 'Failed to add sum row' : 'Failed to remove sum row'))
+    }
+  }
+
   const handleDeleteAllArchived = async () => {
     setBulkLoading(true)
     const { error } = await deleteArchivedItems()
@@ -687,11 +699,53 @@ export default function ListPage() {
               categoryNames={categoryNames}
               categoryOrder={categoryOrder}
               onSaveCategorySettings={saveCategorySettings}
+              sumAllEnabled={sumAllEnabled}
+              sumActiveEnabled={sumActiveEnabled}
+              sumArchivedEnabled={sumArchivedEnabled}
+              onEnableSumAll={() => void persistSumRow('sum_all', true)}
+              onEnableSumActive={() => void persistSumRow('sum_active', true)}
+              onEnableSumArchived={() => void persistSumRow('sum_archived', true)}
             />
           </div>
 
           {/* Active items — min-w-full w-max children so widest row sets column width */}
           <div className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}>
+            {sumAllEnabled && (
+              <ListSumRowCard
+                kind="all"
+                items={items}
+                members={filteredMembers}
+                itemTextWidth={itemTextWidth}
+                itemNameFontClassName={itemNameFontClassName}
+                itemNameFontStep={itemNameFontStep}
+                onRemove={() => void persistSumRow('sum_all', false)}
+                onClearAddItemDraft={handleClearAddItemDraftIfTyped}
+              />
+            )}
+            {sumActiveEnabled && (
+              <ListSumRowCard
+                kind="active"
+                items={items}
+                members={filteredMembers}
+                itemTextWidth={itemTextWidth}
+                itemNameFontClassName={itemNameFontClassName}
+                itemNameFontStep={itemNameFontStep}
+                onRemove={() => void persistSumRow('sum_active', false)}
+                onClearAddItemDraft={handleClearAddItemDraftIfTyped}
+              />
+            )}
+            {sumArchivedEnabled && (
+              <ListSumRowCard
+                kind="archived"
+                items={items}
+                members={filteredMembers}
+                itemTextWidth={itemTextWidth}
+                itemNameFontClassName={itemNameFontClassName}
+                itemNameFontStep={itemNameFontStep}
+                onRemove={() => void persistSumRow('sum_archived', false)}
+                onClearAddItemDraft={handleClearAddItemDraftIfTyped}
+              />
+            )}
             {activeItems.length > 0 ? (
               <DndContext
                 sensors={sensors}
