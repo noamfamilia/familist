@@ -21,6 +21,7 @@ import {
   type List,
   type Member,
   type MemberWithCreator,
+  type ListUserSumScope,
 } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useToast } from '@/components/ui/Toast'
@@ -76,14 +77,22 @@ type MemberFilter = 'all' | 'mine' | 'hide'
 
 const VALID_MEMBER_FILTERS: MemberFilter[] = ['all', 'mine', 'hide']
 
-export type ListUserSumRowColumn = 'sum_all' | 'sum_active' | 'sum_archived'
+function parseListUserSumScope(raw: unknown): ListUserSumScope {
+  if (raw === 'none' || raw === 'all' || raw === 'active' || raw === 'archived') return raw
+  return 'none'
+}
 
-function sumRowTitlesForAutoWidth(sumAll: boolean, sumActive: boolean, sumArchived: boolean): string[] {
-  const titles: string[] = []
-  if (sumAll) titles.push('Sum all items')
-  if (sumActive) titles.push('Sum active items')
-  if (sumArchived) titles.push('Sum archived items')
-  return titles
+/** Next mode when cycling the sum row title (all → active → archived → all). */
+export function nextListUserSumScope(current: ListUserSumScope): ListUserSumScope {
+  if (current === 'all') return 'active'
+  if (current === 'active') return 'archived'
+  if (current === 'archived') return 'all'
+  return 'all'
+}
+
+function sumRowTitlesForAutoWidth(sumScope: ListUserSumScope): string[] {
+  if (sumScope === 'none') return []
+  return ['Sum all', 'Sum active', 'Sum archived']
 }
 
 function getCachedPrefs(listId: string, userId?: string) {
@@ -188,9 +197,7 @@ export function useList(listId: string) {
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
   const [lastViewedMembers, setLastViewedMembers] = useState<string | null>(null)
-  const [sumAllEnabled, setSumAllEnabled] = useState(false)
-  const [sumActiveEnabled, setSumActiveEnabled] = useState(false)
-  const [sumArchivedEnabled, setSumArchivedEnabled] = useState(false)
+  const [sumScope, setSumScope] = useState<ListUserSumScope>('none')
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -238,9 +245,7 @@ export function useList(listId: string) {
     setItemTextWidth(parsed.width)
     setCategoryNames(parseCategoryNames(cachedData?.list?.category_names))
     setCategoryOrder(parseCategoryOrder(cachedData?.list?.category_order))
-    setSumAllEnabled(false)
-    setSumActiveEnabled(false)
-    setSumArchivedEnabled(false)
+    setSumScope('none')
     setLoading(!!userId && !cachedData?.list)
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
@@ -389,7 +394,7 @@ export function useList(listId: string) {
         const { data: listUserData } = await supabase
           .from('list_users')
           .select(
-            'member_filter, item_text_width, last_viewed_members, item_name_font_step, sum_all, sum_active, sum_archived',
+            'member_filter, item_text_width, last_viewed_members, item_name_font_step, sum_scope',
           )
           .eq('list_id', listId)
           .eq('user_id', userId)
@@ -413,9 +418,7 @@ export function useList(listId: string) {
           setItemNameFontStep(serverFontStep)
           setCachedPrefs(listId, { itemNameFontStep: serverFontStep }, userId)
           setLastViewedMembers(listUserData.last_viewed_members ?? null)
-          setSumAllEnabled(!!listUserData.sum_all)
-          setSumActiveEnabled(!!listUserData.sum_active)
-          setSumArchivedEnabled(!!listUserData.sum_archived)
+          setSumScope(parseListUserSumScope(listUserData.sum_scope))
         }
       }
       setFetchTimedOut(false)
@@ -1503,7 +1506,7 @@ export function useList(listId: string) {
       if (mode === 'auto') {
         const texts = [
           ...items.map(i => i.text ?? ''),
-          ...sumRowTitlesForAutoWidth(sumAllEnabled, sumActiveEnabled, sumArchivedEnabled),
+          ...sumRowTitlesForAutoWidth(sumScope),
         ]
         const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
         setItemTextWidth(fitWidth)
@@ -1530,31 +1533,25 @@ export function useList(listId: string) {
     }
   }
 
-  const updateListUserSumRow = async (column: ListUserSumRowColumn, enabled: boolean) => {
+  const updateListUserSumScope = async (next: ListUserSumScope) => {
     if (!userId) {
       return { error: new Error('Not signed in') }
     }
     if (!mutationGate.tryBegin()) {
       return { error: new Error(USER_MUTATION_WAIT_MSG) }
     }
-    const prev =
-      column === 'sum_all' ? sumAllEnabled : column === 'sum_active' ? sumActiveEnabled : sumArchivedEnabled
+    const prev = sumScope
     try {
-      if (column === 'sum_all') setSumAllEnabled(enabled)
-      else if (column === 'sum_active') setSumActiveEnabled(enabled)
-      else setSumArchivedEnabled(enabled)
-
+      setSumScope(next)
       const { error } = await trackSaveOperation(
         supabase
           .from('list_users')
-          .update({ [column]: enabled })
+          .update({ sum_scope: next })
           .eq('list_id', listId)
           .eq('user_id', userId),
       )
       if (error) {
-        if (column === 'sum_all') setSumAllEnabled(prev)
-        else if (column === 'sum_active') setSumActiveEnabled(prev)
-        else setSumArchivedEnabled(prev)
+        setSumScope(prev)
         return { error: new Error(error.message) }
       }
       return { error: null }
@@ -1785,7 +1782,7 @@ export function useList(listId: string) {
     if (itemTextWidthMode !== 'auto') return
     const texts = [
       ...items.map(i => i.text ?? ''),
-      ...sumRowTitlesForAutoWidth(sumAllEnabled, sumActiveEnabled, sumArchivedEnabled),
+      ...sumRowTitlesForAutoWidth(sumScope),
     ]
     const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
     setItemTextWidth(fitWidth)
@@ -1793,9 +1790,7 @@ export function useList(listId: string) {
     itemTextWidthMode,
     items,
     itemNameFontStep,
-    sumAllEnabled,
-    sumActiveEnabled,
-    sumArchivedEnabled,
+    sumScope,
   ])
 
   return {
@@ -1838,9 +1833,7 @@ export function useList(listId: string) {
     saveCategorySettings,
     lastViewedMembers,
     createTargets,
-    sumAllEnabled,
-    sumActiveEnabled,
-    sumArchivedEnabled,
-    updateListUserSumRow,
+    sumScope,
+    updateListUserSumScope,
   }
 }

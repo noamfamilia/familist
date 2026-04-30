@@ -110,9 +110,7 @@ export interface Database {
           item_text_width: string | null
           item_name_font_step: number
           show_targets: boolean
-          sum_all: boolean
-          sum_active: boolean
-          sum_archived: boolean
+          sum_scope: 'none' | 'all' | 'active' | 'archived'
           label: string
           created_at: string
         }
@@ -126,9 +124,7 @@ export interface Database {
           item_text_width?: string | null
           item_name_font_step?: number
           show_targets?: boolean
-          sum_all?: boolean
-          sum_active?: boolean
-          sum_archived?: boolean
+          sum_scope?: 'none' | 'all' | 'active' | 'archived'
           label?: string
           created_at?: string
         }
@@ -142,9 +138,7 @@ export interface Database {
           item_text_width?: string | null
           item_name_font_step?: number
           show_targets?: boolean
-          sum_all?: boolean
-          sum_active?: boolean
-          sum_archived?: boolean
+          sum_scope?: 'none' | 'all' | 'active' | 'archived'
           label?: string
           created_at?: string
         }
@@ -363,6 +357,7 @@ export interface Database {
 export type Profile = Database['public']['Tables']['profiles']['Row']
 export type List = Database['public']['Tables']['lists']['Row']
 export type ListUser = Database['public']['Tables']['list_users']['Row']
+export type ListUserSumScope = ListUser['sum_scope']
 export type Member = Database['public']['Tables']['members']['Row']
 export type Item = Database['public']['Tables']['items']['Row']
 export type ItemMemberState = Database['public']['Tables']['item_member_state']['Row']

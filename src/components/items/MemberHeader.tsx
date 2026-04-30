@@ -70,12 +70,9 @@ interface MemberHeaderProps {
   onSaveCategorySettings?: (names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
   hasTargetMember?: boolean
   onCreateTargets?: () => void
-  sumAllEnabled?: boolean
-  sumActiveEnabled?: boolean
-  sumArchivedEnabled?: boolean
-  onEnableSumAll?: () => void
-  onEnableSumActive?: () => void
-  onEnableSumArchived?: () => void
+  /** When `'none'`, the sum row is hidden and "Sum items" may be shown in the gear menu. */
+  sumScope?: 'none' | 'all' | 'active' | 'archived'
+  onEnableSumItems?: () => void
 }
 
 export function MemberHeader({
@@ -111,12 +108,8 @@ export function MemberHeader({
   onSaveCategorySettings,
   hasTargetMember = false,
   onCreateTargets,
-  sumAllEnabled = false,
-  sumActiveEnabled = false,
-  sumArchivedEnabled = false,
-  onEnableSumAll,
-  onEnableSumActive,
-  onEnableSumArchived,
+  sumScope = 'none',
+  onEnableSumItems,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
@@ -873,48 +866,20 @@ export function MemberHeader({
                       </button>
                     </>
                   )}
-                  {(onEnableSumAll || onEnableSumActive || onEnableSumArchived) && (
+                  {onEnableSumItems && sumScope === 'none' && (
                     <>
                       <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
-                      {onEnableSumAll && !sumAllEnabled && (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                          onClick={() => {
-                            closeActions()
-                            onEnableSumAll()
-                          }}
-                        >
-                          Sum all items
-                        </button>
-                      )}
-                      {onEnableSumActive && !sumActiveEnabled && (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                          onClick={() => {
-                            closeActions()
-                            onEnableSumActive()
-                          }}
-                        >
-                          Sum active items
-                        </button>
-                      )}
-                      {onEnableSumArchived && !sumArchivedEnabled && (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                          onClick={() => {
-                            closeActions()
-                            onEnableSumArchived()
-                          }}
-                        >
-                          Sum archived items
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                        onClick={() => {
+                          closeActions()
+                          onEnableSumItems()
+                        }}
+                      >
+                        Sum items
+                      </button>
                     </>
                   )}
                 </div>

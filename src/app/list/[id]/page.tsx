@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
-import { useList, type ListUserSumRowColumn } from '@/hooks/useList'
+import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
@@ -20,7 +20,7 @@ import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import { itemNameFontClassForStep } from '@/lib/itemNameFontStep'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
-import type { ItemWithState, ItemCategory } from '@/lib/supabase/types'
+import type { ItemWithState, ItemCategory, ListUserSumScope } from '@/lib/supabase/types'
 import { normalizeItemCategory, ITEM_CATEGORIES } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import type { Step } from 'react-joyride'
@@ -214,10 +214,8 @@ export default function ListPage() {
     saveCategorySettings,
     lastViewedMembers,
     createTargets,
-    sumAllEnabled,
-    sumActiveEnabled,
-    sumArchivedEnabled,
-    updateListUserSumRow,
+    sumScope,
+    updateListUserSumScope,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -470,10 +468,10 @@ export default function ListPage() {
   const handleExpandAll = () => setExpandSignal(s => s + 1)
   const handleCollapseAll = () => setCollapseSignal(s => s + 1)
 
-  const persistSumRow = async (column: ListUserSumRowColumn, enabled: boolean) => {
-    const { error } = await updateListUserSumRow(column, enabled)
+  const persistSumScope = async (next: ListUserSumScope) => {
+    const { error } = await updateListUserSumScope(next)
     if (error) {
-      showError(error.message || (enabled ? 'Failed to add sum row' : 'Failed to remove sum row'))
+      showError(error.message || 'Failed to update sum row')
     }
   }
 
@@ -699,52 +697,31 @@ export default function ListPage() {
               categoryNames={categoryNames}
               categoryOrder={categoryOrder}
               onSaveCategorySettings={saveCategorySettings}
-              sumAllEnabled={sumAllEnabled}
-              sumActiveEnabled={sumActiveEnabled}
-              sumArchivedEnabled={sumArchivedEnabled}
-              onEnableSumAll={() => void persistSumRow('sum_all', true)}
-              onEnableSumActive={() => void persistSumRow('sum_active', true)}
-              onEnableSumArchived={() => void persistSumRow('sum_archived', true)}
+              sumScope={sumScope}
+              onEnableSumItems={() => void persistSumScope('all')}
             />
           </div>
 
           {/* Active items — min-w-full w-max children so widest row sets column width */}
           <div className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}>
-            {sumAllEnabled && (
-              <ListSumRowCard
-                kind="all"
-                items={items}
-                members={filteredMembers}
-                itemTextWidth={itemTextWidth}
-                itemNameFontClassName={itemNameFontClassName}
-                itemNameFontStep={itemNameFontStep}
-                onRemove={() => void persistSumRow('sum_all', false)}
-                onClearAddItemDraft={handleClearAddItemDraftIfTyped}
-              />
-            )}
-            {sumActiveEnabled && (
-              <ListSumRowCard
-                kind="active"
-                items={items}
-                members={filteredMembers}
-                itemTextWidth={itemTextWidth}
-                itemNameFontClassName={itemNameFontClassName}
-                itemNameFontStep={itemNameFontStep}
-                onRemove={() => void persistSumRow('sum_active', false)}
-                onClearAddItemDraft={handleClearAddItemDraftIfTyped}
-              />
-            )}
-            {sumArchivedEnabled && (
-              <ListSumRowCard
-                kind="archived"
-                items={items}
-                members={filteredMembers}
-                itemTextWidth={itemTextWidth}
-                itemNameFontClassName={itemNameFontClassName}
-                itemNameFontStep={itemNameFontStep}
-                onRemove={() => void persistSumRow('sum_archived', false)}
-                onClearAddItemDraft={handleClearAddItemDraftIfTyped}
-              />
+            {sumScope !== 'none' && (
+              <>
+                <ListSumRowCard
+                  sumScope={sumScope}
+                  items={items}
+                  members={filteredMembers}
+                  itemTextWidth={itemTextWidth}
+                  itemNameFontClassName={itemNameFontClassName}
+                  itemNameFontStep={itemNameFontStep}
+                  onCycleScope={() => void persistSumScope(nextListUserSumScope(sumScope))}
+                  onRemove={() => void persistSumScope('none')}
+                  onClearAddItemDraft={handleClearAddItemDraftIfTyped}
+                />
+                <div className="my-6 flex min-w-0 w-full items-center gap-3" role="presentation">
+                  <div className="h-px min-w-0 flex-1 bg-gray-300 dark:bg-neutral-700" />
+                  <div className="h-px min-w-0 flex-1 bg-gray-300 dark:bg-neutral-700" />
+                </div>
+              </>
             )}
             {activeItems.length > 0 ? (
               <DndContext
