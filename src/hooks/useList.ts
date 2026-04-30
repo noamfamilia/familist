@@ -1789,7 +1789,7 @@ export function useList(listId: string) {
     }
   }
 
-  // Auto-fit width when mode is 'auto' and items change
+  // Auto-fit width when mode is 'auto' and items change (include sumScope so cycling all/active/archived recalculates)
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
     const texts = [
@@ -1802,6 +1802,7 @@ export function useList(listId: string) {
     itemTextWidthMode,
     items,
     itemNameFontStep,
+    sumScope,
   ])
 
   return {
