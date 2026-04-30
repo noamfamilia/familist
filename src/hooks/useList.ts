@@ -97,9 +97,9 @@ function sumRowTitlesForAutoWidth(sumScope: ListUserSumScope, items: ItemWithSta
   const nAll = items.length
   const nActive = items.filter(i => !i.archived).length
   const nArchived = items.filter(i => i.archived).length
-  if (sumScope === 'all') return [`Sum all - ${nAll}`]
-  if (sumScope === 'active') return [`Sum active - ${nActive}`]
-  return [`Sum archived - ${nArchived}`]
+  if (sumScope === 'all') return [`${nAll} items`]
+  if (sumScope === 'active') return [`${nActive} active items`]
+  return [`${nArchived} archived item`]
 }
 
 function getCachedPrefs(listId: string, userId?: string) {

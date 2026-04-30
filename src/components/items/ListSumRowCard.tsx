@@ -19,10 +19,10 @@ function itemsInScope(kind: SumRowMode, items: ItemWithState[]): ItemWithState[]
   return items.filter(i => i.archived)
 }
 
-function titleForMode(mode: SumRowMode): string {
-  if (mode === 'all') return 'Sum all'
-  if (mode === 'active') return 'Sum active'
-  return 'Sum archived'
+function sumRowTitleLabel(mode: SumRowMode, n: number): string {
+  if (mode === 'all') return `${n} items`
+  if (mode === 'active') return `${n} active items`
+  return `${n} archived item`
 }
 
 function sumRegularMember(memberId: string, scoped: ItemWithState[]): number {
@@ -72,7 +72,7 @@ export function ListSumRowCard({
 }: ListSumRowCardProps) {
   const compactRow = members.length === 0
   const scoped = useMemo(() => itemsInScope(sumScope, items), [sumScope, items])
-  const title = `${titleForMode(sumScope)} - ${scoped.length}`
+  const title = sumRowTitleLabel(sumScope, scoped.length)
 
   const itemRowHeightPx = itemCardRowHeightWithMembersPx(itemNameFontStep)
   const memberCellPx = itemMemberCellHeightPx(itemNameFontStep)
