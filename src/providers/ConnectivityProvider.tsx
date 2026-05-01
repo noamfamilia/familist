@@ -233,7 +233,11 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     })
   }, [showToast, showWarning])
 
-  /** Origin/CDN diagnostics + explicit SW registration (same URL next-pwa uses, no query string). */
+  /**
+   * PWA diagnostics + optional SW register fallback.
+   * next-pwa already registers when register:true — a second immediate register() races and can
+   * leave the installing worker as redundant. We wait for getRegistration(), then register only if missing.
+   */
   useEffect(() => {
     let cancelled = false
     let removeStateListener: (() => void) | undefined
@@ -267,8 +271,24 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         }
 
         try {
-          const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-          if (cancelled) return
+          let reg: ServiceWorkerRegistration | undefined
+          for (let i = 0; i < 30; i++) {
+            if (cancelled) return
+            reg = await navigator.serviceWorker.getRegistration()
+            if (reg) break
+            await new Promise((r) => setTimeout(r, 100))
+          }
+
+          let registeredByUs = false
+          if (!reg) {
+            reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            registeredByUs = true
+          }
+          if (cancelled || !reg) return
+
+          if (appendPwaBlock) {
+            appendDiagnostics(`SW registration source: ${registeredByUs ? 'fallback register()' : 'next-pwa / existing'}`)
+          }
 
           const regSnap = {
             scope: reg.scope,
