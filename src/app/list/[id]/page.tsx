@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
+import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
@@ -176,7 +177,8 @@ export default function ListPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const listId = params.id as string
-  const { error: showError, warning: showWarning } = useToast()
+  const { error: showError, warning: showWarning, showToast } = useToast()
+  const { offlineAssetsReady, swControlled } = useConnectivity()
   
   const {
     list,
@@ -229,6 +231,18 @@ export default function ListPage() {
 
   const [showNewMemberAlert, setShowNewMemberAlert] = useState(false)
   const knownMemberIdsRef = useRef<Set<string> | null>(null)
+  const lastPageDiagToastAtRef = useRef(0)
+
+  useEffect(() => {
+    const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
+    const swControllerExists = typeof navigator !== 'undefined' ? !!navigator.serviceWorker?.controller : false
+    const diag = `list-page diag online=${browserOnline ? 1 : 0} sw=${swControllerExists ? 1 : 0} assets=${offlineAssetsReady ? 1 : 0} swState=${swControlled ? 1 : 0}`
+    const now = Date.now()
+    if (now - lastPageDiagToastAtRef.current > 1200) {
+      showToast(diag, browserOnline ? 'info' : 'warning', { durationMs: 3500 })
+      lastPageDiagToastAtRef.current = now
+    }
+  }, [listId, offlineAssetsReady, showToast, swControlled])
 
   useEffect(() => {
     if (!hasCompletedInitialFetch || !user) return
