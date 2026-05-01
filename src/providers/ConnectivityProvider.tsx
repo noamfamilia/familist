@@ -2,8 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useToast } from '@/components/ui/Toast'
-import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
-import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
 type ConnectivityStatus = 'online' | 'syncing' | 'offline'
@@ -42,7 +40,6 @@ async function probeInternetReachable(): Promise<boolean> {
 
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
   const { showToast, dismissToast, clearToasts, warning: showWarning } = useToast()
-  const { appendDiagnostics } = useDiagnosticsMessageBox()
   const [status, setStatus] = useState<ConnectivityStatus>('online')
   const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
   const [swControlled, setSwControlled] = useState(false)
@@ -232,122 +229,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       // Ignore readiness errors
     })
   }, [showToast, showWarning])
-
-  /**
-   * PWA diagnostics + optional SW register fallback.
-   * next-pwa already registers when register:true — a second immediate register() races and can
-   * leave the installing worker as redundant. We wait for getRegistration(), then register only if missing.
-   */
-  useEffect(() => {
-    let cancelled = false
-    let removeStateListener: (() => void) | undefined
-
-    const run = async () => {
-      try {
-        let appendPwaBlock = true
-        try {
-          if (sessionStorage.getItem('familist_pwa_diag_banner') === '1') {
-            appendPwaBlock = false
-          } else {
-            sessionStorage.setItem('familist_pwa_diag_banner', '1')
-          }
-        } catch {
-          appendPwaBlock = true
-        }
-
-        const d = await collectPwaDiagnostics()
-        if (cancelled) return
-        console.log('[PWA DIAG]', d)
-
-        if (appendPwaBlock) {
-          appendDiagnostics(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
-        }
-
-        if (!('serviceWorker' in navigator)) {
-          if (appendPwaBlock) {
-            appendDiagnostics('pwa: no serviceWorker in navigator')
-          }
-          return
-        }
-
-        try {
-          let reg: ServiceWorkerRegistration | undefined
-          for (let i = 0; i < 30; i++) {
-            if (cancelled) return
-            reg = await navigator.serviceWorker.getRegistration()
-            if (reg) break
-            await new Promise((r) => setTimeout(r, 100))
-          }
-
-          let registeredByUs = false
-          if (!reg) {
-            reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            registeredByUs = true
-          }
-          if (cancelled || !reg) return
-
-          if (appendPwaBlock) {
-            appendDiagnostics(`SW registration source: ${registeredByUs ? 'fallback register()' : 'next-pwa / existing'}`)
-          }
-
-          const regSnap = {
-            scope: reg.scope,
-            installing: reg.installing?.scriptURL,
-            installingState: reg.installing?.state,
-            waiting: reg.waiting?.scriptURL,
-            waitingState: reg.waiting?.state,
-            active: reg.active?.scriptURL,
-            activeState: reg.active?.state,
-          }
-          console.log('SW reg', regSnap)
-          appendDiagnostics(`SW reg (immediate)\n${JSON.stringify(regSnap, null, 2)}`)
-
-          const regsNow = await navigator.serviceWorker.getRegistrations()
-          console.log('SW getRegistrations (immediate)', regsNow.length, regsNow)
-          appendDiagnostics(
-            `getRegistrations (immediate) n=${regsNow.length}\n${JSON.stringify(
-              regsNow.map((r) => ({
-                scope: r.scope,
-                installing: r.installing?.scriptURL,
-                installingState: r.installing?.state,
-                waiting: r.waiting?.scriptURL,
-                waitingState: r.waiting?.state,
-                active: r.active?.scriptURL,
-                activeState: r.active?.state,
-              })),
-              null,
-              2,
-            )}`,
-          )
-
-          const worker = reg.installing || reg.waiting || reg.active
-          if (worker) {
-            const onStateChange = () => {
-              console.log('SW statechange', {
-                scriptURL: worker.scriptURL,
-                state: worker.state,
-              })
-              appendDiagnostics(`SW statechange\nscriptURL=${worker.scriptURL}\nstate=${worker.state}`)
-            }
-            worker.addEventListener('statechange', onStateChange)
-            removeStateListener = () => worker.removeEventListener('statechange', onStateChange)
-          }
-        } catch (e) {
-          if (cancelled) return
-          const msg = e instanceof Error ? e.message : String(e)
-          appendDiagnostics(`sw-reg FAIL\n${msg}`)
-        }
-      } catch (e) {
-        console.error('[PWA DIAG] failed', e)
-      }
-    }
-
-    void run()
-    return () => {
-      cancelled = true
-      removeStateListener?.()
-    }
-  }, [appendDiagnostics])
 
   return (
     <ConnectivityContext.Provider
