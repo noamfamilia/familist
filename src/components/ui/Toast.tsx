@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 
-type ToastType = 'success' | 'error' | 'warning' | 'info' | 'offline' | 'online'
+type ToastType = 'success' | 'error' | 'warning' | 'info' | 'offline'
 
 export type ToastAction = { label: string; onClick: () => void }
 
@@ -69,20 +69,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ toasts, showToast, dismissToast, success, error, warning, info }}>
       {children}
       
-      {/* Regular toasts */}
+      {/* Toast container */}
       <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none">
-        {toasts.filter(t => t.type !== 'offline' && t.type !== 'online').map(toast => (
+        {toasts.map(toast => (
           <ToastItem key={toast.id} toast={toast} onDismiss={() => removeToast(toast.id)} />
         ))}
-      </div>
-
-      {/* Centered status banners for offline/online transitions */}
-      <div className="fixed inset-0 z-[60] pointer-events-none flex items-center justify-center p-4">
-        <div className="flex flex-col gap-2 w-full max-w-[520px]">
-          {toasts.filter(t => t.type === 'offline' || t.type === 'online').map(toast => (
-            <ToastItem key={toast.id} toast={toast} onDismiss={() => removeToast(toast.id)} />
-          ))}
-        </div>
       </div>
     </ToastContext.Provider>
   )
@@ -101,8 +92,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     error: '✕',
     warning: '⚠',
     info: 'ℹ',
-    offline: '✕',
-    online: '✓',
+    offline: '⚠',
   }
 
   const colors = {
@@ -110,24 +100,21 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     error: 'border-l-red-500 text-red-600',
     warning: 'border-l-yellow-500 text-yellow-600',
     info: 'border-l-blue-500 text-blue-600',
-    offline: 'bg-red-500 text-white',
-    online: 'bg-teal text-white',
+    offline: 'border-l-neutral-500 text-neutral-600',
   }
-
-  const isStatusBanner = toast.type === 'offline' || toast.type === 'online'
 
   return (
     <div
       className={`
-        pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg dark:shadow-black/40
-        ${isStatusBanner ? `${colors[toast.type]} w-full justify-center text-center text-base font-medium` : `bg-white dark:bg-neutral-900 border-l-4 ${colors[toast.type]} max-w-[350px]`}
+        pointer-events-auto flex items-center gap-3 px-4 py-3 bg-white dark:bg-neutral-900 rounded-lg shadow-lg dark:shadow-black/40
+        border-l-4 ${colors[toast.type]} max-w-[350px]
         transition-transform duration-300 ease-out
-        ${isStatusBanner ? (isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0') : (isVisible ? 'translate-x-0' : 'translate-x-[120%]')}
+        ${isVisible ? 'translate-x-0' : 'translate-x-[120%]'}
       `}
     >
       <span className="text-lg flex-shrink-0">{icons[toast.type]}</span>
-      <span className={`flex-1 ${isStatusBanner ? 'text-white' : 'text-sm text-gray-700 dark:text-gray-200'}`}>{toast.message}</span>
-      {!isStatusBanner && toast.action ? (
+      <span className={`flex-1 text-sm ${toast.type === 'offline' ? '' : 'text-gray-700 dark:text-gray-200'}`}>{toast.message}</span>
+      {toast.action ? (
         <button
           type="button"
           onClick={() => {
@@ -138,14 +125,12 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
           {toast.action.label}
         </button>
       ) : null}
-      {!isStatusBanner ? (
-        <button
-          onClick={onDismiss}
-          className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-lg opacity-60 hover:opacity-100"
-        >
-          ×
-        </button>
-      ) : null}
+      <button
+        onClick={onDismiss}
+        className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-lg opacity-60 hover:opacity-100"
+      >
+        ×
+      </button>
     </div>
   )
 }

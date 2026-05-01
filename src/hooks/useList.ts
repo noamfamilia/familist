@@ -145,8 +145,9 @@ function setCachedPrefs(
 
 const FETCH_TIMEOUT_MS = 5000
 const SAVE_TIMEOUT_MS = 5000
-const TEMP_SYNC_TIMEOUT_MS = 5000
-const OFFLINE_BANNER_DURATION_MS = 60 * 60 * 1000
+const TEMP_SYNC_TIMEOUT_MS = 10000
+const OFFLINE_TOAST_DURATION_MS = 60 * 60 * 1000
+const OFFLINE_PING_INTERVAL_MS = 10000
 
 function createTempId(prefix: string) {
   return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -186,6 +187,24 @@ function rpcFailureMessage(err: unknown): string {
     if (typeof m === 'string' && m.length > 0) return m
   }
   return 'Unknown error'
+}
+
+function isLikelyConnectivityError(err: unknown): boolean {
+  const raw = err instanceof Error
+    ? err.message
+    : typeof err === 'object' && err !== null && 'message' in err
+      ? String((err as { message?: unknown }).message ?? '')
+      : String(err ?? '')
+  const m = raw.toLowerCase()
+  return (
+    m.includes('failed to fetch') ||
+    m.includes('networkerror') ||
+    m.includes('network request failed') ||
+    m.includes('fetch failed') ||
+    m.includes('load failed') ||
+    m.includes('connection') ||
+    m.includes('timeout')
+  )
 }
 
 export function useList(listId: string) {
@@ -238,7 +257,9 @@ export function useList(listId: string) {
   const syncToastIdRef = useRef<string | null>(null)
   const offlineToastIdRef = useRef<string | null>(null)
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const offlinePingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const offlineModeRef = useRef(false)
+  const syncStateRef = useRef<'online' | 'syncing' | 'offline'>('online')
   /** User intent while archive / undo requests settle (`true` = archived, `false` = not). Read after awaits, not from closures. */
   const desiredArchivedByItemRef = useRef<Record<string, boolean>>({})
   const archiveDbWriteInflightRef = useRef<Record<string, boolean>>({})
@@ -252,68 +273,122 @@ export function useList(listId: string) {
     [],
   )
 
+  const dismissSyncingToast = useCallback(() => {
+    if (!syncToastIdRef.current) return
+    dismissToast(syncToastIdRef.current)
+    syncToastIdRef.current = null
+  }, [dismissToast])
+
+  const dismissOfflineToast = useCallback(() => {
+    if (!offlineToastIdRef.current) return
+    dismissToast(offlineToastIdRef.current)
+    offlineToastIdRef.current = null
+  }, [dismissToast])
+
+  const clearSyncTimeout = useCallback(() => {
+    if (!syncTimeoutRef.current) return
+    clearTimeout(syncTimeoutRef.current)
+    syncTimeoutRef.current = null
+  }, [])
+
+  const clearOfflinePing = useCallback(() => {
+    if (!offlinePingIntervalRef.current) return
+    clearInterval(offlinePingIntervalRef.current)
+    offlinePingIntervalRef.current = null
+  }, [])
+
+  const probeServerReachable = useCallback(async (): Promise<boolean> => {
+    if (!userId || !listId) return false
+    try {
+      const { error } = await supabase
+        .from('list_users')
+        .select('list_id')
+        .eq('list_id', listId)
+        .eq('user_id', userId)
+        .limit(1)
+      if (!error) return true
+      return !isLikelyConnectivityError(error)
+    } catch (err) {
+      return !isLikelyConnectivityError(err)
+    }
+  }, [listId, userId])
+
   const markOnlineRecovered = useCallback(() => {
-    if (syncTimeoutRef.current) {
-      clearTimeout(syncTimeoutRef.current)
-      syncTimeoutRef.current = null
+    clearSyncTimeout()
+    dismissSyncingToast()
+    clearOfflinePing()
+    const wasOffline = offlineModeRef.current || syncStateRef.current === 'offline'
+    dismissOfflineToast()
+    offlineModeRef.current = false
+    syncStateRef.current = 'online'
+    if (wasOffline) {
+      showToast('Back online', 'success', { durationMs: 3000 })
     }
-    if (syncToastIdRef.current) {
-      dismissToast(syncToastIdRef.current)
-      syncToastIdRef.current = null
+  }, [clearOfflinePing, clearSyncTimeout, dismissOfflineToast, dismissSyncingToast, showToast])
+
+  const enterOffline = useCallback(() => {
+    clearSyncTimeout()
+    dismissSyncingToast()
+    syncStateRef.current = 'offline'
+    offlineModeRef.current = true
+    if (!offlineToastIdRef.current) {
+      offlineToastIdRef.current = showToast('Offline', 'offline', {
+        durationMs: OFFLINE_TOAST_DURATION_MS,
+      })
     }
-    if (offlineModeRef.current) {
-      if (offlineToastIdRef.current) {
-        dismissToast(offlineToastIdRef.current)
-        offlineToastIdRef.current = null
-      }
-      offlineModeRef.current = false
-      showToast('Back online', 'online', { durationMs: 3000 })
-      return
+    if (!offlinePingIntervalRef.current) {
+      offlinePingIntervalRef.current = setInterval(() => {
+        void probeServerReachable().then((ok) => {
+          if (ok) {
+            markOnlineRecovered()
+          }
+        })
+      }, OFFLINE_PING_INTERVAL_MS)
     }
-    showToast('Sync successful', 'success', { durationMs: 2000 })
-  }, [dismissToast, showToast])
+  }, [clearSyncTimeout, dismissSyncingToast, markOnlineRecovered, probeServerReachable, showToast])
 
   const startTempSyncWatch = useCallback(() => {
-    if (offlineModeRef.current) return
+    if (syncStateRef.current === 'offline' || offlineModeRef.current) return
+    if (syncStateRef.current !== 'syncing') syncStateRef.current = 'syncing'
     if (!syncToastIdRef.current) {
-      syncToastIdRef.current = showToast('Syncing with server ...', 'info', { durationMs: TEMP_SYNC_TIMEOUT_MS })
+      syncToastIdRef.current = showToast('Syncing with server ...', 'info', { durationMs: TEMP_SYNC_TIMEOUT_MS + 1000 })
     }
     if (syncTimeoutRef.current) return
     syncTimeoutRef.current = setTimeout(() => {
       syncTimeoutRef.current = null
-      if (syncToastIdRef.current) {
-        dismissToast(syncToastIdRef.current)
-        syncToastIdRef.current = null
-      }
-      if (offlineModeRef.current) return
-      offlineModeRef.current = true
-      if (!offlineToastIdRef.current) {
-        offlineToastIdRef.current = showToast('Going offline', 'offline', {
-          durationMs: OFFLINE_BANNER_DURATION_MS,
-        })
-      }
+      enterOffline()
     }, TEMP_SYNC_TIMEOUT_MS)
-  }, [dismissToast, showToast])
+  }, [enterOffline, showToast])
 
   const tryBeginMutation = useCallback((): boolean => {
-    if (offlineModeRef.current) {
-      if (!offlineToastIdRef.current) {
-        offlineToastIdRef.current = showToast('Going offline', 'offline', {
-          durationMs: OFFLINE_BANNER_DURATION_MS,
-        })
-      }
+    if (syncStateRef.current === 'offline' || offlineModeRef.current) {
+      enterOffline()
       return false
     }
     return mutationGate.tryBegin()
-  }, [mutationGate, showToast])
+  }, [enterOffline, mutationGate])
 
   useEffect(() => {
-    return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current)
-      }
+    const onOffline = () => {
+      enterOffline()
     }
-  }, [])
+    const onOnline = () => {
+      void probeServerReachable().then((ok) => {
+        if (ok) markOnlineRecovered()
+      })
+    }
+    window.addEventListener('offline', onOffline)
+    window.addEventListener('online', onOnline)
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      enterOffline()
+    }
+    return () => {
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', onOnline)
+      clearSyncTimeout()
+      clearOfflinePing()
+    }
+  }, [clearOfflinePing, clearSyncTimeout, enterOffline, markOnlineRecovered, probeServerReachable])
 
   useEffect(() => {
     const cachedData = getCachedList(userId, listId)
@@ -334,7 +409,7 @@ export function useList(listId: string) {
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
     prefsFetchedRef.current = false
-  }, [userId, listId])
+  }, [enterOffline, listId, markOnlineRecovered, userId])
 
   const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
     pendingSaveOpsRef.current++
@@ -507,8 +582,12 @@ export function useList(listId: string) {
           setCachedPrefs(listId, { sumScope: serverSumScope }, userId)
         }
       }
+      markOnlineRecovered()
       setFetchTimedOut(false)
     } catch (err) {
+      if (isLikelyConnectivityError(err)) {
+        enterOffline()
+      }
       setError(rpcFailureMessage(err))
     } finally {
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
@@ -525,7 +604,7 @@ export function useList(listId: string) {
         })
       }
     }
-  }, [userId, listId])
+  }, [enterOffline, listId, markOnlineRecovered, userId])
 
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && !!list
 
@@ -732,6 +811,10 @@ export function useList(listId: string) {
 
       if (error) {
         setItems(prev => prev.filter(item => item.id !== tempId))
+        if (isLikelyConnectivityError(error)) {
+          startTempSyncWatch()
+          return { data: null, error: { message: 'Syncing with server ...' } }
+        }
         if (error.code === '23505') {
           return { data: null, error: { ...error, message: 'An item with this name already exists' } }
         }

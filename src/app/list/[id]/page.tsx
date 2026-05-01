@@ -396,15 +396,15 @@ export default function ListPage() {
       const result = await addItem(itemText, cat)
       err = result.error as { message?: string } | null | undefined
       if (err) {
-        setNewItemText(itemText)
-        setNewItemCategory(cat)
-        showError(err.message || 'Failed to add item')
+        if (err.message !== 'Syncing with server ...' && err.message !== USER_MUTATION_WAIT_MSG) {
+          showError(err.message || 'Failed to add item')
+        }
       }
     } finally {
       addItemInFlightRef.current = false
     }
     const refocus =
-      !!err || addItemSubmitFromKeyboardRef.current
+      addItemSubmitFromKeyboardRef.current && !err
     addItemSubmitFromKeyboardRef.current = false
     if (refocus) {
       requestAnimationFrame(() => addItemInputRef.current?.focus())
