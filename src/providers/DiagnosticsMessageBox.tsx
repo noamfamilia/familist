@@ -134,14 +134,26 @@ function DiagnosticsMessageBoxPanel() {
 export function DiagnosticsMessageBoxProvider({ children }: { children: React.ReactNode }) {
   const [diagnosticsText, setDiagnosticsText] = useState('')
   const [perfLines, setPerfLines] = useState<string[]>([])
+  const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false)
 
   useLayoutEffect(() => {
+    perfLog('root mounted')
+  }, [])
+
+  useEffect(() => {
+    scheduleAfterFirstPaint(() => setShowDiagnosticsPanel(isPwaDebugEnabled()))
+  }, [])
+
+  useEffect(() => {
+    if (!showDiagnosticsPanel) {
+      registerPerfLogSink(null)
+      return
+    }
     registerPerfLogSink((line) => {
       setPerfLines((prev) => [...prev, line].slice(-PERF_LOG_CAP))
     })
-    perfLog('root mounted')
     return () => registerPerfLogSink(null)
-  }, [])
+  }, [showDiagnosticsPanel])
 
   const appendDiagnostics = useCallback((section: string) => {
     if (!isPwaDebugEnabled()) return
@@ -169,7 +181,7 @@ export function DiagnosticsMessageBoxProvider({ children }: { children: React.Re
     <DiagnosticsContext.Provider value={value}>
       <div className="flex min-h-screen flex-col">
         <div className="min-h-0 flex-1">{children}</div>
-        <DiagnosticsMessageBoxPanel />
+        {showDiagnosticsPanel ? <DiagnosticsMessageBoxPanel /> : null}
       </div>
     </DiagnosticsContext.Provider>
   )

@@ -7,6 +7,10 @@ import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { isPwaDebugEnabled, isPwaDeepDebugEnabled } from '@/lib/pwaDebug'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { perfLog } from '@/lib/startupPerfLog'
+import {
+  registerProfileFetchOfflineHandler,
+  registerProfileFetchRecoveryHandler,
+} from '@/lib/profileFetchConnectivityBridge'
 import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
@@ -257,6 +261,19 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       }, OFFLINE_PING_INTERVAL_MS)
     }
   }, [clearSyncTimeout, clearToasts, dismissSyncingToast, markOnlineRecovered, showToast])
+
+  useEffect(() => {
+    registerProfileFetchOfflineHandler(() => {
+      enterOffline()
+    })
+    registerProfileFetchRecoveryHandler(() => {
+      markOnlineRecovered()
+    })
+    return () => {
+      registerProfileFetchOfflineHandler(null)
+      registerProfileFetchRecoveryHandler(null)
+    }
+  }, [enterOffline, markOnlineRecovered])
 
   const startTempSyncWatch = useCallback(() => {
     if (status === 'offline') return

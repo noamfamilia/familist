@@ -1,12 +1,14 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { useTheme } from 'next-themes'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import { clearActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
+import { notifyProfileFetchSucceeded, notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
 import { perfLog } from '@/lib/startupPerfLog'
+import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 
 interface AuthContextType {
   user: User | null
@@ -21,6 +23,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+const PROFILE_FETCH_STARTUP_TIMEOUT_MS = 10_000
+const PROFILE_FETCH_TIMEOUT_MESSAGE = 'profile fetch timeout'
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -45,6 +50,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
   const { setTheme } = useTheme()
 
+  const mountedRef = useRef(true)
+  const userRef = useRef<User | null>(null)
+  const profileFetchGenRef = useRef(0)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
   const fetchProfile = useCallback(async (userId: string) => {
     try {
       const freshClient = forceNewClient()
@@ -54,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .maybeSingle()
 
+      if (!mountedRef.current || userRef.current?.id !== userId) return
       if (error) return
       if (!data) return
       const row = data as Profile & { theme?: string }
@@ -61,35 +82,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...row,
         theme: row.theme === 'dark' ? 'dark' : 'light',
       })
+      notifyProfileFetchSucceeded()
     } catch (err) {
       console.error('fetchProfile error:', err)
     }
   }, [])
 
+  const scheduleStartupProfileFetch = useCallback(
+    (userId: string) => {
+      const gen = ++profileFetchGenRef.current
+      scheduleAfterFirstPaint(() => {
+        void (async () => {
+          try {
+            await withTimeout(
+              fetchProfile(userId),
+              PROFILE_FETCH_STARTUP_TIMEOUT_MS,
+              PROFILE_FETCH_TIMEOUT_MESSAGE,
+            )
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e)
+            if (msg === PROFILE_FETCH_TIMEOUT_MESSAGE && profileFetchGenRef.current === gen) {
+              notifyProfileFetchTimedOut()
+            }
+          }
+        })()
+      })
+    },
+    [fetchProfile],
+  )
+
   useEffect(() => {
     let mounted = true
 
-    const syncSessionState = async (nextUser: User | null) => {
+    const applySessionUser = (nextUser: User | null) => {
       if (!mounted) return
-
       setUser(nextUser)
-
       if (nextUser) {
         setActiveCacheUserId(nextUser.id)
-        await fetchProfile(nextUser.id)
+        scheduleStartupProfileFetch(nextUser.id)
       } else {
+        profileFetchGenRef.current++
         setProfile(null)
         clearActiveCacheUserId()
       }
     }
-    
+
     const getInitialSession = async () => {
       const t0 = typeof performance !== 'undefined' ? performance.now() : 0
       perfLog('auth/session start')
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!mounted) return
-        await syncSessionState(session?.user ?? null)
+        applySessionUser(session?.user ?? null)
       } catch (error) {
         console.error('Failed to get session:', error)
       } finally {
@@ -107,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      void syncSessionState(session?.user ?? null)
+      applySessionUser(session?.user ?? null)
       if (mounted) {
         setLoading(false)
       }
@@ -117,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [fetchProfile, supabase.auth])
+  }, [scheduleStartupProfileFetch, supabase.auth])
 
   useEffect(() => {
     const t = profile?.theme
@@ -141,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Update local state directly (no cross-tab sync)
         setUser(result.data.user)
         setActiveCacheUserId(result.data.user.id)
-        await fetchProfile(result.data.user.id)
+        scheduleStartupProfileFetch(result.data.user.id)
       }
       
       return { error: result.error }
@@ -164,7 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!error && data?.user && data.session) {
       setUser(data.user)
       setActiveCacheUserId(data.user.id)
-      await fetchProfile(data.user.id)
+      scheduleStartupProfileFetch(data.user.id)
     }
 
     // Email confirmation is needed if signup succeeded but no session was returned
