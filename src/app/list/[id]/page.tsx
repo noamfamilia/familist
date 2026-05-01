@@ -172,6 +172,62 @@ const listTourSteps: Step[] = [
   },
 ]
 
+async function getServiceWorkerDebugInfo() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return {
+      href: '',
+      origin: '',
+      protocol: '',
+      hasServiceWorkerApi: false,
+      controller: null,
+      registrations: [],
+    }
+  }
+
+  const result: any = {
+    href: window.location.href,
+    origin: window.location.origin,
+    protocol: window.location.protocol,
+    hasServiceWorkerApi: 'serviceWorker' in navigator,
+    controller: navigator.serviceWorker?.controller
+      ? {
+          scriptURL: navigator.serviceWorker.controller.scriptURL,
+          state: navigator.serviceWorker.controller.state,
+        }
+      : null,
+    registrations: [],
+  }
+
+  if ('serviceWorker' in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations()
+    result.registrations = regs.map((reg) => ({
+      scope: reg.scope,
+      active: reg.active
+        ? {
+            scriptURL: reg.active.scriptURL,
+            state: reg.active.state,
+          }
+        : null,
+      waiting: reg.waiting
+        ? {
+            scriptURL: reg.waiting.scriptURL,
+            state: reg.waiting.state,
+          }
+        : null,
+      installing: reg.installing
+        ? {
+            scriptURL: reg.installing.scriptURL,
+            state: reg.installing.state,
+          }
+        : null,
+      currentUrlWithinScope: window.location.href.startsWith(reg.scope),
+    }))
+  }
+
+  console.log('SW DEBUG', result)
+  return result
+}
+
 export default function ListPage() {
   const params = useParams()
   const router = useRouter()
@@ -243,6 +299,32 @@ export default function ListPage() {
       lastPageDiagToastAtRef.current = now
     }
   }, [listId, offlineAssetsReady, showToast, swControlled])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const runSwDebug = async () => {
+      try {
+        const info = await getServiceWorkerDebugInfo()
+        if (cancelled) return
+        const regsCount = Array.isArray(info.registrations) ? info.registrations.length : 0
+        const controllerState = info.controller?.state ?? 'none'
+        const controllerPresent = info.controller?.scriptURL ? 1 : 0
+        showToast(
+          `sw-debug ctl=${controllerPresent} state=${controllerState} regs=${regsCount} origin=${info.origin}`,
+          'info',
+          { durationMs: 5000 }
+        )
+      } catch (err) {
+        console.error('SW DEBUG failed', err)
+      }
+    }
+
+    void runSwDebug()
+    return () => {
+      cancelled = true
+    }
+  }, [listId, showToast])
 
   useEffect(() => {
     if (!hasCompletedInitialFetch || !user) return
