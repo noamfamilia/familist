@@ -144,8 +144,8 @@ function setCachedPrefs(
   } catch { /* ignore */ }
 }
 
-const FETCH_TIMEOUT_MS = 5000
-const SAVE_TIMEOUT_MS = 5000
+const FETCH_TIMEOUT_MS = 10_000
+const SAVE_TIMEOUT_MS = 10_000
 function createTempId(prefix: string) {
   return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }

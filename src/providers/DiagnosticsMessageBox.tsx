@@ -27,6 +27,9 @@ type DiagnosticsContextValue = {
 
 const DiagnosticsContext = createContext<DiagnosticsContextValue | undefined>(undefined)
 
+/** Bottom diagnostics panel (PWA/SW). Context still collects when false. */
+const SHOW_DIAGNOSTICS_MESSAGE_BOX = false
+
 function DiagnosticsMessageBoxPanel() {
   const { diagnosticsText, clearDiagnostics } = useDiagnosticsMessageBox()
   const { success: showSuccess, error: showError } = useToast()
@@ -52,7 +55,7 @@ function DiagnosticsMessageBoxPanel() {
     }
   }, [diagnosticsText, showError, showSuccess])
 
-  if (!diagnosticsText) return null
+  if (!SHOW_DIAGNOSTICS_MESSAGE_BOX || !diagnosticsText) return null
 
   return (
     <section

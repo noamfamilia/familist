@@ -13,8 +13,8 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const supabase = createClient()
 
-const FETCH_TIMEOUT_MS = 5000
-const SAVE_TIMEOUT_MS = 5000
+const FETCH_TIMEOUT_MS = 10_000
+const SAVE_TIMEOUT_MS = 10_000
 type UserListsRpcRow = Database['public']['Functions']['get_user_lists']['Returns'][number]
 
 function createTempId(prefix: string) {
