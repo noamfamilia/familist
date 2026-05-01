@@ -18,6 +18,7 @@ const TEMP_SYNC_TIMEOUT_MS = 10000
 const OFFLINE_TOAST_DURATION_MS = 120000
 const OFFLINE_PING_INTERVAL_MS = 10000
 const OFFLINE_ACTIONS_DISABLED_MSG = 'Offline (actions disabled)'
+const CONNECTIVITY_STATUS_KEY = 'familist_connectivity_status'
 
 type UserListsRpcRow = Database['public']['Functions']['get_user_lists']['Returns'][number]
 
@@ -135,6 +136,11 @@ export function useLists() {
     offlineModeRef.current = false
     syncStateRef.current = 'online'
     setIsOfflineActionsDisabled(false)
+    try {
+      localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'online')
+    } catch {
+      // Ignore storage errors
+    }
     if (wasOffline) {
       showToast('Back online', 'success', { durationMs: 3000 })
     }
@@ -147,6 +153,11 @@ export function useLists() {
     syncStateRef.current = 'offline'
     offlineModeRef.current = true
     setIsOfflineActionsDisabled(true)
+    try {
+      localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
+    } catch {
+      // Ignore storage errors
+    }
     if (!offlineToastIdRef.current) {
       offlineToastIdRef.current = showToast('Offline (actions disabled)', 'error', {
         durationMs: OFFLINE_TOAST_DURATION_MS,
@@ -195,6 +206,13 @@ export function useLists() {
   }, [userId])
 
   useEffect(() => {
+    try {
+      if (localStorage.getItem(CONNECTIVITY_STATUS_KEY) === 'offline') {
+        enterOffline()
+      }
+    } catch {
+      // Ignore storage errors
+    }
     const onOffline = () => {
       enterOffline()
     }
@@ -213,14 +231,10 @@ export function useLists() {
       window.removeEventListener('online', onOnline)
       clearSyncTimeout()
       clearOfflinePing()
-      dismissSyncingToast()
-      dismissOfflineToast()
     }
   }, [
     clearOfflinePing,
     clearSyncTimeout,
-    dismissOfflineToast,
-    dismissSyncingToast,
     enterOffline,
     markOnlineRecovered,
     probeServerReachable,
