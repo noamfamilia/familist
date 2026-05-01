@@ -299,6 +299,7 @@ export default function ListPage() {
   const addItemSubmitFromKeyboardRef = useRef(false)
   const addItemInFlightRef = useRef(false)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
+  const timeoutToastShownRef = useRef(false)
   const [showShareModal, setShowShareModal] = useState(false)
 
   const handleBackToLists = () => {
@@ -334,6 +335,17 @@ export default function ListPage() {
     if (!newItemTextRef.current.trim()) return
     setNewItemText('')
   }, [])
+
+  useEffect(() => {
+    const timedOut = fetchTimedOut || saveTimedOut
+    if (!timedOut) {
+      timeoutToastShownRef.current = false
+      return
+    }
+    if (timeoutToastShownRef.current) return
+    timeoutToastShownRef.current = true
+    showError('Sync with server failed')
+  }, [fetchTimedOut, saveTimedOut, showError])
 
   if (authLoading || loading) {
     return (
@@ -534,13 +546,6 @@ export default function ListPage() {
 
   return (
     <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-fit max-w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
-      {/* Timeout message */}
-      {(fetchTimedOut || saveTimedOut) && (
-        <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium mb-4">
-          Your changes may not have been saved to the server. Refresh page and try again
-        </div>
-      )}
-
       {error && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start justify-between gap-3 mb-4">
           <span className="min-w-0 flex-1">

@@ -67,6 +67,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   /** True when create form was submitted via Enter in the text field (refocus after success). */
   const createListSubmitFromKeyboardRef = useRef(false)
   const createListInFlightRef = useRef(false)
+  const timeoutToastShownRef = useRef(false)
 
   useEffect(() => {
     onOfflineActionsDisabledChange?.(isOfflineActionsDisabled)
@@ -75,6 +76,17 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   useEffect(() => {
     onLabelsChange?.(labels)
   }, [labels, onLabelsChange])
+
+  useEffect(() => {
+    const timedOut = fetchTimedOut || saveTimedOut
+    if (!timedOut) {
+      timeoutToastShownRef.current = false
+      return
+    }
+    if (timeoutToastShownRef.current) return
+    timeoutToastShownRef.current = true
+    showError('Sync with server failed')
+  }, [fetchTimedOut, saveTimedOut, showError])
 
   // Notify parent when create field has draft text
   const isCreating = !!inputValue.trim()
@@ -234,13 +246,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
   return (
     <div className="space-y-6">
-      {/* Timeout message */}
-      {(fetchTimedOut || saveTimedOut) && (
-        <div className="bg-red-500 text-white px-4 py-3 rounded-lg text-center font-medium">
-          Your changes may not have been saved to the server. Refresh page and try again
-        </div>
-      )}
-
       {/* Create list */}
       <form ref={formRef} onSubmit={handleSubmit} className="flex gap-3" data-tour="create-list">
         <div className="flex-1 relative">
