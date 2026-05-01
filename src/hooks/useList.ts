@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
+import { markStartup } from '@/lib/startupPerf'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
@@ -375,6 +376,7 @@ export function useList(listId: string) {
     setError(null)
 
     try {
+      markStartup('supabase_get_list_data_start', { listId })
       // Fetch all list data in a single RPC call
       const { data, error: rpcError } = await supabase.rpc('get_list_data', {
         p_list_id: listId
@@ -469,6 +471,7 @@ export function useList(listId: string) {
           setCachedPrefs(listId, { sumScope: serverSumScope }, userId)
         }
       }
+      markStartup('supabase_get_list_data_done', { listId })
       markOnlineRecovered()
       setFetchTimedOut(false)
     } catch (err) {

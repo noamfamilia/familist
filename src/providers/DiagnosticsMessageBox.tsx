@@ -1,6 +1,8 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { isPwaDebugEnabled } from '@/lib/pwaDebug'
+import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useToast } from '@/components/ui/Toast'
 
 async function copyTextToClipboard(text: string): Promise<void> {
@@ -27,10 +29,12 @@ type DiagnosticsContextValue = {
 
 const DiagnosticsContext = createContext<DiagnosticsContextValue | undefined>(undefined)
 
-/** Bottom diagnostics panel (PWA/SW). Context still collects when false. */
-const SHOW_DIAGNOSTICS_MESSAGE_BOX = false
-
 function DiagnosticsMessageBoxPanel() {
+  const [showDebugPanel, setShowDebugPanel] = useState(false)
+  useEffect(() => {
+    scheduleAfterFirstPaint(() => setShowDebugPanel(isPwaDebugEnabled()))
+  }, [])
+
   const { diagnosticsText, clearDiagnostics } = useDiagnosticsMessageBox()
   const { success: showSuccess, error: showError } = useToast()
 
@@ -55,7 +59,7 @@ function DiagnosticsMessageBoxPanel() {
     }
   }, [diagnosticsText, showError, showSuccess])
 
-  if (!SHOW_DIAGNOSTICS_MESSAGE_BOX || !diagnosticsText) return null
+  if (!showDebugPanel || !diagnosticsText) return null
 
   return (
     <section
@@ -99,6 +103,7 @@ export function DiagnosticsMessageBoxProvider({ children }: { children: React.Re
   const [diagnosticsText, setDiagnosticsText] = useState('')
 
   const appendDiagnostics = useCallback((section: string) => {
+    if (!isPwaDebugEnabled()) return
     const stamp = new Date().toISOString()
     setDiagnosticsText((prev) => {
       const block = `[${stamp}]\n${section}`

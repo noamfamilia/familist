@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/Toast'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
 import { cachedListDataExists } from '@/lib/cache'
+import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import type { ListWithRole } from '@/lib/supabase/types'
 
@@ -468,7 +469,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
               const diag = `list-card offline-nav gate listId=${list.id}\noffline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0} cachedListData=${hasCachedListData ? 1 : 0}\nofflineNavAllowed=${offlineNavAllowed ? 1 : 0}\nreason=${reason} allowed=${allowed ? 1 : 0}`
               const now = Date.now()
-              if (now - lastDiagToastAtRef.current > 1200) {
+              if (isPwaDebugEnabled() && now - lastDiagToastAtRef.current > 1200) {
                 appendDiagnostics(diag)
                 lastDiagToastAtRef.current = now
               }
@@ -494,17 +495,19 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 } else if (reason === 'blocked_offline_assets_not_ready') {
                   showError('Offline shell not ready yet. Reload once while online, then try again.')
                 } else {
-                  appendDiagnostics(
-                    [
-                      '[list-offline-nav-denied]',
-                      'file=src/components/lists/ListCard.tsx',
-                      'component=ListCard',
-                      'trigger=<Link> onClick on list title (navigate to /list/:id)',
-                      'reason=blocked_list_data_not_cached',
-                      'meaning=offline && swControlled && offlineAssetsReady but no row in localStorage from cachedListDataExists(listId)',
-                      `listId=${list.id}`,
-                    ].join('\n'),
-                  )
+                  if (isPwaDebugEnabled()) {
+                    appendDiagnostics(
+                      [
+                        '[list-offline-nav-denied]',
+                        'file=src/components/lists/ListCard.tsx',
+                        'component=ListCard',
+                        'trigger=<Link> onClick on list title (navigate to /list/:id)',
+                        'reason=blocked_list_data_not_cached',
+                        'meaning=offline && swControlled && offlineAssetsReady but no row in localStorage from cachedListDataExists(listId)',
+                        `listId=${list.id}`,
+                      ].join('\n'),
+                    )
+                  }
                   showError('List is unavailable offline.')
                 }
                 lastUnavailableToastAtRef.current = now

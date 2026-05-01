@@ -4,6 +4,7 @@ import './globals.css'
 import { AuthProvider } from '@/providers/AuthProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
 import { ToastProvider } from '@/components/ui/Toast'
+import { StartupPerfCapture } from '@/components/dev/StartupPerfCapture'
 import { InstallBanner } from '@/components/ui/InstallBanner'
 import { ConnectivityProvider } from '@/providers/ConnectivityProvider'
 import { DiagnosticsMessageBoxProvider } from '@/providers/DiagnosticsMessageBox'
@@ -70,6 +71,7 @@ export default function RootLayout({
             <ToastProvider>
               <DiagnosticsMessageBoxProvider>
                 <ConnectivityProvider>
+                  <StartupPerfCapture />
                   <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
                     {children}
                   </main>

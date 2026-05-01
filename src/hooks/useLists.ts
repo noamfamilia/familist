@@ -7,6 +7,7 @@ import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
+import { markStartup } from '@/lib/startupPerf'
 import type { Database, ItemWithState, Json, ListWithRole } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -185,6 +186,7 @@ export function useLists() {
     setError(null)
 
     try {
+      markStartup('supabase_get_user_lists_start')
       // Fetch all lists with counts in a single RPC call
       const { data, error: rpcError } = await supabase.rpc('get_user_lists')
 
@@ -231,6 +233,7 @@ export function useLists() {
       setCachedLists(userId, listsData)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
+      markStartup('supabase_get_user_lists_done', { count: listsData.length })
       markOnlineRecovered()
     } catch (err) {
       if (isLikelyConnectivityError(err)) {

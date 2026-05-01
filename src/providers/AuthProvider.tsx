@@ -6,6 +6,7 @@ import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import { clearActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
+import { markStartup } from '@/lib/startupPerf'
 
 interface AuthContextType {
   user: User | null
@@ -92,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         if (mounted) {
           setLoading(false)
+          markStartup('auth_initial_session_ready')
         }
       }
     }

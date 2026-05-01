@@ -12,6 +12,11 @@ const withPWA = require('next-pwa')({
   customWorkerDir: 'worker',
   clientsClaim: true,
   /**
+   * Avoid runtime NetworkFirst on `/` (dynamic start URL) so refresh does not always wait on network
+   * before showing shell — start URL stays precached with build revision instead.
+   */
+  dynamicStartUrl: false,
+  /**
    * Next.js does not reliably expose `/_next/app-build-manifest.json` as a static 200 in production
    * (often 404 HTML). Workbox precache then fails install → installing → redundant.
    */

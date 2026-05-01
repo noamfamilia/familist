@@ -2,8 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useToast } from '@/components/ui/Toast'
+import type { PwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
-import { consumePrecacheVerifySessionOnce, runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
+import { isPwaDebugEnabled } from '@/lib/pwaDebug'
+import { markStartup, scheduleAfterFirstPaint } from '@/lib/startupPerf'
+import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
@@ -22,6 +25,9 @@ const SW_NEXT_PWA_MAX_WAIT_MS = 12_000
 const SW_NEXT_PWA_POLL_MS = 200
 /** Extra getRegistration() checks before fallback to avoid racing next-pwa */
 const SW_FALLBACK_REGISTER_GRACE_MS = 600
+/** When PWA debug is off, short poll only — do not block startup on long next-pwa wait */
+const SW_QUIET_MAX_WAIT_MS = 3_000
+const SW_QUIET_POLL_MS = 500
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -106,6 +112,54 @@ type ConnectivityContextType = {
 }
 
 const ConnectivityContext = createContext<ConnectivityContextType | undefined>(undefined)
+
+function PwaDebugPrecacheButton({
+  appendDiagnostics,
+}: {
+  appendDiagnostics: (section: string) => void
+}) {
+  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    scheduleAfterFirstPaint(() => setEnabled(isPwaDebugEnabled()))
+  }, [])
+
+  const onRun = useCallback(async () => {
+    if (!isPwaDebugEnabled()) return
+    setBusy(true)
+    markStartup('precache_verify_manual_start')
+    try {
+      await runSwPrecacheVerification(appendDiagnostics)
+    } catch (e) {
+      appendDiagnostics(
+        `[precache-verify] manual error: ${e instanceof Error ? e.message : String(e)}`,
+      )
+    } finally {
+      markStartup('precache_verify_manual_done')
+      setBusy(false)
+    }
+  }, [appendDiagnostics])
+
+  if (!enabled) return null
+
+  return (
+    <div
+      className="pointer-events-auto fixed bottom-14 right-2 z-[60] flex flex-col gap-1 rounded border border-amber-600/80 bg-neutral-900/95 p-2 text-[11px] text-amber-100 shadow-lg"
+      aria-label="PWA debug tools"
+    >
+      <span className="font-semibold text-amber-300">PWA debug</span>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void onRun()}
+        className="rounded bg-amber-700 px-2 py-1 text-left text-white hover:bg-amber-600 disabled:opacity-50"
+      >
+        {busy ? 'Precache verify…' : 'Run precache verify'}
+      </button>
+    </div>
+  )
+}
 
 async function probeInternetReachable(): Promise<boolean> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return false
@@ -311,46 +365,62 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [showToast, showWarning])
 
   /**
-   * PWA diagnostics + optional SW register fallback.
-   * next-pwa registers asynchronously — we poll getRegistration() for SW_NEXT_PWA_MAX_WAIT_MS and attach
-   * lifecycle listeners immediately when a registration appears (in parallel with collectPwaDiagnostics),
-   * so we do not miss installing→installed→activating→activated / redundant. register('/sw.js') runs
-   * only if still no registration after grace rechecks (debug / broken next-pwa), not as a race.
+   * PWA / SW registration + diagnostics (deferred until after first paint).
+   * Heavy work (collectPwaDiagnostics, lifecycle append, long poll) runs only when DEBUG_PWA / ?debugPwa=1.
+   * Precache URL probes never run automatically — use Pwa debug toolbar or window.__familistRunPrecacheVerify().
    */
   useEffect(() => {
     let cancelled = false
     let disposeSwListeners: (() => void) | undefined
 
-    const run = async () => {
+    const runInner = async () => {
+      const debug = isPwaDebugEnabled()
+      const logDiag = debug ? appendDiagnostics : () => {}
+      markStartup('pwa_sw_diag_deferred_start', { debug })
+
       try {
-        let appendPwaBlock = true
-        try {
-          if (sessionStorage.getItem('familist_pwa_diag_banner') === '1') {
-            appendPwaBlock = false
-          } else {
-            sessionStorage.setItem('familist_pwa_diag_banner', '1')
+        let appendPwaBlock = debug
+        if (appendPwaBlock) {
+          try {
+            if (sessionStorage.getItem('familist_pwa_diag_banner') === '1') {
+              appendPwaBlock = false
+            } else {
+              sessionStorage.setItem('familist_pwa_diag_banner', '1')
+            }
+          } catch {
+            appendPwaBlock = true
           }
-        } catch {
-          appendPwaBlock = true
         }
 
         if (!('serviceWorker' in navigator)) {
-          const d = await collectPwaDiagnostics()
-          if (cancelled) return
-          console.log('[PWA DIAG]', d)
-          if (appendPwaBlock) {
-            appendDiagnostics(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
-            appendDiagnostics('pwa: no serviceWorker in navigator')
+          if (debug) {
+            const d = await collectPwaDiagnostics()
+            if (cancelled) return
+            console.log('[PWA DIAG]', d)
+            if (appendPwaBlock) {
+              logDiag(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
+              logDiag('pwa: no serviceWorker in navigator')
+            }
           }
+          markStartup('pwa_sw_diag_no_service_worker_api')
           return
         }
 
-        const { attachToRegistration, dispose } = createSwLifecycleHandlers(appendDiagnostics)
-        disposeSwListeners = dispose
+        const diagPromise: Promise<PwaDiagnostics | null> = debug
+          ? collectPwaDiagnostics()
+          : Promise.resolve(null)
 
-        const diagPromise = collectPwaDiagnostics()
+        let attachToRegistration: ((r: ServiceWorkerRegistration) => void) | null = null
+        if (debug) {
+          const lifecycle = createSwLifecycleHandlers(logDiag)
+          disposeSwListeners = lifecycle.dispose
+          attachToRegistration = lifecycle.attachToRegistration
+        }
 
-        const maxIterations = Math.ceil(SW_NEXT_PWA_MAX_WAIT_MS / SW_NEXT_PWA_POLL_MS)
+        const maxWaitMs = debug ? SW_NEXT_PWA_MAX_WAIT_MS : SW_QUIET_MAX_WAIT_MS
+        const pollMs = debug ? SW_NEXT_PWA_POLL_MS : SW_QUIET_POLL_MS
+        const maxIterations = Math.max(1, Math.ceil(maxWaitMs / pollMs))
+
         let reg: ServiceWorkerRegistration | undefined
         for (let i = 0; i < maxIterations; i++) {
           if (cancelled) {
@@ -359,15 +429,15 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           }
           reg = await navigator.serviceWorker.getRegistration()
           if (reg) {
-            attachToRegistration(reg)
+            attachToRegistration?.(reg)
             if (appendPwaBlock) {
-              appendDiagnostics(
+              logDiag(
                 `SW lifecycle listeners attached (poll #${i + 1}, next-pwa may still be registering; our register() not used yet)`,
               )
             }
             break
           }
-          await sleep(SW_NEXT_PWA_POLL_MS)
+          await sleep(pollMs)
         }
 
         let registeredByUs = false
@@ -379,9 +449,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           }
           reg = await navigator.serviceWorker.getRegistration()
           if (reg) {
-            attachToRegistration(reg)
+            attachToRegistration?.(reg)
             if (appendPwaBlock) {
-              appendDiagnostics(
+              logDiag(
                 'SW registration appeared during grace — next-pwa (or other); fallback register() skipped',
               )
             }
@@ -389,29 +459,30 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         }
 
         if (!reg && !cancelled) {
-          logFallbackSwRegister(appendDiagnostics)
+          logFallbackSwRegister(logDiag)
           reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
           registeredByUs = true
-          attachToRegistration(reg)
+          attachToRegistration?.(reg)
         }
 
         const d = await diagPromise
         if (cancelled) return
-        console.log('[PWA DIAG]', d)
-
-        if (appendPwaBlock) {
-          appendDiagnostics(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
+        if (debug && d) {
+          console.log('[PWA DIAG]', d)
+          if (appendPwaBlock) {
+            logDiag(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
+          }
         }
 
         if (!reg) {
           if (appendPwaBlock) {
-            appendDiagnostics('sw-reg: no registration after fallback path (unexpected)')
+            logDiag('sw-reg: no registration after fallback path (unexpected)')
           }
           return
         }
 
         if (appendPwaBlock) {
-          appendDiagnostics(
+          logDiag(
             `SW registration source: ${registeredByUs ? 'fallback register() after extended wait + grace (next-pwa never showed a registration)' : 'existing registration — next-pwa or prior session; our register() NOT called'}`,
           )
         }
@@ -426,82 +497,90 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
             active: reg.active?.scriptURL,
             activeState: reg.active?.state,
           }
-          console.log('SW reg', regSnap)
-          appendDiagnostics(`SW reg (after wait / register)\n${JSON.stringify(regSnap, null, 2)}`)
+          if (debug) {
+            console.log('SW reg', regSnap)
+            logDiag(`SW reg (after wait / register)\n${JSON.stringify(regSnap, null, 2)}`)
 
-          const regsNow = await navigator.serviceWorker.getRegistrations()
-          console.log('SW getRegistrations (after wait / register)', regsNow.length, regsNow)
-          appendDiagnostics(
-            `getRegistrations (after wait / register) n=${regsNow.length}\n${JSON.stringify(
-              regsNow.map((r) => ({
-                scope: r.scope,
-                installing: r.installing?.scriptURL,
-                installingState: r.installing?.state,
-                waiting: r.waiting?.scriptURL,
-                waitingState: r.waiting?.state,
-                active: r.active?.scriptURL,
-                activeState: r.active?.state,
-              })),
-              null,
-              2,
-            )}`,
-          )
+            const regsNow = await navigator.serviceWorker.getRegistrations()
+            console.log('SW getRegistrations (after wait / register)', regsNow.length, regsNow)
+            logDiag(
+              `getRegistrations (after wait / register) n=${regsNow.length}\n${JSON.stringify(
+                regsNow.map((r) => ({
+                  scope: r.scope,
+                  installing: r.installing?.scriptURL,
+                  installingState: r.installing?.state,
+                  waiting: r.waiting?.scriptURL,
+                  waitingState: r.waiting?.state,
+                  active: r.active?.scriptURL,
+                  activeState: r.active?.state,
+                })),
+                null,
+                2,
+              )}`,
+            )
 
-          const controller = navigator.serviceWorker.controller;
+            const controller = navigator.serviceWorker.controller
 
-          appendDiagnostics(
-            `[SW controller]\n${JSON.stringify(
-              {
-                controller: controller
-                  ? {
-                      scriptURL: controller.scriptURL,
-                      state: controller.state,
-                    }
-                  : null,
-                swControlled: !!controller,
-              },
-              null,
-              2,
-            )}`,
-          )
+            logDiag(
+              `[SW controller]\n${JSON.stringify(
+                {
+                  controller: controller
+                    ? {
+                        scriptURL: controller.scriptURL,
+                        state: controller.state,
+                      }
+                    : null,
+                  swControlled: !!controller,
+                },
+                null,
+                2,
+              )}`,
+            )
+          }
         } catch (e) {
           if (cancelled) return
           const msg = e instanceof Error ? e.message : String(e)
-          appendDiagnostics(`sw-reg FAIL\n${msg}`)
+          logDiag(`sw-reg FAIL\n${msg}`)
         }
       } catch (e) {
         console.error('[PWA DIAG] failed', e)
+      } finally {
+        markStartup('pwa_sw_diag_deferred_done', { debug: isPwaDebugEnabled() })
       }
     }
 
-    void run()
+    scheduleAfterFirstPaint(() => {
+      if (cancelled) return
+      void runInner()
+    })
+
     return () => {
       cancelled = true
       disposeSwListeners?.()
     }
   }, [appendDiagnostics])
 
-  /** One-shot per session: probe every precache URL + SW deps to find install (redundant) failures. */
+  /** Manual precache verify when DEBUG_PWA / ?debugPwa=1 (also exposed on window for console). */
   useEffect(() => {
-    let cancelled = false
-    if (typeof navigator === 'undefined' || !navigator.onLine) return
-    if (!consumePrecacheVerifySessionOnce()) return
-
-    void (async () => {
+    if (typeof window === 'undefined') return
+    const w = window as Window & { __familistRunPrecacheVerify?: () => Promise<void> }
+    w.__familistRunPrecacheVerify = async () => {
+      if (!isPwaDebugEnabled()) {
+        console.warn('[familist] Set localStorage.DEBUG_PWA="1" or add ?debugPwa=1 then reload.')
+        return
+      }
+      markStartup('precache_verify_manual_start')
       try {
-        await runSwPrecacheVerification((section) => {
-          if (!cancelled) appendDiagnostics(section)
-        })
+        await runSwPrecacheVerification(appendDiagnostics)
       } catch (e) {
         console.error('[precache-verify]', e)
-        if (!cancelled) {
-          appendDiagnostics(`[precache-verify] runner error: ${e instanceof Error ? e.message : String(e)}`)
-        }
+        appendDiagnostics(`[precache-verify] runner error: ${e instanceof Error ? e.message : String(e)}`)
+      } finally {
+        markStartup('precache_verify_manual_done')
       }
-    })()
-
+    }
     return () => {
-      cancelled = true
+      delete w.__familistRunPrecacheVerify
     }
   }, [appendDiagnostics])
 
@@ -519,7 +598,10 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         offlineAssetsReady,
       }}
     >
-      {children}
+      <>
+        {children}
+        <PwaDebugPrecacheButton appendDiagnostics={appendDiagnostics} />
+      </>
     </ConnectivityContext.Provider>
   )
 }

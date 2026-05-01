@@ -14,6 +14,7 @@ import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 import { cachedListDataExists } from '@/lib/cache'
+import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -294,6 +295,7 @@ export default function ListPage() {
   const lastPageDiagToastAtRef = useRef(0)
 
   useEffect(() => {
+    if (!isPwaDebugEnabled()) return
     const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
     const hasCachedListData = cachedListDataExists(listId)
     const offlineNavAllowed =
@@ -307,6 +309,7 @@ export default function ListPage() {
   }, [appendDiagnostics, listId, offlineAssetsReady, swControlled])
 
   useEffect(() => {
+    if (!isPwaDebugEnabled()) return
     let cancelled = false
 
     const runSwDebug = async () => {
