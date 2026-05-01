@@ -446,6 +446,24 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
               2,
             )}`,
           )
+
+          const controller = navigator.serviceWorker.controller;
+
+          appendDiagnostics(
+            `[SW controller]\n${JSON.stringify(
+              {
+                controller: controller
+                  ? {
+                      scriptURL: controller.scriptURL,
+                      state: controller.state,
+                    }
+                  : null,
+                swControlled: !!controller,
+              },
+              null,
+              2,
+            )}`,
+          )
         } catch (e) {
           if (cancelled) return
           const msg = e instanceof Error ? e.message : String(e)
