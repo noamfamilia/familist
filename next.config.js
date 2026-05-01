@@ -6,10 +6,7 @@ const withPWA = require('next-pwa')({
   scope: '/',
   disable: process.env.NODE_ENV === 'development',
   customWorkerDir: 'worker',
-  workboxOptions: {
-    clientsClaim: true,
-    skipWaiting: true,
-  },
+  clientsClaim: true,
 })
 
 /** @type {import('next').NextConfig} */
