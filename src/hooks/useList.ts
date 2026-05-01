@@ -288,7 +288,7 @@ export function useList(listId: string) {
       if (offlineModeRef.current) return
       offlineModeRef.current = true
       if (!offlineToastIdRef.current) {
-        offlineToastIdRef.current = showToast('Unable to reach server. Working offline', 'offline', {
+        offlineToastIdRef.current = showToast('Going offline', 'offline', {
           durationMs: OFFLINE_BANNER_DURATION_MS,
         })
       }
@@ -298,7 +298,7 @@ export function useList(listId: string) {
   const tryBeginMutation = useCallback((): boolean => {
     if (offlineModeRef.current) {
       if (!offlineToastIdRef.current) {
-        offlineToastIdRef.current = showToast('Unable to reach server. Working offline', 'offline', {
+        offlineToastIdRef.current = showToast('Going offline', 'offline', {
           durationMs: OFFLINE_BANNER_DURATION_MS,
         })
       }
