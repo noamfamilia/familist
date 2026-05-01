@@ -396,7 +396,11 @@ export default function ListPage() {
       const result = await addItem(itemText, cat)
       err = result.error as { message?: string } | null | undefined
       if (err) {
-        if (err.message !== 'Syncing with server ...' && err.message !== USER_MUTATION_WAIT_MSG) {
+        if (
+          err.message !== 'Syncing with server ...' &&
+          err.message !== USER_MUTATION_WAIT_MSG &&
+          err.message !== 'Offline (actions disabled)'
+        ) {
           showError(err.message || 'Failed to add item')
         }
       }

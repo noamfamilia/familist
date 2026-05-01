@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 
-type ToastType = 'success' | 'error' | 'warning' | 'info' | 'offline'
+type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 export type ToastAction = { label: string; onClick: () => void }
 
@@ -113,7 +113,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       `}
     >
       <span className="text-lg flex-shrink-0">{icons[toast.type]}</span>
-      <span className={`flex-1 text-sm ${toast.type === 'offline' ? '' : 'text-gray-700 dark:text-gray-200'}`}>{toast.message}</span>
+      <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">{toast.message}</span>
       {toast.action ? (
         <button
           type="button"

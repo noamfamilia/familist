@@ -148,6 +148,7 @@ const SAVE_TIMEOUT_MS = 5000
 const TEMP_SYNC_TIMEOUT_MS = 10000
 const OFFLINE_TOAST_DURATION_MS = 60 * 60 * 1000
 const OFFLINE_PING_INTERVAL_MS = 10000
+const OFFLINE_ACTIONS_DISABLED_MSG = 'Offline (actions disabled)'
 
 function createTempId(prefix: string) {
   return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -332,7 +333,7 @@ export function useList(listId: string) {
     syncStateRef.current = 'offline'
     offlineModeRef.current = true
     if (!offlineToastIdRef.current) {
-      offlineToastIdRef.current = showToast('Offline', 'offline', {
+      offlineToastIdRef.current = showToast('Offline (actions disabled)', 'error', {
         durationMs: OFFLINE_TOAST_DURATION_MS,
       })
     }
@@ -367,6 +368,10 @@ export function useList(listId: string) {
     }
     return mutationGate.tryBegin()
   }, [enterOffline, mutationGate])
+
+  const blockedMutationMessage = useCallback(() => (
+    syncStateRef.current === 'offline' || offlineModeRef.current ? OFFLINE_ACTIONS_DISABLED_MSG : USER_MUTATION_WAIT_MSG
+  ), [])
 
   useEffect(() => {
     const onOffline = () => {
@@ -768,7 +773,7 @@ export function useList(listId: string) {
 
   const addItem = async (text: string, category?: number, comment?: string | null) => {
     if (!tryBeginMutation()) {
-      return { data: null, error: { message: USER_MUTATION_WAIT_MSG } }
+      return { data: null, error: { message: blockedMutationMessage() } }
     }
     try {
       const maxSortOrder = items.length > 0
@@ -898,10 +903,10 @@ export function useList(listId: string) {
 
     if (optimisticArchiveWithImmediateUndoToast) {
       if (archiveDbWriteInflightRef.current[itemId]) {
-        return { error: { message: USER_MUTATION_WAIT_MSG } }
+        return { error: { message: blockedMutationMessage() } }
       }
       if (!tryBeginMutation()) {
-        return { error: { message: USER_MUTATION_WAIT_MSG } }
+        return { error: { message: blockedMutationMessage() } }
       }
       try {
         mutationVersionRef.current += 1
@@ -1028,7 +1033,7 @@ export function useList(listId: string) {
     }
 
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
       mutationVersionRef.current += 1
@@ -1124,7 +1129,7 @@ export function useList(listId: string) {
       return { error: { message: 'Syncing with server ...' } }
     }
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
       const { error } = await trackSaveOperation(
@@ -1158,7 +1163,7 @@ export function useList(listId: string) {
   const addMember = async (name: string, creatorNickname?: string) => {
     if (!userId) return { error: new Error('Not authenticated') }
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
     const nonTargetMembers = members.filter(m => !m.is_target)
@@ -1247,7 +1252,7 @@ export function useList(listId: string) {
       return { error: { message: 'Syncing with server ...' } }
     }
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
       const previousMember = members.find(member => member.id === memberId)
@@ -1292,7 +1297,7 @@ export function useList(listId: string) {
       return { error: { message: 'Syncing with server ...' } }
     }
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
       const { error } = await trackSaveOperation(
@@ -1335,7 +1340,7 @@ export function useList(listId: string) {
       return { error: { message: 'Syncing with server ...' } }
     }
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
       const { data, error } = await trackSaveOperation(
@@ -1388,7 +1393,7 @@ export function useList(listId: string) {
       return { error: { message: 'Syncing with server ...' } }
     }
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
     const existingState = items.find(i => i.id === itemId)?.memberStates[memberId]
@@ -1471,7 +1476,7 @@ export function useList(listId: string) {
       return { data: null, error: { message: 'Syncing with server ...' } }
     }
     if (!tryBeginMutation()) {
-      return { data: null, error: { message: USER_MUTATION_WAIT_MSG } }
+      return { data: null, error: { message: blockedMutationMessage() } }
     }
     try {
       const previousState = items.find(item => item.id === itemId)?.memberStates[memberId]
@@ -1526,7 +1531,7 @@ export function useList(listId: string) {
     if (archivedIds.size === 0) return { error: null, count: 0 }
 
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG }, count: 0 }
+      return { error: { message: blockedMutationMessage() }, count: 0 }
     }
     try {
       mutationVersionRef.current += 1
@@ -1562,7 +1567,7 @@ export function useList(listId: string) {
     if (!hasArchived) return { error: null, count: 0 }
 
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG }, count: 0 }
+      return { error: { message: blockedMutationMessage() }, count: 0 }
     }
     try {
       mutationVersionRef.current += 1
@@ -1597,7 +1602,7 @@ export function useList(listId: string) {
 
   const reorderItems = async (reorderedItems: ItemWithState[]) => {
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
       const previousItems = items
@@ -1737,7 +1742,7 @@ export function useList(listId: string) {
       return { error: new Error('Not signed in') }
     }
     if (!tryBeginMutation()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+      return { error: new Error(blockedMutationMessage()) }
     }
     const prev = sumScope
     try {
@@ -1844,7 +1849,7 @@ export function useList(listId: string) {
 
   const updateCategoryNames = async (names: CategoryNames) => {
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
       return await persistCategoryNamesOnly(names)
@@ -1855,7 +1860,7 @@ export function useList(listId: string) {
 
   const updateCategoryOrder = async (order: number[]) => {
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
       return await persistCategoryOrderOnly(order)
@@ -1866,7 +1871,7 @@ export function useList(listId: string) {
 
   const saveCategorySettings = async (names: CategoryNames, order: number[]) => {
     if (!tryBeginMutation()) {
-      return { error: { message: USER_MUTATION_WAIT_MSG } }
+      return { error: { message: blockedMutationMessage() } }
     }
     try {
       const r1 = await persistCategoryNamesOnly(names)
