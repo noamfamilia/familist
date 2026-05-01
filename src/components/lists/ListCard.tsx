@@ -494,7 +494,18 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 } else if (reason === 'blocked_offline_assets_not_ready') {
                   showError('Offline shell not ready yet. Reload once while online, then try again.')
                 } else {
-                  showError('List is unavailable offline. Open it once while online to cache it.')
+                  appendDiagnostics(
+                    [
+                      '[list-offline-nav-denied]',
+                      'file=src/components/lists/ListCard.tsx',
+                      'component=ListCard',
+                      'trigger=<Link> onClick on list title (navigate to /list/:id)',
+                      'reason=blocked_list_data_not_cached',
+                      'meaning=offline && swControlled && offlineAssetsReady but no row in localStorage from cachedListDataExists(listId)',
+                      `listId=${list.id}`,
+                    ].join('\n'),
+                  )
+                  showError('List is unavailable offline.')
                 }
                 lastUnavailableToastAtRef.current = now
               }
