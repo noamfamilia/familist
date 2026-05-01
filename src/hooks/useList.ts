@@ -145,9 +145,15 @@ function setCachedPrefs(
 
 const FETCH_TIMEOUT_MS = 5000
 const SAVE_TIMEOUT_MS = 5000
+const TEMP_SYNC_TIMEOUT_MS = 5000
+const OFFLINE_BANNER_DURATION_MS = 60 * 60 * 1000
 
 function createTempId(prefix: string) {
   return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function isTempEntityId(id: string) {
+  return id.startsWith('temp-')
 }
 
 const LEGACY_CARD_COLOR_TO_CATEGORY: Record<string, number> = {
@@ -229,6 +235,10 @@ export function useList(listId: string) {
 
   const { warning: warnMutation, showToast, dismissToast, error: showErrorToast } = useToast()
   const archiveUndoToastIdRef = useRef<string | null>(null)
+  const syncToastIdRef = useRef<string | null>(null)
+  const offlineToastIdRef = useRef<string | null>(null)
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const offlineModeRef = useRef(false)
   /** User intent while archive / undo requests settle (`true` = archived, `false` = not). Read after awaits, not from closures. */
   const desiredArchivedByItemRef = useRef<Record<string, boolean>>({})
   const archiveDbWriteInflightRef = useRef<Record<string, boolean>>({})
@@ -241,6 +251,69 @@ export function useList(listId: string) {
     () => createUserMutationGate(m => warnMutationRef.current(m)),
     [],
   )
+
+  const markOnlineRecovered = useCallback(() => {
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current)
+      syncTimeoutRef.current = null
+    }
+    if (syncToastIdRef.current) {
+      dismissToast(syncToastIdRef.current)
+      syncToastIdRef.current = null
+    }
+    if (offlineModeRef.current) {
+      if (offlineToastIdRef.current) {
+        dismissToast(offlineToastIdRef.current)
+        offlineToastIdRef.current = null
+      }
+      offlineModeRef.current = false
+      showToast('Back online', 'online', { durationMs: 3000 })
+      return
+    }
+    showToast('Sync successful', 'success', { durationMs: 2000 })
+  }, [dismissToast, showToast])
+
+  const startTempSyncWatch = useCallback(() => {
+    if (offlineModeRef.current) return
+    if (!syncToastIdRef.current) {
+      syncToastIdRef.current = showToast('Syncing with server ...', 'info', { durationMs: TEMP_SYNC_TIMEOUT_MS })
+    }
+    if (syncTimeoutRef.current) return
+    syncTimeoutRef.current = setTimeout(() => {
+      syncTimeoutRef.current = null
+      if (syncToastIdRef.current) {
+        dismissToast(syncToastIdRef.current)
+        syncToastIdRef.current = null
+      }
+      if (offlineModeRef.current) return
+      offlineModeRef.current = true
+      if (!offlineToastIdRef.current) {
+        offlineToastIdRef.current = showToast('Unable to reach server. Working offline', 'offline', {
+          durationMs: OFFLINE_BANNER_DURATION_MS,
+        })
+      }
+    }, TEMP_SYNC_TIMEOUT_MS)
+  }, [dismissToast, showToast])
+
+  const tryBeginMutation = useCallback((): boolean => {
+    if (offlineModeRef.current) {
+      if (!offlineToastIdRef.current) {
+        offlineToastIdRef.current = showToast('Unable to reach server. Working offline', 'offline', {
+          durationMs: OFFLINE_BANNER_DURATION_MS,
+        })
+      }
+      return false
+    }
+    return mutationGate.tryBegin()
+  }, [mutationGate, showToast])
+
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const cachedData = getCachedList(userId, listId)
@@ -615,7 +688,7 @@ export function useList(listId: string) {
   }, [userId, listId, fetchList])
 
   const addItem = async (text: string, category?: number, comment?: string | null) => {
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { data: null, error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -710,6 +783,7 @@ export function useList(listId: string) {
 
         return replaced ? deduped : [...deduped, newItem]
       })
+      markOnlineRecovered()
       return { data, error: null }
     } finally {
       mutationGate.end()
@@ -717,6 +791,10 @@ export function useList(listId: string) {
   }
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
+    if (isTempEntityId(itemId)) {
+      startTempSyncWatch()
+      return { error: { message: 'Syncing with server ...' } }
+    }
     const previousItem = items.find(item => item.id === itemId)
     const persistedUpdates = { ...updates }
 
@@ -739,7 +817,7 @@ export function useList(listId: string) {
       if (archiveDbWriteInflightRef.current[itemId]) {
         return { error: { message: USER_MUTATION_WAIT_MSG } }
       }
-      if (!mutationGate.tryBegin()) {
+      if (!tryBeginMutation()) {
         return { error: { message: USER_MUTATION_WAIT_MSG } }
       }
       try {
@@ -866,7 +944,7 @@ export function useList(listId: string) {
       return { error: null }
     }
 
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -958,7 +1036,11 @@ export function useList(listId: string) {
   updateItemRef.current = updateItem
 
   const deleteItem = async (itemId: string) => {
-    if (!mutationGate.tryBegin()) {
+    if (isTempEntityId(itemId)) {
+      startTempSyncWatch()
+      return { error: { message: 'Syncing with server ...' } }
+    }
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -992,7 +1074,7 @@ export function useList(listId: string) {
 
   const addMember = async (name: string, creatorNickname?: string) => {
     if (!userId) return { error: new Error('Not authenticated') }
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1060,6 +1142,7 @@ export function useList(listId: string) {
 
       return replaced ? deduped : [...deduped, memberWithCreator]
     })
+    markOnlineRecovered()
     
     if (channelRef.current) {
       channelRef.current.send({
@@ -1076,7 +1159,11 @@ export function useList(listId: string) {
   }
 
   const updateMember = async (memberId: string, updates: Partial<Member>) => {
-    if (!mutationGate.tryBegin()) {
+    if (isTempEntityId(memberId)) {
+      startTempSyncWatch()
+      return { error: { message: 'Syncing with server ...' } }
+    }
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1117,7 +1204,11 @@ export function useList(listId: string) {
   }
 
   const deleteMember = async (memberId: string) => {
-    if (!mutationGate.tryBegin()) {
+    if (isTempEntityId(memberId)) {
+      startTempSyncWatch()
+      return { error: { message: 'Syncing with server ...' } }
+    }
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1156,7 +1247,11 @@ export function useList(listId: string) {
   }
 
   const ownMember = async (memberId: string, creatorNickname?: string) => {
-    if (!mutationGate.tryBegin()) {
+    if (isTempEntityId(memberId)) {
+      startTempSyncWatch()
+      return { error: { message: 'Syncing with server ...' } }
+    }
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1205,7 +1300,11 @@ export function useList(listId: string) {
     memberId: string,
     updates: { quantity?: number; done?: boolean; assigned?: boolean }
   ) => {
-    if (!mutationGate.tryBegin()) {
+    if (isTempEntityId(itemId) || isTempEntityId(memberId)) {
+      startTempSyncWatch()
+      return { error: { message: 'Syncing with server ...' } }
+    }
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1284,7 +1383,11 @@ export function useList(listId: string) {
   }
 
   const changeQuantity = async (itemId: string, memberId: string, delta: number) => {
-    if (!mutationGate.tryBegin()) {
+    if (isTempEntityId(itemId) || isTempEntityId(memberId)) {
+      startTempSyncWatch()
+      return { data: null, error: { message: 'Syncing with server ...' } }
+    }
+    if (!tryBeginMutation()) {
       return { data: null, error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1339,7 +1442,7 @@ export function useList(listId: string) {
     const archivedIds = new Set(items.filter(i => i.archived).map(i => i.id))
     if (archivedIds.size === 0) return { error: null, count: 0 }
 
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG }, count: 0 }
     }
     try {
@@ -1375,7 +1478,7 @@ export function useList(listId: string) {
     const hasArchived = items.some(i => i.archived)
     if (!hasArchived) return { error: null, count: 0 }
 
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG }, count: 0 }
     }
     try {
@@ -1410,7 +1513,7 @@ export function useList(listId: string) {
   }
 
   const reorderItems = async (reorderedItems: ItemWithState[]) => {
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1450,7 +1553,7 @@ export function useList(listId: string) {
   }
 
   const updateMemberFilter = async (filter: MemberFilter) => {
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return
     }
     try {
@@ -1479,7 +1582,7 @@ export function useList(listId: string) {
   }
 
   const updateItemTextWidth = async (width: number) => {
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return
     }
     try {
@@ -1510,7 +1613,7 @@ export function useList(listId: string) {
   }
 
   const updateItemTextWidthMode = async (mode: WidthMode) => {
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return
     }
     try {
@@ -1550,7 +1653,7 @@ export function useList(listId: string) {
     if (!userId) {
       return { error: new Error('Not signed in') }
     }
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { error: new Error(USER_MUTATION_WAIT_MSG) }
     }
     const prev = sumScope
@@ -1580,7 +1683,7 @@ export function useList(listId: string) {
       const s = Math.min(ITEM_NAME_FONT_MAX, Math.max(ITEM_NAME_FONT_MIN, Math.round(step)))
       const prev = itemNameFontStepRef.current
       if (s === prev) return
-      if (!mutationGate.tryBegin()) {
+      if (!tryBeginMutation()) {
         return
       }
       try {
@@ -1605,7 +1708,7 @@ export function useList(listId: string) {
         mutationGate.end()
       }
     },
-    [listId, userId, mutationGate],
+    [listId, userId, mutationGate, tryBeginMutation],
   )
 
   const persistCategoryNamesOnly = async (names: CategoryNames) => {
@@ -1657,7 +1760,7 @@ export function useList(listId: string) {
   }
 
   const updateCategoryNames = async (names: CategoryNames) => {
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1668,7 +1771,7 @@ export function useList(listId: string) {
   }
 
   const updateCategoryOrder = async (order: number[]) => {
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1679,7 +1782,7 @@ export function useList(listId: string) {
   }
 
   const saveCategorySettings = async (names: CategoryNames, order: number[]) => {
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return { error: { message: USER_MUTATION_WAIT_MSG } }
     }
     try {
@@ -1696,7 +1799,7 @@ export function useList(listId: string) {
     const hasTarget = members.some(m => m.is_target)
     if (hasTarget) return
 
-    if (!mutationGate.tryBegin()) {
+    if (!tryBeginMutation()) {
       return
     }
     try {
@@ -1758,6 +1861,7 @@ export function useList(listId: string) {
       }
       return deduped
     })
+    markOnlineRecovered()
 
     if (items.length > 0) {
       const stateRows = items.map(i => ({
