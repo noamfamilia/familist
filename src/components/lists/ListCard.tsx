@@ -5,6 +5,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
+import { getCachedList } from '@/lib/cache'
 import type { ListWithRole } from '@/lib/supabase/types'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
@@ -382,6 +383,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     </span>
   ) : null
 
+  const canOpenListOffline = !!getCachedList(undefined, list.id)
+
   return (
     <>
     {/* Main card content */}
@@ -437,6 +440,12 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         ) : (
           <Link
             href={`/list/${list.id}`}
+            onClick={(e) => {
+              if (!isOfflineActionsDisabled) return
+              if (canOpenListOffline) return
+              e.preventDefault()
+              showError('List is unavailable offline')
+            }}
             className="block font-medium truncate text-lg text-primary dark:text-gray-100 hover:text-teal"
             data-tour="list-card"
           >

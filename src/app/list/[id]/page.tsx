@@ -546,20 +546,6 @@ export default function ListPage() {
 
   return (
     <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-fit max-w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start justify-between gap-3 mb-4">
-          <span className="min-w-0 flex-1">
-            <span className="font-medium block">Can&apos;t refresh this list right now.</span>
-            <span className="block text-xs text-red-600/90 dark:text-red-400 mt-1.5 break-words font-mono leading-snug">
-              {error}
-            </span>
-          </span>
-          <Button type="button" size="sm" variant="secondary" onClick={refresh} className="flex-shrink-0">
-            Retry
-          </Button>
-        </div>
-      )}
-
       {/* Top bar with back button and member filter */}
       <div className="flex w-full min-w-0 items-center justify-between mb-4">
         <button

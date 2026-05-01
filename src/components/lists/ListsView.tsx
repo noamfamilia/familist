@@ -297,27 +297,8 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         </div>
       )}
 
-      {fetchError && lists.length > 0 && (
-        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-3">
-          <span>Can&apos;t refresh your lists right now.</span>
-          <Button type="button" size="sm" variant="secondary" onClick={refresh}>
-            Retry
-          </Button>
-        </div>
-      )}
-
       {/* Lists */}
       <div className="space-y-2 min-h-[120px]">
-        {fetchError && lists.length === 0 && (
-          <div className="text-center py-10 px-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 rounded-lg">
-            <p className="text-red-700 font-medium">Can&apos;t load your lists right now.</p>
-            <p className="text-sm text-red-600 dark:text-red-400 mt-1">Please try again.</p>
-            <Button type="button" size="sm" variant="secondary" className="mt-4" onClick={refresh}>
-              Retry
-            </Button>
-          </div>
-        )}
-
         {/* Active Lists - draggable */}
         {activeLists.length > 0 && (
           <DndContext
