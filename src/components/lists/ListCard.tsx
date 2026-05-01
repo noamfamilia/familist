@@ -35,7 +35,7 @@ interface ListCardProps {
 }
 
 export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any', onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false }: ListCardProps) {
-  const { error: showError } = useToast()
+  const { error: showError, showToast } = useToast()
   const { offlineAssetsReady } = useConnectivity()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -69,6 +69,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
   const lastUnavailableToastAtRef = useRef(0)
+  const lastDiagToastAtRef = useRef(0)
 
   // Sync comment state when list updates from realtime
   useEffect(() => {
@@ -462,6 +463,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 }
               }
 
+              const diag = `diag online=${browserOnline ? 1 : 0} sw=${swControlled ? 1 : 0} assets=${offlineAssetsReady ? 1 : 0} data=${cachedListDataExists ? 1 : 0} ${reason}`
+              const now = Date.now()
+              if (!browserOnline && now - lastDiagToastAtRef.current > 1200) {
+                showToast(diag, allowed ? 'info' : 'warning', { durationMs: 3500 })
+                lastDiagToastAtRef.current = now
+              }
+
               if (process.env.NODE_ENV === 'development') {
                 console.log('[list-nav-gate]', {
                   listId: list.id,
@@ -476,7 +484,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
               if (allowed) return
               e.preventDefault()
-              const now = Date.now()
               if (now - lastUnavailableToastAtRef.current > 1200) {
                 showError('List is unavailable offline')
                 lastUnavailableToastAtRef.current = now
