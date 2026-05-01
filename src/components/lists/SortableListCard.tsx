@@ -19,9 +19,10 @@ interface SortableListCardProps {
   currentFilter?: string
   onClearCreateInput?: () => void
   onClearCreateInputIfTyped?: () => void
+  isOfflineActionsDisabled?: boolean
 }
 
-export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, labels, onUpdateLabel, onSelectLabel, currentFilter, onClearCreateInput, onClearCreateInputIfTyped }: SortableListCardProps) {
+export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, labels, onUpdateLabel, onSelectLabel, currentFilter, onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false }: SortableListCardProps) {
   const {
     attributes,
     listeners,
@@ -54,6 +55,7 @@ export function SortableListCard({ list, existingListNames, onUpdate, onDelete, 
         currentFilter={currentFilter}
         onClearCreateInput={onClearCreateInput}
         onClearCreateInputIfTyped={onClearCreateInputIfTyped}
+        isOfflineActionsDisabled={isOfflineActionsDisabled}
       />
     </div>
   )

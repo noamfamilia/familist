@@ -58,6 +58,9 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   )
   const { success, error: showError, warning: showWarning } = useToast()
   const [inputValue, setInputValue] = useState('')
+  const [isOfflineActionsDisabled, setIsOfflineActionsDisabled] = useState(
+    () => typeof navigator !== 'undefined' ? !navigator.onLine : false
+  )
   const inputValueRef = useRef('')
   inputValueRef.current = inputValue
   const [error, setError] = useState('')
@@ -66,6 +69,17 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   /** True when create form was submitted via Enter in the text field (refocus after success). */
   const createListSubmitFromKeyboardRef = useRef(false)
   const createListInFlightRef = useRef(false)
+
+  useEffect(() => {
+    const onOffline = () => setIsOfflineActionsDisabled(true)
+    const onOnline = () => setIsOfflineActionsDisabled(false)
+    window.addEventListener('offline', onOffline)
+    window.addEventListener('online', onOnline)
+    return () => {
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [])
 
   useEffect(() => {
     onLabelsChange?.(labels)
@@ -333,6 +347,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     currentFilter={selectedLabel}
                     onClearCreateInput={clearCreateInput}
                     onClearCreateInputIfTyped={clearCreateInputIfTyped}
+                    isOfflineActionsDisabled={isOfflineActionsDisabled}
                   />
                 ))}
               </div>
@@ -368,6 +383,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     currentFilter={selectedLabel}
                     onClearCreateInput={clearCreateInput}
                     onClearCreateInputIfTyped={clearCreateInputIfTyped}
+                    isOfflineActionsDisabled={isOfflineActionsDisabled}
                   />
             ))}
           </div>

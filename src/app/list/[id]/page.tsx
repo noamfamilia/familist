@@ -216,6 +216,7 @@ export default function ListPage() {
     createTargets,
     sumScope,
     updateListUserSumScope,
+    isOfflineActionsDisabled,
   } = useList(listId)
 
   // Redirect to home if access is revoked
@@ -524,6 +525,13 @@ export default function ListPage() {
   }
 
   const noMemberColumns = filteredMembers.length === 0
+  const openMutatingModal = (open: () => void) => {
+    if (isOfflineActionsDisabled) {
+      showError('Offline (actions disabled)')
+      return
+    }
+    open()
+  }
 
   return (
     <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-fit max-w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
@@ -696,8 +704,8 @@ export default function ListPage() {
               onCategorySortClick={handleCategorySortClick}
               onExpandAll={handleExpandAll}
               onCollapseAll={handleCollapseAll}
-              onDeleteAllArchived={() => setConfirmDeleteArchived(true)}
-              onRestoreAllArchived={() => setConfirmRestoreArchived(true)}
+              onDeleteAllArchived={() => openMutatingModal(() => setConfirmDeleteArchived(true))}
+              onRestoreAllArchived={() => openMutatingModal(() => setConfirmRestoreArchived(true))}
               isOwner={list?.owner_id === user?.id}
               hasTargetMember={hasTargetMember}
               onCreateTargets={createTargets}

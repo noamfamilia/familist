@@ -261,6 +261,7 @@ export function useList(listId: string) {
   const offlinePingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const offlineModeRef = useRef(false)
   const syncStateRef = useRef<'online' | 'syncing' | 'offline'>('online')
+  const [isOfflineActionsDisabled, setIsOfflineActionsDisabled] = useState(false)
   /** User intent while archive / undo requests settle (`true` = archived, `false` = not). Read after awaits, not from closures. */
   const desiredArchivedByItemRef = useRef<Record<string, boolean>>({})
   const archiveDbWriteInflightRef = useRef<Record<string, boolean>>({})
@@ -322,6 +323,7 @@ export function useList(listId: string) {
     dismissOfflineToast()
     offlineModeRef.current = false
     syncStateRef.current = 'online'
+    setIsOfflineActionsDisabled(false)
     if (wasOffline) {
       showToast('Back online', 'success', { durationMs: 3000 })
     }
@@ -332,6 +334,7 @@ export function useList(listId: string) {
     dismissSyncingToast()
     syncStateRef.current = 'offline'
     offlineModeRef.current = true
+    setIsOfflineActionsDisabled(true)
     if (!offlineToastIdRef.current) {
       offlineToastIdRef.current = showToast('Offline (actions disabled)', 'error', {
         durationMs: OFFLINE_TOAST_DURATION_MS,
@@ -2042,5 +2045,6 @@ export function useList(listId: string) {
     createTargets,
     sumScope,
     updateListUserSumScope,
+    isOfflineActionsDisabled,
   }
 }
