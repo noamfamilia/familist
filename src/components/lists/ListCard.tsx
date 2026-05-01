@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
 import { getCachedList } from '@/lib/cache'
+import { useConnectivity } from '@/providers/ConnectivityProvider'
 import type { ListWithRole } from '@/lib/supabase/types'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
@@ -35,6 +36,7 @@ interface ListCardProps {
 
 export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any', onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false }: ListCardProps) {
   const { error: showError } = useToast()
+  const { offlineAssetsReady } = useConnectivity()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [newName, setNewName] = useState(list.name)
@@ -66,6 +68,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const labelDropdownRef = useRef<HTMLDivElement>(null)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
+  const lastUnavailableToastAtRef = useRef(0)
 
   // Sync comment state when list updates from realtime
   useEffect(() => {
@@ -441,11 +444,43 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           <Link
             href={`/list/${list.id}`}
             onClick={(e) => {
-              const browserOffline = typeof navigator !== 'undefined' && !navigator.onLine
-              if (!isOfflineActionsDisabled && !browserOffline) return
-              if (canOpenListOffline) return
+              const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
+              const swControlled = typeof navigator !== 'undefined' ? !!navigator.serviceWorker?.controller : false
+              const cachedListDataExists = canOpenListOffline
+
+              let reason = 'allowed_online'
+              let allowed = true
+              if (!browserOnline) {
+                if (!offlineAssetsReady) {
+                  allowed = false
+                  reason = 'blocked_offline_assets_not_ready'
+                } else if (!cachedListDataExists) {
+                  allowed = false
+                  reason = 'blocked_list_data_missing'
+                } else {
+                  reason = 'allowed_offline_assets_and_data_ready'
+                }
+              }
+
+              if (process.env.NODE_ENV === 'development') {
+                console.log('[list-nav-gate]', {
+                  listId: list.id,
+                  navigatorOnLine: browserOnline,
+                  swControllerExists: swControlled,
+                  offlineAssetsReady,
+                  cachedListDataExists,
+                  reason,
+                  allowed,
+                })
+              }
+
+              if (allowed) return
               e.preventDefault()
-              showError('List is unavailable offline')
+              const now = Date.now()
+              if (now - lastUnavailableToastAtRef.current > 1200) {
+                showError('List is unavailable offline')
+                lastUnavailableToastAtRef.current = now
+              }
             }}
             className="block font-medium truncate text-lg text-primary dark:text-gray-100 hover:text-teal"
             data-tour="list-card"

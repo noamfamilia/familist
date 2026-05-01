@@ -11,6 +11,8 @@ const TEMP_SYNC_TIMEOUT_MS = 10000
 const OFFLINE_TOAST_DURATION_MS = 60 * 60 * 1000
 const OFFLINE_PING_INTERVAL_MS = 10000
 const OFFLINE_ACTIONS_DISABLED_MSG = 'Offline (actions disabled)'
+const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
+const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
 
 type ConnectivityContextType = {
   status: ConnectivityStatus
@@ -20,6 +22,7 @@ type ConnectivityContextType = {
   startTempSyncWatch: () => void
   canMutateNow: () => boolean
   blockedMutationMessage: () => string
+  offlineAssetsReady: boolean
 }
 
 const ConnectivityContext = createContext<ConnectivityContextType | undefined>(undefined)
@@ -37,6 +40,7 @@ async function probeInternetReachable(): Promise<boolean> {
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
   const { showToast, dismissToast, clearToasts } = useToast()
   const [status, setStatus] = useState<ConnectivityStatus>('online')
+  const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
   const syncToastIdRef = useRef<string | null>(null)
   const offlineToastIdRef = useRef<string | null>(null)
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -130,6 +134,18 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     status === 'offline' ? OFFLINE_ACTIONS_DISABLED_MSG : USER_MUTATION_WAIT_MSG
   ), [status])
 
+  const requestOfflineAssetsReady = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
+      setOfflineAssetsReady(false)
+      return
+    }
+    if (!navigator.serviceWorker.controller) {
+      setOfflineAssetsReady(false)
+      return
+    }
+    navigator.serviceWorker.controller.postMessage({ type: SW_STATUS_REQUEST })
+  }, [])
+
   useEffect(() => {
     try {
       if (localStorage.getItem(CONNECTIVITY_STATUS_KEY) === 'offline') {
@@ -158,6 +174,29 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     }
   }, [clearOfflinePing, clearSyncTimeout, enterOffline, markOnlineRecovered])
 
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) return
+
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data || {}
+      if (data.type !== SW_STATUS_RESPONSE) return
+      setOfflineAssetsReady(Boolean(data.ready))
+    }
+
+    const onControllerChange = () => {
+      requestOfflineAssetsReady()
+    }
+
+    navigator.serviceWorker.addEventListener('message', onMessage)
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
+    requestOfflineAssetsReady()
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', onMessage)
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
+    }
+  }, [requestOfflineAssetsReady])
+
   return (
     <ConnectivityContext.Provider
       value={{
@@ -168,6 +207,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         startTempSyncWatch,
         canMutateNow,
         blockedMutationMessage,
+        offlineAssetsReady,
       }}
     >
       {children}
