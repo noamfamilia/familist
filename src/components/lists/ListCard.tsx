@@ -468,7 +468,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
               const diag = `diag online=${browserOnline ? 1 : 0} sw=${swControllerExists ? 1 : 0} assets=${offlineAssetsReady ? 1 : 0} data=${cachedListDataExists ? 1 : 0} ${reason}`
               const now = Date.now()
-              if (!browserOnline && now - lastDiagToastAtRef.current > 1200) {
+              if (now - lastDiagToastAtRef.current > 1200) {
                 showToast(diag, allowed ? 'info' : 'warning', { durationMs: 3500 })
                 lastDiagToastAtRef.current = now
               }
