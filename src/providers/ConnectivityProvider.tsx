@@ -236,6 +236,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   /** Origin/CDN diagnostics + explicit SW registration (same URL next-pwa uses, no query string). */
   useEffect(() => {
     let cancelled = false
+    let removeStateListener: (() => void) | undefined
 
     const run = async () => {
       try {
@@ -266,12 +267,51 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         }
 
         try {
-          const reg = await navigator.serviceWorker.register(d.swRegistrationUrl, { scope: '/' })
+          const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
           if (cancelled) return
-          console.log('[PWA] explicit register ok', reg.scope, reg.active?.scriptURL)
+
+          const regSnap = {
+            scope: reg.scope,
+            installing: reg.installing?.scriptURL,
+            installingState: reg.installing?.state,
+            waiting: reg.waiting?.scriptURL,
+            waitingState: reg.waiting?.state,
+            active: reg.active?.scriptURL,
+            activeState: reg.active?.state,
+          }
+          console.log('SW reg', regSnap)
+          appendDiagnostics(`SW reg (immediate)\n${JSON.stringify(regSnap, null, 2)}`)
+
+          const regsNow = await navigator.serviceWorker.getRegistrations()
+          console.log('SW getRegistrations (immediate)', regsNow.length, regsNow)
           appendDiagnostics(
-            `sw-reg OK\nscope=${reg.scope}\nactive=${reg.active?.scriptURL ?? 'null'}\nwaiting=${reg.waiting?.scriptURL ?? 'null'}`,
+            `getRegistrations (immediate) n=${regsNow.length}\n${JSON.stringify(
+              regsNow.map((r) => ({
+                scope: r.scope,
+                installing: r.installing?.scriptURL,
+                installingState: r.installing?.state,
+                waiting: r.waiting?.scriptURL,
+                waitingState: r.waiting?.state,
+                active: r.active?.scriptURL,
+                activeState: r.active?.state,
+              })),
+              null,
+              2,
+            )}`,
           )
+
+          const worker = reg.installing || reg.waiting || reg.active
+          if (worker) {
+            const onStateChange = () => {
+              console.log('SW statechange', {
+                scriptURL: worker.scriptURL,
+                state: worker.state,
+              })
+              appendDiagnostics(`SW statechange\nscriptURL=${worker.scriptURL}\nstate=${worker.state}`)
+            }
+            worker.addEventListener('statechange', onStateChange)
+            removeStateListener = () => worker.removeEventListener('statechange', onStateChange)
+          }
         } catch (e) {
           if (cancelled) return
           const msg = e instanceof Error ? e.message : String(e)
@@ -285,6 +325,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     void run()
     return () => {
       cancelled = true
+      removeStateListener?.()
     }
   }, [appendDiagnostics])
 
