@@ -17,6 +17,7 @@ const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
 type ConnectivityContextType = {
   status: ConnectivityStatus
   isOfflineActionsDisabled: boolean
+  swControlled: boolean
   enterOffline: () => void
   markOnlineRecovered: () => void
   startTempSyncWatch: () => void
@@ -38,9 +39,10 @@ async function probeInternetReachable(): Promise<boolean> {
 }
 
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
-  const { showToast, dismissToast, clearToasts } = useToast()
+  const { showToast, dismissToast, clearToasts, warning: showWarning } = useToast()
   const [status, setStatus] = useState<ConnectivityStatus>('online')
   const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
+  const [swControlled, setSwControlled] = useState(false)
   const syncToastIdRef = useRef<string | null>(null)
   const offlineToastIdRef = useRef<string | null>(null)
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -137,9 +139,12 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const requestOfflineAssetsReady = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
       setOfflineAssetsReady(false)
+      setSwControlled(false)
       return
     }
-    if (!navigator.serviceWorker.controller) {
+    const controlled = !!navigator.serviceWorker.controller
+    setSwControlled(controlled)
+    if (!controlled) {
       setOfflineAssetsReady(false)
       return
     }
@@ -197,11 +202,40 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     }
   }, [requestOfflineAssetsReady])
 
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) return
+    if (!navigator.onLine) return
+    if (navigator.serviceWorker.controller) return
+
+    const promptKey = 'familist_sw_uncontrolled_prompted'
+    try {
+      if (sessionStorage.getItem(promptKey) === '1') return
+      sessionStorage.setItem(promptKey, '1')
+    } catch {
+      // Ignore storage errors
+    }
+
+    navigator.serviceWorker.ready.then(() => {
+      if (navigator.serviceWorker.controller) return
+      showWarning('Offline access is not ready. Open the app once while online.')
+      showToast('Tap to reload and enable offline mode', 'info', {
+        durationMs: 7000,
+        action: {
+          label: 'Reload',
+          onClick: () => window.location.reload(),
+        },
+      })
+    }).catch(() => {
+      // Ignore readiness errors
+    })
+  }, [showToast, showWarning])
+
   return (
     <ConnectivityContext.Provider
       value={{
         status,
         isOfflineActionsDisabled: status === 'offline',
+        swControlled,
         enterOffline,
         markOnlineRecovered,
         startTempSyncWatch,
