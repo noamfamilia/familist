@@ -67,21 +67,27 @@ export function extractUrlsFromSwScript(swText: string): {
   return { precachePaths, importScriptPaths, workboxPath }
 }
 
-type CheckResult = { path: string; ok: true } | { path: string; ok: false; detail: string }
+type CheckResult = { path: string; ok: true } | { path: string; ok: false; absolute: string; detail: string }
+
+function formatFailBlock(path: string, absolute: string, detail: string): string {
+  return `[precache-verify] FAIL\npath=${path}\nabsolute=${absolute}\n${detail}`
+}
 
 async function checkOneUrl(origin: string, path: string): Promise<CheckResult> {
   const abs = toAbsolute(origin, path)
   try {
     const res = await fetch(abs, { cache: 'no-store', method: 'GET' })
-    const ct = (res.headers.get('content-type') || '').toLowerCase()
+    const ctRaw = res.headers.get('content-type') || 'none'
+    const ct = ctRaw.toLowerCase()
     const text = await res.text()
-    const snip = text.slice(0, 120).replace(/\s+/g, ' ')
+    const snip = text.slice(0, 200).replace(/\s+/g, ' ')
 
     if (!res.ok) {
       return {
         path,
         ok: false,
-        detail: `HTTP ${res.status} ct=${ct || 'none'} snip=${snip}`,
+        absolute: abs,
+        detail: `status=${res.status}\ncontent-type=${ctRaw}\nsnippet=${snip}`,
       }
     }
 
@@ -89,7 +95,12 @@ async function checkOneUrl(origin: string, path: string): Promise<CheckResult> {
 
     if (ext === '.js') {
       if (looksLikeHtml(text)) {
-        return { path, ok: false, detail: `body looks like HTML (not JS) ct=${ct}` }
+        return {
+          path,
+          ok: false,
+          absolute: abs,
+          detail: `reason=body looks like HTML (not JS)\nstatus=${res.status}\ncontent-type=${ctRaw}\nsnippet=${snip}`,
+        }
       }
       if (
         ct &&
@@ -98,23 +109,48 @@ async function checkOneUrl(origin: string, path: string): Promise<CheckResult> {
         !ct.includes('text/plain') &&
         !ct.includes('octet-stream')
       ) {
-        return { path, ok: false, detail: `unexpected content-type for .js: ${ct}` }
+        return {
+          path,
+          ok: false,
+          absolute: abs,
+          detail: `reason=unexpected content-type for .js\nstatus=${res.status}\ncontent-type=${ctRaw}\nsnippet=${snip}`,
+        }
       }
     } else if (ext === '.css') {
       if (looksLikeHtml(text)) {
-        return { path, ok: false, detail: `body looks like HTML (not CSS) ct=${ct}` }
+        return {
+          path,
+          ok: false,
+          absolute: abs,
+          detail: `reason=body looks like HTML (not CSS)\nstatus=${res.status}\ncontent-type=${ctRaw}\nsnippet=${snip}`,
+        }
       }
       if (ct && !ct.includes('css') && !ct.includes('text/plain') && !ct.includes('octet-stream')) {
-        return { path, ok: false, detail: `unexpected content-type for .css: ${ct}` }
+        return {
+          path,
+          ok: false,
+          absolute: abs,
+          detail: `reason=unexpected content-type for .css\nstatus=${res.status}\ncontent-type=${ctRaw}\nsnippet=${snip}`,
+        }
       }
     } else if (ext === '.json') {
       if (looksLikeHtml(text)) {
-        return { path, ok: false, detail: `body looks like HTML (not JSON) ct=${ct}` }
+        return {
+          path,
+          ok: false,
+          absolute: abs,
+          detail: `reason=body looks like HTML (not JSON)\nstatus=${res.status}\ncontent-type=${ctRaw}\nsnippet=${snip}`,
+        }
       }
       try {
         JSON.parse(text)
       } catch {
-        return { path, ok: false, detail: `JSON.parse failed ct=${ct} snip=${snip}` }
+        return {
+          path,
+          ok: false,
+          absolute: abs,
+          detail: `reason=JSON.parse failed\nstatus=${res.status}\ncontent-type=${ctRaw}\nsnippet=${snip}`,
+        }
       }
     }
 
@@ -123,7 +159,8 @@ async function checkOneUrl(origin: string, path: string): Promise<CheckResult> {
     return {
       path,
       ok: false,
-      detail: `fetch error: ${e instanceof Error ? e.message : String(e)}`,
+      absolute: abs,
+      detail: `reason=fetch threw\nerror=${e instanceof Error ? e.message : String(e)}`,
     }
   }
 }
@@ -191,17 +228,36 @@ export async function runSwPrecacheVerification(appendDiagnostics: (section: str
 
   for (const f of failures) {
     if (!f.ok) {
-      const line = `[precache-verify] FAIL ${f.path}\n${f.detail}`
-      console.warn(line)
-      appendDiagnostics(line)
+      const block = formatFailBlock(f.path, f.absolute, f.detail)
+      console.warn(block)
+      appendDiagnostics(block)
     }
   }
 
-  const summary = `[precache-verify] done ok=${okCount} fail=${failures.length} total=${results.length}`
+  const summary = `[precache-verify] RESULT SUMMARY\nok=${okCount}\nfail=${failures.length}\ntotal=${results.length}`
   console.log(summary)
   appendDiagnostics(summary)
 
   if (failures.length > 0) {
-    appendDiagnostics(`[precache-verify] FAIL paths (copy)\n${failures.map((f) => f.path).join('\n')}`)
+    appendDiagnostics(
+      `[precache-verify] FAIL paths only (copy)\n${failures.map((f) => (!f.ok ? f.path : '')).join('\n')}`,
+    )
+    appendDiagnostics(
+      '[precache-verify] Next: fix failing URLs above (404/HTML/MIME). Those often break Workbox install → installing→redundant.',
+    )
+  } else {
+    appendDiagnostics(
+      [
+        '[precache-verify] All page-context fetches passed — precache list does not prove SW install.',
+        'Next diagnostic order:',
+        '1) Android: chrome://inspect → Remote devices → open your tab → inspect.',
+        '2) Application → Service workers → target scope → open dedicated DevTools for SW.',
+        '3) In the SERVICE WORKER console (not page console), look for:',
+        '   - importScripts failures',
+        '   - bad-precaching-response / non-ok precache',
+        '   - MIME / CORS / uncaught during install',
+        '4) Confirm only one register path: next-pwa auto + our fallback only if getRegistration() stayed empty.',
+      ].join('\n'),
+    )
   }
 }

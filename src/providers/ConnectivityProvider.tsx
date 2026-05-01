@@ -16,6 +16,24 @@ const OFFLINE_PING_INTERVAL_MS = 10000
 const OFFLINE_ACTIONS_DISABLED_MSG = 'Offline (actions disabled)'
 const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
 const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
+const SW_FALLBACK_REGISTER_COUNT_KEY = 'familist_sw_js_fallback_register_count'
+
+function logFallbackSwRegister(appendDiagnostics: (section: string) => void) {
+  try {
+    const n = Number(sessionStorage.getItem(SW_FALLBACK_REGISTER_COUNT_KEY) || '0') + 1
+    sessionStorage.setItem(SW_FALLBACK_REGISTER_COUNT_KEY, String(n))
+    appendDiagnostics(
+      `[sw-register-fallback] about to call register('/sw.js') invoke#${n} at ${new Date().toISOString()}`,
+    )
+    if (n > 1) {
+      appendDiagnostics(
+        `[sw-register-fallback] WARNING: fallback register() invoked ${n} times this tab — possible supersession race with next-pwa`,
+      )
+    }
+  } catch {
+    appendDiagnostics(`[sw-register-fallback] about to call register('/sw.js') (sessionStorage blocked)`)
+  }
+}
 
 type ConnectivityContextType = {
   status: ConnectivityStatus
@@ -282,13 +300,16 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
           let registeredByUs = false
           if (!reg) {
+            logFallbackSwRegister(appendDiagnostics)
             reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
             registeredByUs = true
           }
           if (cancelled || !reg) return
 
           if (appendPwaBlock) {
-            appendDiagnostics(`SW registration source: ${registeredByUs ? 'fallback register()' : 'next-pwa / existing'}`)
+            appendDiagnostics(
+              `SW registration source: ${registeredByUs ? 'fallback register() after wait' : 'existing getRegistration() only — next-pwa (or prior) already registered; our register() NOT called'}`,
+            )
           }
 
           const regSnap = {
