@@ -17,10 +17,9 @@ async function hasAnyCachedRequestMatching(predicate) {
 async function computeOfflineAssetsReady() {
   const hasAppShell = await hasAnyCachedRequestMatching((url) => url.pathname === '/')
   const hasManifest = await hasAnyCachedRequestMatching((url) => url.pathname === '/manifest.json')
-  const hasListRouteAsset = await hasAnyCachedRequestMatching((url) => url.pathname.startsWith('/list/'))
   const hasNextStaticChunk = await hasAnyCachedRequestMatching((url) => url.pathname.includes('/_next/static/'))
 
-  return hasAppShell && hasManifest && hasListRouteAsset && hasNextStaticChunk
+  return hasAppShell && hasManifest && hasNextStaticChunk
 }
 
 self.addEventListener('message', (event) => {
@@ -32,7 +31,7 @@ self.addEventListener('message', (event) => {
       type: SW_STATUS_RESPONSE,
       ready,
       detail: {
-        note: 'Determined by cached shell, manifest, list route asset, and next static chunk',
+        note: 'Determined by cached shell, manifest, and next static chunk',
       },
     })
   }).catch(() => {

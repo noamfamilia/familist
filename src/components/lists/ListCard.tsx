@@ -456,9 +456,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                   reason = 'blocked_offline_assets_not_ready'
                 } else if (!cachedListDataExists) {
                   allowed = false
-                  reason = 'blocked_list_data_missing'
+                  reason = 'blocked_list_data_not_cached'
                 } else {
-                  reason = 'allowed_offline_assets_and_data_ready'
+                  reason = 'allowed_offline_cached_list'
                 }
               }
 
