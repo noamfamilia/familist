@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
-import { getCachedList } from '@/lib/cache'
+import { cachedListDataExists } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import type { ListWithRole } from '@/lib/supabase/types'
 
@@ -389,8 +389,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     </span>
   ) : null
 
-  const canOpenListOffline = !!getCachedList(undefined, list.id)
-
   return (
     <>
     {/* Main card content */}
@@ -447,28 +445,28 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           <Link
             href={`/list/${list.id}`}
             onClick={(e) => {
-              const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
-              const swControllerExists = typeof navigator !== 'undefined' ? !!navigator.serviceWorker?.controller : false
-              const cachedListDataExists = canOpenListOffline
+              const offline =
+                typeof navigator === 'undefined' ? false : !navigator.onLine
+              const hasCachedListData = cachedListDataExists(list.id)
+              // Offline list navigation: all four must be true (page uses ConnectivityProvider swControlled === !!controller).
+              const offlineNavAllowed =
+                offline && swControlled && offlineAssetsReady && hasCachedListData
+              const allowed = !offline || offlineNavAllowed
 
-              let reason = 'allowed_online'
-              let allowed = true
-              if (!browserOnline) {
-                if (!swControlled) {
-                  allowed = false
-                  reason = 'blocked_sw_not_controlled'
-                } else if (!offlineAssetsReady) {
-                  allowed = false
-                  reason = 'blocked_offline_assets_not_ready'
-                } else if (!cachedListDataExists) {
-                  allowed = false
-                  reason = 'blocked_list_data_not_cached'
-                } else {
-                  reason = 'allowed_offline_cached_list'
-                }
+              let reason: string
+              if (!offline) {
+                reason = 'allowed_online'
+              } else if (offlineNavAllowed) {
+                reason = 'allowed_offline_nav'
+              } else if (!swControlled) {
+                reason = 'blocked_sw_not_controlled'
+              } else if (!offlineAssetsReady) {
+                reason = 'blocked_offline_assets_not_ready'
+              } else {
+                reason = 'blocked_list_data_not_cached'
               }
 
-              const diag = `list-card nav gate listId=${list.id}\nonline=${browserOnline ? 1 : 0} sw=${swControllerExists ? 1 : 0} assets=${offlineAssetsReady ? 1 : 0} data=${cachedListDataExists ? 1 : 0}\nreason=${reason} allowed=${allowed ? 1 : 0}`
+              const diag = `list-card offline-nav gate listId=${list.id}\noffline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0} cachedListData=${hasCachedListData ? 1 : 0}\nofflineNavAllowed=${offlineNavAllowed ? 1 : 0}\nreason=${reason} allowed=${allowed ? 1 : 0}`
               const now = Date.now()
               if (now - lastDiagToastAtRef.current > 1200) {
                 appendDiagnostics(diag)
@@ -478,11 +476,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               if (process.env.NODE_ENV === 'development') {
                 console.log('[list-nav-gate]', {
                   listId: list.id,
-                  navigatorOnLine: browserOnline,
-                  swControllerExists,
-                  swControlledState: swControlled,
+                  offline,
+                  swControlled,
                   offlineAssetsReady,
-                  cachedListDataExists,
+                  cachedListDataExists: hasCachedListData,
+                  offlineNavAllowed,
                   reason,
                   allowed,
                 })
@@ -493,8 +491,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               if (now - lastUnavailableToastAtRef.current > 1200) {
                 if (reason === 'blocked_sw_not_controlled') {
                   showError('Offline access is not ready. Open the app once while online.')
+                } else if (reason === 'blocked_offline_assets_not_ready') {
+                  showError('Offline shell not ready yet. Reload once while online, then try again.')
                 } else {
-                  showError('List is unavailable offline')
+                  showError('List is unavailable offline. Open it once while online to cache it.')
                 }
                 lastUnavailableToastAtRef.current = now
               }

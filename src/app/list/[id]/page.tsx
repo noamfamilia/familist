@@ -13,6 +13,7 @@ import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
+import { cachedListDataExists } from '@/lib/cache'
 
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -293,12 +294,14 @@ export default function ListPage() {
   const lastPageDiagToastAtRef = useRef(0)
 
   useEffect(() => {
-    const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
-    const swControllerExists = typeof navigator !== 'undefined' ? !!navigator.serviceWorker?.controller : false
-    const diag = `list-page diag online=${browserOnline ? 1 : 0} sw=${swControllerExists ? 1 : 0} assets=${offlineAssetsReady ? 1 : 0} swState=${swControlled ? 1 : 0}`
+    const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
+    const hasCachedListData = cachedListDataExists(listId)
+    const offlineNavAllowed =
+      offline && swControlled && offlineAssetsReady && hasCachedListData
+    const diag = `list-page offline-nav (${listId})\noffline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0} cachedListData=${hasCachedListData ? 1 : 0}\nofflineNavAllowed=${offlineNavAllowed ? 1 : 0}`
     const now = Date.now()
     if (now - lastPageDiagToastAtRef.current > 1200) {
-      appendDiagnostics(`list-page (${listId})\n${diag}`)
+      appendDiagnostics(diag)
       lastPageDiagToastAtRef.current = now
     }
   }, [appendDiagnostics, listId, offlineAssetsReady, swControlled])

@@ -99,6 +99,11 @@ export function getCachedList(userId: string | undefined, listId: string): Cache
   }
 }
 
+/** True when persisted list payload exists for this list (offline nav gate). */
+export function cachedListDataExists(listId: string, userId?: string): boolean {
+  return getCachedList(userId, listId) != null
+}
+
 export function setCachedList(userId: string | undefined, listId: string, data: Omit<CachedListData, 'cachedAt'>) {
   const scopedUserId = resolveUserId(userId)
   if (!scopedUserId) return
