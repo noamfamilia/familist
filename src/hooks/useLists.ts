@@ -14,11 +14,38 @@ const supabase = createClient()
 
 const FETCH_TIMEOUT_MS = 5000
 const SAVE_TIMEOUT_MS = 5000
+const TEMP_SYNC_TIMEOUT_MS = 10000
+const OFFLINE_TOAST_DURATION_MS = 120000
+const OFFLINE_PING_INTERVAL_MS = 10000
+const OFFLINE_ACTIONS_DISABLED_MSG = 'Offline (actions disabled)'
 
 type UserListsRpcRow = Database['public']['Functions']['get_user_lists']['Returns'][number]
 
 function createTempId(prefix: string) {
   return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function isTempEntityId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && id.startsWith('temp-')
+}
+
+function isLikelyConnectivityError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null | undefined
+  const code = String(e?.code || '').toUpperCase()
+  const msg = String(e?.message || '').toLowerCase()
+  return (
+    code === 'NETWORK_ERROR' ||
+    code === 'FETCH_ERROR' ||
+    msg.includes('failed to fetch') ||
+    msg.includes('networkerror') ||
+    msg.includes('network request failed') ||
+    msg.includes('typeerror: failed to fetch') ||
+    msg.includes('load failed') ||
+    msg.includes('fetch failed') ||
+    msg.includes('connection') ||
+    msg.includes('offline') ||
+    msg.includes('timed out')
+  )
 }
 
 export function useLists() {
@@ -45,13 +72,118 @@ export function useLists() {
   const scheduleRealtimeFetchRef = useRef<(delayMs: number, consumePending?: boolean) => void>(() => {})
   const userId = user?.id
 
-  const { warning: warnMutation } = useToast()
+  const { warning: warnMutation, showToast, dismissToast } = useToast()
   const warnMutationRef = useRef(warnMutation)
   warnMutationRef.current = warnMutation
+  const syncToastIdRef = useRef<string | null>(null)
+  const offlineToastIdRef = useRef<string | null>(null)
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const offlinePingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const offlineModeRef = useRef(false)
+  const syncStateRef = useRef<'online' | 'syncing' | 'offline'>('online')
+  const [isOfflineActionsDisabled, setIsOfflineActionsDisabled] = useState(false)
   const mutationGate = useMemo(
     () => createUserMutationGate(m => warnMutationRef.current(m)),
     [],
   )
+
+  const dismissSyncingToast = useCallback(() => {
+    if (!syncToastIdRef.current) return
+    dismissToast(syncToastIdRef.current)
+    syncToastIdRef.current = null
+  }, [dismissToast])
+
+  const dismissOfflineToast = useCallback(() => {
+    if (!offlineToastIdRef.current) return
+    dismissToast(offlineToastIdRef.current)
+    offlineToastIdRef.current = null
+  }, [dismissToast])
+
+  const clearSyncTimeout = useCallback(() => {
+    if (!syncTimeoutRef.current) return
+    clearTimeout(syncTimeoutRef.current)
+    syncTimeoutRef.current = null
+  }, [])
+
+  const clearOfflinePing = useCallback(() => {
+    if (!offlinePingIntervalRef.current) return
+    clearInterval(offlinePingIntervalRef.current)
+    offlinePingIntervalRef.current = null
+  }, [])
+
+  const probeServerReachable = useCallback(async (): Promise<boolean> => {
+    if (!userId) return false
+    try {
+      const { error } = await supabase
+        .from('list_users')
+        .select('list_id')
+        .eq('user_id', userId)
+        .limit(1)
+      if (!error) return true
+      return !isLikelyConnectivityError(error)
+    } catch (err) {
+      return !isLikelyConnectivityError(err)
+    }
+  }, [userId])
+
+  const markOnlineRecovered = useCallback(() => {
+    clearSyncTimeout()
+    dismissSyncingToast()
+    clearOfflinePing()
+    const wasOffline = offlineModeRef.current || syncStateRef.current === 'offline'
+    dismissOfflineToast()
+    offlineModeRef.current = false
+    syncStateRef.current = 'online'
+    setIsOfflineActionsDisabled(false)
+    if (wasOffline) {
+      showToast('Back online', 'success', { durationMs: 3000 })
+    }
+  }, [clearOfflinePing, clearSyncTimeout, dismissOfflineToast, dismissSyncingToast, showToast])
+
+  const enterOffline = useCallback(() => {
+    clearSyncTimeout()
+    dismissSyncingToast()
+    syncStateRef.current = 'offline'
+    offlineModeRef.current = true
+    setIsOfflineActionsDisabled(true)
+    if (!offlineToastIdRef.current) {
+      offlineToastIdRef.current = showToast('Offline (actions disabled)', 'error', {
+        durationMs: OFFLINE_TOAST_DURATION_MS,
+      })
+    }
+    if (!offlinePingIntervalRef.current) {
+      offlinePingIntervalRef.current = setInterval(() => {
+        void probeServerReachable().then((ok) => {
+          if (ok) markOnlineRecovered()
+        })
+      }, OFFLINE_PING_INTERVAL_MS)
+    }
+  }, [clearSyncTimeout, dismissSyncingToast, markOnlineRecovered, probeServerReachable, showToast])
+
+  const startTempSyncWatch = useCallback(() => {
+    if (syncStateRef.current === 'offline' || offlineModeRef.current) return
+    if (syncStateRef.current !== 'syncing') syncStateRef.current = 'syncing'
+    if (!syncToastIdRef.current) {
+      syncToastIdRef.current = showToast('Syncing with server ...', 'info', { durationMs: TEMP_SYNC_TIMEOUT_MS + 1000 })
+    }
+    if (syncTimeoutRef.current) return
+    syncTimeoutRef.current = setTimeout(() => {
+      syncTimeoutRef.current = null
+      enterOffline()
+    }, TEMP_SYNC_TIMEOUT_MS)
+  }, [enterOffline, showToast])
+
+  const tryBeginMutation = useCallback((): boolean => {
+    if (syncStateRef.current === 'offline' || offlineModeRef.current) {
+      enterOffline()
+      return false
+    }
+    return mutationGate.tryBegin()
+  }, [enterOffline, mutationGate])
+
+  const blockedMutationMessage = useCallback(() => (
+    syncStateRef.current === 'offline' || offlineModeRef.current ? OFFLINE_ACTIONS_DISABLED_MSG : USER_MUTATION_WAIT_MSG
+  ), [])
 
   useEffect(() => {
     const cachedLists = getCachedLists(userId)?.lists || []
@@ -60,6 +192,38 @@ export function useLists() {
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = cachedLists.length > 0
   }, [userId])
+
+  useEffect(() => {
+    const onOffline = () => {
+      enterOffline()
+    }
+    const onOnline = () => {
+      void probeServerReachable().then((ok) => {
+        if (ok) markOnlineRecovered()
+      })
+    }
+    window.addEventListener('offline', onOffline)
+    window.addEventListener('online', onOnline)
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      enterOffline()
+    }
+    return () => {
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', onOnline)
+      clearSyncTimeout()
+      clearOfflinePing()
+      dismissSyncingToast()
+      dismissOfflineToast()
+    }
+  }, [
+    clearOfflinePing,
+    clearSyncTimeout,
+    dismissOfflineToast,
+    dismissSyncingToast,
+    enterOffline,
+    markOnlineRecovered,
+    probeServerReachable,
+  ])
 
   const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
     pendingSaveOpsRef.current++
@@ -196,7 +360,11 @@ export function useLists() {
       setCachedLists(userId, listsData)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
+      markOnlineRecovered()
     } catch (err) {
+      if (isLikelyConnectivityError(err)) {
+        enterOffline()
+      }
       setError((err as Error).message)
     } finally {
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
@@ -213,7 +381,7 @@ export function useLists() {
         })
       }
     }
-  }, [userId])
+  }, [enterOffline, markOnlineRecovered, userId])
 
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && lists.length > 0
 
@@ -338,8 +506,8 @@ export function useLists() {
 
   const createList = async (name: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (!mutationGate.tryBegin()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (!tryBeginMutation()) {
+      return { error: new Error(blockedMutationMessage()) }
     }
     try {
     const tempId = createTempId('list')
@@ -380,6 +548,10 @@ export function useLists() {
       if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
+      if (isLikelyConnectivityError(error)) {
+        startTempSyncWatch()
+        return { error: new Error('Syncing with server ...') }
+      }
       return { error }
     }
 
@@ -392,6 +564,7 @@ export function useLists() {
       label: label || '',
     }
     setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])
+    markOnlineRecovered()
 
     return { data, error: null }
     } finally {
@@ -400,8 +573,12 @@ export function useLists() {
   }
 
   const updateList = async (listId: string, updates: { name?: string; archived?: boolean; comment?: string | null; category_names?: string | null; category_order?: string | null }) => {
-    if (!mutationGate.tryBegin()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (isTempEntityId(listId)) {
+      startTempSyncWatch()
+      return { error: new Error('Syncing with server ...') }
+    }
+    if (!tryBeginMutation()) {
+      return { error: new Error(blockedMutationMessage()) }
     }
     try {
       const previousList = lists.find(list => list.id === listId)
@@ -425,9 +602,14 @@ export function useLists() {
         if (error.code === '23505') {
           return { error: new Error('You already have a list with this name') }
         }
+        if (isLikelyConnectivityError(error)) {
+          startTempSyncWatch()
+          return { error: new Error('Syncing with server ...') }
+        }
         return { error }
       }
 
+      markOnlineRecovered()
       return { error: null }
     } finally {
       mutationGate.end()
@@ -435,8 +617,12 @@ export function useLists() {
   }
 
   const deleteList = async (listId: string) => {
-    if (!mutationGate.tryBegin()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (isTempEntityId(listId)) {
+      startTempSyncWatch()
+      return { error: new Error('Syncing with server ...') }
+    }
+    if (!tryBeginMutation()) {
+      return { error: new Error(blockedMutationMessage()) }
     }
     try {
       const { error } = await trackSaveOperation(
@@ -451,6 +637,10 @@ export function useLists() {
         skipRealtimeUntilRef.current = Date.now() + 2000
         setLists(prev => prev.filter(list => list.id !== listId))
         removeCachedList(userId, listId)
+        markOnlineRecovered()
+      } else if (isLikelyConnectivityError(error)) {
+        startTempSyncWatch()
+        return { error: new Error('Syncing with server ...') }
       }
 
       return { error }
@@ -461,8 +651,12 @@ export function useLists() {
 
   const updateUserListState = async (listId: string, updates: { archived?: boolean; sort_order?: number }) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (!mutationGate.tryBegin()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (isTempEntityId(listId)) {
+      startTempSyncWatch()
+      return { error: new Error('Syncing with server ...') }
+    }
+    if (!tryBeginMutation()) {
+      return { error: new Error(blockedMutationMessage()) }
     }
     try {
     const previousLists = lists
@@ -486,6 +680,10 @@ export function useLists() {
 
     if (error) {
       setLists(previousLists)
+      if (isLikelyConnectivityError(error)) {
+        startTempSyncWatch()
+        return { error: new Error('Syncing with server ...') }
+      }
       return { error }
     }
 
@@ -497,6 +695,7 @@ export function useLists() {
       }
     }
 
+    markOnlineRecovered()
     return { error: null }
     } finally {
       mutationGate.end()
@@ -504,8 +703,8 @@ export function useLists() {
   }
 
   const joinListByToken = async (token: string) => {
-    if (!mutationGate.tryBegin()) {
-      return { data: null, error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (!tryBeginMutation()) {
+      return { data: null, error: new Error(blockedMutationMessage()) }
     }
     try {
       const freshClient = forceNewClient()
@@ -516,6 +715,10 @@ export function useLists() {
       if (!error) {
         skipRealtimeUntilRef.current = Date.now() + 2000
         await fetchLists()
+        markOnlineRecovered()
+      } else if (isLikelyConnectivityError(error)) {
+        startTempSyncWatch()
+        return { data: null, error: new Error('Syncing with server ...') }
       }
 
       return { data, error }
@@ -526,8 +729,12 @@ export function useLists() {
 
   const leaveList = async (listId: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (!mutationGate.tryBegin()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (isTempEntityId(listId)) {
+      startTempSyncWatch()
+      return { error: new Error('Syncing with server ...') }
+    }
+    if (!tryBeginMutation()) {
+      return { error: new Error(blockedMutationMessage()) }
     }
     try {
       const { error } = await trackSaveOperation(
@@ -536,12 +743,19 @@ export function useLists() {
         })
       )
 
-      if (error) return { error }
+      if (error) {
+        if (isLikelyConnectivityError(error)) {
+          startTempSyncWatch()
+          return { error: new Error('Syncing with server ...') }
+        }
+        return { error }
+      }
 
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLists(prev => prev.filter(list => list.id !== listId))
       removeCachedList(userId, listId)
+      markOnlineRecovered()
 
       return { error: null }
     } finally {
@@ -551,8 +765,12 @@ export function useLists() {
 
   const duplicateList = async (listId: string, newName: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (!mutationGate.tryBegin()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (isTempEntityId(listId)) {
+      startTempSyncWatch()
+      return { error: new Error('Syncing with server ...') }
+    }
+    if (!tryBeginMutation()) {
+      return { error: new Error(blockedMutationMessage()) }
     }
     try {
     const sourceList = lists.find(l => l.id === listId)
@@ -598,6 +816,10 @@ export function useLists() {
       if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
+      if (isLikelyConnectivityError(error)) {
+        startTempSyncWatch()
+        return { error: new Error('Syncing with server ...') }
+      }
       return { error }
     }
 
@@ -634,6 +856,7 @@ export function useLists() {
       items: dupItems,
       members: data.members || [],
     })
+    markOnlineRecovered()
 
     return { data: data.list, error: null }
     } finally {
@@ -643,8 +866,8 @@ export function useLists() {
 
   const importList = async (name: string, label?: string, categoryNames?: string, rows?: Json, hasTargets?: boolean) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (!mutationGate.tryBegin()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (!tryBeginMutation()) {
+      return { error: new Error(blockedMutationMessage()) }
     }
     try {
     const tempId = createTempId('list')
@@ -692,6 +915,10 @@ export function useLists() {
       if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
+      if (isLikelyConnectivityError(error)) {
+        startTempSyncWatch()
+        return { error: new Error('Syncing with server ...') }
+      }
       return { error }
     }
 
@@ -704,6 +931,7 @@ export function useLists() {
       label: label || '',
     }
     setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])
+    markOnlineRecovered()
 
     return { data, error: null }
     } finally {
@@ -729,6 +957,12 @@ export function useLists() {
 
     if (error) {
       setLists(previousLists)
+      if (isLikelyConnectivityError(error)) {
+        startTempSyncWatch()
+        return { error: new Error('Syncing with server ...') }
+      }
+    } else {
+      markOnlineRecovered()
     }
 
     return { error }
@@ -736,8 +970,12 @@ export function useLists() {
 
   const updateListLabel = async (listId: string, label: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (!mutationGate.tryBegin()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (isTempEntityId(listId)) {
+      startTempSyncWatch()
+      return { error: new Error('Syncing with server ...') }
+    }
+    if (!tryBeginMutation()) {
+      return { error: new Error(blockedMutationMessage()) }
     }
     try {
       return await persistListLabelOnly(listId, label)
@@ -748,8 +986,12 @@ export function useLists() {
 
   const applyListLabelsBatch = async (changes: Array<{ listId: string; label: string }>) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (!mutationGate.tryBegin()) {
-      return { error: new Error(USER_MUTATION_WAIT_MSG) }
+    if (changes.some(c => isTempEntityId(c.listId))) {
+      startTempSyncWatch()
+      return { error: new Error('Syncing with server ...') }
+    }
+    if (!tryBeginMutation()) {
+      return { error: new Error(blockedMutationMessage()) }
     }
     try {
       for (const { listId, label } of changes) {
@@ -772,7 +1014,11 @@ export function useLists() {
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
     if (!user) return
-    if (!mutationGate.tryBegin()) {
+    if (reorderedLists.some(l => isTempEntityId(l.id))) {
+      startTempSyncWatch()
+      return
+    }
+    if (!tryBeginMutation()) {
       return
     }
     try {
@@ -793,8 +1039,14 @@ export function useLists() {
       )
     )
 
-    if (results.some(r => (r as { error?: unknown }).error)) {
+    const firstError = results.find(r => (r as { error?: unknown }).error) as { error?: unknown } | undefined
+    if (firstError?.error) {
       setLists(previousLists)
+      if (isLikelyConnectivityError(firstError.error)) {
+        startTempSyncWatch()
+      }
+    } else {
+      markOnlineRecovered()
     }
     } finally {
       mutationGate.end()
@@ -822,5 +1074,6 @@ export function useLists() {
     updateListLabel,
     applyListLabelsBatch,
     labels,
+    isOfflineActionsDisabled,
   }
 }

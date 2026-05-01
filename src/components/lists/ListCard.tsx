@@ -297,7 +297,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
   const handleDeleteClick = () => {
     if (isOfflineActionsDisabled) {
-      showError('Offline (actions disabled)')
       return
     }
     setShowDeleteConfirm(true)
@@ -315,7 +314,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
   const openDuplicateModal = () => {
     if (isOfflineActionsDisabled) {
-      showError('Offline (actions disabled)')
       return
     }
     const existingNamesLower = existingListNames.map(n => n.toLowerCase())
@@ -362,7 +360,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
   const handleLeaveClick = () => {
     if (isOfflineActionsDisabled) {
-      showError('Offline (actions disabled)')
       return
     }
     setShowLeaveConfirm(true)

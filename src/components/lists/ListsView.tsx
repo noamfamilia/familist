@@ -39,10 +39,11 @@ interface ListsViewProps {
   onAddLocalLabel?: (label: string) => void
   labelManagerOpen?: boolean
   onCloseLabelManager?: () => void
+  onOfflineActionsDisabledChange?: (offline: boolean) => void
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager }: ListsViewProps) {
-  const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels } = useLists()
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager, onOfflineActionsDisabledChange }: ListsViewProps) {
+  const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels, isOfflineActionsDisabled } = useLists()
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
   
@@ -58,9 +59,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   )
   const { success, error: showError, warning: showWarning } = useToast()
   const [inputValue, setInputValue] = useState('')
-  const [isOfflineActionsDisabled, setIsOfflineActionsDisabled] = useState(
-    () => typeof navigator !== 'undefined' ? !navigator.onLine : false
-  )
   const inputValueRef = useRef('')
   inputValueRef.current = inputValue
   const [error, setError] = useState('')
@@ -71,15 +69,8 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const createListInFlightRef = useRef(false)
 
   useEffect(() => {
-    const onOffline = () => setIsOfflineActionsDisabled(true)
-    const onOnline = () => setIsOfflineActionsDisabled(false)
-    window.addEventListener('offline', onOffline)
-    window.addEventListener('online', onOnline)
-    return () => {
-      window.removeEventListener('offline', onOffline)
-      window.removeEventListener('online', onOnline)
-    }
-  }, [])
+    onOfflineActionsDisabledChange?.(isOfflineActionsDisabled)
+  }, [isOfflineActionsDisabled, onOfflineActionsDisabledChange])
 
   useEffect(() => {
     onLabelsChange?.(labels)

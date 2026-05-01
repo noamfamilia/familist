@@ -527,7 +527,6 @@ export default function ListPage() {
   const noMemberColumns = filteredMembers.length === 0
   const openMutatingModal = (open: () => void) => {
     if (isOfflineActionsDisabled) {
-      showError('Offline (actions disabled)')
       return
     }
     open()

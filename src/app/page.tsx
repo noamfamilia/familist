@@ -88,6 +88,9 @@ function HomeContent() {
   const [addingLabel, setAddingLabel] = useState(false)
   const [newLabelText, setNewLabelText] = useState('')
   const [labelManagerOpen, setLabelManagerOpen] = useState(false)
+  const [isOfflineActionsDisabled, setIsOfflineActionsDisabled] = useState(
+    () => typeof navigator !== 'undefined' ? !navigator.onLine : false
+  )
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
 
@@ -212,13 +215,18 @@ function HomeContent() {
   const handleSelectLabel = useCallback((label: string) => {
     setSelectedLabel(label)
     setCachedLabelFilter(label)
-    if (labelSyncedRef.current) {
+    // Keep label filter usable offline: persist locally now, sync only when online.
+    if (labelSyncedRef.current && !isOfflineActionsDisabled) {
       void updateProfile({ label_filter: label })
     }
-  }, [updateProfile])
+  }, [isOfflineActionsDisabled, updateProfile])
 
   const handleLabelsChange = useCallback((labels: string[]) => {
     setAvailableLabels(labels)
+  }, [])
+
+  const handleOfflineActionsDisabledChange = useCallback((offline: boolean) => {
+    setIsOfflineActionsDisabled(offline)
   }, [])
 
   // Auto-cleanup local labels that now exist on the server
@@ -420,6 +428,9 @@ function HomeContent() {
                       setLabelDropdownOpen(false)
                       setAddingLabel(false)
                       setNewLabelText('')
+                      if (isOfflineActionsDisabled) {
+                        return
+                      }
                       setLabelManagerOpen(true)
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-teal hover:bg-gray-50 dark:hover:bg-neutral-800 border-t border-gray-200 dark:border-neutral-600"
@@ -505,6 +516,7 @@ function HomeContent() {
             onAddLocalLabel={(label) => setLocalLabels(prev => prev.includes(label) ? prev : [...prev, label])}
             labelManagerOpen={labelManagerOpen}
             onCloseLabelManager={() => setLabelManagerOpen(false)}
+            onOfflineActionsDisabledChange={handleOfflineActionsDisabledChange}
           />
         </>
       ) : (
