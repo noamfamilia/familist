@@ -2,7 +2,8 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { perfLog } from '@/lib/startupPerfLog'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -237,6 +238,10 @@ export default function ListPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const listId = params.id as string
+
+  useLayoutEffect(() => {
+    perfLog('main page mounted', { route: 'list', listId })
+  }, [listId])
   const { error: showError, warning: showWarning } = useToast()
   const { offlineAssetsReady, swControlled } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()

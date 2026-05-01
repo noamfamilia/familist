@@ -180,8 +180,12 @@ async function runBatched(origin: string, paths: string[]): Promise<CheckResult[
 /**
  * Fetches /sw.js?v=<buildId>, parses precache + deps, checks every path + core SW URLs.
  */
-export async function runSwPrecacheVerification(appendDiagnostics: (section: string) => void): Promise<void> {
-  if (typeof window === 'undefined' || typeof fetch === 'undefined') return
+export type PrecacheVerifyStats = { totalChecks: number; failCount: number; okCount: number }
+
+export async function runSwPrecacheVerification(
+  appendDiagnostics: (section: string) => void,
+): Promise<PrecacheVerifyStats | null> {
+  if (typeof window === 'undefined' || typeof fetch === 'undefined') return null
 
   const origin = window.location.origin
   const buildId = process.env.NEXT_PUBLIC_BUILD_ID || 'unknown'
@@ -196,16 +200,16 @@ export async function runSwPrecacheVerification(appendDiagnostics: (section: str
     swText = await res.text()
     if (!res.ok) {
       appendDiagnostics(`[precache-verify] FAILED to fetch sw.js: HTTP ${res.status} ct=${ct}`)
-      return
+      return null
     }
     if (looksLikeHtml(swText)) {
       appendDiagnostics('[precache-verify] sw.js body looks like HTML (not a service worker script)')
-      return
+      return null
     }
     appendDiagnostics(`[precache-verify] sw.js OK bytes=${swText.length}`)
   } catch (e) {
     appendDiagnostics(`[precache-verify] FAILED to fetch sw.js: ${e instanceof Error ? e.message : String(e)}`)
-    return
+    return null
   }
 
   const { precachePaths, importScriptPaths, workboxPath } = extractUrlsFromSwScript(swText)
@@ -259,5 +263,11 @@ export async function runSwPrecacheVerification(appendDiagnostics: (section: str
         '4) Confirm only one register path: next-pwa auto + our fallback only if getRegistration() stayed empty.',
       ].join('\n'),
     )
+  }
+
+  return {
+    totalChecks: results.length,
+    failCount: failures.length,
+    okCount,
   }
 }

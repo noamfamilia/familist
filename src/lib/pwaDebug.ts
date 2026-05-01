@@ -16,3 +16,13 @@ export function isPwaDebugEnabled(): boolean {
     return false
   }
 }
+
+/** One-shot precache-verify AUTO (heavy); URL ?debugPwaDeep=1 only. */
+export function isPwaDeepDebugEnabled(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return new URLSearchParams(window.location.search).get('debugPwaDeep') === '1'
+  } catch {
+    return false
+  }
+}

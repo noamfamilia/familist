@@ -6,8 +6,8 @@ import { createUserMutationGate, USER_MUTATION_WAIT_MSG } from '@/lib/userMutati
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
-import { getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
-import { markStartup } from '@/lib/startupPerf'
+import { getActiveCacheUserId, getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
+import { perfLog } from '@/lib/startupPerfLog'
 import type { Database, ItemWithState, Json, ListWithRole } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -90,7 +90,23 @@ export function useLists() {
   }, [canMutateNow, mutationGate])
 
   useEffect(() => {
+    perfLog('localStorage read start')
+    const lsT0 = performance.now()
+    let approxStorageChars = 0
+    try {
+      const scoped = userId || getActiveCacheUserId()
+      if (scoped && typeof localStorage !== 'undefined') {
+        approxStorageChars = localStorage.getItem(`cached_lists_${scoped}`)?.length ?? 0
+      }
+    } catch {
+      // ignore
+    }
     const cachedLists = getCachedLists(userId)?.lists || []
+    perfLog('localStorage read end', {
+      durationMs: Math.round(performance.now() - lsT0),
+      bytesOrItemCount: cachedLists.length,
+      approxStorageChars,
+    })
     setLists(cachedLists)
     setLoading(!!userId && cachedLists.length === 0)
     setHasCompletedInitialFetch(false)
@@ -159,14 +175,20 @@ export function useLists() {
     let staleDiscarded = false
 
     if (!userId) {
+      perfLog('fetchLists start', { note: 'no user' })
       setLists([])
       setLoading(false)
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
+      perfLog('fetchLists end', { durationMs: 0, listCount: 0 })
       return
     }
 
     if (fetchingRef.current) return
+    const fetchT0 = performance.now()
+    perfLog('fetchLists start')
+    let listCount = 0
+    let fetchErr: string | undefined
     fetchingRef.current = true
     setIsFetching(true)
     setFetchTimedOut(false)
@@ -186,7 +208,6 @@ export function useLists() {
     setError(null)
 
     try {
-      markStartup('supabase_get_user_lists_start')
       // Fetch all lists with counts in a single RPC call
       const { data, error: rpcError } = await supabase.rpc('get_user_lists')
 
@@ -233,14 +254,21 @@ export function useLists() {
       setCachedLists(userId, listsData)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
-      markStartup('supabase_get_user_lists_done', { count: listsData.length })
+      listCount = listsData.length
       markOnlineRecovered()
     } catch (err) {
       if (isLikelyConnectivityError(err)) {
         enterOffline()
       }
+      fetchErr = (err as Error).message
       setError((err as Error).message)
     } finally {
+      perfLog('fetchLists end', {
+        durationMs: Math.round(performance.now() - fetchT0),
+        listCount,
+        error: fetchErr,
+        staleDiscarded,
+      })
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setLoading(false)
       setIsFetching(false)
@@ -338,6 +366,18 @@ export function useLists() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    const subscribeT0 = performance.now()
+    perfLog('realtime subscribe start')
+    let subscribeEndLogged = false
+    const logRealtimeSubscribeEnd = (extra: Record<string, unknown> = {}) => {
+      if (subscribeEndLogged) return
+      subscribeEndLogged = true
+      perfLog('realtime subscribe end', {
+        durationMs: Math.round(performance.now() - subscribeT0),
+        ...extra,
+      })
+    }
+
     const channel = supabase
       .channel(`lists-${userId}`)
       .on(
@@ -360,7 +400,13 @@ export function useLists() {
         { event: '*', schema: 'public', table: 'items' },
         handleRealtimeChange
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          logRealtimeSubscribeEnd({})
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          logRealtimeSubscribeEnd({ error: err?.message ?? status })
+        }
+      })
 
     channelRef.current = channel
 

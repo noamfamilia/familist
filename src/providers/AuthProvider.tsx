@@ -6,7 +6,7 @@ import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import { clearActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
-import { markStartup } from '@/lib/startupPerf'
+import { perfLog } from '@/lib/startupPerfLog'
 
 interface AuthContextType {
   user: User | null
@@ -84,6 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     
     const getInitialSession = async () => {
+      const t0 = typeof performance !== 'undefined' ? performance.now() : 0
+      perfLog('auth/session start')
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!mounted) return
@@ -93,7 +95,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         if (mounted) {
           setLoading(false)
-          markStartup('auth_initial_session_ready')
+          perfLog('auth/session end', {
+            durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - t0),
+          })
         }
       }
     }

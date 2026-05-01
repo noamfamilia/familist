@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
-import { markStartup } from '@/lib/startupPerf'
+import { perfLog } from '@/lib/startupPerfLog'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
@@ -279,8 +279,25 @@ export function useList(listId: string) {
   }, [canMutateNow, mutationGate])
 
   useEffect(() => {
+    perfLog('localStorage read start')
+    const lsT0 = performance.now()
+    let approxStorageChars = 0
+    try {
+      if (userId && listId && typeof localStorage !== 'undefined') {
+        approxStorageChars = localStorage.getItem(`cached_list_${userId}_${listId}`)?.length ?? 0
+      }
+    } catch {
+      // ignore
+    }
     const cachedData = getCachedList(userId, listId)
     const cachedPrefs = getCachedPrefs(listId, userId)
+    const itemCount = (cachedData?.items || []).length
+    perfLog('localStorage read end', {
+      durationMs: Math.round(performance.now() - lsT0),
+      listCount: cachedData?.list ? 1 : 0,
+      itemCount,
+      approxStorageChars,
+    })
 
     setList(cachedData?.list || null)
     setItems(normalizeItemsCategory(cachedData?.items || []))
@@ -346,16 +363,23 @@ export function useList(listId: string) {
     let staleDiscarded = false
 
     if (!userId || !listId) {
+      perfLog('fetchList start', { note: 'no user or list' })
       setList(null)
       setItems([])
       setMembers([])
       setLoading(false)
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
+      perfLog('fetchList end', { durationMs: 0, listCount: 0, itemCount: 0 })
       return
     }
 
     if (fetchingRef.current) return
+    const fetchT0 = performance.now()
+    perfLog('fetchList start', { listId })
+    let listCount = 0
+    let itemCountResult = 0
+    let fetchErr: string | undefined
     fetchingRef.current = true
     setIsFetching(true)
     setFetchTimedOut(false)
@@ -376,7 +400,6 @@ export function useList(listId: string) {
     setError(null)
 
     try {
-      markStartup('supabase_get_list_data_start', { listId })
       // Fetch all list data in a single RPC call
       const { data, error: rpcError } = await supabase.rpc('get_list_data', {
         p_list_id: listId
@@ -435,6 +458,8 @@ export function useList(listId: string) {
         items: nextItems,
         members: data.members || []
       })
+      listCount = 1
+      itemCountResult = nextItems.length
 
       // Only fetch preferences on initial load to avoid overwriting optimistic updates
       if (!prefsFetchedRef.current) {
@@ -471,15 +496,23 @@ export function useList(listId: string) {
           setCachedPrefs(listId, { sumScope: serverSumScope }, userId)
         }
       }
-      markStartup('supabase_get_list_data_done', { listId })
       markOnlineRecovered()
       setFetchTimedOut(false)
     } catch (err) {
       if (isLikelyConnectivityError(err)) {
         enterOffline()
       }
+      fetchErr = rpcFailureMessage(err)
       setError(rpcFailureMessage(err))
     } finally {
+      perfLog('fetchList end', {
+        durationMs: Math.round(performance.now() - fetchT0),
+        listCount,
+        itemCount: itemCountResult,
+        error: fetchErr,
+        staleDiscarded,
+        listId,
+      })
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setLoading(false)
       setIsFetching(false)
@@ -579,6 +612,19 @@ export function useList(listId: string) {
       void fetchList({ staleCheckVersion: mutationVersionRef.current })
     }
 
+    const subscribeT0 = performance.now()
+    perfLog('realtime subscribe start', { listId })
+    let subscribeEndLogged = false
+    const logRealtimeSubscribeEnd = (extra: Record<string, unknown> = {}) => {
+      if (subscribeEndLogged) return
+      subscribeEndLogged = true
+      perfLog('realtime subscribe end', {
+        durationMs: Math.round(performance.now() - subscribeT0),
+        listId,
+        ...extra,
+      })
+    }
+
     const channel = supabase
       .channel(`list-${listId}`)
       .on(
@@ -641,7 +687,13 @@ export function useList(listId: string) {
         { event: 'member_state_updated' },
         handleRealtimeChange
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          logRealtimeSubscribeEnd({})
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          logRealtimeSubscribeEnd({ error: err?.message ?? status })
+        }
+      })
 
     channelRef.current = channel
 

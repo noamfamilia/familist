@@ -4,8 +4,9 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useToast } from '@/components/ui/Toast'
 import type { PwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
-import { isPwaDebugEnabled } from '@/lib/pwaDebug'
-import { markStartup, scheduleAfterFirstPaint } from '@/lib/startupPerf'
+import { isPwaDebugEnabled, isPwaDeepDebugEnabled } from '@/lib/pwaDebug'
+import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
+import { perfLog } from '@/lib/startupPerfLog'
 import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
@@ -128,15 +129,26 @@ function PwaDebugPrecacheButton({
   const onRun = useCallback(async () => {
     if (!isPwaDebugEnabled()) return
     setBusy(true)
-    markStartup('precache_verify_manual_start')
+    const t0 = performance.now()
+    perfLog('precache-verify MANUAL start')
     try {
-      await runSwPrecacheVerification(appendDiagnostics)
+      const stats = await runSwPrecacheVerification(appendDiagnostics)
+      perfLog('precache-verify MANUAL end', {
+        durationMs: Math.round(performance.now() - t0),
+        totalChecks: stats?.totalChecks ?? 0,
+        failCount: stats?.failCount ?? 0,
+      })
     } catch (e) {
       appendDiagnostics(
         `[precache-verify] manual error: ${e instanceof Error ? e.message : String(e)}`,
       )
+      perfLog('precache-verify MANUAL end', {
+        durationMs: Math.round(performance.now() - t0),
+        totalChecks: 0,
+        failCount: 0,
+        error: e instanceof Error ? e.message : String(e),
+      })
     } finally {
-      markStartup('precache_verify_manual_done')
       setBusy(false)
     }
   }, [appendDiagnostics])
@@ -286,6 +298,78 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
+    if (typeof navigator === 'undefined') return
+    perfLog('SW controller check', { swControlled: !!navigator.serviceWorker?.controller })
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker) {
+      perfLog('SW getRegistration start')
+      perfLog('SW getRegistration end', {
+        durationMs: 0,
+        hasRegistration: false,
+        activeState: null,
+        controller: false,
+      })
+      return
+    }
+    let cancelled = false
+    const disposers: Array<() => void> = []
+    const t0 = performance.now()
+    perfLog('SW getRegistration start')
+    void navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => {
+        if (cancelled) return
+        perfLog('SW getRegistration end', {
+          durationMs: Math.round(performance.now() - t0),
+          hasRegistration: !!reg,
+          activeState: reg?.active?.state ?? null,
+          controller: !!navigator.serviceWorker?.controller,
+        })
+        if (!reg) return
+
+        const onUpdateFound = () => {
+          perfLog('SW updatefound')
+        }
+        reg.addEventListener('updatefound', onUpdateFound)
+        disposers.push(() => reg.removeEventListener('updatefound', onUpdateFound))
+
+        const trackWorker = (sw: ServiceWorker | null) => {
+          if (!sw) return
+          const onState = () => {
+            perfLog('SW statechange', { state: sw.state })
+          }
+          sw.addEventListener('statechange', onState)
+          disposers.push(() => sw.removeEventListener('statechange', onState))
+        }
+        trackWorker(reg.installing)
+        trackWorker(reg.waiting)
+        trackWorker(reg.active)
+      })
+      .catch((e) => {
+        if (cancelled) return
+        perfLog('SW getRegistration end', {
+          durationMs: Math.round(performance.now() - t0),
+          hasRegistration: false,
+          activeState: null,
+          controller: !!navigator.serviceWorker?.controller,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      })
+    return () => {
+      cancelled = true
+      disposers.forEach((d) => d())
+    }
+  }, [])
+
+  useEffect(() => {
+    perfLog('offline readiness computed', {
+      online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+      swControlled,
+      assetsReady: offlineAssetsReady,
+      cachedDataReady: undefined,
+    })
+  }, [offlineAssetsReady, swControlled])
+
+  useEffect(() => {
     try {
       if (localStorage.getItem(CONNECTIVITY_STATUS_KEY) === 'offline') {
         setStatus('offline')
@@ -367,7 +451,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   /**
    * PWA / SW registration + diagnostics (deferred until after first paint).
    * Heavy work (collectPwaDiagnostics, lifecycle append, long poll) runs only when DEBUG_PWA / ?debugPwa=1.
-   * Precache URL probes never run automatically — use Pwa debug toolbar or window.__familistRunPrecacheVerify().
+   * Precache URL probes: manual via PWA debug toolbar / window.__familistRunPrecacheVerify(); AUTO only with ?debugPwaDeep=1.
    */
   useEffect(() => {
     let cancelled = false
@@ -376,7 +460,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     const runInner = async () => {
       const debug = isPwaDebugEnabled()
       const logDiag = debug ? appendDiagnostics : () => {}
-      markStartup('pwa_sw_diag_deferred_start', { debug })
 
       try {
         let appendPwaBlock = debug
@@ -402,7 +485,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
               logDiag('pwa: no serviceWorker in navigator')
             }
           }
-          markStartup('pwa_sw_diag_no_service_worker_api')
           return
         }
 
@@ -544,8 +626,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         }
       } catch (e) {
         console.error('[PWA DIAG] failed', e)
-      } finally {
-        markStartup('pwa_sw_diag_deferred_done', { debug: isPwaDebugEnabled() })
       }
     }
 
@@ -569,20 +649,64 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         console.warn('[familist] Set localStorage.DEBUG_PWA="1" or add ?debugPwa=1 then reload.')
         return
       }
-      markStartup('precache_verify_manual_start')
+      const t0 = performance.now()
+      perfLog('precache-verify MANUAL start')
       try {
-        await runSwPrecacheVerification(appendDiagnostics)
+        const stats = await runSwPrecacheVerification(appendDiagnostics)
+        perfLog('precache-verify MANUAL end', {
+          durationMs: Math.round(performance.now() - t0),
+          totalChecks: stats?.totalChecks ?? 0,
+          failCount: stats?.failCount ?? 0,
+        })
       } catch (e) {
         console.error('[precache-verify]', e)
         appendDiagnostics(`[precache-verify] runner error: ${e instanceof Error ? e.message : String(e)}`)
-      } finally {
-        markStartup('precache_verify_manual_done')
+        perfLog('precache-verify MANUAL end', {
+          durationMs: Math.round(performance.now() - t0),
+          totalChecks: 0,
+          failCount: 0,
+          error: e instanceof Error ? e.message : String(e),
+        })
       }
     }
     return () => {
       delete w.__familistRunPrecacheVerify
     }
   }, [appendDiagnostics])
+
+  useEffect(() => {
+    let cancelled = false
+    scheduleAfterFirstPaint(async () => {
+      if (cancelled || !isPwaDeepDebugEnabled()) return
+      const latch = 'familist_precache_verify_auto_done'
+      try {
+        if (sessionStorage.getItem(latch) === '1') return
+        sessionStorage.setItem(latch, '1')
+      } catch {
+        return
+      }
+      perfLog('precache-verify AUTO start')
+      const t0 = performance.now()
+      try {
+        const stats = await runSwPrecacheVerification(() => {})
+        perfLog('precache-verify AUTO end', {
+          durationMs: Math.round(performance.now() - t0),
+          totalChecks: stats?.totalChecks ?? 0,
+          failCount: stats?.failCount ?? 0,
+        })
+      } catch (e) {
+        perfLog('precache-verify AUTO end', {
+          durationMs: Math.round(performance.now() - t0),
+          totalChecks: 0,
+          failCount: 0,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <ConnectivityContext.Provider

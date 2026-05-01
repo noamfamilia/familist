@@ -7,7 +7,8 @@ import { ThemedImage } from '@/components/ui/ThemedImage'
 import { ProfileModal } from '@/components/profile/ProfileModal'
 
 
-import { Suspense, useState, useEffect, useRef, useCallback } from 'react'
+import { Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { perfLog } from '@/lib/startupPerfLog'
 import { useTheme } from 'next-themes'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
@@ -93,6 +94,10 @@ function HomeContent() {
   )
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    perfLog('main page mounted', { route: 'home' })
+  }, [])
 
   useEffect(() => {
     setThemeMounted(true)
