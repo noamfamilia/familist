@@ -9,6 +9,7 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
+import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
@@ -234,8 +235,9 @@ export default function ListPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const listId = params.id as string
-  const { error: showError, warning: showWarning, showToast } = useToast()
+  const { error: showError, warning: showWarning } = useToast()
   const { offlineAssetsReady, swControlled } = useConnectivity()
+  const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
     list,
@@ -296,10 +298,10 @@ export default function ListPage() {
     const diag = `list-page diag online=${browserOnline ? 1 : 0} sw=${swControllerExists ? 1 : 0} assets=${offlineAssetsReady ? 1 : 0} swState=${swControlled ? 1 : 0}`
     const now = Date.now()
     if (now - lastPageDiagToastAtRef.current > 1200) {
-      showToast(diag, browserOnline ? 'info' : 'warning', { durationMs: 3500 })
+      appendDiagnostics(`list-page (${listId})\n${diag}`)
       lastPageDiagToastAtRef.current = now
     }
-  }, [listId, offlineAssetsReady, showToast, swControlled])
+  }, [appendDiagnostics, listId, offlineAssetsReady, swControlled])
 
   useEffect(() => {
     let cancelled = false
@@ -309,13 +311,8 @@ export default function ListPage() {
         const [pwa, info] = await Promise.all([collectPwaDiagnostics(), getServiceWorkerDebugInfo()])
         if (cancelled) return
         console.log('SW+PWA DEBUG', { pwa, sw: info })
-        const regsCount = Array.isArray(info.registrations) ? info.registrations.length : 0
-        const controllerState = info.controller?.state ?? 'none'
-        const controllerPresent = info.controller?.scriptURL ? 1 : 0
-        showToast(
-          `sw-debug ctl=${controllerPresent} state=${controllerState} regs=${regsCount} probe=${pwa.swProbeOk ? 1 : 0} b=${pwa.buildId}`,
-          'info',
-          { durationMs: 6000 }
+        appendDiagnostics(
+          `list-page SW+PWA (${listId})\n${JSON.stringify({ pwa, sw: info }, null, 2)}`,
         )
       } catch (err) {
         console.error('SW DEBUG failed', err)
@@ -326,7 +323,7 @@ export default function ListPage() {
     return () => {
       cancelled = true
     }
-  }, [listId, showToast])
+  }, [appendDiagnostics, listId])
 
   useEffect(() => {
     if (!hasCompletedInitialFetch || !user) return
