@@ -17,6 +17,64 @@ const OFFLINE_ACTIONS_DISABLED_MSG = 'Offline (actions disabled)'
 const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
 const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
 const SW_FALLBACK_REGISTER_COUNT_KEY = 'familist_sw_js_fallback_register_count'
+/** next-pwa registers asynchronously; avoid calling register() until this elapses with no registration */
+const SW_NEXT_PWA_MAX_WAIT_MS = 12_000
+const SW_NEXT_PWA_POLL_MS = 200
+/** Extra getRegistration() checks before fallback to avoid racing next-pwa */
+const SW_FALLBACK_REGISTER_GRACE_MS = 600
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Attach statechange + updatefound so we log installing → installed → activating → activated or redundant.
+ * Listeners are deduped per ServiceWorker / ServiceWorkerRegistration instance.
+ */
+function createSwLifecycleHandlers(appendDiagnostics: (section: string) => void) {
+  const seenWorkers = new WeakSet<ServiceWorker>()
+  const registrationsWithUpdateFound = new WeakSet<ServiceWorkerRegistration>()
+  const disposers: Array<() => void> = []
+
+  const attachWorker = (sw: ServiceWorker, label: string) => {
+    if (seenWorkers.has(sw)) return
+    seenWorkers.add(sw)
+    appendDiagnostics(
+      `SW worker [${label}] snapshot\nstate=${sw.state}\nscriptURL=${sw.scriptURL}`,
+    )
+    const onState = () => {
+      console.log('SW statechange', { label, state: sw.state, scriptURL: sw.scriptURL })
+      appendDiagnostics(
+        `SW statechange [${label}]\nstate=${sw.state}\nscriptURL=${sw.scriptURL}`,
+      )
+      if (sw.state === 'redundant') {
+        console.warn('[SW] redundant', sw.scriptURL)
+        appendDiagnostics(
+          'SW reached redundant — use Remote debugging or SW DevTools console for install/precache errors (page-side precache-verify can still be ok).',
+        )
+      }
+    }
+    sw.addEventListener('statechange', onState)
+    disposers.push(() => sw.removeEventListener('statechange', onState))
+  }
+
+  const attachToRegistration = (reg: ServiceWorkerRegistration) => {
+    if (reg.installing) attachWorker(reg.installing, 'installing')
+    if (reg.waiting) attachWorker(reg.waiting, 'waiting')
+    if (reg.active) attachWorker(reg.active, 'active')
+    if (!registrationsWithUpdateFound.has(reg)) {
+      registrationsWithUpdateFound.add(reg)
+      const onUpdateFound = () => {
+        const w = reg.installing
+        if (w) attachWorker(w, 'updatefound')
+      }
+      reg.addEventListener('updatefound', onUpdateFound)
+      disposers.push(() => reg.removeEventListener('updatefound', onUpdateFound))
+    }
+  }
+
+  return { attachToRegistration, dispose: () => disposers.forEach((d) => d()) }
+}
 
 function logFallbackSwRegister(appendDiagnostics: (section: string) => void) {
   try {
@@ -254,12 +312,14 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
   /**
    * PWA diagnostics + optional SW register fallback.
-   * next-pwa already registers when register:true — a second immediate register() races and can
-   * leave the installing worker as redundant. We wait for getRegistration(), then register only if missing.
+   * next-pwa registers asynchronously — we poll getRegistration() for SW_NEXT_PWA_MAX_WAIT_MS and attach
+   * lifecycle listeners immediately when a registration appears (in parallel with collectPwaDiagnostics),
+   * so we do not miss installing→installed→activating→activated / redundant. register('/sw.js') runs
+   * only if still no registration after grace rechecks (debug / broken next-pwa), not as a race.
    */
   useEffect(() => {
     let cancelled = false
-    let removeStateListener: (() => void) | undefined
+    let disposeSwListeners: (() => void) | undefined
 
     const run = async () => {
       try {
@@ -274,7 +334,68 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           appendPwaBlock = true
         }
 
-        const d = await collectPwaDiagnostics()
+        if (!('serviceWorker' in navigator)) {
+          const d = await collectPwaDiagnostics()
+          if (cancelled) return
+          console.log('[PWA DIAG]', d)
+          if (appendPwaBlock) {
+            appendDiagnostics(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
+            appendDiagnostics('pwa: no serviceWorker in navigator')
+          }
+          return
+        }
+
+        const { attachToRegistration, dispose } = createSwLifecycleHandlers(appendDiagnostics)
+        disposeSwListeners = dispose
+
+        const diagPromise = collectPwaDiagnostics()
+
+        const maxIterations = Math.ceil(SW_NEXT_PWA_MAX_WAIT_MS / SW_NEXT_PWA_POLL_MS)
+        let reg: ServiceWorkerRegistration | undefined
+        for (let i = 0; i < maxIterations; i++) {
+          if (cancelled) {
+            await diagPromise.catch(() => {})
+            return
+          }
+          reg = await navigator.serviceWorker.getRegistration()
+          if (reg) {
+            attachToRegistration(reg)
+            if (appendPwaBlock) {
+              appendDiagnostics(
+                `SW lifecycle listeners attached (poll #${i + 1}, next-pwa may still be registering; our register() not used yet)`,
+              )
+            }
+            break
+          }
+          await sleep(SW_NEXT_PWA_POLL_MS)
+        }
+
+        let registeredByUs = false
+        if (!reg && !cancelled) {
+          await sleep(SW_FALLBACK_REGISTER_GRACE_MS)
+          if (cancelled) {
+            await diagPromise.catch(() => {})
+            return
+          }
+          reg = await navigator.serviceWorker.getRegistration()
+          if (reg) {
+            attachToRegistration(reg)
+            if (appendPwaBlock) {
+              appendDiagnostics(
+                'SW registration appeared during grace — next-pwa (or other); fallback register() skipped',
+              )
+            }
+          }
+        }
+
+        if (!reg && !cancelled) {
+          logFallbackSwRegister(appendDiagnostics)
+          reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          registeredByUs = true
+          attachToRegistration(reg)
+        }
+
+        const d = await diagPromise
         if (cancelled) return
         console.log('[PWA DIAG]', d)
 
@@ -282,36 +403,20 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           appendDiagnostics(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
         }
 
-        if (!('serviceWorker' in navigator)) {
+        if (!reg) {
           if (appendPwaBlock) {
-            appendDiagnostics('pwa: no serviceWorker in navigator')
+            appendDiagnostics('sw-reg: no registration after fallback path (unexpected)')
           }
           return
         }
 
+        if (appendPwaBlock) {
+          appendDiagnostics(
+            `SW registration source: ${registeredByUs ? 'fallback register() after extended wait + grace (next-pwa never showed a registration)' : 'existing registration — next-pwa or prior session; our register() NOT called'}`,
+          )
+        }
+
         try {
-          let reg: ServiceWorkerRegistration | undefined
-          for (let i = 0; i < 30; i++) {
-            if (cancelled) return
-            reg = await navigator.serviceWorker.getRegistration()
-            if (reg) break
-            await new Promise((r) => setTimeout(r, 100))
-          }
-
-          let registeredByUs = false
-          if (!reg) {
-            logFallbackSwRegister(appendDiagnostics)
-            reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            registeredByUs = true
-          }
-          if (cancelled || !reg) return
-
-          if (appendPwaBlock) {
-            appendDiagnostics(
-              `SW registration source: ${registeredByUs ? 'fallback register() after wait' : 'existing getRegistration() only — next-pwa (or prior) already registered; our register() NOT called'}`,
-            )
-          }
-
           const regSnap = {
             scope: reg.scope,
             installing: reg.installing?.scriptURL,
@@ -322,12 +427,12 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
             activeState: reg.active?.state,
           }
           console.log('SW reg', regSnap)
-          appendDiagnostics(`SW reg (immediate)\n${JSON.stringify(regSnap, null, 2)}`)
+          appendDiagnostics(`SW reg (after wait / register)\n${JSON.stringify(regSnap, null, 2)}`)
 
           const regsNow = await navigator.serviceWorker.getRegistrations()
-          console.log('SW getRegistrations (immediate)', regsNow.length, regsNow)
+          console.log('SW getRegistrations (after wait / register)', regsNow.length, regsNow)
           appendDiagnostics(
-            `getRegistrations (immediate) n=${regsNow.length}\n${JSON.stringify(
+            `getRegistrations (after wait / register) n=${regsNow.length}\n${JSON.stringify(
               regsNow.map((r) => ({
                 scope: r.scope,
                 installing: r.installing?.scriptURL,
@@ -341,19 +446,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
               2,
             )}`,
           )
-
-          const worker = reg.installing || reg.waiting || reg.active
-          if (worker) {
-            const onStateChange = () => {
-              console.log('SW statechange', {
-                scriptURL: worker.scriptURL,
-                state: worker.state,
-              })
-              appendDiagnostics(`SW statechange\nscriptURL=${worker.scriptURL}\nstate=${worker.state}`)
-            }
-            worker.addEventListener('statechange', onStateChange)
-            removeStateListener = () => worker.removeEventListener('statechange', onStateChange)
-          }
         } catch (e) {
           if (cancelled) return
           const msg = e instanceof Error ? e.message : String(e)
@@ -367,7 +459,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     void run()
     return () => {
       cancelled = true
-      removeStateListener?.()
+      disposeSwListeners?.()
     }
   }, [appendDiagnostics])
 
