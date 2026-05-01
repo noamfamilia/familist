@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useToast } from '@/components/ui/Toast'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
+import { consumePrecacheVerifySessionOnce, runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
@@ -346,6 +347,30 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     return () => {
       cancelled = true
       removeStateListener?.()
+    }
+  }, [appendDiagnostics])
+
+  /** One-shot per session: probe every precache URL + SW deps to find install (redundant) failures. */
+  useEffect(() => {
+    let cancelled = false
+    if (typeof navigator === 'undefined' || !navigator.onLine) return
+    if (!consumePrecacheVerifySessionOnce()) return
+
+    void (async () => {
+      try {
+        await runSwPrecacheVerification((section) => {
+          if (!cancelled) appendDiagnostics(section)
+        })
+      } catch (e) {
+        console.error('[precache-verify]', e)
+        if (!cancelled) {
+          appendDiagnostics(`[precache-verify] runner error: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
   }, [appendDiagnostics])
 
