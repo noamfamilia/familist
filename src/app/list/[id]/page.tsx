@@ -8,6 +8,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
+import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
@@ -305,15 +306,16 @@ export default function ListPage() {
 
     const runSwDebug = async () => {
       try {
-        const info = await getServiceWorkerDebugInfo()
+        const [pwa, info] = await Promise.all([collectPwaDiagnostics(), getServiceWorkerDebugInfo()])
         if (cancelled) return
+        console.log('SW+PWA DEBUG', { pwa, sw: info })
         const regsCount = Array.isArray(info.registrations) ? info.registrations.length : 0
         const controllerState = info.controller?.state ?? 'none'
         const controllerPresent = info.controller?.scriptURL ? 1 : 0
         showToast(
-          `sw-debug ctl=${controllerPresent} state=${controllerState} regs=${regsCount} origin=${info.origin}`,
+          `sw-debug ctl=${controllerPresent} state=${controllerState} regs=${regsCount} probe=${pwa.swProbeOk ? 1 : 0} b=${pwa.buildId}`,
           'info',
-          { durationMs: 5000 }
+          { durationMs: 6000 }
         )
       } catch (err) {
         console.error('SW DEBUG failed', err)

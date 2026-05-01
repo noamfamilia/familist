@@ -5,6 +5,7 @@ import { AuthProvider } from '@/providers/AuthProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
 import { ToastProvider } from '@/components/ui/Toast'
 import { InstallBanner } from '@/components/ui/InstallBanner'
+import { PwaDiagnosticsActions } from '@/components/ui/PwaDiagnosticsActions'
 import { ConnectivityProvider } from '@/providers/ConnectivityProvider'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -71,6 +72,7 @@ export default function RootLayout({
                 <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
                   {children}
                 </main>
+                <PwaDiagnosticsActions />
                 <InstallBanner />
               </ConnectivityProvider>
             </ToastProvider>

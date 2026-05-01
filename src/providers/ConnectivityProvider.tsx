@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useToast } from '@/components/ui/Toast'
+import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
 type ConnectivityStatus = 'online' | 'syncing' | 'offline'
@@ -39,7 +40,7 @@ async function probeInternetReachable(): Promise<boolean> {
 }
 
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
-  const { showToast, dismissToast, clearToasts, warning: showWarning } = useToast()
+  const { showToast, dismissToast, clearToasts, warning: showWarning, success: showSuccess } = useToast()
   const [status, setStatus] = useState<ConnectivityStatus>('online')
   const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
   const [swControlled, setSwControlled] = useState(false)
@@ -229,6 +230,75 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       // Ignore readiness errors
     })
   }, [showToast, showWarning])
+
+  /** Origin/CDN diagnostics + explicit SW registration (same URL next-pwa uses, no query string). */
+  useEffect(() => {
+    let cancelled = false
+
+    const run = async () => {
+      try {
+        let showDiagToasts = true
+        try {
+          if (sessionStorage.getItem('familist_pwa_diag_toasts') === '1') {
+            showDiagToasts = false
+          } else {
+            sessionStorage.setItem('familist_pwa_diag_toasts', '1')
+          }
+        } catch {
+          showDiagToasts = true
+        }
+
+        const d = await collectPwaDiagnostics()
+        if (cancelled) return
+        console.log('[PWA DIAG]', d)
+
+        if (showDiagToasts) {
+          const hrefShort = d.href.length > 52 ? `${d.href.slice(0, 52)}…` : d.href
+          showToast(`pwa href=${hrefShort}`, 'info', { durationMs: 6000 })
+          showToast(
+            `pwa origin=${d.origin} build=${d.buildId} probe=${d.swProbeOk ? 1 : 0} http=${d.swProbeStatus ?? 'x'}`,
+            d.swProbeOk ? 'info' : 'warning',
+            { durationMs: 7000 }
+          )
+          showToast(
+            `pwa man start=${d.manifestStartUrl ?? '?'} scope=${d.manifestScope ?? '?'} sameOrig=${d.manifestSameOriginAsPage === null ? '?' : d.manifestSameOriginAsPage ? 1 : 0}`,
+            'info',
+            { durationMs: 7000 }
+          )
+          showToast(`pwa regUrl=${d.swRegistrationUrl}`, 'info', { durationMs: 8000 })
+          const ua = d.userAgent
+          showToast(`pwa ua=${ua.slice(0, 90)}${ua.length > 90 ? '…' : ''}`, 'info', { durationMs: 8000 })
+        }
+
+        if (!('serviceWorker' in navigator)) {
+          if (showDiagToasts) {
+            showToast('pwa no serviceWorker API', 'warning', { durationMs: 6000 })
+          }
+          return
+        }
+
+        try {
+          const reg = await navigator.serviceWorker.register(d.swRegistrationUrl, { scope: '/' })
+          if (cancelled) return
+          console.log('[PWA] explicit register ok', reg.scope, reg.active?.scriptURL)
+          if (showDiagToasts) {
+            showSuccess(`sw-reg ok scope=${reg.scope}`)
+          }
+        } catch (e) {
+          if (cancelled) return
+          const msg = e instanceof Error ? e.message : String(e)
+          showToast(`sw-reg FAIL ${msg.slice(0, 100)}`, 'error', { durationMs: 12000 })
+        }
+      } catch (e) {
+        console.error('[PWA DIAG] failed', e)
+      }
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [showSuccess, showToast])
 
   return (
     <ConnectivityContext.Provider

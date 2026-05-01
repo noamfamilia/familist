@@ -3,6 +3,7 @@
   "short_name": "MyFamiList",
   "description": "A collaborative shared lists application for families",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2aa198",

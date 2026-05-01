@@ -15,6 +15,12 @@ const withPWA = require('next-pwa')({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_BUILD_ID:
+      process.env.VERCEL_GIT_COMMIT_SHA ||
+      process.env.npm_package_version ||
+      'local',
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
