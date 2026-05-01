@@ -1,6 +1,23 @@
 'use client'
 
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { useToast } from '@/components/ui/Toast'
+
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.setAttribute('readonly', '')
+  ta.style.position = 'fixed'
+  ta.style.left = '-9999px'
+  document.body.appendChild(ta)
+  ta.select()
+  document.execCommand('copy')
+  document.body.removeChild(ta)
+}
 
 type DiagnosticsContextValue = {
   diagnosticsText: string
@@ -12,6 +29,7 @@ const DiagnosticsContext = createContext<DiagnosticsContextValue | undefined>(un
 
 function DiagnosticsMessageBoxPanel() {
   const { diagnosticsText, clearDiagnostics } = useDiagnosticsMessageBox()
+  const { success: showSuccess, error: showError } = useToast()
 
   const probeUrl = useMemo(() => {
     if (typeof window === 'undefined') return ''
@@ -23,6 +41,16 @@ function DiagnosticsMessageBoxPanel() {
     if (!probeUrl) return
     window.open(probeUrl, '_blank', 'noopener,noreferrer')
   }, [probeUrl])
+
+  const copyAll = useCallback(async () => {
+    if (!diagnosticsText) return
+    try {
+      await copyTextToClipboard(diagnosticsText)
+      showSuccess('Diagnostics copied to clipboard')
+    } catch {
+      showError('Could not copy diagnostics')
+    }
+  }, [diagnosticsText, showError, showSuccess])
 
   if (!diagnosticsText) return null
 
@@ -40,6 +68,13 @@ function DiagnosticsMessageBoxPanel() {
             className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-xs text-teal-300 hover:bg-neutral-700"
           >
             Open /sw.js?v=build
+          </button>
+          <button
+            type="button"
+            onClick={() => void copyAll()}
+            className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-700"
+          >
+            Copy all
           </button>
           <button
             type="button"
