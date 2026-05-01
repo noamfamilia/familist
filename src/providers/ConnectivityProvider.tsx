@@ -121,11 +121,10 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
   const canMutateNow = useCallback(() => {
     if (status === 'offline') {
-      enterOffline()
       return false
     }
     return true
-  }, [enterOffline, status])
+  }, [status])
 
   const blockedMutationMessage = useCallback(() => (
     status === 'offline' ? OFFLINE_ACTIONS_DISABLED_MSG : USER_MUTATION_WAIT_MSG
