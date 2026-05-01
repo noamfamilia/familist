@@ -441,7 +441,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           <Link
             href={`/list/${list.id}`}
             onClick={(e) => {
-              if (!isOfflineActionsDisabled) return
+              const browserOffline = typeof navigator !== 'undefined' && !navigator.onLine
+              if (!isOfflineActionsDisabled && !browserOffline) return
               if (canOpenListOffline) return
               e.preventDefault()
               showError('List is unavailable offline')

@@ -253,7 +253,7 @@ export function useList(listId: string) {
   const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
   const userId = user?.id
 
-  const { warning: warnMutation, showToast, dismissToast, error: showErrorToast } = useToast()
+  const { warning: warnMutation, showToast, dismissToast, clearToasts, error: showErrorToast } = useToast()
   const archiveUndoToastIdRef = useRef<string | null>(null)
   const syncToastIdRef = useRef<string | null>(null)
   const offlineToastIdRef = useRef<string | null>(null)
@@ -332,6 +332,7 @@ export function useList(listId: string) {
   const enterOffline = useCallback(() => {
     clearSyncTimeout()
     dismissSyncingToast()
+    clearToasts()
     syncStateRef.current = 'offline'
     offlineModeRef.current = true
     setIsOfflineActionsDisabled(true)
@@ -349,7 +350,7 @@ export function useList(listId: string) {
         })
       }, OFFLINE_PING_INTERVAL_MS)
     }
-  }, [clearSyncTimeout, dismissSyncingToast, markOnlineRecovered, probeServerReachable, showToast])
+  }, [clearSyncTimeout, clearToasts, dismissSyncingToast, markOnlineRecovered, probeServerReachable, showToast])
 
   const startTempSyncWatch = useCallback(() => {
     if (syncStateRef.current === 'offline' || offlineModeRef.current) return
