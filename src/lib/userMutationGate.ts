@@ -7,7 +7,7 @@
 export const USER_MUTATION_WAIT_MSG =
   'Please wait — still saving your previous change.'
 
-export function createUserMutationGate(warn: (message: string) => void) {
+export function createUserMutationGate() {
   let nestDepth = 0
   let rootBusy = false
 
@@ -17,7 +17,6 @@ export function createUserMutationGate(warn: (message: string) => void) {
       return true
     }
     if (rootBusy) {
-      warn(USER_MUTATION_WAIT_MSG)
       return false
     }
     rootBusy = true

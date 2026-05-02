@@ -1,6 +1,6 @@
 'use client'
 
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, usePathname, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { perfLog } from '@/lib/startupPerfLog'
@@ -235,6 +235,7 @@ async function getServiceWorkerDebugInfo() {
 
 export default function ListPage() {
   const params = useParams()
+  const pathname = usePathname()
   const router = useRouter()
   const { user, loading: authLoading, bootstrapUserId, profile, profileFetchPhase } = useAuth()
   const listId = params.id as string
@@ -242,7 +243,7 @@ export default function ListPage() {
   useLayoutEffect(() => {
     perfLog('main page mounted', { route: 'list', listId })
   }, [listId])
-  const { error: showError, warning: showWarning } = useToast()
+  const { error: showError } = useToast()
   const { offlineAssetsReady, swControlled } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
@@ -251,8 +252,6 @@ export default function ListPage() {
     items,
     members,
     loading,
-    fetchTimedOut,
-    saveTimedOut,
     error,
     accessDenied,
     hasCompletedInitialFetch,
@@ -340,21 +339,41 @@ export default function ListPage() {
 
   const [showNewMemberAlert, setShowNewMemberAlert] = useState(false)
   const knownMemberIdsRef = useRef<Set<string> | null>(null)
-  const lastPageDiagToastAtRef = useRef(0)
+  const lastListPageDiagSigRef = useRef<string>('')
+  const lastListPageDiagAtRef = useRef(0)
 
   useEffect(() => {
-    if (!isPwaDebugEnabled()) return
     const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
     const hasCachedListData = cachedListDataExists(listId)
     const offlineNavAllowed =
       offline && swControlled && offlineAssetsReady && hasCachedListData
-    const diag = `list-page offline-nav (${listId})\noffline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0} cachedListData=${hasCachedListData ? 1 : 0}\nofflineNavAllowed=${offlineNavAllowed ? 1 : 0}`
+    const errShort = error ? String(error).slice(0, 160) : ''
+    const sig = `${pathname}|${listId}|${loading}|${hasCompletedInitialFetch}|${!!list}|${errShort}|${accessDenied}|${swControlled}|${offlineAssetsReady}|${offline}`
     const now = Date.now()
-    if (now - lastPageDiagToastAtRef.current > 1200) {
-      appendDiagnostics(diag)
-      lastPageDiagToastAtRef.current = now
-    }
-  }, [appendDiagnostics, listId, offlineAssetsReady, swControlled])
+    if (sig === lastListPageDiagSigRef.current && now - lastListPageDiagAtRef.current < 250) return
+    lastListPageDiagSigRef.current = sig
+    lastListPageDiagAtRef.current = now
+    appendDiagnostics(
+      [
+        `[list-page] path=${pathname} listId=${listId}`,
+        `loading=${loading ? 1 : 0} hasCompletedInitialFetch=${hasCompletedInitialFetch ? 1 : 0} listPresent=${list ? 1 : 0}`,
+        `accessDenied=${accessDenied ? 1 : 0} error=${errShort || '(none)'}`,
+        `offline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
+        `cachedListData=${hasCachedListData ? 1 : 0} offlineNavAllowed=${offlineNavAllowed ? 1 : 0}`,
+      ].join('\n'),
+    )
+  }, [
+    appendDiagnostics,
+    pathname,
+    listId,
+    loading,
+    hasCompletedInitialFetch,
+    list,
+    error,
+    accessDenied,
+    swControlled,
+    offlineAssetsReady,
+  ])
 
   useEffect(() => {
     if (!isPwaDebugEnabled()) return
@@ -448,7 +467,6 @@ export default function ListPage() {
   const addItemSubmitFromKeyboardRef = useRef(false)
   const addItemInFlightRef = useRef(false)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
-  const timeoutToastShownRef = useRef(false)
   const [showShareModal, setShowShareModal] = useState(false)
 
   const handleBackToLists = () => {
@@ -484,17 +502,6 @@ export default function ListPage() {
     if (!newItemTextRef.current.trim()) return
     setNewItemText('')
   }, [])
-
-  useEffect(() => {
-    const timedOut = fetchTimedOut || saveTimedOut
-    if (!timedOut) {
-      timeoutToastShownRef.current = false
-      return
-    }
-    if (timeoutToastShownRef.current) return
-    timeoutToastShownRef.current = true
-    showError('Sync with server failed')
-  }, [fetchTimedOut, saveTimedOut, showError])
 
   if ((authLoading && !bootstrapUserId) || loading) {
     return (
@@ -545,7 +552,6 @@ export default function ListPage() {
       return
     }
     if (addItemInFlightRef.current) {
-      showWarning(USER_MUTATION_WAIT_MSG)
       return
     }
 

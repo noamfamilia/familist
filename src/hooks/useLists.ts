@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useToast } from '@/components/ui/Toast'
-import { createUserMutationGate, USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
+import { createUserMutationGate } from '@/lib/userMutationGate'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
@@ -69,7 +68,6 @@ export function useLists() {
   const scheduleRealtimeFetchRef = useRef<(delayMs: number, consumePending?: boolean) => void>(() => {})
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
 
-  const { warning: warnMutation } = useToast()
   const {
     isOfflineActionsDisabled,
     enterOffline,
@@ -78,12 +76,7 @@ export function useLists() {
     canMutateNow,
     blockedMutationMessage,
   } = useConnectivity()
-  const warnMutationRef = useRef(warnMutation)
-  warnMutationRef.current = warnMutation
-  const mutationGate = useMemo(
-    () => createUserMutationGate(m => warnMutationRef.current(m)),
-    [],
-  )
+  const mutationGate = useMemo(() => createUserMutationGate(), [])
   const tryBeginMutation = useCallback((): boolean => {
     if (!canMutateNow()) return false
     return mutationGate.tryBegin()

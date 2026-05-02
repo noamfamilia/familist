@@ -15,7 +15,6 @@ import { ListCard } from './ListCard'
 import { ImportModal } from '@/components/import/ImportModal'
 import { LabelManagerModal } from './LabelManagerModal'
 import type { ListWithRole } from '@/lib/supabase/types'
-import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 import type { Step } from 'react-joyride'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
@@ -43,7 +42,7 @@ interface ListsViewProps {
 }
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager, onOfflineActionsDisabledChange }: ListsViewProps) {
-  const { lists, loading, fetchTimedOut, saveTimedOut, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels, isOfflineActionsDisabled } = useLists()
+  const { lists, loading, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels, isOfflineActionsDisabled } = useLists()
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
   
@@ -57,7 +56,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
-  const { success, error: showError, warning: showWarning } = useToast()
+  const { success, error: showError } = useToast()
   const [inputValue, setInputValue] = useState('')
   const inputValueRef = useRef('')
   inputValueRef.current = inputValue
@@ -67,7 +66,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   /** True when create form was submitted via Enter in the text field (refocus after success). */
   const createListSubmitFromKeyboardRef = useRef(false)
   const createListInFlightRef = useRef(false)
-  const timeoutToastShownRef = useRef(false)
 
   useEffect(() => {
     onOfflineActionsDisabledChange?.(isOfflineActionsDisabled)
@@ -76,17 +74,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   useEffect(() => {
     onLabelsChange?.(labels)
   }, [labels, onLabelsChange])
-
-  useEffect(() => {
-    const timedOut = fetchTimedOut || saveTimedOut
-    if (!timedOut) {
-      timeoutToastShownRef.current = false
-      return
-    }
-    if (timeoutToastShownRef.current) return
-    timeoutToastShownRef.current = true
-    showError('Sync with server failed')
-  }, [fetchTimedOut, saveTimedOut, showError])
 
   // Notify parent when create field has draft text
   const isCreating = !!inputValue.trim()
@@ -133,7 +120,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       return
     }
     if (createListInFlightRef.current) {
-      showWarning(USER_MUTATION_WAIT_MSG)
       return
     }
 

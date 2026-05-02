@@ -27,7 +27,7 @@ import {
 } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useToast } from '@/components/ui/Toast'
-import { createUserMutationGate, USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
+import { createUserMutationGate } from '@/lib/userMutationGate'
 
 const supabase = createClient()
 
@@ -250,7 +250,7 @@ export function useList(listId: string) {
   const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
 
-  const { warning: warnMutation, showToast, dismissToast, error: showErrorToast } = useToast()
+  const { showToast, dismissToast, error: showErrorToast } = useToast()
   const {
     isOfflineActionsDisabled,
     enterOffline,
@@ -266,12 +266,7 @@ export function useList(listId: string) {
   const updateItemRef = useRef<
     (itemId: string, updates: Partial<Item>) => Promise<{ error: { message?: string } | null }>
   >(async () => ({ error: null }))
-  const warnMutationRef = useRef(warnMutation)
-  warnMutationRef.current = warnMutation
-  const mutationGate = useMemo(
-    () => createUserMutationGate(m => warnMutationRef.current(m)),
-    [],
-  )
+  const mutationGate = useMemo(() => createUserMutationGate(), [])
 
   const tryBeginMutation = useCallback((): boolean => {
     if (!canMutateNow()) return false

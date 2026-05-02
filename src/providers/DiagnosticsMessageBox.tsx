@@ -3,15 +3,17 @@
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 import {
   formatBreakdownForCopy,
-  isStartupDiagnosticsEnabled,
   parsePerfLinesToBreakdown,
 } from '@/lib/startupDiagnostics'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { perfLog, registerPerfLogSink } from '@/lib/startupPerfLog'
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { useToast } from '@/components/ui/Toast'
 
 const PERF_LOG_CAP = 100
+/** Trim oldest log text so the panel stays responsive after long sessions. */
+const DIAG_TEXT_MAX_CHARS = 120_000
 
 async function copyTextToClipboard(text: string): Promise<void> {
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -38,6 +40,43 @@ type DiagnosticsContextValue = {
 }
 
 const DiagnosticsContext = createContext<DiagnosticsContextValue | undefined>(undefined)
+
+/** Route + browser connectivity events (must render under DiagnosticsContext.Provider). */
+function GlobalNavDiagnosticsLogger() {
+  const { appendDiagnostics } = useDiagnosticsMessageBox()
+  const pathname = usePathname()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const qs = window.location.search || ''
+    appendDiagnostics(
+      `[route] pathname=${pathname}${qs ? ` full=${pathname}${qs}` : ''} onLine=${navigator.onLine} visibility=${document.visibilityState} historyLen=${window.history.length}`,
+    )
+  }, [pathname, appendDiagnostics])
+
+  useEffect(() => {
+    const onOffline = () => appendDiagnostics('[browser] window "offline"')
+    const onOnline = () => appendDiagnostics('[browser] window "online"')
+    const onPop = () =>
+      appendDiagnostics(
+        `[history] popstate path=${typeof window !== 'undefined' ? window.location.pathname + window.location.search : '?'}`,
+      )
+    const onVis = () =>
+      appendDiagnostics(`[visibility] ${document.visibilityState} path=${window.location.pathname}`)
+    window.addEventListener('offline', onOffline)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('popstate', onPop)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('popstate', onPop)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [appendDiagnostics])
+
+  return null
+}
 
 function DiagnosticsMessageBoxPanel() {
   const [showPwaTools, setShowPwaTools] = useState(false)
@@ -90,13 +129,11 @@ function DiagnosticsMessageBoxPanel() {
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-700 px-3 py-2">
         <div className="min-w-0 flex-1">
-          <span className="text-sm font-semibold text-teal-300">Startup performance</span>
+          <span className="text-sm font-semibold text-teal-300">Diagnostics (always on)</span>
           <p className="mt-0.5 text-[10px] leading-snug text-teal-200/70 sm:text-[11px]">
-            Startup panel: <code className="rounded bg-neutral-800 px-0.5">?debugStartup=1</code> or{' '}
-            <code className="rounded bg-neutral-800 px-0.5">localStorage DEBUG_STARTUP=&quot;1&quot;</code>
-            {' · '}
-            PWA tools: <code className="rounded bg-neutral-800 px-0.5">?debugPwa=1</code> or{' '}
-            <code className="rounded bg-neutral-800 px-0.5">DEBUG_PWA</code>
+            Nav / offline / connectivity events append below. Optional startup breakdown:{' '}
+            <code className="rounded bg-neutral-800 px-0.5">?debugStartup=1</code> · PWA heavy tools:{' '}
+            <code className="rounded bg-neutral-800 px-0.5">?debugPwa=1</code>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -124,15 +161,13 @@ function DiagnosticsMessageBoxPanel() {
           >
             Clear perf
           </button>
-          {showPwaTools ? (
-            <button
-              type="button"
-              onClick={clearDiagnostics}
-              className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-700"
-            >
-              Clear PWA log
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={clearDiagnostics}
+            className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-700"
+          >
+            Clear nav log
+          </button>
         </div>
       </div>
 
@@ -167,18 +202,14 @@ function DiagnosticsMessageBoxPanel() {
       ) : null}
 
       <pre className="m-0 max-h-[40vh] w-full overflow-auto whitespace-pre-wrap break-words p-4 text-left text-[11px] leading-relaxed sm:text-xs">
-        {perfLines.length === 0 ? 'Collecting startup timings…' : perfLines.join('\n')}
+        {perfLines.length === 0 ? 'Startup timings: none yet (optional ?debugStartup=1).' : perfLines.join('\n')}
       </pre>
-      {showPwaTools && diagnosticsText ? (
-        <>
-          <div className="border-t border-neutral-700 px-3 py-2 text-xs font-semibold text-amber-200">
-            PWA diagnostics (debug mode)
-          </div>
-          <pre className="m-0 max-h-[30vh] w-full overflow-auto whitespace-pre-wrap break-words border-t border-neutral-800 p-4 text-left text-[11px] leading-relaxed text-amber-50/95 sm:text-xs">
-            {diagnosticsText}
-          </pre>
-        </>
-      ) : null}
+      <div className="border-t border-neutral-700 px-3 py-2 text-xs font-semibold text-amber-200">
+        Nav &amp; connectivity log
+      </div>
+      <pre className="m-0 max-h-[30vh] w-full overflow-auto whitespace-pre-wrap break-words border-t border-neutral-800 bg-neutral-900/30 p-4 text-left text-[11px] leading-relaxed text-amber-50/95 sm:text-xs">
+        {diagnosticsText || '(no events yet — navigate or go offline to populate)'}
+      </pre>
     </section>
   )
 }
@@ -186,37 +217,30 @@ function DiagnosticsMessageBoxPanel() {
 export function DiagnosticsMessageBoxProvider({ children }: { children: React.ReactNode }) {
   const [diagnosticsText, setDiagnosticsText] = useState('')
   const [perfLines, setPerfLines] = useState<string[]>([])
-  const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false)
-
   useLayoutEffect(() => {
     perfLog('root mounted')
   }, [])
 
   useEffect(() => {
-    scheduleAfterFirstPaint(() =>
-      setShowDiagnosticsPanel(isPwaDebugEnabled() || isStartupDiagnosticsEnabled()),
-    )
-  }, [])
-
-  useEffect(() => {
-    if (!showDiagnosticsPanel) {
-      registerPerfLogSink(null)
-      return
-    }
     registerPerfLogSink((line) => {
       setPerfLines((prev) => [...prev, line].slice(-PERF_LOG_CAP))
     })
     return () => registerPerfLogSink(null)
-  }, [showDiagnosticsPanel])
+  }, [])
 
   const appendDiagnostics = useCallback((section: string) => {
-    if (!isPwaDebugEnabled()) return
     const stamp = new Date().toISOString()
     setDiagnosticsText((prev) => {
       const block = `[${stamp}]\n${section}`
-      return prev ? `${prev}\n\n${block}` : block
+      const next = prev ? `${prev}\n\n${block}` : block
+      if (next.length <= DIAG_TEXT_MAX_CHARS) return next
+      return next.slice(-DIAG_TEXT_MAX_CHARS)
     })
   }, [])
+
+  useEffect(() => {
+    appendDiagnostics('[diagnostics] always-on nav/connectivity log started')
+  }, [appendDiagnostics])
 
   const clearDiagnostics = useCallback(() => {
     setDiagnosticsText('')
@@ -234,8 +258,9 @@ export function DiagnosticsMessageBoxProvider({ children }: { children: React.Re
   return (
     <DiagnosticsContext.Provider value={value}>
       <div className="flex min-h-screen flex-col">
+        <GlobalNavDiagnosticsLogger />
         <div className="min-h-0 flex-1">{children}</div>
-        {showDiagnosticsPanel ? <DiagnosticsMessageBoxPanel /> : null}
+        <DiagnosticsMessageBoxPanel />
       </div>
     </DiagnosticsContext.Provider>
   )
