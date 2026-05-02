@@ -236,7 +236,7 @@ async function getServiceWorkerDebugInfo() {
 export default function ListPage() {
   const params = useParams()
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, bootstrapUserId, profile, profileFetchPhase } = useAuth()
   const listId = params.id as string
 
   useLayoutEffect(() => {
@@ -286,6 +286,49 @@ export default function ListPage() {
     updateListUserSumScope,
     isOfflineActionsDisabled,
   } = useList(listId)
+
+  const listGatePrevRef = useRef<string>('')
+  useEffect(() => {
+    const profileLoading = profileFetchPhase === 'loading'
+    const authReady = !authLoading
+    const effectiveUserId = user?.id ?? (authLoading ? bootstrapUserId : null)
+    const showListShell = !(authLoading && !bootstrapUserId) && !loading
+    const shouldRenderListBody = !!list && showListShell
+    let reasonIfNot = ''
+    if (authLoading && !bootstrapUserId) reasonIfNot = 'auth.loading_no_bootstrapUserId'
+    else if (loading) reasonIfNot = 'useList.loading'
+    else if (!list) reasonIfNot = '!list'
+    else reasonIfNot = 'ok'
+
+    const snapshot = JSON.stringify({
+      authLoading,
+      hasUser: !!user,
+      userId: user?.id ?? null,
+      effectiveUserId,
+      bootstrapUserId,
+      profileLoading,
+      hasProfile: !!profile,
+      profileFetchPhase,
+      authReady,
+      profileReady: !!profile,
+      offlineAssetsReady,
+      useListLoading: loading,
+      shouldRenderListBody,
+      reasonIfNot,
+    })
+    if (snapshot === listGatePrevRef.current) return
+    listGatePrevRef.current = snapshot
+    perfLog('ListPage gate', JSON.parse(snapshot) as Record<string, unknown>)
+  }, [
+    authLoading,
+    user,
+    bootstrapUserId,
+    profile,
+    profileFetchPhase,
+    loading,
+    list,
+    offlineAssetsReady,
+  ])
 
   // Redirect to home if access is revoked
   useEffect(() => {
@@ -453,7 +496,7 @@ export default function ListPage() {
     showError('Sync with server failed')
   }, [fetchTimedOut, saveTimedOut, showError])
 
-  if (authLoading || loading) {
+  if ((authLoading && !bootstrapUserId) || loading) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />

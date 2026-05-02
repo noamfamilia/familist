@@ -46,7 +46,7 @@ function isLikelyConnectivityError(err: unknown): boolean {
 }
 
 export function useLists() {
-  const { user } = useAuth()
+  const { user, loading: authLoading, bootstrapUserId } = useAuth()
   // Initialize from cache for instant load
   const [lists, setLists] = useState<ListWithRole[]>(() => getCachedLists()?.lists || [])
   const [loading, setLoading] = useState(() => !getCachedLists()?.lists?.length)
@@ -67,7 +67,7 @@ export function useLists() {
   const mutationVersionRef = useRef(0)
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number, consumePending?: boolean) => void>(() => {})
-  const userId = user?.id
+  const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
 
   const { warning: warnMutation } = useToast()
   const {

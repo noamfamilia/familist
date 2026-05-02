@@ -206,7 +206,7 @@ function isLikelyConnectivityError(err: unknown): boolean {
 }
 
 export function useList(listId: string) {
-  const { user, profile } = useAuth()
+  const { user, profile, loading: authLoading, bootstrapUserId } = useAuth()
   const cached = getCachedList(undefined, listId)
   
   // Initialize from cache for instant load
@@ -248,7 +248,7 @@ export function useList(listId: string) {
   /** First mutation version captured when a debounced realtime fetch is scheduled; preserved across reschedules until that fetch completes. */
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
-  const userId = user?.id
+  const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
 
   const { warning: warnMutation, showToast, dismissToast, error: showErrorToast } = useToast()
   const {

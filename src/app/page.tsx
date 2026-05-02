@@ -17,6 +17,7 @@ import { resetTutorial } from '@/components/ui/TutorialTour'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
+import { useConnectivity } from '@/providers/ConnectivityProvider'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -65,7 +66,8 @@ const homeTourSteps: Step[] = [
 function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, profile, loading, updateProfile } = useAuth()
+  const { user, profile, loading, bootstrapUserId, profileFetchPhase, updateProfile } = useAuth()
+  const { offlineAssetsReady } = useConnectivity()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -98,6 +100,50 @@ function HomeContent() {
   useLayoutEffect(() => {
     perfLog('main page mounted', { route: 'home' })
   }, [])
+
+  const homeGatePrevRef = useRef<string>('')
+  useEffect(() => {
+    const profileLoading = profileFetchPhase === 'loading'
+    const authReady = !loading
+    const effectiveUserId = user?.id ?? (loading ? bootstrapUserId : null)
+    const shouldRenderListsView = !!(user || (loading && bootstrapUserId))
+    let reasonIfNot = ''
+    if (!shouldRenderListsView) {
+      if (loading && !bootstrapUserId) reasonIfNot = 'auth.loading_no_bootstrapUserId'
+      else if (!user && !loading) reasonIfNot = '!user_session_resolved'
+      else reasonIfNot = 'unknown'
+    } else if (!user && loading && bootstrapUserId) {
+      reasonIfNot = 'lists_via_bootstrapUserId_pending_session'
+    } else {
+      reasonIfNot = 'user_ok'
+    }
+
+    const snapshot = JSON.stringify({
+      loading,
+      hasUser: !!user,
+      userId: user?.id ?? null,
+      effectiveUserId,
+      bootstrapUserId,
+      profileLoading,
+      hasProfile: !!profile,
+      profileFetchPhase,
+      authReady,
+      profileReady: !!profile,
+      offlineAssetsReady,
+      shouldRenderListsView,
+      reasonIfNot,
+    })
+    if (snapshot === homeGatePrevRef.current) return
+    homeGatePrevRef.current = snapshot
+    perfLog('HomeContent gate', JSON.parse(snapshot) as Record<string, unknown>)
+  }, [
+    loading,
+    user,
+    profile,
+    bootstrapUserId,
+    profileFetchPhase,
+    offlineAssetsReady,
+  ])
 
   useEffect(() => {
     setThemeMounted(true)
@@ -259,13 +305,15 @@ function HomeContent() {
     router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
   }
 
-  if (loading) {
+  if (loading && !bootstrapUserId) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
       </div>
     )
   }
+
+  const showListsShell = !!(user || (loading && bootstrapUserId))
 
   return (
     <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
@@ -353,6 +401,12 @@ function HomeContent() {
               </div>
             )}
           </div>
+        ) : loading && bootstrapUserId ? (
+          <div
+            className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-gray-200 dark:bg-neutral-600"
+            title="Restoring session…"
+            aria-label="Restoring session"
+          />
         ) : (
           <button
             onClick={() => setShowAuthModal(true)}
@@ -363,7 +417,7 @@ function HomeContent() {
           </button>
         )}
         
-        {user ? (
+        {showListsShell ? (
             <div ref={labelDropdownRef} data-tour="home-label-filter" className="flex items-center gap-1.5">
             {isCreating && <span className="text-red-500 text-sm font-medium whitespace-nowrap">Set label</span>}
             <div className="relative">
@@ -502,7 +556,7 @@ function HomeContent() {
       </header>
 
       {/* Main content */}
-      {user ? (
+      {showListsShell ? (
         <>
           <ListsView 
             viewMode="all" 

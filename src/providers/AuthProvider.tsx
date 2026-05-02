@@ -5,15 +5,21 @@ import { useTheme } from 'next-themes'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
-import { clearActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
+import { clearActiveCacheUserId, getActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
 import { notifyProfileFetchSucceeded, notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
 import { perfLog } from '@/lib/startupPerfLog'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
+import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
+
+export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 
 interface AuthContextType {
   user: User | null
   profile: Profile | null
   loading: boolean
+  /** Last active_cache_user id while session is still resolving; drives list hydration before user is set. */
+  bootstrapUserId: string | null
+  profileFetchPhase: ProfileFetchPhase
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
   signOut: () => Promise<{ error: Error | null }>
@@ -47,6 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : getActiveCacheUserId(),
+  )
+  const [profileFetchPhase, setProfileFetchPhase] = useState<ProfileFetchPhase>('idle')
   const supabase = createClient()
   const { setTheme } = useTheme()
 
@@ -66,13 +76,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user])
 
   const fetchProfile = useCallback(async (userId: string) => {
+    const t0 = performance.now()
+    perfLog('auth/fetchProfile start', { userId })
     try {
+      perfLog('auth/fetchProfile profiles query start', { userId })
+      const q0 = performance.now()
       const freshClient = forceNewClient()
       const { data, error } = await freshClient
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle()
+      perfLog('auth/fetchProfile profiles query end', {
+        userId,
+        durationMs: Math.round(performance.now() - q0),
+        hasRow: !!data,
+        rpcError: error?.message,
+      })
 
       if (!mountedRef.current || userRef.current?.id !== userId) return
       if (error) return
@@ -85,24 +105,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       notifyProfileFetchSucceeded()
     } catch (err) {
       console.error('fetchProfile error:', err)
+    } finally {
+      perfLog('auth/fetchProfile end', {
+        userId,
+        durationMs: Math.round(performance.now() - t0),
+      })
     }
   }, [])
 
   const scheduleStartupProfileFetch = useCallback(
     (userId: string) => {
       const gen = ++profileFetchGenRef.current
+      perfLog('auth/fetchProfile schedule after first paint', { userId, gen })
       scheduleAfterFirstPaint(() => {
+        perfLog('auth/fetchProfile run start', { userId, gen })
+        setProfileFetchPhase('loading')
         void (async () => {
+          const wrapT0 = performance.now()
           try {
+            perfLog('auth/fetchProfile withTimeout await start', { userId, gen })
             await withTimeout(
               fetchProfile(userId),
               PROFILE_FETCH_STARTUP_TIMEOUT_MS,
               PROFILE_FETCH_TIMEOUT_MESSAGE,
             )
+            perfLog('auth/fetchProfile withTimeout await end', {
+              userId,
+              gen,
+              durationMs: Math.round(performance.now() - wrapT0),
+            })
+            if (profileFetchGenRef.current === gen) {
+              setProfileFetchPhase('done')
+            }
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e)
+            perfLog('auth/fetchProfile withTimeout error', {
+              userId,
+              gen,
+              durationMs: Math.round(performance.now() - wrapT0),
+              message: msg,
+            })
             if (msg === PROFILE_FETCH_TIMEOUT_MESSAGE && profileFetchGenRef.current === gen) {
               notifyProfileFetchTimedOut()
+              setProfileFetchPhase('timeout')
+            } else if (profileFetchGenRef.current === gen) {
+              setProfileFetchPhase('error')
             }
           }
         })()
@@ -116,14 +163,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const applySessionUser = (nextUser: User | null) => {
       if (!mounted) return
+      perfLog('auth applySessionUser', { hasUser: !!nextUser, userId: nextUser?.id ?? null })
+      perfLog('auth setUser before', { nextUserId: nextUser?.id ?? null })
       setUser(nextUser)
+      perfLog('auth setUser after dispatch', { nextUserId: nextUser?.id ?? null })
       if (nextUser) {
         setActiveCacheUserId(nextUser.id)
+        setBootstrapUserId(nextUser.id)
         scheduleStartupProfileFetch(nextUser.id)
       } else {
         profileFetchGenRef.current++
         setProfile(null)
+        setBootstrapUserId(null)
         clearActiveCacheUserId()
+        setProfileFetchPhase('idle')
       }
     }
 
@@ -131,14 +184,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const t0 = typeof performance !== 'undefined' ? performance.now() : 0
       perfLog('auth/session start')
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        perfLog('auth/getSession start')
+        const gs0 = performance.now()
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+        perfLog('auth/getSession end', {
+          durationMs: Math.round(performance.now() - gs0),
+          hasSession: !!sessionData?.session,
+          error: sessionError?.message,
+        })
+
         if (!mounted) return
-        applySessionUser(session?.user ?? null)
+
+        if (isStartupDiagnosticsEnabled()) {
+          perfLog('auth/getUser start')
+          const gu0 = performance.now()
+          try {
+            const { data: userData, error: userError } = await supabase.auth.getUser()
+            perfLog('auth/getUser end', {
+              durationMs: Math.round(performance.now() - gu0),
+              hasUser: !!userData?.user,
+              error: userError?.message,
+            })
+          } catch (guErr) {
+            perfLog('auth/getUser end', {
+              durationMs: Math.round(performance.now() - gu0),
+              error: guErr instanceof Error ? guErr.message : String(guErr),
+            })
+          }
+          if (!mounted) return
+        }
+
+        applySessionUser(sessionData?.session?.user ?? null)
       } catch (error) {
         console.error('Failed to get session:', error)
+        perfLog('auth/session try error', {
+          message: error instanceof Error ? error.message : String(error),
+        })
       } finally {
         if (mounted) {
+          perfLog('auth setLoading(false) before')
           setLoading(false)
+          perfLog('auth setLoading(false) after', {
+            durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - t0),
+          })
           perfLog('auth/session end', {
             durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - t0),
           })
@@ -146,16 +234,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    getInitialSession()
+    void getInitialSession()
 
+    perfLog('auth onAuthStateChange subscribe start')
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      perfLog('auth onAuthStateChange', { event, hasSession: !!session })
       applySessionUser(session?.user ?? null)
       if (mounted) {
+        perfLog('auth onAuthStateChange setLoading(false) before')
         setLoading(false)
+        perfLog('auth onAuthStateChange setLoading(false) after')
       }
     })
+    perfLog('auth onAuthStateChange subscribe end')
 
     return () => {
       mounted = false
@@ -178,16 +271,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await withTimeout(
         freshClient.auth.signInWithPassword({ email, password }),
         10000,
-        'Sign in timed out. Please refresh the page.'
+        'Sign in timed out. Please refresh the page.',
       )
-      
+
       if (!result.error && result.data?.user) {
         // Update local state directly (no cross-tab sync)
         setUser(result.data.user)
         setActiveCacheUserId(result.data.user.id)
+        setBootstrapUserId(result.data.user.id)
         scheduleStartupProfileFetch(result.data.user.id)
       }
-      
+
       return { error: result.error }
     } catch (error) {
       return { error: error as Error }
@@ -200,14 +294,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       options: {
         data: { nickname },
-        emailRedirectTo: `${window.location.origin}/auth/callback`
-      }
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     })
 
     // If sign up successful and user is returned (no email confirmation required)
     if (!error && data?.user && data.session) {
       setUser(data.user)
       setActiveCacheUserId(data.user.id)
+      setBootstrapUserId(data.user.id)
       scheduleStartupProfileFetch(data.user.id)
     }
 
@@ -227,7 +322,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(null)
     setProfile(null)
+    setBootstrapUserId(null)
     clearActiveCacheUserId()
+    setProfileFetchPhase('idle')
     return { error: null }
   }
 
@@ -237,7 +334,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const prev = profile
-    setProfile(p => p ? { ...p, ...updates } : null)
+    setProfile((p) => (p ? { ...p, ...updates } : null))
 
     const { error } = await supabase
       .from('profiles')
@@ -264,7 +361,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, updateProfile, resetPassword, updatePassword }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        loading,
+        bootstrapUserId,
+        profileFetchPhase,
+        signIn,
+        signUp,
+        signOut,
+        updateProfile,
+        resetPassword,
+        updatePassword,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
