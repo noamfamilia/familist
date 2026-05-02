@@ -160,13 +160,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true
+    let subscription: { unsubscribe: () => void } | null = null
+    const hydratedFromGetSessionRef = { current: false }
+    const lastAppliedUserIdRef = { current: null as string | null }
 
-    const applySessionUser = (nextUser: User | null) => {
+    const applySessionUserCore = (nextUser: User | null, source: string) => {
       if (!mounted) return
-      perfLog('auth applySessionUser', { hasUser: !!nextUser, userId: nextUser?.id ?? null })
-      perfLog('auth setUser before', { nextUserId: nextUser?.id ?? null })
+      perfLog('auth applySessionUser', { source, hasUser: !!nextUser, userId: nextUser?.id ?? null })
+      perfLog('auth setUser before', { source, nextUserId: nextUser?.id ?? null })
       setUser(nextUser)
-      perfLog('auth setUser after dispatch', { nextUserId: nextUser?.id ?? null })
+      perfLog('auth setUser after dispatch', { source, nextUserId: nextUser?.id ?? null })
+      lastAppliedUserIdRef.current = nextUser?.id ?? null
       if (nextUser) {
         setActiveCacheUserId(nextUser.id)
         setBootstrapUserId(nextUser.id)
@@ -180,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const getInitialSession = async () => {
+    void (async () => {
       const t0 = typeof performance !== 'undefined' ? performance.now() : 0
       perfLog('auth/session start')
       try {
@@ -214,17 +218,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!mounted) return
         }
 
-        applySessionUser(sessionData?.session?.user ?? null)
+        const nextUser = sessionData?.session?.user ?? null
+        perfLog('auth/getSession applySessionUser start', {
+          hasUser: !!nextUser,
+          userId: nextUser?.id ?? null,
+        })
+        applySessionUserCore(nextUser, 'getSession')
+        perfLog('auth/getSession applySessionUser end', {
+          hasUser: !!nextUser,
+          userId: nextUser?.id ?? null,
+        })
       } catch (error) {
         console.error('Failed to get session:', error)
         perfLog('auth/session try error', {
           message: error instanceof Error ? error.message : String(error),
         })
       } finally {
+        hydratedFromGetSessionRef.current = true
         if (mounted) {
-          perfLog('auth setLoading(false) before')
+          perfLog('auth setLoading(false) before', { source: 'getSession_bootstrap' })
           setLoading(false)
           perfLog('auth setLoading(false) after', {
+            source: 'getSession_bootstrap',
             durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - t0),
           })
           perfLog('auth/session end', {
@@ -232,27 +247,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })
         }
       }
-    }
 
-    void getInitialSession()
+      if (!mounted) return
 
-    perfLog('auth onAuthStateChange subscribe start')
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      perfLog('auth onAuthStateChange', { event, hasSession: !!session })
-      applySessionUser(session?.user ?? null)
-      if (mounted) {
-        perfLog('auth onAuthStateChange setLoading(false) before')
-        setLoading(false)
-        perfLog('auth onAuthStateChange setLoading(false) after')
-      }
-    })
-    perfLog('auth onAuthStateChange subscribe end')
+      perfLog('auth onAuthStateChange subscribe start')
+      const {
+        data: { subscription: sub },
+      } = supabase.auth.onAuthStateChange((event, session) => {
+        const nextUser = session?.user ?? null
+        const nextId = nextUser?.id ?? null
+
+        if (event === 'INITIAL_SESSION' && hydratedFromGetSessionRef.current) {
+          if (nextId === lastAppliedUserIdRef.current) {
+            perfLog('auth onAuthStateChange ignored', {
+              event,
+              reason: 'initial_session_same_as_getSession',
+              userId: nextId,
+            })
+            return
+          }
+          perfLog('auth onAuthStateChange', {
+            event,
+            hasSession: !!session,
+            note: 'initial_session_differs_reapplying',
+          })
+          applySessionUserCore(nextUser, 'onAuthStateChange')
+          return
+        }
+
+        if (
+          (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') &&
+          nextId !== null &&
+          lastAppliedUserIdRef.current === nextId
+        ) {
+          perfLog('auth onAuthStateChange ignored', {
+            event,
+            reason: 'same_user_idempotent',
+            userId: nextId,
+          })
+          return
+        }
+
+        perfLog('auth onAuthStateChange', { event, hasSession: !!session })
+        applySessionUserCore(nextUser, 'onAuthStateChange')
+        if (mounted) {
+          perfLog('auth onAuthStateChange setLoading(false) before')
+          setLoading(false)
+          perfLog('auth onAuthStateChange setLoading(false) after')
+        }
+      })
+      subscription = sub
+      perfLog('auth onAuthStateChange subscribe end')
+    })()
 
     return () => {
       mounted = false
-      subscription.unsubscribe()
+      subscription?.unsubscribe()
     }
   }, [scheduleStartupProfileFetch, supabase.auth])
 
