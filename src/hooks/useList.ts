@@ -375,6 +375,8 @@ export function useList(listId: string) {
       return
     }
     const fetchT0 = performance.now()
+    let rpcDurationMs = 0
+    let prefsDurationMs: number | null = null
     perfLog('fetchList start', { listId })
     let listCount = 0
     let itemCountResult = 0
@@ -406,9 +408,27 @@ export function useList(listId: string) {
       appendOfflineNavDiagnostic(
         `[fetchList] invoking get_list_data RPC (not skipped; browser may still fail) listId=${listId}`,
       )
-      // Fetch all list data in a single RPC call
-      const { data, error: rpcError } = await supabase.rpc('get_list_data', {
-        p_list_id: listId
+      const rpcT0 = performance.now()
+      let data: Awaited<ReturnType<typeof supabase.rpc<'get_list_data'>>>['data']
+      let rpcError: Awaited<ReturnType<typeof supabase.rpc<'get_list_data'>>>['error']
+      try {
+        const r = await supabase.rpc('get_list_data', {
+          p_list_id: listId,
+        })
+        data = r.data
+        rpcError = r.error
+      } finally {
+        rpcDurationMs = Math.round(performance.now() - rpcT0)
+      }
+      perfLog('fetchList get_list_data', {
+        listId,
+        durationMs: rpcDurationMs,
+        ok: !rpcError,
+        code: rpcError?.code ?? null,
+        errMsg: rpcError?.message ? String(rpcError.message).slice(0, 120) : null,
+        hasListRow: !!(data && data.list),
+        itemCount: data?.items?.length ?? 0,
+        memberCount: data?.members?.length ?? 0,
       })
 
       if (rpcError) {
@@ -430,6 +450,12 @@ export function useList(listId: string) {
 
       if (staleCheck != null && staleCheck !== mutationVersionRef.current) {
         staleDiscarded = true
+        perfLog('fetchList stale_discard', {
+          listId,
+          rpcDurationMs,
+          capturedVersion: staleCheck,
+          mutationVersion: mutationVersionRef.current,
+        })
         if (process.env.NODE_ENV === 'development') {
           console.log('[useList] delayed fetch discarded (stale)', {
             listId,
@@ -469,7 +495,9 @@ export function useList(listId: string) {
 
       // Only fetch preferences on initial load to avoid overwriting optimistic updates
       if (!prefsFetchedRef.current) {
+        perfLog('fetchList list_users prefs start', { listId })
         prefsFetchedRef.current = true
+        const prefsT0 = performance.now()
         const { data: listUserData } = await supabase
           .from('list_users')
           .select(
@@ -478,6 +506,12 @@ export function useList(listId: string) {
           .eq('list_id', listId)
           .eq('user_id', userId)
           .single()
+        prefsDurationMs = Math.round(performance.now() - prefsT0)
+        perfLog('fetchList list_users prefs end', {
+          listId,
+          durationMs: prefsDurationMs,
+          hasRow: !!listUserData,
+        })
 
         if (listUserData) {
           const serverFilter = VALID_MEMBER_FILTERS.includes(listUserData.member_filter as MemberFilter)
@@ -501,6 +535,8 @@ export function useList(listId: string) {
           setSumScope(serverSumScope)
           setCachedPrefs(listId, { sumScope: serverSumScope }, userId)
         }
+      } else {
+        perfLog('fetchList list_users prefs skip', { listId, reason: 'already_fetched' })
       }
       markOnlineRecovered()
       setFetchTimedOut(false)
@@ -519,6 +555,8 @@ export function useList(listId: string) {
     } finally {
       perfLog('fetchList end', {
         durationMs: Math.round(performance.now() - fetchT0),
+        rpcDurationMs,
+        prefsDurationMs,
         listCount,
         itemCount: itemCountResult,
         error: fetchErr,
@@ -539,7 +577,11 @@ export function useList(listId: string) {
         })
       }
       appendOfflineNavDiagnostic(
-        `[fetchList] finally listId=${listId} fetchErr=${fetchErr ?? '(none)'}`,
+        [
+          `[fetchList] finally listId=${listId} totalMs=${Math.round(performance.now() - fetchT0)}`,
+          `rpcMs=${rpcDurationMs} prefsMs=${prefsDurationMs == null ? 'n/a' : String(prefsDurationMs)}`,
+          `fetchErr=${fetchErr ?? '(none)'}`,
+        ].join(' '),
       )
     }
   }, [enterOffline, listId, markOnlineRecovered, userId])
