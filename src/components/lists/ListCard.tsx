@@ -95,6 +95,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const labelDropdownRef = useRef<HTMLDivElement>(null)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
+  /** Throttle offline-unavailable toasts when user taps repeatedly. */
+  const lastUnavailableToastAtRef = useRef(0)
 
   // Sync comment state when list updates from realtime
   useEffect(() => {
@@ -208,6 +210,17 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
       if (!allowed) {
         appendOfflineNavDiagnostic('[list-click] blocked — no router.push')
+        const now = Date.now()
+        if (now - lastUnavailableToastAtRef.current > 1200) {
+          if (reason === 'blocked_sw_not_controlled') {
+            showError('Offline access is not ready. Open the app once while online.')
+          } else if (reason === 'blocked_offline_assets_not_ready') {
+            showError('Offline shell not ready yet. Reload once while online, then try again.')
+          } else {
+            showError('List is unavailable offline.')
+          }
+          lastUnavailableToastAtRef.current = now
+        }
         return
       }
 
@@ -221,7 +234,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         )
       }
     },
-    [list.id, offlineAssetsReady, router, swControlled],
+    [list.id, offlineAssetsReady, router, showError, swControlled],
   )
 
   // Duplicate modal: outside-click for label dropdown
