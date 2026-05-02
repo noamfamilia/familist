@@ -13,6 +13,7 @@ import {
 } from '@/lib/profileFetchConnectivityBridge'
 import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
+import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
 type ConnectivityStatus = 'online' | 'syncing' | 'offline'
@@ -196,10 +197,10 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     const onLine = typeof navigator !== 'undefined' ? navigator.onLine : true
-    appendDiagnostics(
+    appendOfflineNavDiagnostic(
       `[connectivity] status=${status} swControlled=${swControlled} offlineAssetsReady=${offlineAssetsReady} navigator.onLine=${onLine}`,
     )
-  }, [status, swControlled, offlineAssetsReady, appendDiagnostics])
+  }, [status, swControlled, offlineAssetsReady])
   const syncToastIdRef = useRef<string | null>(null)
   const offlineToastIdRef = useRef<string | null>(null)
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)

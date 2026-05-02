@@ -14,7 +14,8 @@ import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
-import { cachedListDataExists } from '@/lib/cache'
+import { cachedListDataExists, getCachedList } from '@/lib/cache'
+import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
 import { Button } from '@/components/ui/Button'
@@ -342,6 +343,22 @@ export default function ListPage() {
   const lastListPageDiagSigRef = useRef<string>('')
   const lastListPageDiagAtRef = useRef(0)
 
+  useLayoutEffect(() => {
+    const uid = user?.id ?? bootstrapUserId
+    const tReadStart = performance.now()
+    appendOfflineNavDiagnostic(`[list-page-mount] listId=${listId} effectiveUserId=${uid ?? 'null'}`)
+    appendOfflineNavDiagnostic(
+      `[list-page-mount] navigator.onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
+    )
+    const hasRow = cachedListDataExists(listId, uid ?? undefined)
+    appendOfflineNavDiagnostic(`[list-page-mount] cachedListDataExists=${hasRow ? 1 : 0}`)
+    const cached = uid ? getCachedList(uid, listId) : null
+    const readMs = Math.round(performance.now() - tReadStart)
+    appendOfflineNavDiagnostic(
+      `[list-page-mount] localStorage read end ms=${readMs} appliedListRow=${cached?.list ? 1 : 0} itemCount=${cached?.items?.length ?? 0} memberCount=${cached?.members?.length ?? 0}`,
+    )
+  }, [listId, user?.id, bootstrapUserId, swControlled, offlineAssetsReady])
+
   useEffect(() => {
     const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
     const hasCachedListData = cachedListDataExists(listId)
@@ -353,7 +370,7 @@ export default function ListPage() {
     if (sig === lastListPageDiagSigRef.current && now - lastListPageDiagAtRef.current < 250) return
     lastListPageDiagSigRef.current = sig
     lastListPageDiagAtRef.current = now
-    appendDiagnostics(
+    appendOfflineNavDiagnostic(
       [
         `[list-page] path=${pathname} listId=${listId}`,
         `loading=${loading ? 1 : 0} hasCompletedInitialFetch=${hasCompletedInitialFetch ? 1 : 0} listPresent=${list ? 1 : 0}`,
@@ -363,7 +380,6 @@ export default function ListPage() {
       ].join('\n'),
     )
   }, [
-    appendDiagnostics,
     pathname,
     listId,
     loading,

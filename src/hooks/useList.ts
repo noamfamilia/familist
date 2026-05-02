@@ -6,6 +6,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import { perfLog } from '@/lib/startupPerfLog'
+import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
@@ -369,7 +370,10 @@ export function useList(listId: string) {
       return
     }
 
-    if (fetchingRef.current) return
+    if (fetchingRef.current) {
+      appendOfflineNavDiagnostic(`[fetchList] skipped listId=${listId} (already fetching)`)
+      return
+    }
     const fetchT0 = performance.now()
     perfLog('fetchList start', { listId })
     let listCount = 0
@@ -378,6 +382,10 @@ export function useList(listId: string) {
     fetchingRef.current = true
     setIsFetching(true)
     setFetchTimedOut(false)
+
+    appendOfflineNavDiagnostic(
+      `[fetchList] start listId=${listId} navigator.onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0} hadCachedListRow=${getCachedList(userId, listId)?.list ? 1 : 0}`,
+    )
 
     // Set timeout for fetch
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
@@ -395,6 +403,9 @@ export function useList(listId: string) {
     setError(null)
 
     try {
+      appendOfflineNavDiagnostic(
+        `[fetchList] invoking get_list_data RPC (not skipped; browser may still fail) listId=${listId}`,
+      )
       // Fetch all list data in a single RPC call
       const { data, error: rpcError } = await supabase.rpc('get_list_data', {
         p_list_id: listId
@@ -493,12 +504,18 @@ export function useList(listId: string) {
       }
       markOnlineRecovered()
       setFetchTimedOut(false)
+      appendOfflineNavDiagnostic(
+        `[fetchList] RPC success listId=${listId} items=${(data.items || []).length} members=${(data.members || []).length}`,
+      )
     } catch (err) {
       if (isLikelyConnectivityError(err)) {
         enterOffline()
       }
       fetchErr = rpcFailureMessage(err)
       setError(rpcFailureMessage(err))
+      appendOfflineNavDiagnostic(
+        `[fetchList] catch listId=${listId} connectivity-ish=${isLikelyConnectivityError(err) ? 1 : 0} msg=${fetchErr}`,
+      )
     } finally {
       perfLog('fetchList end', {
         durationMs: Math.round(performance.now() - fetchT0),
@@ -521,6 +538,9 @@ export function useList(listId: string) {
           scheduleRealtimeFetchRef.current(0)
         })
       }
+      appendOfflineNavDiagnostic(
+        `[fetchList] finally listId=${listId} fetchErr=${fetchErr ?? '(none)'}`,
+      )
     }
   }, [enterOffline, listId, markOnlineRecovered, userId])
 

@@ -1,14 +1,33 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
-import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
+import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
 import { cachedListDataExists } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import type { ListWithRole } from '@/lib/supabase/types'
+
+function subscribeNavigatorOnline(cb: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  window.addEventListener('online', cb)
+  window.addEventListener('offline', cb)
+  return () => {
+    window.removeEventListener('online', cb)
+    window.removeEventListener('offline', cb)
+  }
+}
+
+function getNavigatorOnlineSnapshot() {
+  return typeof navigator !== 'undefined' ? navigator.onLine : true
+}
+
+function getNavigatorOnlineServerSnapshot() {
+  return true
+}
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -37,7 +56,13 @@ interface ListCardProps {
 
 export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any', onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false }: ListCardProps) {
   const { error: showError } = useToast()
-  const { appendDiagnostics } = useDiagnosticsMessageBox()
+  const router = useRouter()
+  const navigatorOnLine = useSyncExternalStore(
+    subscribeNavigatorOnline,
+    getNavigatorOnlineSnapshot,
+    getNavigatorOnlineServerSnapshot,
+  )
+  const browserOffline = !navigatorOnLine
   const { offlineAssetsReady, swControlled } = useConnectivity()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -126,6 +151,78 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     setAddingLabel(false)
     setNewLabelText('')
   }
+
+  const handleOfflineListTitleNav = useCallback(
+    async (e: React.MouseEvent<HTMLAnchorElement>) => {
+      const native = e.nativeEvent
+      const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
+      const hasCachedListData = cachedListDataExists(list.id)
+      const offlineNavAllowed =
+        offline && swControlled && offlineAssetsReady && hasCachedListData
+      const allowed = !offline || offlineNavAllowed
+      let reason: string
+      if (!offline) {
+        reason = 'allowed_online'
+      } else if (offlineNavAllowed) {
+        reason = 'allowed_offline_nav'
+      } else if (!swControlled) {
+        reason = 'blocked_sw_not_controlled'
+      } else if (!offlineAssetsReady) {
+        reason = 'blocked_offline_assets_not_ready'
+      } else {
+        reason = 'blocked_list_data_not_cached'
+      }
+      const targetHref = `/list/${list.id}`
+      const currentPath =
+        typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : ''
+      const ctrl = typeof navigator !== 'undefined' ? navigator.serviceWorker?.controller : undefined
+
+      appendOfflineNavDiagnostic(
+        [
+          '[list-click] BEFORE',
+          `type=${native.type}`,
+          `button=${native.button}`,
+          `meta=${e.metaKey ? 1 : 0} ctrl=${e.ctrlKey ? 1 : 0} shift=${e.shiftKey ? 1 : 0} alt=${e.altKey ? 1 : 0}`,
+          `defaultPrevented(before)=${e.defaultPrevented ? 1 : 0}`,
+          `currentPath=${currentPath}`,
+          `targetHref=${targetHref}`,
+          `offline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
+          `cachedListData=${hasCachedListData ? 1 : 0} offlineNavAllowed=${offlineNavAllowed ? 1 : 0}`,
+          `reason=${reason} allowed=${allowed ? 1 : 0}`,
+          `sw.controller.state=${ctrl?.state ?? 'no-controller'}`,
+          ctrl?.scriptURL ? `sw.controller.scriptURL=${ctrl.scriptURL}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      )
+
+      if (native.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+        appendOfflineNavDiagnostic(
+          '[list-click] non-primary or modified click — not intercepting (no preventDefault, default navigation)',
+        )
+        return
+      }
+
+      e.preventDefault()
+      appendOfflineNavDiagnostic('[list-click] preventDefault called')
+
+      if (!allowed) {
+        appendOfflineNavDiagnostic('[list-click] blocked — no router.push')
+        return
+      }
+
+      try {
+        appendOfflineNavDiagnostic(`[list-click] router.push calling ${targetHref}`)
+        await router.push(targetHref)
+        appendOfflineNavDiagnostic('[list-click] router.push promise resolved')
+      } catch (err) {
+        appendOfflineNavDiagnostic(
+          `[list-click] router.push threw: ${err instanceof Error ? err.stack || err.message : String(err)}`,
+        )
+      }
+    },
+    [list.id, offlineAssetsReady, router, swControlled],
+  )
 
   // Duplicate modal: outside-click for label dropdown
   useEffect(() => {
@@ -439,72 +536,21 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
             </svg>
           </span>
+        ) : browserOffline ? (
+          <a
+            href={`/list/${list.id}`}
+            onClick={(e) => {
+              void handleOfflineListTitleNav(e)
+            }}
+            className="block font-medium truncate text-lg text-primary dark:text-gray-100 hover:text-teal"
+            data-tour="list-card"
+          >
+            {list.name}
+            {ownerBadge}
+          </a>
         ) : (
           <Link
             href={`/list/${list.id}`}
-            onClick={(e) => {
-              const offline =
-                typeof navigator === 'undefined' ? false : !navigator.onLine
-              const hasCachedListData = cachedListDataExists(list.id)
-              // Offline list navigation: all four must be true (page uses ConnectivityProvider swControlled === !!controller).
-              const offlineNavAllowed =
-                offline && swControlled && offlineAssetsReady && hasCachedListData
-              const allowed = !offline || offlineNavAllowed
-
-              let reason: string
-              if (!offline) {
-                reason = 'allowed_online'
-              } else if (offlineNavAllowed) {
-                reason = 'allowed_offline_nav'
-              } else if (!swControlled) {
-                reason = 'blocked_sw_not_controlled'
-              } else if (!offlineAssetsReady) {
-                reason = 'blocked_offline_assets_not_ready'
-              } else {
-                reason = 'blocked_list_data_not_cached'
-              }
-
-              const targetHref = `/list/${list.id}`
-              const currentUrl =
-                typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : ''
-              const ctrl = typeof navigator !== 'undefined' ? navigator.serviceWorker?.controller : undefined
-              const swState = ctrl?.state ?? 'no-controller'
-              const swScript = ctrl?.scriptURL ?? ''
-
-              appendDiagnostics(
-                [
-                  `[list-link-click] listId=${list.id}`,
-                  `targetHref=${targetHref}`,
-                  `currentUrl=${currentUrl}`,
-                  `offline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
-                  `cachedListData=${hasCachedListData ? 1 : 0} offlineNavAllowed=${offlineNavAllowed ? 1 : 0}`,
-                  `reason=${reason} allowed=${allowed ? 1 : 0}`,
-                  `sw.controller.state=${swState}`,
-                  swScript ? `sw.controller.scriptURL=${swScript}` : '',
-                ]
-                  .filter(Boolean)
-                  .join('\n'),
-              )
-
-              if (process.env.NODE_ENV === 'development') {
-                console.log('[list-nav-gate]', {
-                  listId: list.id,
-                  offline,
-                  swControlled,
-                  offlineAssetsReady,
-                  cachedListDataExists: hasCachedListData,
-                  offlineNavAllowed,
-                  reason,
-                  allowed,
-                })
-              }
-
-              if (allowed) return
-              e.preventDefault()
-              appendDiagnostics(
-                `[list-link-click] BLOCKED navigation — same gates as above; Link default prevented (no navigation).`,
-              )
-            }}
             className="block font-medium truncate text-lg text-primary dark:text-gray-100 hover:text-teal"
             data-tour="list-card"
           >

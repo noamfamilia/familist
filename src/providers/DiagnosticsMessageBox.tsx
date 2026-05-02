@@ -7,9 +7,13 @@ import {
 } from '@/lib/startupDiagnostics'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { perfLog, registerPerfLogSink } from '@/lib/startupPerfLog'
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { useToast } from '@/components/ui/Toast'
+import {
+  appendOfflineNavDiagnostic,
+  registerOfflineNavDiagnosticSink,
+} from '@/lib/offlineNavDiagnostics'
 
 const PERF_LOG_CAP = 100
 /** Trim oldest log text so the panel stays responsive after long sessions. */
@@ -41,39 +45,79 @@ type DiagnosticsContextValue = {
 
 const DiagnosticsContext = createContext<DiagnosticsContextValue | undefined>(undefined)
 
-/** Route + browser connectivity events (must render under DiagnosticsContext.Provider). */
+/** Path + lifecycle observers for offline nav debugging (must render under DiagnosticsContext.Provider). */
 function GlobalNavDiagnosticsLogger() {
-  const { appendDiagnostics } = useDiagnosticsMessageBox()
   const pathname = usePathname()
+  const prevPathRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const qs = window.location.search || ''
-    appendDiagnostics(
-      `[route] pathname=${pathname}${qs ? ` full=${pathname}${qs}` : ''} onLine=${navigator.onLine} visibility=${document.visibilityState} historyLen=${window.history.length}`,
-    )
-  }, [pathname, appendDiagnostics])
+    const iso = new Date().toISOString()
+    const prev = prevPathRef.current
+    prevPathRef.current = pathname
+    if (prev === null) {
+      appendOfflineNavDiagnostic(
+        `[pathname] initial path=${pathname} ts=${iso} onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0}`,
+      )
+      return
+    }
+    if (prev !== pathname) {
+      appendOfflineNavDiagnostic(
+        `[pathname-change]\noldPath=${prev}\nnewPath=${pathname}\nts=${iso}\nonLine=${navigator.onLine ? 1 : 0}`,
+      )
+    }
+  }, [pathname])
 
   useEffect(() => {
-    const onOffline = () => appendDiagnostics('[browser] window "offline"')
-    const onOnline = () => appendDiagnostics('[browser] window "online"')
+    const onOffline = () => appendOfflineNavDiagnostic('[browser] window "offline"')
+    const onOnline = () => appendOfflineNavDiagnostic('[browser] window "online"')
     const onPop = () =>
-      appendDiagnostics(
-        `[history] popstate path=${typeof window !== 'undefined' ? window.location.pathname + window.location.search : '?'}`,
+      appendOfflineNavDiagnostic(
+        `[history] popstate path=${window.location.pathname}${window.location.search}`,
       )
     const onVis = () =>
-      appendDiagnostics(`[visibility] ${document.visibilityState} path=${window.location.pathname}`)
+      appendOfflineNavDiagnostic(
+        `[visibilitychange] state=${document.visibilityState} path=${window.location.pathname}${window.location.search}`,
+      )
+    const onPageHide = (e: PageTransitionEvent) => {
+      appendOfflineNavDiagnostic(
+        `[pagehide] persisted=${e.persisted ? 1 : 0} path=${window.location.pathname}${window.location.search}`,
+      )
+    }
+    const onPageShow = (e: PageTransitionEvent) => {
+      appendOfflineNavDiagnostic(
+        `[pageshow] persisted=${e.persisted ? 1 : 0} path=${window.location.pathname}${window.location.search}`,
+      )
+    }
+    const onRejection = (e: PromiseRejectionEvent) => {
+      const r = e.reason
+      const msg =
+        r instanceof Error ? `${r.name}: ${r.message}` : typeof r === 'string' ? r : JSON.stringify(r)
+      appendOfflineNavDiagnostic(`[unhandledrejection] ${msg}`)
+    }
+    const onError = (e: ErrorEvent) => {
+      appendOfflineNavDiagnostic(
+        `[window error] ${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`,
+      )
+    }
     window.addEventListener('offline', onOffline)
     window.addEventListener('online', onOnline)
     window.addEventListener('popstate', onPop)
     document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('pageshow', onPageShow)
+    window.addEventListener('unhandledrejection', onRejection)
+    window.addEventListener('error', onError)
     return () => {
       window.removeEventListener('offline', onOffline)
       window.removeEventListener('online', onOnline)
       window.removeEventListener('popstate', onPop)
       document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('pageshow', onPageShow)
+      window.removeEventListener('unhandledrejection', onRejection)
+      window.removeEventListener('error', onError)
     }
-  }, [appendDiagnostics])
+  }, [])
 
   return null
 }
@@ -237,6 +281,13 @@ export function DiagnosticsMessageBoxProvider({ children }: { children: React.Re
       return next.slice(-DIAG_TEXT_MAX_CHARS)
     })
   }, [])
+
+  useLayoutEffect(() => {
+    registerOfflineNavDiagnosticSink((section) => {
+      appendDiagnostics(section)
+    })
+    return () => registerOfflineNavDiagnosticSink(null)
+  }, [appendDiagnostics])
 
   useEffect(() => {
     appendDiagnostics('[diagnostics] always-on nav/connectivity log started')
