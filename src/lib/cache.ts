@@ -14,7 +14,7 @@ interface CachedLists {
 /** Bump when on-disk shape changes; older entries still pass if structure is valid. */
 export const LIST_DETAIL_CACHE_SCHEMA_VERSION = 1
 
-export interface CachedListData {
+interface CachedListData {
   list: List
   items: ItemWithState[]
   members: MemberWithCreator[]

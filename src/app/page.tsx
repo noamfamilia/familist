@@ -17,9 +17,7 @@ import { resetTutorial } from '@/components/ui/TutorialTour'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
-import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
-import { CachedListOfflinePanel } from '@/components/lists/CachedListOfflinePanel'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -96,8 +94,6 @@ function HomeContent() {
   const [isOfflineActionsDisabled, setIsOfflineActionsDisabled] = useState(
     () => typeof navigator !== 'undefined' ? !navigator.onLine : false
   )
-  /** Offline: open list from cache in-shell (avoids broken Next router.push while offline). */
-  const [offlineCachedListId, setOfflineCachedListId] = useState<string | null>(null)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
 
@@ -278,11 +274,6 @@ function HomeContent() {
 
   const handleLabelsChange = useCallback((labels: string[]) => {
     setAvailableLabels(labels)
-  }, [])
-
-  const openOfflineCachedList = useCallback((listId: string) => {
-    appendOfflineNavDiagnostic(`[home] navAction=in_shell_offline_panel listId=${listId}`)
-    setOfflineCachedListId(listId)
   }, [])
 
   const handleOfflineActionsDisabledChange = useCallback((offline: boolean) => {
@@ -585,7 +576,6 @@ function HomeContent() {
             labelManagerOpen={labelManagerOpen}
             onCloseLabelManager={() => setLabelManagerOpen(false)}
             onOfflineActionsDisabledChange={handleOfflineActionsDisabledChange}
-            onOfflineCachedNav={openOfflineCachedList}
           />
         </>
       ) : (
@@ -604,14 +594,6 @@ function HomeContent() {
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
       />
-
-      {offlineCachedListId && showListsShell && (
-        <CachedListOfflinePanel
-          listId={offlineCachedListId}
-          cacheUserId={user?.id ?? bootstrapUserId ?? undefined}
-          onClose={() => setOfflineCachedListId(null)}
-        />
-      )}
 
       <Modal
         isOpen={showFeedback}

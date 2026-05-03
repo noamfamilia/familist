@@ -39,10 +39,9 @@ interface ListsViewProps {
   labelManagerOpen?: boolean
   onCloseLabelManager?: () => void
   onOfflineActionsDisabledChange?: (offline: boolean) => void
-  onOfflineCachedNav?: (listId: string) => void
 }
 
-export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager, onOfflineActionsDisabledChange, onOfflineCachedNav }: ListsViewProps) {
+export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager, onOfflineActionsDisabledChange }: ListsViewProps) {
   const { lists, loading, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels, isOfflineActionsDisabled } = useLists()
   const router = useRouter()
   const inviteJoinRef = useRef<string | null>(null)
@@ -312,7 +311,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onClearCreateInput={clearCreateInput}
                     onClearCreateInputIfTyped={clearCreateInputIfTyped}
                     isOfflineActionsDisabled={isOfflineActionsDisabled}
-                    onOfflineCachedNav={onOfflineCachedNav}
                   />
                 ))}
               </div>
@@ -349,7 +347,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onClearCreateInput={clearCreateInput}
                     onClearCreateInputIfTyped={clearCreateInputIfTyped}
                     isOfflineActionsDisabled={isOfflineActionsDisabled}
-                    onOfflineCachedNav={onOfflineCachedNav}
                   />
             ))}
           </div>

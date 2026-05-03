@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
-import { cachedListDataExists } from '@/lib/cache'
+import { cachedListDataExists, logListDetailCacheValidation } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import type { ListWithRole } from '@/lib/supabase/types'
 
@@ -52,11 +52,9 @@ interface ListCardProps {
   /** Like clearing add-item draft when archiving an item: clear home create field if it had text. */
   onClearCreateInputIfTyped?: () => void
   isOfflineActionsDisabled?: boolean
-  /** When set, offline list title opens cached detail in the home shell instead of router.push. */
-  onOfflineCachedNav?: (listId: string) => void
 }
 
-export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any', onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false, onOfflineCachedNav }: ListCardProps) {
+export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any', onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false }: ListCardProps) {
   const { error: showError } = useToast()
   const router = useRouter()
   const navigatorOnLine = useSyncExternalStore(
@@ -160,6 +158,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     async (e: React.MouseEvent<HTMLAnchorElement>) => {
       const native = e.nativeEvent
       const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
+      logListDetailCacheValidation(list.id, undefined, '[list-click]')
       const hasCachedListData = cachedListDataExists(list.id)
       const offlineNavAllowed =
         offline && swControlled && offlineAssetsReady && hasCachedListData
@@ -211,7 +210,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       appendOfflineNavDiagnostic('[list-click] preventDefault called')
 
       if (!allowed) {
-        appendOfflineNavDiagnostic(`[list-click] navAction=blocked reason=${reason} — no router.push`)
+        appendOfflineNavDiagnostic('[list-click] blocked — no router.push')
         const now = Date.now()
         if (now - lastUnavailableToastAtRef.current > 1200) {
           if (reason === 'blocked_sw_not_controlled') {
@@ -226,16 +225,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         return
       }
 
-      if (offlineNavAllowed && onOfflineCachedNav) {
-        appendOfflineNavDiagnostic(
-          `[list-click] navAction=in_shell_offline_view listId=${list.id} no_router_push=1`,
-        )
-        onOfflineCachedNav(list.id)
-        return
-      }
-
       try {
-        appendOfflineNavDiagnostic(`[list-click] navAction=router_push targetHref=${targetHref}`)
         appendOfflineNavDiagnostic(`[list-click] router.push calling ${targetHref}`)
         await router.push(targetHref)
         appendOfflineNavDiagnostic('[list-click] router.push promise resolved')
@@ -245,7 +235,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         )
       }
     },
-    [list.id, offlineAssetsReady, onOfflineCachedNav, router, showError, swControlled],
+    [list.id, offlineAssetsReady, router, showError, swControlled],
   )
 
   // Duplicate modal: outside-click for label dropdown
