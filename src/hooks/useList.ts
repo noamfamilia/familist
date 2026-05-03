@@ -440,6 +440,7 @@ export function useList(listId: string) {
 
       const rpcPromise = (async () => {
         const rpcT0 = performance.now()
+        appendOfflineNavDiagnostic(`[db-read] target=supabase rpc=get_list_data action=start listId=${listId}`)
         let data: Awaited<ReturnType<typeof supabase.rpc<'get_list_data'>>>['data']
         let rpcError: Awaited<ReturnType<typeof supabase.rpc<'get_list_data'>>>['error']
         try {
@@ -450,6 +451,9 @@ export function useList(listId: string) {
           rpcError = r.error
         } finally {
           rpcDurationMs = Math.round(performance.now() - rpcT0)
+          appendOfflineNavDiagnostic(
+            `[db-read] target=supabase rpc=get_list_data action=end listId=${listId} durationMs=${rpcDurationMs}`,
+          )
         }
         perfLog('fetchList get_list_data', {
           listId,
@@ -470,6 +474,7 @@ export function useList(listId: string) {
           return { listUserData: null }
         }
         perfLog('fetchList list_users prefs start', { listId })
+        appendOfflineNavDiagnostic(`[db-read] target=supabase table=list_users action=start listId=${listId}`)
         prefsFetchedRef.current = true
         const prefsT0 = performance.now()
         const { data: listUserData } = await supabase
@@ -486,6 +491,9 @@ export function useList(listId: string) {
           durationMs: prefsDurationMs,
           hasRow: !!listUserData,
         })
+        appendOfflineNavDiagnostic(
+          `[db-read] target=supabase table=list_users action=end listId=${listId} durationMs=${prefsDurationMs ?? 'n/a'} hasRow=${listUserData ? 1 : 0}`,
+        )
         return { listUserData }
       })()
 
@@ -581,14 +589,14 @@ export function useList(listId: string) {
         setSumScope(serverSumScope)
         setCachedPrefs(listId, { sumScope: serverSumScope }, userId)
       }
-      markOnlineRecovered()
+      markOnlineRecovered('fetchList-success')
       setFetchTimedOut(false)
       appendOfflineNavDiagnostic(
         `[fetchList] RPC success listId=${listId} items=${(data.items || []).length} members=${(data.members || []).length}`,
       )
     } catch (err) {
       if (isLikelyConnectivityError(err)) {
-        enterOffline()
+        enterOffline('fetchList-connectivity-error')
       }
       fetchErr = rpcFailureMessage(err)
       setError(rpcFailureMessage(err))
@@ -631,6 +639,7 @@ export function useList(listId: string) {
 
   const drainItemMutationOutbox = useCallback(async () => {
     if (!userId || !listId || outboxDrainingRef.current || fetchingRef.current) return
+    appendOfflineNavDiagnostic(`[outbox-drain] start listId=${listId} status=${connectivityStatusRef.current}`)
     const pendingRaw = await getPendingItemMutationsForList(listId)
     const pending = sortPendingForDrain(pendingRaw)
     if (pending.length === 0) return
@@ -642,6 +651,9 @@ export function useList(listId: string) {
         mutationVersionRef.current += 1
         try {
           if (rec.kind === 'create') {
+            appendOfflineNavDiagnostic(
+              `[db-write] target=supabase table=items action=insert-start listId=${listId} itemKey=${rec.itemKey}`,
+            )
             const p = rec.payload
             const { data, error } = await trackSaveOperation(
               supabase
@@ -660,6 +672,9 @@ export function useList(listId: string) {
             )
             if (error) throw error
             if (!data) throw new Error('missing row')
+            appendOfflineNavDiagnostic(
+              `[db-write] target=supabase table=items action=insert-end listId=${listId} itemKey=${rec.itemKey} serverItemId=${data.id}`,
+            )
             const memRows = Object.entries(p.memberStates).map(([memberId, st]) => ({
               item_id: data.id,
               member_id: memberId,
@@ -668,10 +683,16 @@ export function useList(listId: string) {
               assigned: st.assigned,
             }))
             if (memRows.length > 0) {
+              appendOfflineNavDiagnostic(
+                `[db-write] target=supabase table=item_member_state action=insert-start listId=${listId} itemKey=${rec.itemKey} rowCount=${memRows.length}`,
+              )
               const { error: mErr } = await trackSaveOperation(
                 supabase.from('item_member_state').insert(memRows),
               )
               if (mErr) throw mErr
+              appendOfflineNavDiagnostic(
+                `[db-write] target=supabase table=item_member_state action=insert-end listId=${listId} itemKey=${rec.itemKey} rowCount=${memRows.length}`,
+              )
             }
             const newMemberStates: Record<string, ItemMemberState> = {}
             for (const [mid, st] of Object.entries(p.memberStates)) {
@@ -685,6 +706,9 @@ export function useList(listId: string) {
             await removePendingItemMutation(listId, rec.itemKey)
             anySuccess = true
           } else {
+            appendOfflineNavDiagnostic(
+              `[db-write] target=supabase table=items action=update-archived-start listId=${listId} itemKey=${rec.itemKey} archived=${rec.archived ? 1 : 0}`,
+            )
             const { error } = await trackSaveOperation(
               supabase
                 .from('items')
@@ -692,18 +716,27 @@ export function useList(listId: string) {
                 .eq('id', rec.itemKey),
             )
             if (error) throw error
+            appendOfflineNavDiagnostic(
+              `[db-write] target=supabase table=items action=update-archived-end listId=${listId} itemKey=${rec.itemKey}`,
+            )
             await removePendingItemMutation(listId, rec.itemKey)
             anySuccess = true
           }
         } catch (e) {
+          appendOfflineNavDiagnostic(
+            `[outbox-drain] error listId=${listId} itemKey=${rec.itemKey} connectivity-ish=${isLikelyConnectivityError(e) ? 1 : 0} msg=${e instanceof Error ? e.message : String(e)}`,
+          )
           if (isLikelyConnectivityError(e)) {
-            enterOffline()
+            enterOffline('outbox-drain-connectivity-error')
           }
           break
         }
       }
     } finally {
       outboxDrainingRef.current = false
+      appendOfflineNavDiagnostic(
+        `[outbox-drain] end listId=${listId} anySuccess=${anySuccess ? 1 : 0} status=${connectivityStatusRef.current}`,
+      )
     }
     if (anySuccess && connectivityStatusRef.current === 'online') {
       mutationVersionRef.current += 1

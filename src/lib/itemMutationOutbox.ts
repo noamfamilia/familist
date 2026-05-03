@@ -4,6 +4,7 @@
  */
 
 import type { ItemMemberState } from '@/lib/supabase/types'
+import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 
 const DB_NAME = 'familist-item-mutation-outbox'
 const DB_VERSION = 1
@@ -121,6 +122,10 @@ function mergeRecords(
 }
 
 export async function enqueueItemMutation(record: QueuedItemMutationRecord): Promise<void> {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : null
+  appendOfflineNavDiagnostic(
+    `[db-write] target=indexeddb store=${STORE} action=enqueue-start kind=${record.kind} listId=${record.listId} itemKey=${record.itemKey}`,
+  )
   const db = await openOutboxDb()
   if (!db) return
   const key = storeKey(record.listId, record.itemKey)
@@ -140,7 +145,12 @@ export async function enqueueItemMutation(record: QueuedItemMutationRecord): Pro
       }
       os.put(row)
     }
-    tx.oncomplete = () => resolve()
+    tx.oncomplete = () => {
+      appendOfflineNavDiagnostic(
+        `[db-write] target=indexeddb store=${STORE} action=enqueue-end kind=${record.kind} listId=${record.listId} itemKey=${record.itemKey} durationMs=${t0 == null ? 'n/a' : String(Math.round(performance.now() - t0))}`,
+      )
+      resolve()
+    }
     tx.onerror = () => reject(tx.error)
   })
 }
@@ -163,6 +173,10 @@ export async function mergeQueuedCreateArchived(
 }
 
 export async function getPendingItemMutationsForList(listId: string): Promise<QueuedItemMutationRecord[]> {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : null
+  appendOfflineNavDiagnostic(
+    `[db-read] target=indexeddb store=${STORE} action=get-pending-start listId=${listId}`,
+  )
   const db = await openOutboxDb()
   if (!db) return []
   return new Promise((resolve, reject) => {
@@ -173,6 +187,9 @@ export async function getPendingItemMutationsForList(listId: string): Promise<Qu
     req.onsuccess = () => {
       const rows = (req.result as StoredRow[]) || []
       const records = rows.map((r) => r.record)
+      appendOfflineNavDiagnostic(
+        `[db-read] target=indexeddb store=${STORE} action=get-pending-end listId=${listId} count=${records.length} durationMs=${t0 == null ? 'n/a' : String(Math.round(performance.now() - t0))}`,
+      )
       resolve(records)
     }
     req.onerror = () => reject(req.error)
@@ -180,13 +197,22 @@ export async function getPendingItemMutationsForList(listId: string): Promise<Qu
 }
 
 export async function removePendingItemMutation(listId: string, itemKey: string): Promise<void> {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : null
+  appendOfflineNavDiagnostic(
+    `[db-write] target=indexeddb store=${STORE} action=remove-start listId=${listId} itemKey=${itemKey}`,
+  )
   const db = await openOutboxDb()
   if (!db) return
   const key = storeKey(listId, itemKey)
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite')
     tx.objectStore(STORE).delete(key)
-    tx.oncomplete = () => resolve()
+    tx.oncomplete = () => {
+      appendOfflineNavDiagnostic(
+        `[db-write] target=indexeddb store=${STORE} action=remove-end listId=${listId} itemKey=${itemKey} durationMs=${t0 == null ? 'n/a' : String(Math.round(performance.now() - t0))}`,
+      )
+      resolve()
+    }
     tx.onerror = () => reject(tx.error)
   })
 }

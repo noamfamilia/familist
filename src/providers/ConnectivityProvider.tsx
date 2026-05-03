@@ -115,8 +115,8 @@ type ConnectivityContextType = {
   allowItemMutationQueue: boolean
   recoveryFetchGeneration: number
   swControlled: boolean
-  enterOffline: () => void
-  markOnlineRecovered: () => void
+  enterOffline: (cause?: string) => void
+  markOnlineRecovered: (cause?: string) => void
   startTempSyncWatch: () => void
   canMutateNow: () => boolean
   blockedMutationMessage: () => string
@@ -246,7 +246,11 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     probeTimeoutRef.current = null
   }, [])
 
-  const markOnlineRecovered = useCallback(() => {
+  const markOnlineRecovered = useCallback((cause = 'unknown') => {
+    const prev = statusRef.current
+    appendOfflineNavDiagnostic(
+      `[connectivity-transition] trigger=${cause} from=${prev} to=online`,
+    )
     clearSyncTimeout()
     dismissSyncingToast()
     clearProbeSchedule()
@@ -260,7 +264,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     } catch {
       // Ignore storage errors
     }
-  }, [clearProbeSchedule, clearSyncTimeout, dismissSyncingToast])
+  }, [appendOfflineNavDiagnostic, clearProbeSchedule, clearSyncTimeout, dismissSyncingToast])
 
   const scheduleNextProbe = useCallback(() => {
     clearProbeSchedule()
@@ -274,6 +278,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       skipNextProbeStepIncrementRef.current = true
     }
     const delay = use1s ? 1000 : connectivityProbeDelayForStep(probeStepRef.current)
+    appendOfflineNavDiagnostic(
+      `[probe] schedule status=${statusRef.current} delayMs=${delay} step=${probeStepRef.current} source=${use1s ? 'post-online-1s' : 'backoff'}`,
+    )
     probeTimeoutRef.current = setTimeout(() => {
       void (async () => {
         if (statusRef.current === 'online') return
@@ -281,12 +288,20 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           return
         }
         if (probeInFlightRef.current) {
+          appendOfflineNavDiagnostic('[probe] skipped reason=in-flight')
           scheduleNextProbeRef.current()
           return
         }
         probeInFlightRef.current = true
+        const probeStartedAt = performance.now()
+        appendOfflineNavDiagnostic(
+          `[probe] start path=/manifest.json status=${statusRef.current} step=${probeStepRef.current}`,
+        )
         const ok = await probeInternetReachable()
         probeInFlightRef.current = false
+        appendOfflineNavDiagnostic(
+          `[probe] result ok=${ok ? 1 : 0} durationMs=${Math.round(performance.now() - probeStartedAt)} status=${statusRef.current} step=${probeStepRef.current}`,
+        )
         const s = statusRef.current
         if (s === 'online') return
 
@@ -297,6 +312,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
             } catch {
               // ignore
             }
+            appendOfflineNavDiagnostic(
+              '[connectivity-transition] trigger=probe-failure from=recovering to=offline',
+            )
             setStatus('offline')
             skipNextProbeStepIncrementRef.current = false
           }
@@ -312,6 +330,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         probeStepRef.current = 0
         skipNextProbeStepIncrementRef.current = false
         if (s === 'offline') {
+          appendOfflineNavDiagnostic(
+            '[connectivity-transition] trigger=probe-success from=offline to=recovering',
+          )
           setStatus('recovering')
           bumpRecoveryFetchGeneration()
           scheduleNextProbeRef.current()
@@ -329,7 +350,11 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     scheduleNextProbeRef.current = scheduleNextProbe
   }, [scheduleNextProbe])
 
-  const enterOffline = useCallback(() => {
+  const enterOffline = useCallback((cause = 'unknown') => {
+    const prev = statusRef.current
+    appendOfflineNavDiagnostic(
+      `[connectivity-transition] trigger=${cause} from=${prev} to=offline`,
+    )
     clearSyncTimeout()
     dismissSyncingToast()
     clearProbeSchedule()
@@ -346,12 +371,12 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     queueMicrotask(() => {
       scheduleNextProbeRef.current()
     })
-  }, [clearProbeSchedule, clearSyncTimeout, dismissSyncingToast])
+  }, [appendOfflineNavDiagnostic, clearProbeSchedule, clearSyncTimeout, dismissSyncingToast])
 
   useEffect(() => {
     registerProfileFetchOfflineHandler(null)
     registerProfileFetchRecoveryHandler(() => {
-      markOnlineRecovered()
+      markOnlineRecovered('profile-fetch-recovery-handler')
     })
     return () => {
       registerProfileFetchOfflineHandler(null)
@@ -473,10 +498,13 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       // Ignore storage errors
     }
     const onOffline = () => {
-      enterOffline()
+      enterOffline('window-offline-event')
     }
     const onOnline = () => {
       if (statusRef.current === 'offline') {
+        appendOfflineNavDiagnostic(
+          '[connectivity-event] window-online while offline -> schedule fast probe',
+        )
         clearProbeSchedule()
         probeStepRef.current = 0
         useNextProbeDelay1sRef.current = true
@@ -487,6 +515,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         return
       }
       if (statusRef.current === 'recovering') {
+        appendOfflineNavDiagnostic(
+          '[connectivity-event] window-online while recovering -> bump recovery fetch',
+        )
         bumpRecoveryFetchGeneration()
         queueMicrotask(() => {
           scheduleNextProbeRef.current()
@@ -496,7 +527,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     window.addEventListener('offline', onOffline)
     window.addEventListener('online', onOnline)
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      enterOffline()
+      enterOffline('initial-navigator-offline')
     }
     return () => {
       window.removeEventListener('offline', onOffline)
@@ -512,6 +543,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       if (document.visibilityState !== 'visible') return
       const s = statusRef.current
       if (s === 'offline') {
+        appendOfflineNavDiagnostic(
+          '[connectivity-event] visibility-visible while offline -> reschedule probe',
+        )
         clearProbeSchedule()
         probeStepRef.current = 0
         if (typeof navigator !== 'undefined' && navigator.onLine) {
@@ -522,6 +556,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           scheduleNextProbeRef.current()
         })
       } else if (s === 'recovering') {
+        appendOfflineNavDiagnostic(
+          '[connectivity-event] visibility-visible while recovering -> bump recovery fetch',
+        )
         bumpRecoveryFetchGeneration()
         queueMicrotask(() => {
           scheduleNextProbeRef.current()
