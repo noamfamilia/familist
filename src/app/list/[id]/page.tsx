@@ -298,6 +298,14 @@ export default function ListPage() {
     isOfflineActionsDisabled,
   } = useList(listId)
 
+  const wasOfflineRef = useRef(isOfflineActionsDisabled)
+  useEffect(() => {
+    if (wasOfflineRef.current && !isOfflineActionsDisabled) {
+      void refresh()
+    }
+    wasOfflineRef.current = isOfflineActionsDisabled
+  }, [isOfflineActionsDisabled, refresh])
+
   const listGatePrevRef = useRef<string>('')
   useEffect(() => {
     const profileLoading = profileFetchPhase === 'loading'
@@ -1000,6 +1008,7 @@ export default function ListPage() {
                       onClearAddItemDraft={handleClearAddItemDraftIfTyped}
                       itemNameFontClassName={itemNameFontClassName}
                       itemNameFontStep={itemNameFontStep}
+                      isOfflineActionsDisabled={isOfflineActionsDisabled}
                     />
                   ))}
                 </SortableContext>
@@ -1042,6 +1051,7 @@ export default function ListPage() {
                     onClearAddItemDraft={handleClearAddItemDraftIfTyped}
                     itemNameFontClassName={itemNameFontClassName}
                     itemNameFontStep={itemNameFontStep}
+                    isOfflineActionsDisabled={isOfflineActionsDisabled}
                   />
                 ))}
               </div>

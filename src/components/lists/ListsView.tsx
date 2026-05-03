@@ -71,6 +71,14 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     onOfflineActionsDisabledChange?.(isOfflineActionsDisabled)
   }, [isOfflineActionsDisabled, onOfflineActionsDisabledChange])
 
+  const wasOfflineRef = useRef(isOfflineActionsDisabled)
+  useEffect(() => {
+    if (wasOfflineRef.current && !isOfflineActionsDisabled) {
+      refresh()
+    }
+    wasOfflineRef.current = isOfflineActionsDisabled
+  }, [isOfflineActionsDisabled, refresh])
+
   useEffect(() => {
     onLabelsChange?.(labels)
   }, [labels, onLabelsChange])

@@ -324,6 +324,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   const handleStartEditComment = () => {
+    if (isOfflineActionsDisabled) return
     setDraftComment(comment)
     setEditingComment(true)
   }
@@ -351,6 +352,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     }
   }
 
+  useEffect(() => {
+    if (!isOfflineActionsDisabled || !editingComment) return
+    setDraftComment(comment)
+    setEditingComment(false)
+  }, [isOfflineActionsDisabled, editingComment, comment])
 
   // Focus input when renaming
   useEffect(() => {
@@ -664,17 +670,19 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             {comment ? (
               <p
-                className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words cursor-pointer hover:text-teal"
+                className={`text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
                 onClick={() => handleStartEditComment()}
               >
                 {comment}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="inline-block ml-1 opacity-40 align-text-bottom">
-                  <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-                </svg>
+                {!isOfflineActionsDisabled ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="inline-block ml-1 opacity-40 align-text-bottom" aria-hidden>
+                    <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                  </svg>
+                ) : null}
               </p>
             ) : (
               <p
-                className="text-sm text-gray-400 dark:text-gray-500 cursor-pointer hover:text-teal"
+                className={`text-sm text-gray-400 dark:text-gray-500 ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
                 onClick={() => handleStartEditComment()}
               >
                 Add a comment...

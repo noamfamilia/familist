@@ -43,6 +43,8 @@ interface ItemCardProps {
   itemNameFontClassName?: string
   /** Font step for row/cell/progress sizing (same delta as item name canvas px). */
   itemNameFontStep?: number
+  /** When true, quantity and comment editing UI is hidden/disabled (e.g. offline). */
+  isOfflineActionsDisabled?: boolean
 }
 
 /** Stroke check; short leg shortened (option 1) to reduce bleed when stacked */
@@ -175,7 +177,7 @@ function QtyTargetDoneChecks({ doneRatio, checkSizePx = QTY_CHECK_SIZE }: { done
   )
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -254,6 +256,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
+
+  useEffect(() => {
+    if (!isOfflineActionsDisabled || !editingComment) return
+    setDraftComment(comment)
+    setEditingComment(false)
+  }, [isOfflineActionsDisabled, editingComment, comment])
 
   // Outside-click: cancel comment
   useEffect(() => {
@@ -373,6 +381,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleOpenQuantityEditor = (memberId: string, containerEl: HTMLElement) => {
+    if (isOfflineActionsDisabled) return
     const m = members.find(x => x.id === memberId)
     if (!m) return
     const canEditMember = m.created_by === user?.id || m.is_public
@@ -445,6 +454,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleStartEditComment = () => {
+    if (isOfflineActionsDisabled) return
     setDraftComment(comment)
     setEditingComment(true)
   }
@@ -630,10 +640,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-neutral-600 dark:bg-neutral-900 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
+                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-neutral-600 dark:bg-neutral-900 ${item.archived ? 'cursor-default opacity-50' : !canEdit || isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                     style={{ height: memberCellPx }}
                     onClick={(e) => {
-                      if (!canEdit || item.archived) return
+                      if (!canEdit || item.archived || isOfflineActionsDisabled) return
                       e.stopPropagation()
                       const container = e.currentTarget as HTMLElement
                       handleOpenQuantityEditor(member.id, container)
@@ -732,19 +742,22 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       >
                         {quantity}
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const container = (e.currentTarget as HTMLElement).closest('[data-state-container]') as HTMLElement
-                          if (canEdit && !item.archived && container) handleOpenQuantityEditor(member.id, container)
-                        }}
-                        className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-teal"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                          <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-                        </svg>
-                      </button>
+                      {!isOfflineActionsDisabled ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const container = (e.currentTarget as HTMLElement).closest('[data-state-container]') as HTMLElement
+                            if (canEdit && !item.archived && container) handleOpenQuantityEditor(member.id, container)
+                          }}
+                          className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-teal"
+                          aria-label="Edit quantity"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                          </svg>
+                        </button>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -859,17 +872,19 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               {comment ? (
                 <p
-                  className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words cursor-pointer hover:text-teal"
+                  className={`text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
                   onClick={() => handleStartEditComment()}
                 >
                   {comment}
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="inline-block ml-1 opacity-40 align-text-bottom">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-                  </svg>
+                  {!isOfflineActionsDisabled ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="inline-block ml-1 opacity-40 align-text-bottom" aria-hidden>
+                      <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                    </svg>
+                  ) : null}
                 </p>
               ) : (
                 <p
-                  className="text-sm text-gray-400 dark:text-gray-500 cursor-pointer hover:text-teal"
+                  className={`text-sm text-gray-400 dark:text-gray-500 ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
                   onClick={() => handleStartEditComment()}
                 >
                   Add a comment...
