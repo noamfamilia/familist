@@ -1866,10 +1866,32 @@ export function useList(listId: string) {
   }
 
   const updateMember = async (memberId: string, updates: Partial<Member>) => {
-    if (isTempEntityId(memberId)) {
-      return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
-    }
     const profileOnly = memberUpdateIsProfileOnly(updates)
+    if (isTempEntityId(memberId)) {
+      if (!profileOnly) {
+        return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
+      }
+      if (!tryBeginItemQueueableMutation()) {
+        return { error: { message: blockedMutationMessage() } }
+      }
+      try {
+        mutationVersionRef.current += 1
+        skipRealtimeUntilRef.current = Date.now() + 2000
+        setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, ...updates } : m)))
+        await enqueueItemMutation({
+          kind: 'patchMember',
+          listId,
+          itemKey: memberProfileOutboxKey(memberId),
+          updatedAt: Date.now(),
+          memberId,
+          ...(updates.name !== undefined ? { name: updates.name } : {}),
+          ...(updates.is_public !== undefined ? { is_public: updates.is_public } : {}),
+        })
+        return { error: null }
+      } finally {
+        mutationGate.end()
+      }
+    }
     if (profileOnly) {
       if (!tryBeginItemQueueableMutation()) {
         return { error: { message: blockedMutationMessage() } }
@@ -2031,7 +2053,7 @@ export function useList(listId: string) {
     memberId: string,
     updates: { quantity?: number; done?: boolean; assigned?: boolean },
   ) => {
-    if (isTempEntityId(itemId) || isTempEntityId(memberId)) {
+    if (isTempEntityId(itemId)) {
       return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
     if (!tryBeginItemQueueableMutation()) {
@@ -2067,7 +2089,7 @@ export function useList(listId: string) {
         })
       }
 
-      if (!canMutateNow()) {
+      if (!canMutateNow() || isTempEntityId(memberId)) {
         await persistQueuedIms()
         return { error: null }
       }
@@ -2143,7 +2165,7 @@ export function useList(listId: string) {
   }
 
   const changeQuantity = async (itemId: string, memberId: string, delta: number) => {
-    if (isTempEntityId(itemId) || isTempEntityId(memberId)) {
+    if (isTempEntityId(itemId)) {
       return { data: null, error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
     if (!tryBeginItemQueueableMutation()) {
@@ -2179,7 +2201,7 @@ export function useList(listId: string) {
         })
       }
 
-      if (!canMutateNow()) {
+      if (!canMutateNow() || isTempEntityId(memberId)) {
         await persistQueuedIms()
         return { data: null, error: null }
       }
