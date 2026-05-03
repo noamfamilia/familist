@@ -1280,6 +1280,62 @@ export function useList(listId: string) {
     }
   }
 
+  const MAX_BULK_ADD_LINES = 500
+
+  const addItemsBulk = async (lines: string[], category: number) => {
+    const trimmed = lines.map(l => l.trim()).filter(l => l.length > 0)
+    if (trimmed.length === 0) {
+      return { error: null as { message?: string; code?: string } | null, inserted: 0 }
+    }
+    if (trimmed.length > MAX_BULK_ADD_LINES) {
+      return {
+        error: { message: `Too many lines (max ${MAX_BULK_ADD_LINES})` },
+        inserted: 0,
+      }
+    }
+    if (!tryBeginMutation()) {
+      return { error: { message: blockedMutationMessage() }, inserted: 0 }
+    }
+    try {
+      mutationVersionRef.current += 1
+      skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
+      const cat = normalizeItemCategory(category)
+
+      const { data, error } = await trackSaveOperation(
+        supabase.rpc('bulk_add_list_items', {
+          p_list_id: listId,
+          p_category: cat,
+          p_lines: trimmed,
+        }),
+      )
+
+      if (error) {
+        if (error.code === '23505') {
+          return {
+            error: { ...error, message: 'An item with this name already exists' },
+            inserted: 0,
+          }
+        }
+        return { error, inserted: 0 }
+      }
+
+      const inserted = typeof data === 'number' ? data : 0
+      markOnlineRecovered()
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'item_updated',
+          payload: { listId, bulkAdd: true },
+        })
+      }
+      mutationVersionRef.current += 1
+      await fetchList()
+      return { error: null, inserted }
+    } finally {
+      mutationGate.end()
+    }
+  }
+
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
     const previousItem = items.find(item => item.id === itemId)
     const persistedUpdates = { ...updates }
@@ -2661,6 +2717,7 @@ export function useList(listId: string) {
     categoryOrder,
     refresh: refreshList,
     addItem,
+    addItemsBulk,
     updateItem,
     deleteItem,
     addMember,

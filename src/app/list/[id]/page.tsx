@@ -40,6 +40,8 @@ import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import { itemNameFontClassForStep } from '@/lib/itemNameFontStep'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
+import { LayerMultiIcon } from '@/components/icons/LayerMultiIcon'
+import { LayerSingleIcon } from '@/components/icons/LayerSingleIcon'
 import type { ItemWithState, ItemCategory, ListUserSumScope } from '@/lib/supabase/types'
 import { normalizeItemCategory, ITEM_CATEGORIES } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
@@ -278,6 +280,7 @@ export default function ListPage() {
     categoryOrder,
     refresh,
     addItem,
+    addItemsBulk,
     addMember,
     updateMember,
     deleteMember,
@@ -550,6 +553,7 @@ export default function ListPage() {
     })
   )
   const [newItemText, setNewItemText] = useState('')
+  const [addItemBulkMode, setAddItemBulkMode] = useState(false)
   const newItemTextRef = useRef('')
   newItemTextRef.current = newItemText
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
@@ -562,6 +566,7 @@ export default function ListPage() {
   const [bulkLoading, setBulkLoading] = useState(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
   const addItemInputRef = useRef<HTMLInputElement>(null)
+  const addItemTextareaRef = useRef<HTMLTextAreaElement>(null)
   /** True when the add-item form was submitted via Enter in the text field (refocus after success). */
   const addItemSubmitFromKeyboardRef = useRef(false)
   const addItemInFlightRef = useRef(false)
@@ -597,6 +602,7 @@ export default function ListPage() {
   useEffect(() => {
     setNewItemText('')
     setNewItemCategory(1)
+    setAddItemBulkMode(false)
   }, [listId])
 
   const clearNewItem = () => {
@@ -650,8 +656,7 @@ export default function ListPage() {
     )
   }
 
-  const handleAddItem = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleAddItem = async () => {
     if (!newItemText.trim()) {
       addItemSubmitFromKeyboardRef.current = false
       return
@@ -691,7 +696,46 @@ export default function ListPage() {
     }
   }
 
-  const searchText = newItemText.trim().toLowerCase()
+  const handleAddMany = async () => {
+    const lines = newItemText
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 0)
+    if (lines.length === 0) return
+    if (addItemInFlightRef.current) return
+
+    addItemInFlightRef.current = true
+    setNewItemText('')
+    let err: { message?: string; code?: string } | null | undefined
+    try {
+      const result = await addItemsBulk(lines, newItemCategory)
+      err = result.error
+      if (err) {
+        if (shouldShowConnectivityRelatedMutationToast(err.message)) {
+          showError(err.message || 'Failed to add items')
+        }
+      }
+    } finally {
+      addItemInFlightRef.current = false
+    }
+    const refocus = addItemSubmitFromKeyboardRef.current && !err
+    addItemSubmitFromKeyboardRef.current = false
+    if (refocus) {
+      requestAnimationFrame(() => addItemTextareaRef.current?.focus())
+    }
+  }
+
+  const handleAddItemFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (addItemBulkMode) {
+      void handleAddMany()
+    } else {
+      void handleAddItem()
+    }
+  }
+
+  const filterSourceText = addItemBulkMode ? (newItemText.split('\n')[0] ?? '') : newItemText
+  const searchText = filterSourceText.trim().toLowerCase()
 
   const activeItemsBase = items
     .filter(item => !item.archived)
@@ -847,7 +891,7 @@ export default function ListPage() {
           <div
             onMouseDown={(e) => e.preventDefault()}
             className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg z-20 bg-white dark:bg-neutral-900 overflow-hidden transition-all duration-150 ease-out origin-bottom ${
-              newItemText
+              newItemText || addItemBulkMode
                 ? 'opacity-100 scale-y-100 translate-y-0'
                 : 'opacity-0 scale-y-95 translate-y-1 pointer-events-none'
             }`}
@@ -878,39 +922,97 @@ export default function ListPage() {
             </div>
             </div>
           </div>
-        <form ref={addItemFormRef} onSubmit={handleAddItem} className="flex w-full min-w-0 gap-2 sm:gap-3" data-tour="add-item">
+        <form ref={addItemFormRef} onSubmit={handleAddItemFormSubmit} className="flex w-full min-w-0 gap-2 sm:gap-3" data-tour="add-item">
           <div className="flex-1 relative">
-            <Input
-              ref={addItemInputRef}
-              value={newItemText}
-              onChange={(e) => setNewItemText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  addItemSubmitFromKeyboardRef.current = true
-                }
-                if (e.key === 'Escape') {
-                  clearNewItem()
-                }
-              }}
-              placeholder="Add an item..."
-              aria-label="New item name"
-              className={ITEM_CATEGORY_STYLES[newItemCategory].itemName}
-            />
-            {newItemText && (
-              <button
-                type="button"
-                onClick={clearNewItem}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                aria-label="Clear input"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </button>
+            {addItemBulkMode ? (
+              <textarea
+                ref={addItemTextareaRef}
+                value={newItemText}
+                onChange={e => setNewItemText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') {
+                    clearNewItem()
+                  }
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    if (!newItemText.trim()) return
+                    addItemSubmitFromKeyboardRef.current = true
+                    void handleAddMany()
+                  }
+                }}
+                placeholder="Add items (one per line)"
+                aria-label="New item names, one per line"
+                rows={6}
+                className={`w-full min-h-[7.5rem] resize-y px-4 py-3 pr-14 border border-gray-200 dark:border-neutral-600 rounded-lg text-base text-primary dark:text-gray-100 dark:bg-neutral-900 transition-all duration-200 focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/20 ${ITEM_CATEGORY_STYLES[newItemCategory].itemName}`}
+              />
+            ) : (
+              <Input
+                ref={addItemInputRef}
+                value={newItemText}
+                onChange={e => setNewItemText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    addItemSubmitFromKeyboardRef.current = true
+                  }
+                  if (e.key === 'Escape') {
+                    clearNewItem()
+                  }
+                }}
+                placeholder="Add an item..."
+                aria-label="New item name"
+                className={`pr-14 ${ITEM_CATEGORY_STYLES[newItemCategory].itemName}`}
+              />
             )}
+            <div
+              className={`absolute flex items-center gap-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 ${
+                addItemBulkMode ? 'right-2 top-3' : 'right-2 top-1/2 -translate-y-1/2'
+              }`}
+            >
+              {addItemBulkMode ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddItemBulkMode(false)
+                    if (newItemText.trim()) setNewItemText('')
+                  }}
+                  className="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-neutral-800"
+                  aria-label="Single-line add mode"
+                  title="Single-line add mode"
+                >
+                  <LayerSingleIcon className="h-5 w-5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isOfflineActionsDisabled}
+                  onClick={() => setAddItemBulkMode(true)}
+                  className={`rounded p-0.5 hover:bg-gray-100 dark:hover:bg-neutral-800 ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
+                  aria-label="Multi-line add mode"
+                  title={isOfflineActionsDisabled ? 'Unavailable offline' : 'Add many items (one per line)'}
+                >
+                  <LayerMultiIcon className="h-5 w-5" />
+                </button>
+              )}
+              {newItemText ? (
+                <button
+                  type="button"
+                  onClick={clearNewItem}
+                  className="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-neutral-800"
+                  aria-label="Clear input"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
           </div>
-          <Button type="submit" className={`bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''}`}>
-            Add
+          <Button
+            type="submit"
+            disabled={addItemBulkMode ? isOfflineActionsDisabled : false}
+            className={`bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''} ${addItemBulkMode && isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
+          >
+            {addItemBulkMode ? 'Add many' : 'Add'}
           </Button>
         </form>
       </div>

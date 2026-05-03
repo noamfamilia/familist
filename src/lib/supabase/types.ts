@@ -301,6 +301,10 @@ export interface Database {
         Args: { p_item_id: string; p_member_id: string; p_delta: number }
         Returns: number
       }
+      bulk_add_list_items: {
+        Args: { p_list_id: string; p_category: number; p_lines: string[] }
+        Returns: number
+      }
       update_member: {
         Args: { p_member_id: string; p_name: string | null; p_is_public: boolean | null }
         Returns: void
