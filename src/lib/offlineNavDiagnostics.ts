@@ -6,6 +6,8 @@
  * Registered by DiagnosticsMessageBoxProvider to forward into the nav log.
  */
 
+import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
+
 type Sink = (section: string) => void
 
 let sink: Sink | null = null
@@ -17,6 +19,7 @@ export function registerOfflineNavDiagnosticSink(fn: Sink | null) {
 }
 
 export function appendOfflineNavDiagnostic(section: string) {
+  if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
   if (typeof navigator === 'undefined') return
   if (!navigator.onLine) offlineNavSessionArmed = true
   if (!offlineNavSessionArmed) return
@@ -29,6 +32,7 @@ export function appendOfflineNavDiagnostic(section: string) {
 
 /** List-detail cache breakdown: always forwarded when diagnostics sink is registered (no offline-session gate). */
 export function appendListDetailCacheDiagnostic(section: string) {
+  if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
   const nowPerf = typeof performance !== 'undefined' ? performance.now() : null
   const deltaMs = nowPerf == null || lastDiagnosticPerfNow == null ? null : Math.round(nowPerf - lastDiagnosticPerfNow)
   if (nowPerf != null) lastDiagnosticPerfNow = nowPerf

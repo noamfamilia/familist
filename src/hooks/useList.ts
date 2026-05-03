@@ -553,7 +553,23 @@ export function useList(listId: string) {
       setList(data.list)
       setMembers(data.members || [])
       const nextItems = normalizeItemsCategory(data.items || [])
-      setItems(nextItems)
+      const pendingMutations = await getPendingItemMutationsForList(listId)
+      const pendingCreateTempIds = new Set(
+        pendingMutations.filter((m) => m.kind === 'create').map((m) => m.itemKey),
+      )
+      setItems((prev) => {
+        const preservedOptimistic = prev.filter(
+          (item) => isTempEntityId(item.id) && pendingCreateTempIds.has(item.id),
+        )
+        if (preservedOptimistic.length === 0) return nextItems
+        const merged = [...nextItems]
+        for (const optimistic of preservedOptimistic) {
+          if (!merged.some((row) => row.id === optimistic.id)) {
+            merged.push(optimistic)
+          }
+        }
+        return merged
+      })
       setCategoryNames(parseCategoryNames(data.list.category_names))
       setCategoryOrder(parseCategoryOrder(data.list.category_order))
       hasInitialDataRef.current = true

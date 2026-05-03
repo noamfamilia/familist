@@ -4,7 +4,7 @@
  */
 
 /** When false, nav/perf lines are not appended to React state (no in-memory buffer growth). */
-export const DIAGNOSTICS_DATA_COLLECTION_ENABLED = true
+export const DIAGNOSTICS_DATA_COLLECTION_ENABLED = false
 
 /** When false, the bottom diagnostics panel is not rendered. */
-export const DIAGNOSTICS_PANEL_VISIBLE = true
+export const DIAGNOSTICS_PANEL_VISIBLE = false
