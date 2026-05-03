@@ -348,16 +348,6 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
         <>
       <p className="text-center text-gray-500 dark:text-gray-400 font-medium mb-3">{list.name}</p>
 
-      <div className="flex justify-center mb-5">
-        <button
-          type="button"
-          onClick={() => void handleCopyListAsText()}
-          className="rounded-lg px-4 py-2.5 text-sm font-medium text-white bg-cyan-500 hover:bg-cyan-600 dark:bg-cyan-600 dark:hover:bg-cyan-500 shadow-sm transition-colors"
-        >
-          Copy list as text
-        </button>
-      </div>
-
       <div className="space-y-3 mb-5">
         {/* Private option */}
         <label className="cursor-pointer block">
@@ -408,36 +398,55 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
         </label>
       </div>
 
+      {visibility === 'private' && (
+        <div className="flex justify-center mb-5">
+          <button
+            type="button"
+            onClick={() => void handleCopyListAsText()}
+            className="rounded-lg px-4 py-2.5 text-sm font-medium text-white bg-cyan-500 hover:bg-cyan-600 dark:bg-cyan-600 dark:hover:bg-cyan-500 shadow-sm transition-colors"
+          >
+            Copy list as text
+          </button>
+        </div>
+      )}
+
       {/* Invite link section */}
       {visibility === 'link' && (
         <div className="pt-4 border-t border-gray-200 dark:border-neutral-600">
-          <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={token ? buildInviteUrl(token) : ''}
+            placeholder="Invite link"
+            readOnly
+            className="w-full min-w-0 px-3 py-2.5 border-2 border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-900 text-sm truncate"
+          />
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
             <button
               type="button"
               onClick={handleRegenerateInvite}
               disabled={loading}
-              className="h-10 w-10 flex-shrink-0 rounded-lg bg-teal text-white hover:bg-teal-dark disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Regenerate invite link"
-              title="Regenerate invite link"
             >
-              <RegenerateIcon className="w-5 h-5" />
+              <RegenerateIcon className="h-5 w-5 shrink-0" />
+              Regenerate link
             </button>
-            <input
-              type="text"
-              value={token ? buildInviteUrl(token) : ''}
-              placeholder="Invite link"
-              readOnly
-              className="w-0 flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-900 text-sm truncate"
-            />
             <button
               type="button"
-              onClick={handleShareInvite}
+              onClick={() => void handleShareInvite()}
               disabled={loading}
-              className="h-10 w-10 flex-shrink-0 rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
-              title={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
             >
-              <ShareActionIcon className="w-4 h-4" />
+              <ShareActionIcon className="h-4 w-4 shrink-0" />
+              Share list
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCopyListAsText()}
+              className="inline-flex items-center justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-cyan-600 dark:bg-cyan-600 dark:hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Copy list as text
             </button>
           </div>
         </div>
