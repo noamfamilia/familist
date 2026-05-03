@@ -514,7 +514,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     <div className="group relative bg-gray-50 dark:bg-neutral-900 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors">
       {browserOffline ? (
         <span
-          className={`pointer-events-none absolute right-11 top-2.5 z-10 h-2 w-2 rounded-full ring-1 ring-black/10 dark:ring-white/15 ${
+          className={`pointer-events-none absolute end-1.5 top-1.5 z-20 h-[5.6px] w-[5.6px] rounded-full ring-1 ring-black/10 dark:ring-white/15 ${
             offlineListAccessible ? 'bg-green-500' : 'bg-red-500'
           }`}
           role="status"

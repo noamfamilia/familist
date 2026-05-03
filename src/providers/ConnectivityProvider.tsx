@@ -20,7 +20,6 @@ type ConnectivityStatus = 'online' | 'syncing' | 'offline'
 
 const CONNECTIVITY_STATUS_KEY = 'familist_connectivity_status'
 const TEMP_SYNC_TIMEOUT_MS = 10000
-const OFFLINE_TOAST_DURATION_MS = 60 * 60 * 1000
 const OFFLINE_PING_INTERVAL_MS = 10000
 const OFFLINE_ACTIONS_DISABLED_MSG = 'Offline (actions disabled)'
 const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
@@ -189,7 +188,7 @@ async function probeInternetReachable(): Promise<boolean> {
 }
 
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
-  const { showToast, dismissToast, clearToasts } = useToast()
+  const { showToast, dismissToast } = useToast()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   const [status, setStatus] = useState<ConnectivityStatus>('online')
   const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
@@ -202,7 +201,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     )
   }, [status, swControlled, offlineAssetsReady])
   const syncToastIdRef = useRef<string | null>(null)
-  const offlineToastIdRef = useRef<string | null>(null)
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const offlinePingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -210,12 +208,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     if (!syncToastIdRef.current) return
     dismissToast(syncToastIdRef.current)
     syncToastIdRef.current = null
-  }, [dismissToast])
-
-  const dismissOfflineToast = useCallback(() => {
-    if (!offlineToastIdRef.current) return
-    dismissToast(offlineToastIdRef.current)
-    offlineToastIdRef.current = null
   }, [dismissToast])
 
   const clearSyncTimeout = useCallback(() => {
@@ -234,33 +226,23 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     clearSyncTimeout()
     dismissSyncingToast()
     clearOfflinePing()
-    const wasOffline = status === 'offline'
-    dismissOfflineToast()
     setStatus('online')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'online')
     } catch {
       // Ignore storage errors
     }
-    if (wasOffline) {
-      showToast('Back online', 'success', { durationMs: 3000 })
-    }
-  }, [clearOfflinePing, clearSyncTimeout, dismissOfflineToast, dismissSyncingToast, showToast, status])
+  }, [clearOfflinePing, clearSyncTimeout, dismissSyncingToast])
 
   const enterOffline = useCallback(() => {
     clearSyncTimeout()
     dismissSyncingToast()
-    clearToasts()
-    offlineToastIdRef.current = null
     setStatus('offline')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
     } catch {
       // Ignore storage errors
     }
-    offlineToastIdRef.current = showToast('Offline (actions disabled)', 'error', {
-      durationMs: OFFLINE_TOAST_DURATION_MS,
-    })
     if (!offlinePingIntervalRef.current) {
       offlinePingIntervalRef.current = setInterval(() => {
         void probeInternetReachable().then((ok) => {
@@ -268,7 +250,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         })
       }, OFFLINE_PING_INTERVAL_MS)
     }
-  }, [clearSyncTimeout, clearToasts, dismissSyncingToast, markOnlineRecovered, showToast])
+  }, [clearSyncTimeout, dismissSyncingToast, markOnlineRecovered])
 
   useEffect(() => {
     registerProfileFetchOfflineHandler(() => {
