@@ -23,9 +23,10 @@ interface SortableItemCardProps {
   itemNameFontClassName?: string
   itemNameFontStep?: number
   isOfflineActionsDisabled?: boolean
+  allowItemMutationQueue?: boolean
 }
 
-export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -63,6 +64,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
         itemNameFontClassName={itemNameFontClassName}
         itemNameFontStep={itemNameFontStep}
         isOfflineActionsDisabled={isOfflineActionsDisabled}
+        allowItemMutationQueue={allowItemMutationQueue}
       />
     </div>
   )

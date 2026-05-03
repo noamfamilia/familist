@@ -298,6 +298,7 @@ export default function ListPage() {
     sumScope,
     updateListUserSumScope,
     isOfflineActionsDisabled,
+    allowItemMutationQueue,
   } = useList(listId)
 
   const wasOfflineRef = useRef(isOfflineActionsDisabled)
@@ -1015,6 +1016,7 @@ export default function ListPage() {
                       itemNameFontClassName={itemNameFontClassName}
                       itemNameFontStep={itemNameFontStep}
                       isOfflineActionsDisabled={isOfflineActionsDisabled}
+                      allowItemMutationQueue={allowItemMutationQueue}
                     />
                   ))}
                 </SortableContext>
@@ -1058,6 +1060,7 @@ export default function ListPage() {
                     itemNameFontClassName={itemNameFontClassName}
                     itemNameFontStep={itemNameFontStep}
                     isOfflineActionsDisabled={isOfflineActionsDisabled}
+                    allowItemMutationQueue={allowItemMutationQueue}
                   />
                 ))}
               </div>

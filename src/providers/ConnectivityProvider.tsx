@@ -111,6 +111,8 @@ type ConnectivityContextType = {
   status: ConnectivityStatus
   /** True when offline or recovering (navigation / optimistic UI should match). */
   isOfflineActionsDisabled: boolean
+  /** When true, add/archive/restore item may be queued locally until status is online. */
+  allowItemMutationQueue: boolean
   recoveryFetchGeneration: number
   swControlled: boolean
   enterOffline: () => void
@@ -818,6 +820,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       value={{
         status,
         isOfflineActionsDisabled: status === 'offline' || status === 'recovering',
+        allowItemMutationQueue: status !== 'online',
         recoveryFetchGeneration,
         swControlled,
         enterOffline,

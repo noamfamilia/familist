@@ -8,6 +8,14 @@ import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } 
 import { perfLog } from '@/lib/startupPerfLog'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { STILL_SAVING_TEMP_ENTITY_MSG } from '@/lib/mutationToastPolicy'
+import {
+  enqueueItemMutation,
+  getPendingItemMutationsForList,
+  mergeQueuedCreateArchived,
+  removePendingItemMutation,
+  sortPendingForDrain,
+  type QueuedCreatePayload,
+} from '@/lib/itemMutationOutbox'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
@@ -254,11 +262,12 @@ export function useList(listId: string) {
 
   const { showToast, dismissToast, error: showErrorToast } = useToast()
   const {
+    status: connectivityStatus,
     isOfflineActionsDisabled,
+    allowItemMutationQueue,
     recoveryFetchGeneration,
     enterOffline,
     markOnlineRecovered,
-    startTempSyncWatch,
     canMutateNow,
     blockedMutationMessage,
   } = useConnectivity()
@@ -275,6 +284,21 @@ export function useList(listId: string) {
     if (!canMutateNow()) return false
     return mutationGate.tryBegin()
   }, [canMutateNow, mutationGate])
+
+  /** Add / archive-restore item queue: allowed while offline or recovering. */
+  const tryBeginItemQueueableMutation = useCallback((): boolean => {
+    if (!mutationGate.tryBegin()) return false
+    if (canMutateNow() || allowItemMutationQueue) return true
+    mutationGate.end()
+    return false
+  }, [allowItemMutationQueue, canMutateNow, mutationGate])
+
+  const connectivityStatusRef = useRef(connectivityStatus)
+  useEffect(() => {
+    connectivityStatusRef.current = connectivityStatus
+  }, [connectivityStatus])
+
+  const outboxDrainingRef = useRef(false)
 
   useEffect(() => {
     perfLog('localStorage read start')
@@ -605,6 +629,93 @@ export function useList(listId: string) {
     }
   }, [enterOffline, listId, markOnlineRecovered, userId])
 
+  const drainItemMutationOutbox = useCallback(async () => {
+    if (!userId || !listId || outboxDrainingRef.current || fetchingRef.current) return
+    const pendingRaw = await getPendingItemMutationsForList(listId)
+    const pending = sortPendingForDrain(pendingRaw)
+    if (pending.length === 0) return
+    outboxDrainingRef.current = true
+    let anySuccess = false
+    try {
+      for (const rec of pending) {
+        if (connectivityStatusRef.current !== 'online') break
+        mutationVersionRef.current += 1
+        try {
+          if (rec.kind === 'create') {
+            const p = rec.payload
+            const { data, error } = await trackSaveOperation(
+              supabase
+                .from('items')
+                .insert({
+                  list_id: listId,
+                  text: p.text,
+                  sort_order: p.sort_order,
+                  category: p.category,
+                  ...(p.comment != null && p.comment !== '' ? { comment: p.comment } : {}),
+                  archived: p.archived,
+                  archived_at: p.archived_at,
+                })
+                .select()
+                .single(),
+            )
+            if (error) throw error
+            if (!data) throw new Error('missing row')
+            const memRows = Object.entries(p.memberStates).map(([memberId, st]) => ({
+              item_id: data.id,
+              member_id: memberId,
+              quantity: st.quantity,
+              done: st.done,
+              assigned: st.assigned,
+            }))
+            if (memRows.length > 0) {
+              const { error: mErr } = await trackSaveOperation(
+                supabase.from('item_member_state').insert(memRows),
+              )
+              if (mErr) throw mErr
+            }
+            const newMemberStates: Record<string, ItemMemberState> = {}
+            for (const [mid, st] of Object.entries(p.memberStates)) {
+              newMemberStates[mid] = { ...st, item_id: data.id }
+            }
+            setItems(prev =>
+              prev.map(item =>
+                item.id === rec.itemKey ? ({ ...data, memberStates: newMemberStates } as ItemWithState) : item,
+              ),
+            )
+            await removePendingItemMutation(listId, rec.itemKey)
+            anySuccess = true
+          } else {
+            const { error } = await trackSaveOperation(
+              supabase
+                .from('items')
+                .update({ archived: rec.archived, archived_at: rec.archived_at })
+                .eq('id', rec.itemKey),
+            )
+            if (error) throw error
+            await removePendingItemMutation(listId, rec.itemKey)
+            anySuccess = true
+          }
+        } catch (e) {
+          if (isLikelyConnectivityError(e)) {
+            enterOffline()
+          }
+          break
+        }
+      }
+    } finally {
+      outboxDrainingRef.current = false
+    }
+    if (anySuccess && connectivityStatusRef.current === 'online') {
+      mutationVersionRef.current += 1
+      await fetchList()
+    }
+  }, [userId, listId, fetchList, enterOffline])
+
+  useEffect(() => {
+    if (connectivityStatus !== 'online' || !userId || !listId) return
+    void drainItemMutationOutbox()
+  }, [connectivityStatus, userId, listId, drainItemMutationOutbox, loading, hasCompletedInitialFetch])
+
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && !!list
 
   const refreshList = useCallback(() => {
@@ -793,7 +904,7 @@ export function useList(listId: string) {
   }, [userId, listId, fetchList])
 
   const addItem = async (text: string, category?: number, comment?: string | null) => {
-    if (!tryBeginMutation()) {
+    if (!tryBeginItemQueueableMutation()) {
       return { data: null, error: { message: blockedMutationMessage() } }
     }
     try {
@@ -803,6 +914,18 @@ export function useList(listId: string) {
       const newSortOrder = items.length > 0 ? maxSortOrder + 1 : 0
       const tempId = createTempId('item')
       const now = new Date().toISOString()
+      const targetMember = members.find(m => m.is_target)
+      const newMemberStates: Record<string, ItemMemberState> = {}
+      if (targetMember) {
+        newMemberStates[targetMember.id] = {
+          item_id: tempId,
+          member_id: targetMember.id,
+          quantity: 1,
+          done: false,
+          assigned: true,
+          updated_at: now,
+        }
+      }
       const optimisticItem: ItemWithState = {
         id: tempId,
         list_id: listId,
@@ -814,12 +937,37 @@ export function useList(listId: string) {
         category: category ?? 1,
         created_at: now,
         updated_at: now,
-        memberStates: {},
+        memberStates: newMemberStates,
       }
 
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setItems(prev => [...prev, optimisticItem])
+
+      const queuedPayload: QueuedCreatePayload = {
+        text,
+        category: category ?? 1,
+        comment: comment || null,
+        sort_order: newSortOrder,
+        archived: false,
+        archived_at: null,
+        memberStates: { ...newMemberStates },
+      }
+
+      const persistQueuedCreate = async () => {
+        await enqueueItemMutation({
+          kind: 'create',
+          listId,
+          itemKey: tempId,
+          updatedAt: Date.now(),
+          payload: queuedPayload,
+        })
+      }
+
+      if (!canMutateNow()) {
+        await persistQueuedCreate()
+        return { data: null, error: null }
+      }
 
       const { data, error } = await trackSaveOperation(
         supabase
@@ -836,19 +984,19 @@ export function useList(listId: string) {
       )
 
       if (error) {
-        setItems(prev => prev.filter(item => item.id !== tempId))
         if (isLikelyConnectivityError(error)) {
-          startTempSyncWatch()
-          return { data: null, error: { message: 'Syncing with server ...' } }
+          await persistQueuedCreate()
+          enterOffline()
+          return { data: null, error: { message: blockedMutationMessage() } }
         }
+        setItems(prev => prev.filter(item => item.id !== tempId))
         if (error.code === '23505') {
           return { data: null, error: { ...error, message: 'An item with this name already exists' } }
         }
         return { data: null, error }
       }
 
-      const targetMember = members.find(m => m.is_target)
-      const newMemberStates: Record<string, ItemMemberState> = {}
+      const newMemberStatesPersisted: Record<string, ItemMemberState> = {}
 
       if (targetMember) {
         const targetState: ItemMemberState = {
@@ -859,7 +1007,7 @@ export function useList(listId: string) {
           assigned: true,
           updated_at: new Date().toISOString(),
         }
-        newMemberStates[targetMember.id] = targetState
+        newMemberStatesPersisted[targetMember.id] = targetState
 
         await trackSaveOperation(
           supabase.from('item_member_state').insert({
@@ -872,7 +1020,7 @@ export function useList(listId: string) {
         )
       }
 
-      const newItem: ItemWithState = { ...data, memberStates: newMemberStates }
+      const newItem: ItemWithState = { ...data, memberStates: newMemberStatesPersisted }
       setItems(prev => {
         let replaced = false
         const next = prev.map(item => {
@@ -900,19 +1048,44 @@ export function useList(listId: string) {
   }
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
-    if (isTempEntityId(itemId)) {
-      return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
-    }
     const previousItem = items.find(item => item.id === itemId)
     const persistedUpdates = { ...updates }
-
-    if (persistedUpdates.archived === false) {
-      desiredArchivedByItemRef.current[itemId] = false
-    }
 
     const onlyArchiveFields = (u: Partial<Item>) => {
       const keys = Object.keys(u).filter(k => (u as Record<string, unknown>)[k] !== undefined)
       return keys.every(k => k === 'archived' || k === 'archived_at')
+    }
+
+    if (isTempEntityId(itemId)) {
+      if (!previousItem || !onlyArchiveFields(persistedUpdates)) {
+        return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
+      }
+      if (!tryBeginItemQueueableMutation()) {
+        return { error: { message: blockedMutationMessage() } }
+      }
+      try {
+        mutationVersionRef.current += 1
+        skipRealtimeUntilRef.current = Math.max(
+          skipRealtimeUntilRef.current,
+          Date.now() + 2000,
+        )
+        setItems(prev =>
+          prev.map(item => (item.id === itemId ? { ...item, ...persistedUpdates } : item)),
+        )
+        await mergeQueuedCreateArchived(
+          listId,
+          itemId,
+          Boolean(persistedUpdates.archived),
+          (persistedUpdates.archived_at ?? null) as string | null,
+        )
+        return { error: null }
+      } finally {
+        mutationGate.end()
+      }
+    }
+
+    if (persistedUpdates.archived === false) {
+      desiredArchivedByItemRef.current[itemId] = false
     }
 
     const optimisticArchiveWithImmediateUndoToast =
@@ -925,7 +1098,7 @@ export function useList(listId: string) {
       if (archiveDbWriteInflightRef.current[itemId]) {
         return { error: { message: blockedMutationMessage() } }
       }
-      if (!tryBeginMutation()) {
+      if (!tryBeginItemQueueableMutation()) {
         return { error: { message: blockedMutationMessage() } }
       }
       try {
@@ -975,18 +1148,39 @@ export function useList(listId: string) {
       }
 
       archiveDbWriteInflightRef.current[itemId] = true
-      const { error } = await trackSaveOperation(
-        supabase
-          .from('items')
-          .update(persistedUpdates)
-          .eq('id', itemId)
-      )
+      let error: { code?: string; message?: string } | null = null
+      if (canMutateNow()) {
+        const res = await trackSaveOperation(
+          supabase
+            .from('items')
+            .update(persistedUpdates)
+            .eq('id', itemId),
+        )
+        error = res.error
+      }
       archiveDbWriteInflightRef.current[itemId] = false
 
       const desiredNow = desiredArchivedByItemRef.current[itemId]
 
       if (error) {
         if (desiredNow === true) {
+          if (isLikelyConnectivityError(error)) {
+            void enqueueItemMutation({
+              kind: 'patchArchived',
+              listId,
+              itemKey: itemId,
+              updatedAt: Date.now(),
+              archived: Boolean(persistedUpdates.archived),
+              archived_at: (persistedUpdates.archived_at ?? null) as string | null,
+            })
+            enterOffline()
+            if (archiveUndoToastIdRef.current) {
+              dismissToast(archiveUndoToastIdRef.current)
+              archiveUndoToastIdRef.current = null
+            }
+            delete desiredArchivedByItemRef.current[itemId]
+            return { error: { message: blockedMutationMessage() } }
+          }
           if (previousItem) {
             setItems(prev => prev.map(item => item.id === itemId ? previousItem : item))
           }
@@ -997,6 +1191,26 @@ export function useList(listId: string) {
           return { error }
         }
         delete desiredArchivedByItemRef.current[itemId]
+        return { error: null }
+      }
+
+      if (!canMutateNow() && desiredNow === true) {
+        void enqueueItemMutation({
+          kind: 'patchArchived',
+          listId,
+          itemKey: itemId,
+          updatedAt: Date.now(),
+          archived: true,
+          archived_at: (persistedUpdates.archived_at ?? null) as string | null,
+        })
+        delete desiredArchivedByItemRef.current[itemId]
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'item_updated',
+            payload: { itemId },
+          })
+        }
         return { error: null }
       }
 
@@ -1019,6 +1233,24 @@ export function useList(listId: string) {
           skipRealtimeUntilRef.current,
           Date.now() + 2000
         )
+        if (!canMutateNow()) {
+          await enqueueItemMutation({
+            kind: 'patchArchived',
+            listId,
+            itemKey: itemId,
+            updatedAt: Date.now(),
+            archived: false,
+            archived_at: null,
+          })
+          if (channelRef.current) {
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'item_updated',
+              payload: { itemId },
+            })
+          }
+          return { error: null }
+        }
         const { error: fixErr } = await trackSaveOperation(
           supabase
             .from('items')
@@ -1033,6 +1265,18 @@ export function useList(listId: string) {
           })
         }
         if (fixErr) {
+          if (isLikelyConnectivityError(fixErr)) {
+            await enqueueItemMutation({
+              kind: 'patchArchived',
+              listId,
+              itemKey: itemId,
+              updatedAt: Date.now(),
+              archived: false,
+              archived_at: null,
+            })
+            enterOffline()
+            return { error: { message: blockedMutationMessage() } }
+          }
           if (fixErr.code === '23505') {
             return { error: { ...fixErr, message: 'An item with this name already exists' } }
           }
@@ -1052,7 +1296,11 @@ export function useList(listId: string) {
       return { error: null }
     }
 
-    if (!tryBeginMutation()) {
+    const onlyArchUpdate = onlyArchiveFields(persistedUpdates)
+    if (!onlyArchUpdate && !tryBeginMutation()) {
+      return { error: { message: blockedMutationMessage() } }
+    }
+    if (onlyArchUpdate && !tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
     try {
@@ -1076,6 +1324,18 @@ export function useList(listId: string) {
         item.id === itemId ? { ...item, ...persistedUpdates } : item
       ))
 
+      if (onlyArchUpdate && !canMutateNow()) {
+        await enqueueItemMutation({
+          kind: 'patchArchived',
+          listId,
+          itemKey: itemId,
+          updatedAt: Date.now(),
+          archived: Boolean(persistedUpdates.archived),
+          archived_at: (persistedUpdates.archived_at ?? null) as string | null,
+        })
+        return { error: null }
+      }
+
       const { error } = await trackSaveOperation(
         supabase
           .from('items')
@@ -1084,6 +1344,18 @@ export function useList(listId: string) {
       )
 
       if (error) {
+        if (onlyArchUpdate && isLikelyConnectivityError(error)) {
+          await enqueueItemMutation({
+            kind: 'patchArchived',
+            listId,
+            itemKey: itemId,
+            updatedAt: Date.now(),
+            archived: Boolean(persistedUpdates.archived),
+            archived_at: (persistedUpdates.archived_at ?? null) as string | null,
+          })
+          enterOffline()
+          return { error: { message: blockedMutationMessage() } }
+        }
         if (previousItem) {
           setItems(prev => prev.map(item => item.id === itemId ? previousItem : item))
         }
@@ -2057,5 +2329,6 @@ export function useList(listId: string) {
     sumScope,
     updateListUserSumScope,
     isOfflineActionsDisabled,
+    allowItemMutationQueue,
   }
 }

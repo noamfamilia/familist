@@ -45,6 +45,8 @@ interface ItemCardProps {
   itemNameFontStep?: number
   /** When true, quantity and comment editing UI is hidden/disabled (e.g. offline). */
   isOfflineActionsDisabled?: boolean
+  /** When true with offline, archive/restore on the item name still runs (queued until online). */
+  allowItemMutationQueue?: boolean
 }
 
 /** Stroke check; short leg shortened (option 1) to reduce bleed when stacked */
@@ -177,7 +179,7 @@ function QtyTargetDoneChecks({ doneRatio, checkSizePx = QTY_CHECK_SIZE }: { done
   )
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = 80, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -456,8 +458,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setEditQuantityValue('')
   }
 
+  const archiveInteractionBlocked = isOfflineActionsDisabled && !allowItemMutationQueue
+
   const handleArchive = async () => {
-    if (isOfflineActionsDisabled) return
+    if (archiveInteractionBlocked) return
     const { error } = item.archived
       ? await onUpdateItem(item.id, { archived: false, archived_at: null })
       : await onUpdateItem(item.id, { archived: true, archived_at: new Date().toISOString() })
@@ -589,10 +593,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             )
           ) : (
             <span
-              onClick={isOfflineActionsDisabled ? undefined : handleArchive}
-              className={`block truncate ${itemNameFontClassName} ${itemNameColorClass} ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'} ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              onClick={archiveInteractionBlocked ? undefined : handleArchive}
+              className={`block truncate ${itemNameFontClassName} ${itemNameColorClass} ${archiveInteractionBlocked ? 'cursor-default' : 'cursor-pointer hover:text-teal'} ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               title={
-                isOfflineActionsDisabled
+                archiveInteractionBlocked
                   ? undefined
                   : `Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`
               }
