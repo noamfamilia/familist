@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
-import { cachedListDataExists } from '@/lib/cache'
+import { cachedListDataExists, logListDetailCacheValidation } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import type { ListWithRole } from '@/lib/supabase/types'
 
@@ -158,6 +158,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     async (e: React.MouseEvent<HTMLAnchorElement>) => {
       const native = e.nativeEvent
       const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
+      logListDetailCacheValidation(list.id, undefined, '[list-click]')
       const hasCachedListData = cachedListDataExists(list.id)
       const offlineNavAllowed =
         offline && swControlled && offlineAssetsReady && hasCachedListData

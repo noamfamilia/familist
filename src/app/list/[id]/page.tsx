@@ -14,7 +14,7 @@ import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
-import { cachedListDataExists, getCachedList } from '@/lib/cache'
+import { cachedListDataExists, getCachedList, logListDetailCacheValidation } from '@/lib/cache'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
@@ -350,6 +350,7 @@ export default function ListPage() {
     appendOfflineNavDiagnostic(
       `[list-page-mount] navigator.onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
     )
+    logListDetailCacheValidation(listId, uid ?? undefined, '[list-page-mount]')
     const hasRow = cachedListDataExists(listId, uid ?? undefined)
     appendOfflineNavDiagnostic(`[list-page-mount] cachedListDataExists=${hasRow ? 1 : 0}`)
     const cached = uid ? getCachedList(uid, listId) : null
@@ -361,7 +362,8 @@ export default function ListPage() {
 
   useEffect(() => {
     const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
-    const hasCachedListData = cachedListDataExists(listId)
+    const cacheUserId = user?.id ?? bootstrapUserId ?? undefined
+    const hasCachedListData = cachedListDataExists(listId, cacheUserId)
     const offlineNavAllowed =
       offline && swControlled && offlineAssetsReady && hasCachedListData
     const errShort = error ? String(error).slice(0, 160) : ''
@@ -389,6 +391,8 @@ export default function ListPage() {
     accessDenied,
     swControlled,
     offlineAssetsReady,
+    user?.id,
+    bootstrapUserId,
   ])
 
   useEffect(() => {

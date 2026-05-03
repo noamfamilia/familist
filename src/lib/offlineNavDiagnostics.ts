@@ -21,3 +21,8 @@ export function appendOfflineNavDiagnostic(section: string) {
   if (!offlineNavSessionArmed) return
   sink?.(section)
 }
+
+/** List-detail cache breakdown: always forwarded when diagnostics sink is registered (no offline-session gate). */
+export function appendListDetailCacheDiagnostic(section: string) {
+  sink?.(section)
+}
