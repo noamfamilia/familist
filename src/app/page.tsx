@@ -68,7 +68,7 @@ function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, profile, loading, bootstrapUserId, profileFetchPhase, updateProfile } = useAuth()
-  const { offlineAssetsReady } = useConnectivity()
+  const { offlineAssetsReady, isOfflineActionsDisabled } = useConnectivity()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -277,6 +277,14 @@ function HomeContent() {
     setAvailableLabels(labels)
   }, [])
 
+  useEffect(() => {
+    if (!isOfflineActionsDisabled) return
+    setProfileMenuOpen(false)
+    setShowProfile(false)
+    setShowImport(false)
+    setShowFeedback(false)
+  }, [isOfflineActionsDisabled])
+
   const handleOfflineActionsDisabledChange = useCallback((offline: boolean) => {
     setIsOfflineActionsDisabled(offline)
   }, [])
@@ -325,9 +333,15 @@ function HomeContent() {
           <div className="relative" ref={profileMenuRef} data-tour="home-profile-menu">
             <button
               type="button"
-              onClick={() => setProfileMenuOpen(o => !o)}
-              className="h-8 flex items-center hover:opacity-80 transition-opacity rounded-lg"
-              aria-label="Account menu"
+              disabled={isOfflineActionsDisabled}
+              onClick={() => {
+                if (isOfflineActionsDisabled) return
+                setProfileMenuOpen(o => !o)
+              }}
+              className={`h-8 flex items-center rounded-lg transition-opacity ${
+                isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-80'
+              }`}
+              aria-label={isOfflineActionsDisabled ? 'Account menu (unavailable offline)' : 'Account menu'}
               aria-expanded={profileMenuOpen}
               aria-haspopup="menu"
               title={user.email}

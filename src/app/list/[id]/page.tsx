@@ -256,7 +256,7 @@ export default function ListPage() {
     perfLog('main page mounted', { route: 'list', listId })
   }, [listId])
   const { error: showError } = useToast()
-  const { offlineAssetsReady, swControlled } = useConnectivity()
+  const { offlineAssetsReady, swControlled, isOfflineActionsDisabled } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
@@ -557,6 +557,12 @@ export default function ListPage() {
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
   const [showShareModal, setShowShareModal] = useState(false)
 
+  useEffect(() => {
+    if (isOfflineActionsDisabled && showShareModal) {
+      setShowShareModal(false)
+    }
+  }, [isOfflineActionsDisabled, showShareModal])
+
   const handleBackToLists = () => {
     navigateBackToHome(router)
   }
@@ -798,9 +804,13 @@ export default function ListPage() {
         {list && list.owner_id === user?.id && (
           <button
             type="button"
-            onClick={() => setShowShareModal(true)}
-            className="text-teal hover:opacity-70"
-            aria-label="Share settings"
+            disabled={isOfflineActionsDisabled}
+            onClick={() => {
+              if (isOfflineActionsDisabled) return
+              setShowShareModal(true)
+            }}
+            className={`text-teal ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
+            aria-label={isOfflineActionsDisabled ? 'Share settings (unavailable offline)' : 'Share settings'}
             data-tour="share-settings"
           >
             <ShareCardIcon className="w-[30px] h-[30px]" emphasized />
