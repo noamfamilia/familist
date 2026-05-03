@@ -646,7 +646,7 @@ export function MemberHeader({
                   {isRenaming && renamePopoverPos && (
                     <div
                       ref={renamePopoverRef}
-                      className="fixed z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
+                      className="fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
                       style={{ top: renamePopoverPos.top, left: renamePopoverPos.left }}
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -724,7 +724,7 @@ export function MemberHeader({
               {isAdding && addMemberPopoverPos && (
                 <div
                   ref={addMemberPopoverRef}
-                  className="fixed z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
+                  className="fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
                   style={{ top: addMemberPopoverPos.top, left: addMemberPopoverPos.left }}
                 >
                   <input
@@ -779,7 +779,7 @@ export function MemberHeader({
               {actionsOpen && actionsMenuPos && (
                 <div
                   ref={actionsMenuRef}
-                  className="fixed w-48 flex flex-col rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 py-1 z-50"
+                  className="fixed z-50 flex w-48 flex-col rounded-lg border border-gray-200 bg-white py-1 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
                   role="menu"
                   style={{ top: actionsMenuPos.top, right: actionsMenuPos.right }}
                 >
@@ -887,7 +887,9 @@ export function MemberHeader({
                   )}
                   {onEnableSumItems && sumScope === 'none' && (
                     <>
-                      <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
+                      {!(onCreateTargets && !hasTargetMember) && (
+                        <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
+                      )}
                       <button
                         type="button"
                         role="menuitem"
@@ -914,7 +916,7 @@ export function MemberHeader({
       {openMenuId && openMember && memberMenuPos && !editingMemberId && (
         <div
           ref={memberMenuRef}
-          className="fixed w-64 flex flex-col rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 py-1 z-50"
+          className="fixed z-50 flex w-64 flex-col rounded-lg border border-gray-200 bg-white py-1 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
           role="menu"
           style={{ top: memberMenuPos.top, left: memberMenuPos.left, right: memberMenuPos.right }}
         >
@@ -1081,7 +1083,7 @@ export function MemberHeader({
             tabIndex={-1}
             role="dialog"
             aria-label="Item name font size"
-            className="fixed z-[10000] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
+            className="fixed z-[10000] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
             style={{ top: itemNameFontPos.top, left: itemNameFontPos.left }}
             onClick={(e) => e.stopPropagation()}
           >

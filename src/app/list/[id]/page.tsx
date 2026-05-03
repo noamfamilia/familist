@@ -909,10 +909,10 @@ export default function ListPage() {
       <div ref={addItemWrapperRef} className="relative mb-4 sm:mb-6">
           <div
             onMouseDown={(e) => e.preventDefault()}
-            className={`absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg z-20 bg-white dark:bg-neutral-900 overflow-hidden transition-all duration-150 ease-out origin-bottom ${
+            className={`absolute bottom-full left-0 right-0 z-20 mb-1 origin-bottom overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${
               newItemText || addItemBulkMode
-                ? 'opacity-100 scale-y-100 translate-y-0'
-                : 'opacity-0 scale-y-95 translate-y-1 pointer-events-none'
+                ? 'translate-y-0 scale-y-100 opacity-100'
+                : 'pointer-events-none translate-y-1 scale-y-95 opacity-0'
             }`}
           >
             <div className={`p-3 transition-colors ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
@@ -969,7 +969,7 @@ export default function ListPage() {
               placeholder={addItemBulkMode ? 'Add items (one per line)' : 'Add an item...'}
               aria-label={addItemBulkMode ? 'New item names, one per line' : 'New item name'}
               rows={1}
-              className={`box-border w-full px-4 py-3 pr-14 border border-gray-200 dark:border-neutral-600 rounded-lg text-base text-primary dark:text-gray-100 dark:bg-neutral-900 focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/20 transition-[min-height,max-height] duration-300 ease-in-out ${
+              className={`box-border w-full rounded-lg border border-gray-200 px-4 py-3 pr-14 text-base text-primary transition-all duration-300 ease-out focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 dark:border-neutral-600 dark:bg-neutral-900 dark:text-gray-100 ${
                 addItemBulkMode
                   ? 'min-h-[7.5rem] max-h-[min(70vh,32rem)] resize-y overflow-y-auto'
                   : 'min-h-[3.25rem] max-h-[3.25rem] resize-none overflow-hidden'

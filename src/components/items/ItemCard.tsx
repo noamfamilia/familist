@@ -528,7 +528,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     >
       {/* Main card content — min-w-full w-max matches list column: at least shell width, grows with wide rows */}
       <div
-        className={`block min-w-full w-max rounded-lg transition-colors ${shellClass} ${item.archived ? 'opacity-60' : ''}`}
+        className={`block min-w-full w-max rounded-lg transition-all duration-300 ease-out ${shellClass} ${item.archived ? 'opacity-60' : ''}`}
       >
         {/* Card row */}
         <div
@@ -886,7 +886,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
-          <div className={`px-3 py-2 bg-transparent space-y-2 rounded-b-lg${compactRow ? ' min-w-full' : ''}`}>
+          <div
+            className={`space-y-2 rounded-b-lg bg-transparent px-3 py-2 transition-all duration-300 ease-out${compactRow ? ' min-w-full' : ''}`}
+          >
             {/* Comment display / editor */}
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               {comment ? (

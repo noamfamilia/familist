@@ -350,7 +350,7 @@ function HomeContent() {
             </button>
             {profileMenuOpen && (
               <div
-                className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 py-1 z-50"
+                className="absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
                 role="menu"
               >
                 <button
@@ -454,9 +454,11 @@ function HomeContent() {
               </button>
 
               {labelDropdownOpen && (
-                <div className={`absolute right-0 mt-1 min-w-[160px] rounded-lg border bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden ${
-                  isCreating ? 'border-red-500' : 'border-teal'
-                }`}>
+                <div
+                  className={`absolute right-0 z-50 mt-1 min-w-[160px] overflow-hidden rounded-lg border bg-white shadow-lg transition-all duration-300 ease-out dark:bg-neutral-900 dark:shadow-black/40 ${
+                    isCreating ? 'border-red-500' : 'border-teal'
+                  }`}
+                >
                   {!isCreating && (
                     <button
                       type="button"
@@ -516,7 +518,7 @@ function HomeContent() {
               {addingLabel && !labelDropdownOpen && (
                 <div
                   ref={addLabelPopoverRef}
-                  className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
+                  className="absolute right-0 top-full z-50 mt-1 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
                 >
                   <input
                     ref={addLabelInputRef}

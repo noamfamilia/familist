@@ -545,7 +545,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   return (
     <>
     {/* Main card content */}
-    <div className="group relative bg-gray-50 dark:bg-neutral-900 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors">
+    <div className="group relative rounded-lg bg-gray-50 transition-all duration-300 ease-out hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700">
       {connectivityStatus !== 'online' ? (
         <span
           className={`pointer-events-none absolute end-1.5 top-1.5 z-20 h-[5.6px] w-[5.6px] rounded-full ring-1 ring-black/10 dark:ring-white/15 ${
@@ -705,7 +705,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
       {/* Expanded menu with comment field and action buttons */}
       {menuOpen && (
-        <div className="px-3 py-2 bg-transparent space-y-2 rounded-b-lg">
+        <div className="space-y-2 rounded-b-lg bg-transparent px-3 py-2 transition-all duration-300 ease-out">
           {/* Comment display / editor */}
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             {comment ? (

@@ -419,7 +419,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               onClick={() => void handleRegenerateInvite()}
               disabled={loading}
               title="Regenerate invite link"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal text-white shadow-sm transition-colors hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal text-white shadow-sm transition-all duration-300 ease-out hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Regenerate invite link"
             >
               <RegenerateIcon className="h-5 w-5 shrink-0" />
@@ -437,7 +437,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               type="button"
               onClick={() => void handleShareInvite()}
               disabled={loading}
-              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg bg-red-500 px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg bg-coral px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-coral-dark disabled:cursor-not-allowed disabled:opacity-60"
               aria-label={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
             >
               <ShareActionIcon className="h-4 w-4 shrink-0" />
@@ -446,7 +446,8 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
             <button
               type="button"
               onClick={() => void handleCopyListAsText()}
-              className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-cyan-500 px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-cyan-600 dark:bg-cyan-600 dark:hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={loading}
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-coral px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-coral-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
               Copy list as text
             </button>
