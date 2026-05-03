@@ -1010,7 +1010,7 @@ export default function ListPage() {
           <Button
             type="submit"
             disabled={addItemBulkMode ? isOfflineActionsDisabled : false}
-            className={`bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''} ${addItemBulkMode && isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
+            className={`inline-flex min-w-[11rem] shrink-0 items-center justify-center [transition:all_0.3s_ease] bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''} ${addItemBulkMode && isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
           >
             {addItemBulkMode ? 'Add many' : 'Add'}
           </Button>
