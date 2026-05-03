@@ -19,7 +19,6 @@ import {
   getPendingItemMutationsForList,
   itemMemberStateOutboxKey,
   memberProfileOutboxKey,
-  mergeQueuedCreateArchived,
   remapMemberDependentQueuedRecords,
   removePendingItemMutation,
   sortPendingForDrain,
@@ -173,6 +172,42 @@ function createTempId(prefix: string) {
 
 function isTempEntityId(id: string) {
   return id.startsWith('temp-')
+}
+
+function mergePreservedTempCreates(
+  serverItems: ItemWithState[],
+  prev: ItemWithState[],
+  pendingCreateTempIds: Set<string>,
+): ItemWithState[] {
+  const preserved = prev.filter(
+    (item) => isTempEntityId(item.id) && pendingCreateTempIds.has(item.id),
+  )
+  if (preserved.length === 0) return serverItems
+  const merged = [...serverItems]
+  for (const optimistic of preserved) {
+    if (!merged.some((row) => row.id === optimistic.id)) {
+      merged.push(optimistic)
+    }
+  }
+  return merged
+}
+
+function mergePreservedTempMembers(
+  serverMembers: MemberWithCreator[],
+  prev: MemberWithCreator[],
+  pendingTempMemberIds: Set<string>,
+): MemberWithCreator[] {
+  const preserved = prev.filter(
+    (m) => isTempEntityId(m.id) && pendingTempMemberIds.has(m.id),
+  )
+  if (preserved.length === 0) return serverMembers
+  const merged = [...serverMembers]
+  for (const m of preserved) {
+    if (!merged.some((row) => row.id === m.id)) {
+      merged.push(m)
+    }
+  }
+  return merged
 }
 
 function patchServerItemEnqueuePayload(
@@ -594,24 +629,29 @@ export function useList(listId: string) {
       // Mark that we have access
       hadAccessRef.current = true
       setList(data.list)
-      setMembers(data.members || [])
+      const serverMembers = data.members || []
       const nextItems = normalizeItemsCategory(data.items || [])
       const pendingMutations = await getPendingItemMutationsForList(listId)
       const pendingCreateTempIds = new Set(
         pendingMutations.filter((m) => m.kind === 'create').map((m) => m.itemKey),
       )
+      const pendingTempMemberIds = new Set<string>()
+      for (const m of pendingMutations) {
+        if (m.kind === 'addMember') pendingTempMemberIds.add(m.itemKey)
+        if (m.kind === 'patchMember' && isTempEntityId(m.memberId)) pendingTempMemberIds.add(m.memberId)
+        if (m.kind === 'itemMemberState' && isTempEntityId(m.memberId)) pendingTempMemberIds.add(m.memberId)
+      }
+
+      let mergedItemsForCache = nextItems
+      let mergedMembersForCache = serverMembers
+
       setItems((prev) => {
-        const preservedOptimistic = prev.filter(
-          (item) => isTempEntityId(item.id) && pendingCreateTempIds.has(item.id),
-        )
-        if (preservedOptimistic.length === 0) return nextItems
-        const merged = [...nextItems]
-        for (const optimistic of preservedOptimistic) {
-          if (!merged.some((row) => row.id === optimistic.id)) {
-            merged.push(optimistic)
-          }
-        }
-        return merged
+        mergedItemsForCache = mergePreservedTempCreates(nextItems, prev, pendingCreateTempIds)
+        return mergedItemsForCache
+      })
+      setMembers((prev) => {
+        mergedMembersForCache = mergePreservedTempMembers(serverMembers, prev, pendingTempMemberIds)
+        return mergedMembersForCache
       })
       setCategoryNames(parseCategoryNames(data.list.category_names))
       setCategoryOrder(parseCategoryOrder(data.list.category_order))
@@ -620,11 +660,11 @@ export function useList(listId: string) {
       // Cache the list data for instant load next time
       setCachedList(userId, listId, {
         list: data.list,
-        items: nextItems,
-        members: data.members || []
+        items: mergedItemsForCache,
+        members: mergedMembersForCache,
       })
       listCount = 1
-      itemCountResult = nextItems.length
+      itemCountResult = mergedItemsForCache.length
 
       if (listUserData) {
         const serverFilter = VALID_MEMBER_FILTERS.includes(listUserData.member_filter as MemberFilter)
@@ -1346,7 +1386,20 @@ export function useList(listId: string) {
     }
 
     if (isTempEntityId(itemId)) {
-      if (!previousItem || !onlyArchiveFields(persistedUpdates)) {
+      if (!previousItem) {
+        return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
+      }
+      const tempPatchableKeys = new Set([
+        'text',
+        'comment',
+        'category',
+        'archived',
+        'archived_at',
+      ])
+      const definedKeys = Object.keys(persistedUpdates).filter(
+        k => (persistedUpdates as Record<string, unknown>)[k] !== undefined,
+      )
+      if (!definedKeys.every(k => tempPatchableKeys.has(k))) {
         return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
       }
       if (!tryBeginItemQueueableMutation()) {
@@ -1354,19 +1407,20 @@ export function useList(listId: string) {
       }
       try {
         mutationVersionRef.current += 1
+        const skipMs = 'category' in persistedUpdates ? 4500 : 2000
         skipRealtimeUntilRef.current = Math.max(
           skipRealtimeUntilRef.current,
-          Date.now() + 2000,
+          Date.now() + skipMs,
         )
         setItems(prev =>
           prev.map(item => (item.id === itemId ? { ...item, ...persistedUpdates } : item)),
         )
-        await mergeQueuedCreateArchived(
-          listId,
-          itemId,
-          Boolean(persistedUpdates.archived),
-          (persistedUpdates.archived_at ?? null) as string | null,
-        )
+        const pending = await getPendingItemMutationsForList(listId)
+        const hasQueuedCreate = pending.some(m => m.kind === 'create' && m.itemKey === itemId)
+        const q = patchServerItemEnqueuePayload(listId, itemId, persistedUpdates)
+        if (q && (hasQueuedCreate || !canMutateNow())) {
+          await enqueueItemMutation(q)
+        }
         return { error: null }
       } finally {
         mutationGate.end()

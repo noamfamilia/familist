@@ -718,10 +718,16 @@ export default function ListPage() {
     } finally {
       addItemInFlightRef.current = false
     }
-    const refocus = addItemSubmitFromKeyboardRef.current && !err
+    const success = !err
+    const refocus = addItemSubmitFromKeyboardRef.current && success
     addItemSubmitFromKeyboardRef.current = false
+    if (success) {
+      setAddItemBulkMode(false)
+    }
     if (refocus) {
-      requestAnimationFrame(() => addItemTextareaRef.current?.focus())
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => addItemInputRef.current?.focus())
+      })
     }
   }
 
@@ -922,7 +928,7 @@ export default function ListPage() {
             </div>
             </div>
           </div>
-        <form ref={addItemFormRef} onSubmit={handleAddItemFormSubmit} className="flex w-full min-w-0 gap-2 sm:gap-3" data-tour="add-item">
+        <form ref={addItemFormRef} onSubmit={handleAddItemFormSubmit} className="flex w-full min-w-0 items-start gap-2 sm:gap-3" data-tour="add-item">
           <div className="flex-1 relative">
             {addItemBulkMode ? (
               <textarea
@@ -1010,7 +1016,11 @@ export default function ListPage() {
           <Button
             type="submit"
             disabled={addItemBulkMode ? isOfflineActionsDisabled : false}
-            className={`inline-flex min-w-[11rem] shrink-0 items-center justify-center [transition:all_0.3s_ease] bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''} ${addItemBulkMode && isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
+            className={`inline-flex shrink-0 items-center justify-center [transition:all_0.3s_ease] bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''} ${addItemBulkMode && isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''} ${
+              addItemBulkMode
+                ? 'self-start h-10 max-h-10 min-h-10 w-[90px] min-w-[90px] max-w-[90px] !px-1 !py-0 text-[10px] leading-tight sm:text-[11px]'
+                : ''
+            }`}
           >
             {addItemBulkMode ? 'Add many' : 'Add'}
           </Button>
