@@ -7,6 +7,12 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
 import { perfLog } from '@/lib/startupPerfLog'
+import {
+  isLikelyConnectivityError,
+  resolveServerWorkOutcomeFromResult,
+  resolveServerWorkOutcomeFromThrown,
+  type ServerWorkOutcome,
+} from '@/lib/connectivityErrors'
 import { STILL_SAVING_TEMP_ENTITY_MSG } from '@/lib/mutationToastPolicy'
 import type { Database, ItemWithState, Json, ListWithRole } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
@@ -24,25 +30,6 @@ function createTempId(prefix: string) {
 
 function isTempEntityId(id: string | null | undefined): boolean {
   return typeof id === 'string' && id.startsWith('temp-')
-}
-
-function isLikelyConnectivityError(err: unknown): boolean {
-  const e = err as { code?: string; message?: string } | null | undefined
-  const code = String(e?.code || '').toUpperCase()
-  const msg = String(e?.message || '').toLowerCase()
-  return (
-    code === 'NETWORK_ERROR' ||
-    code === 'FETCH_ERROR' ||
-    msg.includes('failed to fetch') ||
-    msg.includes('networkerror') ||
-    msg.includes('network request failed') ||
-    msg.includes('typeerror: failed to fetch') ||
-    msg.includes('load failed') ||
-    msg.includes('fetch failed') ||
-    msg.includes('connection') ||
-    msg.includes('offline') ||
-    msg.includes('timed out')
-  )
 }
 
 export function useLists() {
@@ -74,6 +61,8 @@ export function useLists() {
     recoveryFetchGeneration,
     enterOffline,
     markOnlineRecovered,
+    beginServerWork,
+    endServerWork,
     startTempSyncWatch,
     canMutateNow,
     blockedMutationMessage,
@@ -108,7 +97,7 @@ export function useLists() {
     hasInitialDataRef.current = cachedLists.length > 0
   }, [userId])
 
-  const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
+  const trackSaveOperation = async (operation: PromiseLike<unknown>): Promise<unknown> => {
     pendingSaveOpsRef.current++
     setSaveTimedOut(false)
 
@@ -118,8 +107,14 @@ export function useLists() {
       }, SAVE_TIMEOUT_MS)
     }
 
+    beginServerWork()
     try {
-      return await operation
+      const result = await Promise.resolve(operation)
+      endServerWork(resolveServerWorkOutcomeFromResult(result))
+      return result
+    } catch (e) {
+      endServerWork(resolveServerWorkOutcomeFromThrown(e))
+      throw e
     } finally {
       pendingSaveOpsRef.current--
       if (pendingSaveOpsRef.current === 0) {
@@ -202,6 +197,8 @@ export function useLists() {
     }
     setError(null)
 
+    beginServerWork()
+    let serverOutcome: ServerWorkOutcome = 'success'
     try {
       // Fetch all lists with counts in a single RPC call
       const { data, error: rpcError } = await supabase.rpc('get_user_lists')
@@ -216,6 +213,7 @@ export function useLists() {
             currentMutationVersion: mutationVersionRef.current,
           })
         }
+        serverOutcome = 'success'
         return
       }
 
@@ -250,14 +248,17 @@ export function useLists() {
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
       listCount = listsData.length
-      markOnlineRecovered()
+      markOnlineRecovered('fetchLists-success')
+      serverOutcome = 'success'
     } catch (err) {
-      if (isLikelyConnectivityError(err)) {
-        enterOffline()
+      serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
+      if (serverOutcome === 'connectivity_failure') {
+        enterOffline('fetchLists-connectivity-error')
       }
       fetchErr = (err as Error).message
       setError((err as Error).message)
     } finally {
+      endServerWork(serverOutcome)
       perfLog('fetchLists end', {
         durationMs: Math.round(performance.now() - fetchT0),
         listCount,
@@ -278,7 +279,7 @@ export function useLists() {
         })
       }
     }
-  }, [enterOffline, markOnlineRecovered, userId])
+  }, [beginServerWork, endServerWork, enterOffline, markOnlineRecovered, userId])
 
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && lists.length > 0
 

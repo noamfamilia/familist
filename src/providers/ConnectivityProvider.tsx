@@ -20,8 +20,12 @@ import {
   RECOVERING_MUTATIONS_DISABLED_MSG,
 } from '@/lib/mutationToastPolicy'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
+import type { ServerWorkOutcome } from '@/lib/connectivityErrors'
 
 type ConnectivityStatus = 'online' | 'recovering' | 'offline'
+
+/** Lie-fi: no successful / application server response while in-flight work runs (online/recovering only). */
+const SERVER_PROGRESS_STALL_MS = 15_000
 
 const CONNECTIVITY_STATUS_KEY = 'familist_connectivity_status'
 const TEMP_SYNC_TIMEOUT_MS = 10000
@@ -117,6 +121,12 @@ type ConnectivityContextType = {
   swControlled: boolean
   enterOffline: (cause?: string) => void
   markOnlineRecovered: (cause?: string) => void
+  /** Begin a tracked in-flight server request (Supabase RPC/query/mutation). */
+  beginServerWork: () => void
+  /** End tracked server work; success/application_error advance stall clock; connectivity_failure does not. */
+  endServerWork: (outcome: ServerWorkOutcome) => void
+  /** While in-flight work is active, bump stall clock after meaningful local progress (e.g. after RPC await, before slow IDB). */
+  pulseServerWorkProgress: () => void
   startTempSyncWatch: () => void
   canMutateNow: () => boolean
   blockedMutationMessage: () => string
@@ -217,6 +227,36 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     statusRef.current = status
   }, [status])
 
+  const serverWorkInFlightRef = useRef(0)
+  const serverLastProgressAtRef = useRef(Date.now())
+  const enterOfflineRef = useRef<(cause?: string) => void>(() => {})
+
+  const beginServerWork = useCallback(() => {
+    const prev = serverWorkInFlightRef.current
+    serverWorkInFlightRef.current += 1
+    if (
+      prev === 0 &&
+      (statusRef.current === 'online' || statusRef.current === 'recovering')
+    ) {
+      serverLastProgressAtRef.current = Date.now()
+    }
+  }, [])
+
+  const endServerWork = useCallback((outcome: ServerWorkOutcome) => {
+    if (outcome === 'success' || outcome === 'application_error') {
+      if (statusRef.current === 'online' || statusRef.current === 'recovering') {
+        serverLastProgressAtRef.current = Date.now()
+      }
+    }
+    serverWorkInFlightRef.current = Math.max(0, serverWorkInFlightRef.current - 1)
+  }, [])
+
+  const pulseServerWorkProgress = useCallback(() => {
+    if (serverWorkInFlightRef.current <= 0) return
+    if (statusRef.current !== 'online' && statusRef.current !== 'recovering') return
+    serverLastProgressAtRef.current = Date.now()
+  }, [])
+
   const syncToastIdRef = useRef<string | null>(null)
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const probeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -302,8 +342,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         appendOfflineNavDiagnostic(
           `[probe] result ok=${ok ? 1 : 0} durationMs=${Math.round(performance.now() - probeStartedAt)} status=${statusRef.current} step=${probeStepRef.current}`,
         )
+        // `statusRef` can flip to `online` while the probe fetch runs; ref type does not model that.
+        if ((statusRef.current as ConnectivityStatus) === 'online') return
         const s = statusRef.current
-        if (s === 'online') return
 
         if (!ok) {
           if (s === 'recovering') {
@@ -362,6 +403,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     probeInFlightRef.current = false
     useNextProbeDelay1sRef.current = false
     skipNextProbeStepIncrementRef.current = false
+    serverLastProgressAtRef.current = Date.now()
     setStatus('offline')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
@@ -372,6 +414,28 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       scheduleNextProbeRef.current()
     })
   }, [appendOfflineNavDiagnostic, clearProbeSchedule, clearSyncTimeout, dismissSyncingToast])
+
+  enterOfflineRef.current = enterOffline
+
+  useEffect(() => {
+    if (status === 'online' || status === 'recovering') {
+      if (serverWorkInFlightRef.current > 0) {
+        serverLastProgressAtRef.current = Date.now()
+      }
+    }
+  }, [status])
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const s = statusRef.current
+      if (s !== 'online' && s !== 'recovering') return
+      if (serverWorkInFlightRef.current <= 0) return
+      if (Date.now() - serverLastProgressAtRef.current >= SERVER_PROGRESS_STALL_MS) {
+        enterOfflineRef.current('server-progress-watchdog')
+      }
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [])
 
   useEffect(() => {
     registerProfileFetchOfflineHandler(null)
@@ -414,7 +478,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       setOfflineAssetsReady(false)
       return
     }
-    navigator.serviceWorker.controller.postMessage({ type: SW_STATUS_REQUEST })
+    navigator.serviceWorker.controller?.postMessage({ type: SW_STATUS_REQUEST })
   }, [])
 
   useEffect(() => {
@@ -862,6 +926,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         swControlled,
         enterOffline,
         markOnlineRecovered,
+        beginServerWork,
+        endServerWork,
+        pulseServerWorkProgress,
         startTempSyncWatch,
         canMutateNow,
         blockedMutationMessage,

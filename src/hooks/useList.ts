@@ -7,6 +7,12 @@ import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import { perfLog } from '@/lib/startupPerfLog'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
+import {
+  isLikelyConnectivityError,
+  resolveServerWorkOutcomeFromResult,
+  resolveServerWorkOutcomeFromThrown,
+  type ServerWorkOutcome,
+} from '@/lib/connectivityErrors'
 import { STILL_SAVING_TEMP_ENTITY_MSG } from '@/lib/mutationToastPolicy'
 import {
   enqueueItemMutation,
@@ -197,24 +203,6 @@ function rpcFailureMessage(err: unknown): string {
   return 'Unknown error'
 }
 
-function isLikelyConnectivityError(err: unknown): boolean {
-  const raw = err instanceof Error
-    ? err.message
-    : typeof err === 'object' && err !== null && 'message' in err
-      ? String((err as { message?: unknown }).message ?? '')
-      : String(err ?? '')
-  const m = raw.toLowerCase()
-  return (
-    m.includes('failed to fetch') ||
-    m.includes('networkerror') ||
-    m.includes('network request failed') ||
-    m.includes('fetch failed') ||
-    m.includes('load failed') ||
-    m.includes('connection') ||
-    m.includes('timeout')
-  )
-}
-
 export function useList(listId: string) {
   const { user, profile, loading: authLoading, bootstrapUserId } = useAuth()
   const cached = getCachedList(undefined, listId)
@@ -268,6 +256,9 @@ export function useList(listId: string) {
     recoveryFetchGeneration,
     enterOffline,
     markOnlineRecovered,
+    beginServerWork,
+    endServerWork,
+    pulseServerWorkProgress,
     canMutateNow,
     blockedMutationMessage,
   } = useConnectivity()
@@ -338,7 +329,7 @@ export function useList(listId: string) {
     prefsFetchedRef.current = false
   }, [listId, userId])
 
-  const trackSaveOperation = async <T>(operation: Promise<T>): Promise<T> => {
+  const trackSaveOperation = async (operation: PromiseLike<unknown>): Promise<unknown> => {
     pendingSaveOpsRef.current++
     setSaveTimedOut(false)
 
@@ -348,8 +339,14 @@ export function useList(listId: string) {
       }, SAVE_TIMEOUT_MS)
     }
 
+    beginServerWork()
     try {
-      return await operation
+      const result = await Promise.resolve(operation)
+      endServerWork(resolveServerWorkOutcomeFromResult(result))
+      return result
+    } catch (e) {
+      endServerWork(resolveServerWorkOutcomeFromThrown(e))
+      throw e
     } finally {
       pendingSaveOpsRef.current--
       if (pendingSaveOpsRef.current === 0) {
@@ -431,6 +428,8 @@ export function useList(listId: string) {
     }
     setError(null)
 
+    beginServerWork()
+    let serverOutcome: ServerWorkOutcome = 'success'
     try {
       appendOfflineNavDiagnostic(
         `[fetchList] invoking get_list_data + list_users prefs in parallel listId=${listId}`,
@@ -498,6 +497,7 @@ export function useList(listId: string) {
       })()
 
       const [{ data, rpcError }, { listUserData }] = await Promise.all([rpcPromise, prefsPromise])
+      pulseServerWorkProgress()
       perfLog('fetchList parallel await', {
         listId,
         wallMs: Math.round(performance.now() - parallelT0),
@@ -509,6 +509,7 @@ export function useList(listId: string) {
         // If we previously had access but now get an error, access was revoked
         if (hadAccessRef.current && (rpcError.code === 'P0001' || rpcError.message?.includes('Access denied'))) {
           setAccessDenied(true)
+          serverOutcome = 'application_error'
           return
         }
         throw rpcError
@@ -517,6 +518,7 @@ export function useList(listId: string) {
       if (!data || !data.list) {
         if (hadAccessRef.current) {
           setAccessDenied(true)
+          serverOutcome = 'application_error'
           return
         }
         throw new Error('List not found')
@@ -610,8 +612,10 @@ export function useList(listId: string) {
       appendOfflineNavDiagnostic(
         `[fetchList] RPC success listId=${listId} items=${(data.items || []).length} members=${(data.members || []).length}`,
       )
+      serverOutcome = 'success'
     } catch (err) {
-      if (isLikelyConnectivityError(err)) {
+      serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
+      if (serverOutcome === 'connectivity_failure') {
         enterOffline('fetchList-connectivity-error')
       }
       fetchErr = rpcFailureMessage(err)
@@ -620,6 +624,7 @@ export function useList(listId: string) {
         `[fetchList] catch listId=${listId} connectivity-ish=${isLikelyConnectivityError(err) ? 1 : 0} msg=${fetchErr}`,
       )
     } finally {
+      endServerWork(serverOutcome)
       perfLog('fetchList end', {
         durationMs: Math.round(performance.now() - fetchT0),
         rpcDurationMs,
@@ -651,7 +656,7 @@ export function useList(listId: string) {
         ].join(' '),
       )
     }
-  }, [enterOffline, listId, markOnlineRecovered, userId])
+  }, [beginServerWork, endServerWork, enterOffline, listId, markOnlineRecovered, pulseServerWorkProgress, userId])
 
   const drainItemMutationOutbox = useCallback(async () => {
     if (!userId || !listId || outboxDrainingRef.current || fetchingRef.current) return
