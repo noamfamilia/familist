@@ -20,9 +20,10 @@ interface SortableListCardProps {
   onClearCreateInput?: () => void
   onClearCreateInputIfTyped?: () => void
   isOfflineActionsDisabled?: boolean
+  onOfflineCachedNav?: (listId: string) => void
 }
 
-export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, labels, onUpdateLabel, onSelectLabel, currentFilter, onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false }: SortableListCardProps) {
+export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, labels, onUpdateLabel, onSelectLabel, currentFilter, onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false, onOfflineCachedNav }: SortableListCardProps) {
   const {
     attributes,
     listeners,
@@ -56,6 +57,7 @@ export function SortableListCard({ list, existingListNames, onUpdate, onDelete, 
         onClearCreateInput={onClearCreateInput}
         onClearCreateInputIfTyped={onClearCreateInputIfTyped}
         isOfflineActionsDisabled={isOfflineActionsDisabled}
+        onOfflineCachedNav={onOfflineCachedNav}
       />
     </div>
   )
