@@ -34,7 +34,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id })
+  } = useSortable({ id: item.id, disabled: isOfflineActionsDisabled })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -54,7 +54,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
         onChangeQuantity={onChangeQuantity}
         onUpdateMemberState={onUpdateMemberState}
         dragHandleProps={{ ...attributes, ...listeners }}
-        isDraggable={true}
+        isDraggable={!isOfflineActionsDisabled}
         itemTextWidth={itemTextWidth}
         expandSignal={expandSignal}
         collapseSignal={collapseSignal}

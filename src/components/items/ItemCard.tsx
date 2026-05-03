@@ -43,7 +43,7 @@ interface ItemCardProps {
   itemNameFontClassName?: string
   /** Font step for row/cell/progress sizing (same delta as item name canvas px). */
   itemNameFontStep?: number
-  /** When true, quantity and comment editing UI is hidden/disabled (e.g. offline). */
+  /** When true, delete and drag are blocked (offline / recovering). Item text, comment, category, and quantities stay editable when the list allows the mutation queue. */
   isOfflineActionsDisabled?: boolean
   /** When true with offline, archive/restore on the item name still runs (queued until online). */
   allowItemMutationQueue?: boolean
@@ -259,18 +259,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
 
-  useEffect(() => {
-    if (!isOfflineActionsDisabled || !editingComment) return
-    setDraftComment(comment)
-    setEditingComment(false)
-  }, [isOfflineActionsDisabled, editingComment, comment])
-
-  useEffect(() => {
-    if (!isOfflineActionsDisabled || !isEditing) return
-    setEditText(item.text)
-    setIsEditing(false)
-  }, [isOfflineActionsDisabled, isEditing, item.text])
-
   // Outside-click: cancel comment
   useEffect(() => {
     if (!editingComment) return
@@ -354,10 +342,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleSaveText = () => {
-    if (isOfflineActionsDisabled) {
-      handleCancelEditText()
-      return
-    }
     if (editText.trim() && editText !== item.text) {
       const trimmed = editText.trim()
       setIsEditing(false)
@@ -372,7 +356,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleAssign = async (memberId: string) => {
-    if (isOfflineActionsDisabled) return
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: true })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to assign')
@@ -380,7 +363,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleMarkDone = async (memberId: string) => {
-    if (isOfflineActionsDisabled) return
     const { error } = await onUpdateMemberState(item.id, memberId, { done: true })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to mark done')
@@ -388,7 +370,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleUnassign = async (memberId: string) => {
-    if (isOfflineActionsDisabled) return
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: false, done: false })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to unassign')
@@ -396,7 +377,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleOpenQuantityEditor = (memberId: string, containerEl: HTMLElement) => {
-    if (isOfflineActionsDisabled) return
     const m = members.find(x => x.id === memberId)
     if (!m) return
     const canEditMember = m.created_by === user?.id || m.is_public
@@ -472,7 +452,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleStartEditComment = () => {
-    if (isOfflineActionsDisabled) return
     setDraftComment(comment)
     setEditingComment(true)
   }
@@ -524,7 +503,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const itemNameColorClass = item.archived ? '' : ITEM_CATEGORY_STYLES[category].itemName
 
   const handlePickCategory = async (next: ItemCategory) => {
-    if (isOfflineActionsDisabled) return
     if (next === category) return
     const { error } = await onUpdateItem(item.id, { category: next })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
@@ -568,29 +546,20 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           data-tour="item-name"
         >
           {showMenu ? (
-            isOfflineActionsDisabled ? (
-              <span
-                className={`flex items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-default ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
-                data-tour="item-archive"
-              >
-                <span className="truncate">{item.text}</span>
-              </span>
-            ) : (
-              <span
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setEditText(item.text)
-                  setIsEditing(true)
-                }}
-                className={`flex items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
-                data-tour="item-archive"
-              >
-                <span className="truncate">{item.text}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
-                  <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-                </svg>
-              </span>
-            )
+            <span
+              onClick={(e) => {
+                e.stopPropagation()
+                setEditText(item.text)
+                setIsEditing(true)
+              }}
+              className={`flex items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              data-tour="item-archive"
+            >
+              <span className="truncate">{item.text}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
+                <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+              </svg>
+            </span>
           ) : (
             <span
               onClick={archiveInteractionBlocked ? undefined : handleArchive}
@@ -676,10 +645,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-neutral-600 dark:bg-neutral-900 ${item.archived ? 'cursor-default opacity-50' : !canEdit || isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
+                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-neutral-600 dark:bg-neutral-900 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                     style={{ height: memberCellPx }}
                     onClick={(e) => {
-                      if (!canEdit || item.archived || isOfflineActionsDisabled) return
+                      if (!canEdit || item.archived) return
                       e.stopPropagation()
                       const container = e.currentTarget as HTMLElement
                       handleOpenQuantityEditor(member.id, container)
@@ -746,10 +715,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               <div key={member.id} className="relative">
                 <div
                   data-state-container
-                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 w-[90px] transition-colors ${!canEdit || item.archived || isOfflineActionsDisabled ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
+                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 w-[90px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                   style={{ height: memberCellPx }}
                   onClick={() => {
-                    if (!canEdit || isEditingThis || item.archived || isOfflineActionsDisabled) return
+                    if (!canEdit || isEditingThis || item.archived) return
                     if (!assigned) {
                       void handleAssign(member.id)
                     } else if (!done) {
@@ -778,22 +747,20 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       >
                         {quantity}
                       </span>
-                      {!isOfflineActionsDisabled ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            const container = (e.currentTarget as HTMLElement).closest('[data-state-container]') as HTMLElement
-                            if (canEdit && !item.archived && container) handleOpenQuantityEditor(member.id, container)
-                          }}
-                          className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-teal"
-                          aria-label="Edit quantity"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-                          </svg>
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const container = (e.currentTarget as HTMLElement).closest('[data-state-container]') as HTMLElement
+                          if (canEdit && !item.archived && container) handleOpenQuantityEditor(member.id, container)
+                        }}
+                        className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-teal"
+                        aria-label="Edit quantity"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                        </svg>
+                      </button>
                     </>
                   )}
                 </div>
@@ -911,19 +878,17 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               {comment ? (
                 <p
-                  className={`text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
+                  className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words cursor-pointer hover:text-teal"
                   onClick={() => handleStartEditComment()}
                 >
                   {comment}
-                  {!isOfflineActionsDisabled ? (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="inline-block ml-1 opacity-40 align-text-bottom" aria-hidden>
-                      <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-                    </svg>
-                  ) : null}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="inline-block ml-1 opacity-40 align-text-bottom" aria-hidden>
+                    <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                  </svg>
                 </p>
               ) : (
                 <p
-                  className={`text-sm text-gray-400 dark:text-gray-500 ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
+                  className="text-sm text-gray-400 dark:text-gray-500 cursor-pointer hover:text-teal"
                   onClick={() => handleStartEditComment()}
                 >
                   Add a comment...
@@ -985,13 +950,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     type="button"
                     aria-label={`Category ${catId}`}
                     aria-pressed={catId === category}
-                    disabled={isOfflineActionsDisabled}
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
                       void handlePickCategory(catId)
                     }}
-                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden disabled:cursor-not-allowed disabled:opacity-50 ${ITEM_CATEGORY_STYLES[catId].swatch} ${
+                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
                       catId === category
                         ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary dark:ring-transparent dark:ring-offset-0 dark:outline-2 dark:outline-current'
                         : 'text-gray-500 hover:opacity-90 dark:hover:opacity-90'

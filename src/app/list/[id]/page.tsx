@@ -776,6 +776,7 @@ export default function ListPage() {
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (isOfflineActionsDisabled) return
     const { active, over } = event
 
     if (over && active.id !== over.id) {

@@ -1,6 +1,6 @@
 /**
- * Persisted queue for add / archive / restore item when offline or after connectivity failures.
- * Last-write-wins per (listId, itemKey) where itemKey is temp item id or server item id.
+ * Persisted queue for list-detail mutations when offline or after connectivity failures.
+ * Last-write-wins per (listId, itemKey) where itemKey scopes the entity (item id, ims:…, mbr:…, mbrNew:…).
  */
 
 import type { ItemMemberState } from '@/lib/supabase/types'
@@ -29,17 +29,69 @@ export type QueuedCreateRecord = {
   payload: QueuedCreatePayload
 }
 
+/** @deprecated use patchServerItem; kept for IndexedDB rows written before upgrade */
 export type QueuedPatchArchivedRecord = {
   kind: 'patchArchived'
   listId: string
-  /** Server item id, or temp item id (merged into pending create). */
   itemKey: string
   updatedAt: number
   archived: boolean
   archived_at: string | null
 }
 
-export type QueuedItemMutationRecord = QueuedCreateRecord | QueuedPatchArchivedRecord
+/** Server item id in itemKey — optional fields merged LWW */
+export type QueuedPatchServerItemRecord = {
+  kind: 'patchServerItem'
+  listId: string
+  itemKey: string
+  updatedAt: number
+  archived?: boolean
+  archived_at?: string | null
+  text?: string
+  comment?: string | null
+  category?: number
+}
+
+export type QueuedItemMemberStateRecord = {
+  kind: 'itemMemberState'
+  listId: string
+  itemKey: string
+  updatedAt: number
+  itemId: string
+  memberId: string
+  insert: boolean
+  quantity: number
+  done: boolean
+  assigned: boolean
+}
+
+export type QueuedPatchMemberRecord = {
+  kind: 'patchMember'
+  listId: string
+  itemKey: string
+  updatedAt: number
+  memberId: string
+  name?: string | null
+  is_public?: boolean | null
+}
+
+export type QueuedAddMemberRecord = {
+  kind: 'addMember'
+  listId: string
+  itemKey: string
+  updatedAt: number
+  name: string
+  sort_order: number
+  creator_nickname: string | null
+}
+
+export type QueuedItemMutationRecord =
+  | QueuedCreateRecord
+  | QueuedPatchArchivedRecord
+  | QueuedPatchServerItemRecord
+  | QueuedItemMemberStateRecord
+  | QueuedPatchMemberRecord
+  | QueuedAddMemberRecord
 
 type StoredRow = {
   key: string
@@ -78,6 +130,37 @@ function openOutboxDb(): Promise<IDBDatabase | null> {
   return dbPromise
 }
 
+function asPatchServerItem(r: QueuedPatchArchivedRecord | QueuedPatchServerItemRecord): QueuedPatchServerItemRecord {
+  if (r.kind === 'patchServerItem') return r
+  return {
+    kind: 'patchServerItem',
+    listId: r.listId,
+    itemKey: r.itemKey,
+    updatedAt: r.updatedAt,
+    archived: r.archived,
+    archived_at: r.archived_at,
+  }
+}
+
+/** `b` is the newer enqueue; its defined fields win. */
+function mergePatchServerItem(
+  a: QueuedPatchServerItemRecord,
+  b: QueuedPatchServerItemRecord,
+): QueuedPatchServerItemRecord {
+  const now = Date.now()
+  return {
+    kind: 'patchServerItem',
+    listId: b.listId,
+    itemKey: b.itemKey,
+    updatedAt: now,
+    archived: b.archived !== undefined ? b.archived : a.archived,
+    archived_at: b.archived_at !== undefined ? b.archived_at : a.archived_at,
+    text: b.text !== undefined ? b.text : a.text,
+    comment: b.comment !== undefined ? b.comment : a.comment,
+    category: b.category !== undefined ? b.category : a.category,
+  }
+}
+
 function mergeRecords(
   existing: QueuedItemMutationRecord | null,
   incoming: QueuedItemMutationRecord,
@@ -100,6 +183,7 @@ function mergeRecords(
     }
   }
   if (existing.kind === 'create' && incoming.kind === 'patchArchived' && existing.itemKey === incoming.itemKey) {
+    const p = asPatchServerItem(incoming)
     return {
       kind: 'create',
       listId: existing.listId,
@@ -107,15 +191,61 @@ function mergeRecords(
       updatedAt: now,
       payload: {
         ...existing.payload,
-        archived: incoming.archived,
-        archived_at: incoming.archived_at,
+        archived: p.archived ?? existing.payload.archived,
+        archived_at: p.archived_at ?? existing.payload.archived_at,
+        ...(p.text !== undefined ? { text: p.text } : {}),
+        ...(p.comment !== undefined ? { comment: p.comment } : {}),
+        ...(p.category !== undefined ? { category: p.category } : {}),
+      },
+    }
+  }
+  if (existing.kind === 'create' && incoming.kind === 'patchServerItem' && existing.itemKey === incoming.itemKey) {
+    return {
+      kind: 'create',
+      listId: existing.listId,
+      itemKey: existing.itemKey,
+      updatedAt: now,
+      payload: {
+        ...existing.payload,
+        ...(incoming.archived !== undefined
+          ? { archived: incoming.archived, archived_at: incoming.archived_at ?? null }
+          : {}),
+        ...(incoming.text !== undefined ? { text: incoming.text } : {}),
+        ...(incoming.comment !== undefined ? { comment: incoming.comment } : {}),
+        ...(incoming.category !== undefined ? { category: incoming.category } : {}),
       },
     }
   }
   if (existing.kind === 'patchArchived' && incoming.kind === 'patchArchived' && existing.itemKey === incoming.itemKey) {
     return { ...incoming, updatedAt: now }
   }
+  if (
+    (existing.kind === 'patchArchived' || existing.kind === 'patchServerItem') &&
+    (incoming.kind === 'patchArchived' || incoming.kind === 'patchServerItem') &&
+    existing.itemKey === incoming.itemKey
+  ) {
+    return mergePatchServerItem(
+      asPatchServerItem(existing as QueuedPatchArchivedRecord | QueuedPatchServerItemRecord),
+      asPatchServerItem(incoming as QueuedPatchArchivedRecord | QueuedPatchServerItemRecord),
+    )
+  }
   if (existing.kind === 'patchArchived' && incoming.kind === 'create') {
+    return { ...incoming, updatedAt: now }
+  }
+  if (existing.kind === 'itemMemberState' && incoming.kind === 'itemMemberState' && existing.itemKey === incoming.itemKey) {
+    return { ...incoming, updatedAt: now }
+  }
+  if (existing.kind === 'patchMember' && incoming.kind === 'patchMember' && existing.itemKey === incoming.itemKey) {
+    const next: QueuedPatchMemberRecord = {
+      ...existing,
+      ...incoming,
+      updatedAt: now,
+      name: incoming.name !== undefined ? incoming.name : existing.name,
+      is_public: incoming.is_public !== undefined ? incoming.is_public : existing.is_public,
+    }
+    return next
+  }
+  if (existing.kind === 'addMember' && incoming.kind === 'addMember' && existing.itemKey === incoming.itemKey) {
     return { ...incoming, updatedAt: now }
   }
   return { ...incoming, updatedAt: now }
@@ -172,6 +302,14 @@ export async function mergeQueuedCreateArchived(
   })
 }
 
+export function itemMemberStateOutboxKey(itemId: string, memberId: string) {
+  return `ims:${itemId}:${memberId}`
+}
+
+export function memberProfileOutboxKey(memberId: string) {
+  return `mbr:${memberId}`
+}
+
 export async function getPendingItemMutationsForList(listId: string): Promise<QueuedItemMutationRecord[]> {
   const t0 = typeof performance !== 'undefined' ? performance.now() : null
   appendOfflineNavDiagnostic(
@@ -217,15 +355,88 @@ export async function removePendingItemMutation(listId: string, itemKey: string)
   })
 }
 
-/** Sort: creates first (by sort_order then updatedAt), then patchArchived by updatedAt. */
+/** Drain order: creates → add members → server item patches → member states → member profile patches */
 export function sortPendingForDrain(records: QueuedItemMutationRecord[]): QueuedItemMutationRecord[] {
   const creates = records.filter((r): r is QueuedCreateRecord => r.kind === 'create')
-  const patches = records.filter((r): r is QueuedPatchArchivedRecord => r.kind === 'patchArchived')
+  const addMembers = records.filter((r): r is QueuedAddMemberRecord => r.kind === 'addMember')
+  const patchItems = records.filter(
+    (r): r is QueuedPatchArchivedRecord | QueuedPatchServerItemRecord =>
+      r.kind === 'patchArchived' || r.kind === 'patchServerItem',
+  )
+  const ims = records.filter((r): r is QueuedItemMemberStateRecord => r.kind === 'itemMemberState')
+  const mbr = records.filter((r): r is QueuedPatchMemberRecord => r.kind === 'patchMember')
+
   creates.sort((a, b) => {
     const o = a.payload.sort_order - b.payload.sort_order
     if (o !== 0) return o
     return a.updatedAt - b.updatedAt
   })
-  patches.sort((a, b) => a.updatedAt - b.updatedAt)
-  return [...creates, ...patches]
+  addMembers.sort((a, b) => a.updatedAt - b.updatedAt)
+  patchItems.sort((a, b) => a.updatedAt - b.updatedAt)
+  ims.sort((a, b) => a.updatedAt - b.updatedAt)
+  mbr.sort((a, b) => a.updatedAt - b.updatedAt)
+  return [...creates, ...addMembers, ...patchItems, ...ims, ...mbr]
+}
+
+/** After a queued member insert gets a server id, fix temp member ids in pending rows for this list. */
+export async function remapMemberDependentQueuedRecords(
+  listId: string,
+  tempMemberId: string,
+  serverMemberId: string,
+): Promise<void> {
+  if (tempMemberId === serverMemberId) return
+
+  let pendingCreates = await getPendingItemMutationsForList(listId)
+  let guard = 0
+  while (guard++ < 500) {
+    const next = pendingCreates.find(
+      (r): r is QueuedCreateRecord =>
+        r.kind === 'create' && Boolean(r.payload.memberStates[tempMemberId]),
+    )
+    if (!next) break
+    const ms = next.payload.memberStates[tempMemberId]
+    const { [tempMemberId]: _removed, ...rest } = next.payload.memberStates
+    const nextStates = {
+      ...rest,
+      [serverMemberId]: { ...ms, member_id: serverMemberId },
+    }
+    await enqueueItemMutation({
+      kind: 'create',
+      listId: next.listId,
+      itemKey: next.itemKey,
+      updatedAt: Date.now(),
+      payload: { ...next.payload, memberStates: nextStates },
+    })
+    pendingCreates = await getPendingItemMutationsForList(listId)
+  }
+
+  const pending = await getPendingItemMutationsForList(listId)
+  for (const r of pending) {
+    if (r.kind === 'itemMemberState' && r.memberId === tempMemberId) {
+      await removePendingItemMutation(listId, r.itemKey)
+      await enqueueItemMutation({
+        kind: 'itemMemberState',
+        listId: r.listId,
+        itemKey: itemMemberStateOutboxKey(r.itemId, serverMemberId),
+        updatedAt: Date.now(),
+        itemId: r.itemId,
+        memberId: serverMemberId,
+        insert: r.insert,
+        quantity: r.quantity,
+        done: r.done,
+        assigned: r.assigned,
+      })
+    } else if (r.kind === 'patchMember' && r.memberId === tempMemberId) {
+      await removePendingItemMutation(listId, r.itemKey)
+      await enqueueItemMutation({
+        kind: 'patchMember',
+        listId: r.listId,
+        itemKey: memberProfileOutboxKey(serverMemberId),
+        updatedAt: Date.now(),
+        memberId: serverMemberId,
+        ...(r.name !== undefined ? { name: r.name } : {}),
+        ...(r.is_public !== undefined ? { is_public: r.is_public } : {}),
+      })
+    }
+  }
 }
