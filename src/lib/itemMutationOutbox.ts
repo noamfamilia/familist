@@ -476,7 +476,10 @@ export async function removePendingItemMutation(listId: string, itemKey: string)
   })
 }
 
-/** Drain order: creates → add members → server item patches → member states → member profile patches */
+/**
+ * Drain order: add members → creates → server item patches → member states → member profile patches.
+ * New members must exist before queued item creates insert item_member_state rows that reference them.
+ */
 export function sortPendingForDrain(records: QueuedItemMutationRecord[]): QueuedItemMutationRecord[] {
   const creates = records.filter((r): r is QueuedCreateRecord => r.kind === 'create')
   const addMembers = records.filter((r): r is QueuedAddMemberRecord => r.kind === 'addMember')
@@ -496,7 +499,7 @@ export function sortPendingForDrain(records: QueuedItemMutationRecord[]): Queued
   patchItems.sort((a, b) => a.updatedAt - b.updatedAt)
   ims.sort((a, b) => a.updatedAt - b.updatedAt)
   mbr.sort((a, b) => a.updatedAt - b.updatedAt)
-  return [...creates, ...addMembers, ...patchItems, ...ims, ...mbr]
+  return [...addMembers, ...creates, ...patchItems, ...ims, ...mbr]
 }
 
 /** After a queued member insert gets a server id, fix temp member ids in pending rows for this list. */
@@ -557,6 +560,34 @@ export async function remapMemberDependentQueuedRecords(
         memberId: serverMemberId,
         ...(r.name !== undefined ? { name: r.name } : {}),
         ...(r.is_public !== undefined ? { is_public: r.is_public } : {}),
+      })
+    }
+  }
+}
+
+/** After a queued item insert gets a server id, fix pending IMS rows that still reference the temp item id. */
+export async function remapItemDependentQueuedRecords(
+  listId: string,
+  tempItemId: string,
+  serverItemId: string,
+): Promise<void> {
+  if (tempItemId === serverItemId) return
+
+  const pending = await getPendingItemMutationsForList(listId)
+  for (const r of pending) {
+    if (r.kind === 'itemMemberState' && r.itemId === tempItemId) {
+      await removePendingItemMutation(listId, r.itemKey)
+      await enqueueItemMutation({
+        kind: 'itemMemberState',
+        listId: r.listId,
+        itemKey: itemMemberStateOutboxKey(serverItemId, r.memberId),
+        updatedAt: Date.now(),
+        itemId: serverItemId,
+        memberId: r.memberId,
+        insert: r.insert,
+        quantity: r.quantity,
+        done: r.done,
+        assigned: r.assigned,
       })
     }
   }

@@ -20,6 +20,7 @@ import {
   itemMemberStateOutboxKey,
   memberProfileOutboxKey,
   mergeQueuedCreateMemberState,
+  remapItemDependentQueuedRecords,
   remapMemberDependentQueuedRecords,
   removePendingItemMutation,
   sortPendingForDrain,
@@ -779,25 +780,31 @@ export function useList(listId: string) {
             appendOfflineNavDiagnostic(
               `[db-write] target=supabase table=items action=insert-end listId=${listId} itemKey=${rec.itemKey} serverItemId=${data.id}`,
             )
-            const memRows = Object.entries(p.memberStates).map(([memberId, st]) => ({
-              item_id: data.id,
-              member_id: memberId,
-              quantity: st.quantity,
-              done: st.done,
-              assigned: st.assigned,
-            }))
-            if (memRows.length > 0) {
+            const memberStateEntries = Object.entries(p.memberStates)
+            if (memberStateEntries.length > 0) {
               appendOfflineNavDiagnostic(
-                `[db-write] target=supabase table=item_member_state action=insert-start listId=${listId} itemKey=${rec.itemKey} rowCount=${memRows.length}`,
+                `[db-write] target=supabase table=item_member_state action=insert-seq-start listId=${listId} itemKey=${rec.itemKey} rowCount=${memberStateEntries.length}`,
               )
-              const { error: mErr } = await trackSaveOperation(
-                supabase.from('item_member_state').insert(memRows),
-              )
-              if (mErr) throw mErr
+              for (const [memberId, st] of memberStateEntries) {
+                appendOfflineNavDiagnostic(
+                  `[db-write] target=supabase table=item_member_state action=insert-one listId=${listId} itemKey=${rec.itemKey} memberId=${memberId}`,
+                )
+                const { error: rowErr } = await trackSaveOperation(
+                  supabase.from('item_member_state').insert({
+                    item_id: data.id,
+                    member_id: memberId,
+                    quantity: st.quantity,
+                    done: st.done,
+                    assigned: st.assigned,
+                  }),
+                )
+                if (rowErr) throw rowErr
+              }
               appendOfflineNavDiagnostic(
-                `[db-write] target=supabase table=item_member_state action=insert-end listId=${listId} itemKey=${rec.itemKey} rowCount=${memRows.length}`,
+                `[db-write] target=supabase table=item_member_state action=insert-seq-end listId=${listId} itemKey=${rec.itemKey} rowCount=${memberStateEntries.length}`,
               )
             }
+            await remapItemDependentQueuedRecords(listId, rec.itemKey, data.id)
             const newMemberStates: Record<string, ItemMemberState> = {}
             for (const [mid, st] of Object.entries(p.memberStates)) {
               newMemberStates[mid] = { ...st, item_id: data.id }
