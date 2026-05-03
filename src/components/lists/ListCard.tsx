@@ -7,7 +7,12 @@ import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
-import { cachedListDataExists, logListDetailCacheValidation } from '@/lib/cache'
+import { cachedListDataExists } from '@/lib/cache'
+import {
+  getClientBuildId,
+  getLastOfflineRouteMarkerRecord,
+  normalOfflineRouteReady,
+} from '@/lib/offlineRouteReadiness'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import type { ListWithRole } from '@/lib/supabase/types'
 
@@ -158,22 +163,30 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     async (e: React.MouseEvent<HTMLAnchorElement>) => {
       const native = e.nativeEvent
       const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
-      logListDetailCacheValidation(list.id, undefined, '[list-click]')
       const hasCachedListData = cachedListDataExists(list.id)
+      const routeReady = normalOfflineRouteReady(list.id)
+      const lastMarker = getLastOfflineRouteMarkerRecord(list.id)
+      const currentBuildId = getClientBuildId()
       const offlineNavAllowed =
-        offline && swControlled && offlineAssetsReady && hasCachedListData
+        offline &&
+        swControlled &&
+        offlineAssetsReady &&
+        hasCachedListData &&
+        routeReady
       const allowed = !offline || offlineNavAllowed
       let reason: string
       if (!offline) {
         reason = 'allowed_online'
-      } else if (offlineNavAllowed) {
-        reason = 'allowed_offline_nav'
       } else if (!swControlled) {
         reason = 'blocked_sw_not_controlled'
       } else if (!offlineAssetsReady) {
         reason = 'blocked_offline_assets_not_ready'
-      } else {
+      } else if (!hasCachedListData) {
         reason = 'blocked_list_data_not_cached'
+      } else if (!routeReady) {
+        reason = 'blocked_route_not_verified_offline'
+      } else {
+        reason = 'allowed_offline_normal_route_ready'
       }
       const targetHref = `/list/${list.id}`
       const currentPath =
@@ -190,8 +203,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
           `currentPath=${currentPath}`,
           `targetHref=${targetHref}`,
           `offline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
-          `cachedListData=${hasCachedListData ? 1 : 0} offlineNavAllowed=${offlineNavAllowed ? 1 : 0}`,
-          `reason=${reason} allowed=${allowed ? 1 : 0}`,
+          `cachedListDataExists=${hasCachedListData ? 1 : 0} normalOfflineRouteReady=${routeReady ? 1 : 0}`,
+          `lastMarkerBuildId=${lastMarker?.buildId ?? 'none'} currentBuildId=${currentBuildId}`,
+          `offlineNavAllowed=${offlineNavAllowed ? 1 : 0} reason=${reason} allowed=${allowed ? 1 : 0}`,
           `sw.controller.state=${ctrl?.state ?? 'no-controller'}`,
           ctrl?.scriptURL ? `sw.controller.scriptURL=${ctrl.scriptURL}` : '',
         ]
@@ -210,13 +224,15 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       appendOfflineNavDiagnostic('[list-click] preventDefault called')
 
       if (!allowed) {
-        appendOfflineNavDiagnostic('[list-click] blocked — no router.push')
+        appendOfflineNavDiagnostic(`[list-click] blocked — no router.push reason=${reason}`)
         const now = Date.now()
         if (now - lastUnavailableToastAtRef.current > 1200) {
           if (reason === 'blocked_sw_not_controlled') {
             showError('Offline access is not ready. Open the app once while online.')
           } else if (reason === 'blocked_offline_assets_not_ready') {
             showError('Offline shell not ready yet. Reload once while online, then try again.')
+          } else if (reason === 'blocked_route_not_verified_offline' && hasCachedListData) {
+            showError('This list is not available offline yet. Open it once while online.')
           } else {
             showError('List is unavailable offline.')
           }
@@ -226,6 +242,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       }
 
       try {
+        appendOfflineNavDiagnostic(
+          `[list-click] navAction=router_push reason=${reason} targetHref=${targetHref}`,
+        )
         appendOfflineNavDiagnostic(`[list-click] router.push calling ${targetHref}`)
         await router.push(targetHref)
         appendOfflineNavDiagnostic('[list-click] router.push promise resolved')

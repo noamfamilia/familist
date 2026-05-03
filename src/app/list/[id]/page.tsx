@@ -15,6 +15,13 @@ import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 import { cachedListDataExists, getCachedList, logListDetailCacheValidation } from '@/lib/cache'
+import {
+  getClientBuildId,
+  getLastOfflineRouteMarkerRecord,
+  isClientBuildIdKnown,
+  normalOfflineRouteReady,
+  setNormalOfflineRouteReadyMarker,
+} from '@/lib/offlineRouteReadiness'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
@@ -342,6 +349,11 @@ export default function ListPage() {
   const knownMemberIdsRef = useRef<Set<string> | null>(null)
   const lastListPageDiagSigRef = useRef<string>('')
   const lastListPageDiagAtRef = useRef(0)
+  const normalOfflineMarkerAppliedSigRef = useRef<string>('')
+
+  useEffect(() => {
+    normalOfflineMarkerAppliedSigRef.current = ''
+  }, [listId])
 
   useLayoutEffect(() => {
     const uid = user?.id ?? bootstrapUserId
@@ -353,6 +365,11 @@ export default function ListPage() {
     logListDetailCacheValidation(listId, uid ?? undefined, '[list-page-mount]')
     const hasRow = cachedListDataExists(listId, uid ?? undefined)
     appendOfflineNavDiagnostic(`[list-page-mount] cachedListDataExists=${hasRow ? 1 : 0}`)
+    const rrMount = normalOfflineRouteReady(listId, uid ?? undefined)
+    const lastMount = getLastOfflineRouteMarkerRecord(listId, uid ?? undefined)
+    appendOfflineNavDiagnostic(
+      `[list-page-mount] normalOfflineRouteReady=${rrMount ? 1 : 0} lastMarkerBuildId=${lastMount?.buildId ?? 'none'} currentBuildId=${getClientBuildId()}`,
+    )
     const cached = uid ? getCachedList(uid, listId) : null
     const readMs = Math.round(performance.now() - tReadStart)
     appendOfflineNavDiagnostic(
@@ -364,10 +381,24 @@ export default function ListPage() {
     const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
     const cacheUserId = user?.id ?? bootstrapUserId ?? undefined
     const hasCachedListData = cachedListDataExists(listId, cacheUserId)
+    const routeReady = normalOfflineRouteReady(listId, cacheUserId)
     const offlineNavAllowed =
-      offline && swControlled && offlineAssetsReady && hasCachedListData
+      offline &&
+      swControlled &&
+      offlineAssetsReady &&
+      hasCachedListData &&
+      routeReady
+    const lastMarker = getLastOfflineRouteMarkerRecord(listId, cacheUserId)
+    let offlineGateReason = 'n/a'
+    if (offline) {
+      if (!swControlled) offlineGateReason = 'blocked_sw_not_controlled'
+      else if (!offlineAssetsReady) offlineGateReason = 'blocked_offline_assets_not_ready'
+      else if (!hasCachedListData) offlineGateReason = 'blocked_list_data_not_cached'
+      else if (!routeReady) offlineGateReason = 'blocked_route_not_verified_offline'
+      else offlineGateReason = 'allowed_offline_normal_route_ready'
+    }
     const errShort = error ? String(error).slice(0, 160) : ''
-    const sig = `${pathname}|${listId}|${loading}|${hasCompletedInitialFetch}|${!!list}|${errShort}|${accessDenied}|${swControlled}|${offlineAssetsReady}|${offline}`
+    const sig = `${pathname}|${listId}|${loading}|${hasCompletedInitialFetch}|${!!list}|${errShort}|${accessDenied}|${swControlled}|${offlineAssetsReady}|${offline}|${routeReady}`
     const now = Date.now()
     if (sig === lastListPageDiagSigRef.current && now - lastListPageDiagAtRef.current < 250) return
     lastListPageDiagSigRef.current = sig
@@ -378,7 +409,9 @@ export default function ListPage() {
         `loading=${loading ? 1 : 0} hasCompletedInitialFetch=${hasCompletedInitialFetch ? 1 : 0} listPresent=${list ? 1 : 0}`,
         `accessDenied=${accessDenied ? 1 : 0} error=${errShort || '(none)'}`,
         `offline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
-        `cachedListData=${hasCachedListData ? 1 : 0} offlineNavAllowed=${offlineNavAllowed ? 1 : 0}`,
+        `cachedListData=${hasCachedListData ? 1 : 0} normalOfflineRouteReady=${routeReady ? 1 : 0}`,
+        `lastMarkerBuildId=${lastMarker?.buildId ?? 'none'} currentBuildId=${getClientBuildId()}`,
+        `offlineNavAllowed=${offlineNavAllowed ? 1 : 0} offlineGateReason=${offlineGateReason}`,
       ].join('\n'),
     )
   }, [
@@ -393,6 +426,37 @@ export default function ListPage() {
     offlineAssetsReady,
     user?.id,
     bootstrapUserId,
+  ])
+
+  useEffect(() => {
+    const uid = user?.id ?? bootstrapUserId ?? null
+    if (!uid) return
+    if (typeof window === 'undefined') return
+    if (pathname !== `/list/${listId}`) return
+    if (!hasCompletedInitialFetch || loading) return
+    if (!list || list.id !== listId || accessDenied) return
+    if (!swControlled || !offlineAssetsReady) return
+    if (!isClientBuildIdKnown()) return
+
+    const markerSig = `${listId}|${uid}|${getClientBuildId()}`
+    if (normalOfflineMarkerAppliedSigRef.current === markerSig) return
+    normalOfflineMarkerAppliedSigRef.current = markerSig
+
+    setNormalOfflineRouteReadyMarker(uid, listId)
+    appendOfflineNavDiagnostic(
+      `[list-page] normal_offline_route_ready marker set listId=${listId} userId=${uid} buildId=${getClientBuildId()}`,
+    )
+  }, [
+    pathname,
+    listId,
+    user?.id,
+    bootstrapUserId,
+    hasCompletedInitialFetch,
+    loading,
+    list,
+    accessDenied,
+    swControlled,
+    offlineAssetsReady,
   ])
 
   useEffect(() => {
