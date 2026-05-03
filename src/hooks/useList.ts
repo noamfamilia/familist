@@ -19,6 +19,7 @@ import {
   getPendingItemMutationsForList,
   itemMemberStateOutboxKey,
   memberProfileOutboxKey,
+  mergeQueuedCreateMemberState,
   remapMemberDependentQueuedRecords,
   removePendingItemMutation,
   sortPendingForDrain,
@@ -639,6 +640,7 @@ export function useList(listId: string) {
       for (const m of pendingMutations) {
         if (m.kind === 'addMember') pendingTempMemberIds.add(m.itemKey)
         if (m.kind === 'patchMember' && isTempEntityId(m.memberId)) pendingTempMemberIds.add(m.memberId)
+        if (m.kind === 'patchMember' && isTempEntityId(m.itemKey)) pendingTempMemberIds.add(m.itemKey)
         if (m.kind === 'itemMemberState' && isTempEntityId(m.memberId)) pendingTempMemberIds.add(m.memberId)
       }
 
@@ -820,6 +822,7 @@ export function useList(listId: string) {
                   name: rec.name,
                   created_by: userId,
                   sort_order: rec.sort_order,
+                  ...(rec.is_public !== undefined ? { is_public: rec.is_public } : {}),
                 })
                 .select()
                 .single(),
@@ -1935,7 +1938,7 @@ export function useList(listId: string) {
         await enqueueItemMutation({
           kind: 'patchMember',
           listId,
-          itemKey: memberProfileOutboxKey(memberId),
+          itemKey: isTempEntityId(memberId) ? memberId : memberProfileOutboxKey(memberId),
           updatedAt: Date.now(),
           memberId,
           ...(updates.name !== undefined ? { name: updates.name } : {}),
@@ -2107,9 +2110,6 @@ export function useList(listId: string) {
     memberId: string,
     updates: { quantity?: number; done?: boolean; assigned?: boolean },
   ) => {
-    if (isTempEntityId(itemId)) {
-      return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
-    }
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
@@ -2127,6 +2127,11 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLocalMemberState(itemId, memberId, optimisticState)
+
+      if (isTempEntityId(itemId)) {
+        await mergeQueuedCreateMemberState(listId, itemId, memberId, optimisticState)
+        return { error: null }
+      }
 
       const persistQueuedIms = async () => {
         await enqueueItemMutation({
@@ -2219,9 +2224,6 @@ export function useList(listId: string) {
   }
 
   const changeQuantity = async (itemId: string, memberId: string, delta: number) => {
-    if (isTempEntityId(itemId)) {
-      return { data: null, error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
-    }
     if (!tryBeginItemQueueableMutation()) {
       return { data: null, error: { message: blockedMutationMessage() } }
     }
@@ -2239,6 +2241,11 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLocalMemberState(itemId, memberId, optimisticState)
+
+      if (isTempEntityId(itemId)) {
+        await mergeQueuedCreateMemberState(listId, itemId, memberId, optimisticState)
+        return { data: null, error: null }
+      }
 
       const persistQueuedIms = async () => {
         await enqueueItemMutation({

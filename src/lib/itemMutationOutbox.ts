@@ -83,6 +83,17 @@ export type QueuedAddMemberRecord = {
   name: string
   sort_order: number
   creator_nickname: string | null
+  /** Merged from profile patches while member is still a temp id. */
+  is_public?: boolean
+}
+
+/** Merges into the queued `create` row for the same temp item key (`itemKey`). */
+export type QueuedPatchCreateMemberStatesRecord = {
+  kind: 'patchCreateMemberStates'
+  listId: string
+  itemKey: string
+  updatedAt: number
+  memberStates: Record<string, ItemMemberState>
 }
 
 export type QueuedItemMutationRecord =
@@ -92,6 +103,7 @@ export type QueuedItemMutationRecord =
   | QueuedItemMemberStateRecord
   | QueuedPatchMemberRecord
   | QueuedAddMemberRecord
+  | QueuedPatchCreateMemberStatesRecord
 
 type StoredRow = {
   key: string
@@ -216,6 +228,107 @@ function mergeRecords(
       },
     }
   }
+  if (
+    existing.kind === 'create' &&
+    incoming.kind === 'patchCreateMemberStates' &&
+    existing.itemKey === incoming.itemKey
+  ) {
+    return {
+      kind: 'create',
+      listId: existing.listId,
+      itemKey: existing.itemKey,
+      updatedAt: now,
+      payload: {
+        ...existing.payload,
+        memberStates: { ...existing.payload.memberStates, ...incoming.memberStates },
+      },
+    }
+  }
+  if (
+    existing.kind === 'patchCreateMemberStates' &&
+    incoming.kind === 'create' &&
+    existing.itemKey === incoming.itemKey
+  ) {
+    return {
+      kind: 'create',
+      listId: incoming.listId,
+      itemKey: incoming.itemKey,
+      updatedAt: now,
+      payload: {
+        ...incoming.payload,
+        memberStates: { ...incoming.payload.memberStates, ...existing.memberStates },
+      },
+    }
+  }
+  if (
+    existing.kind === 'patchCreateMemberStates' &&
+    incoming.kind === 'patchCreateMemberStates' &&
+    existing.itemKey === incoming.itemKey
+  ) {
+    return {
+      kind: 'patchCreateMemberStates',
+      listId: incoming.listId,
+      itemKey: incoming.itemKey,
+      updatedAt: now,
+      memberStates: { ...existing.memberStates, ...incoming.memberStates },
+    }
+  }
+  if (
+    existing.kind === 'addMember' &&
+    incoming.kind === 'patchMember' &&
+    existing.itemKey === incoming.itemKey &&
+    existing.itemKey === incoming.memberId
+  ) {
+    const next: QueuedAddMemberRecord = {
+      kind: 'addMember',
+      listId: existing.listId,
+      itemKey: existing.itemKey,
+      updatedAt: now,
+      name: incoming.name !== undefined ? (incoming.name as string) : existing.name,
+      sort_order: existing.sort_order,
+      creator_nickname: existing.creator_nickname,
+      ...(incoming.is_public !== undefined ? { is_public: incoming.is_public as boolean } : {}),
+      ...(existing.is_public !== undefined && incoming.is_public === undefined
+        ? { is_public: existing.is_public }
+        : {}),
+    }
+    return next
+  }
+  if (
+    existing.kind === 'patchMember' &&
+    incoming.kind === 'addMember' &&
+    existing.itemKey === incoming.itemKey &&
+    existing.memberId === incoming.itemKey
+  ) {
+    const next: QueuedAddMemberRecord = {
+      kind: 'addMember',
+      listId: incoming.listId,
+      itemKey: incoming.itemKey,
+      updatedAt: now,
+      name: existing.name !== undefined ? (existing.name as string) : incoming.name,
+      sort_order: incoming.sort_order,
+      creator_nickname: incoming.creator_nickname,
+      ...(existing.is_public !== undefined ? { is_public: existing.is_public as boolean } : {}),
+    }
+    return next
+  }
+  if (
+    existing.kind === 'patchMember' &&
+    incoming.kind === 'patchMember' &&
+    existing.itemKey === incoming.itemKey &&
+    existing.memberId === incoming.memberId
+  ) {
+    const next: QueuedPatchMemberRecord = {
+      kind: 'patchMember',
+      listId: incoming.listId,
+      itemKey: incoming.itemKey,
+      updatedAt: now,
+      memberId: incoming.memberId,
+      name: incoming.name !== undefined ? incoming.name : existing.name,
+      is_public: incoming.is_public !== undefined ? incoming.is_public : existing.is_public,
+    }
+    return next
+  }
   if (existing.kind === 'patchArchived' && incoming.kind === 'patchArchived' && existing.itemKey === incoming.itemKey) {
     return { ...incoming, updatedAt: now }
   }
@@ -234,16 +347,6 @@ function mergeRecords(
   }
   if (existing.kind === 'itemMemberState' && incoming.kind === 'itemMemberState' && existing.itemKey === incoming.itemKey) {
     return { ...incoming, updatedAt: now }
-  }
-  if (existing.kind === 'patchMember' && incoming.kind === 'patchMember' && existing.itemKey === incoming.itemKey) {
-    const next: QueuedPatchMemberRecord = {
-      ...existing,
-      ...incoming,
-      updatedAt: now,
-      name: incoming.name !== undefined ? incoming.name : existing.name,
-      is_public: incoming.is_public !== undefined ? incoming.is_public : existing.is_public,
-    }
-    return next
   }
   if (existing.kind === 'addMember' && incoming.kind === 'addMember' && existing.itemKey === incoming.itemKey) {
     return { ...incoming, updatedAt: now }
@@ -299,6 +402,24 @@ export async function mergeQueuedCreateArchived(
     updatedAt: Date.now(),
     archived,
     archived_at,
+  })
+}
+
+/** Merge item_member_state edits into the queued offline `create` for the same temp item. */
+export async function mergeQueuedCreateMemberState(
+  listId: string,
+  tempItemId: string,
+  memberId: string,
+  state: ItemMemberState,
+): Promise<void> {
+  await enqueueItemMutation({
+    kind: 'patchCreateMemberStates',
+    listId,
+    itemKey: tempItemId,
+    updatedAt: Date.now(),
+    memberStates: {
+      [memberId]: { ...state, item_id: tempItemId, member_id: memberId },
+    },
   })
 }
 
