@@ -14,6 +14,7 @@ import {
   normalOfflineRouteReady,
 } from '@/lib/offlineRouteReadiness'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
+import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import type { ListWithRole } from '@/lib/supabase/types'
 
 function subscribeNavigatorOnline(cb: () => void) {
@@ -105,6 +106,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     offlineAssetsReady &&
     cachedListDataExists(list.id) &&
     normalOfflineRouteReady(list.id)
+
+  const listKebabMenuAnim = useMenuOpenAnimation(menuOpen)
+  const listRenameAnim = useMenuOpenAnimation(isRenaming)
+  const listCommentEditAnim = useMenuOpenAnimation(editingComment)
+  const listLabelDropdownAnim = useMenuOpenAnimation(labelDropdownOpen)
+  const listAddLabelAnim = useMenuOpenAnimation(addingLabel && !labelDropdownOpen)
+  const dupLabelDropdownAnim = useMenuOpenAnimation(dupLabelDropdownOpen)
+  const dupAddLabelAnim = useMenuOpenAnimation(dupAddingLabel && !dupLabelDropdownOpen)
 
   // Sync comment state when list updates from realtime
   useEffect(() => {
@@ -545,7 +554,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   return (
     <>
     {/* Main card content */}
-    <div className="group relative rounded-lg bg-gray-50 transition-all duration-300 ease-out hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700">
+    <div className="group relative rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700">
       {connectivityStatus !== 'online' ? (
         <span
           className={`pointer-events-none absolute end-1.5 top-1.5 z-20 h-[5.6px] w-[5.6px] rounded-full ring-1 ring-black/10 dark:ring-white/15 ${
@@ -637,10 +646,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             {ownerBadge}
           </Link>
         )}
-        {isRenaming && (
+        {listRenameAnim.mounted && (
           <div
             ref={renamePopoverRef}
-            className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
+            className={`absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px] ${listRenameAnim.menuClassName}`}
             onClick={(e) => e.stopPropagation()}
           >
             <input
@@ -704,8 +713,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       </div>
 
       {/* Expanded menu with comment field and action buttons */}
-      {menuOpen && (
-        <div className="space-y-2 rounded-b-lg bg-transparent px-3 py-2 transition-all duration-300 ease-out">
+      {listKebabMenuAnim.mounted && (
+        <div className={`space-y-2 rounded-b-lg bg-transparent px-3 py-2 ${listKebabMenuAnim.menuClassName}`}>
           {/* Comment display / editor */}
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             {comment ? (
@@ -730,10 +739,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 Add a comment...
               </p>
             )}
-            {editingComment && (
+            {listCommentEditAnim.mounted && (
               <div
                 ref={commentPopoverRef}
-                className="absolute left-0 right-0 top-0 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2"
+                className={`absolute left-0 right-0 top-0 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 ${listCommentEditAnim.menuClassName}`}
               >
                 <textarea
                   ref={commentRef}
@@ -796,18 +805,18 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     <path d="M579.4 389.9l-112.2-53.4c-5.3-2.5-11.6-1.4-15.8 2.7L435 355.7c-85.5-108.1-150.2-83.1-152.9-82-5 2-8.4 6.7-8.8 12.1-4.6 72.2 38.2 118.1 86.8 145l-17 17c-4.2 4.2-5.3 10.5-2.7 15.8L393.7 576c0.7 1.4 1.6 2.8 2.7 3.9l173.1 173.5c5.4 5.4 14.2 5.4 19.7 0l167.3-167.6c2.6-2.6 4.1-6.2 4.1-9.9s-1.5-7.2-4.1-9.9L583.3 392.6c-1.2-1.1-2.5-2-3.9-2.7z m-278.7-91.5c17.3-0.6 58.8 5.9 114 76.6 0.1 0.2 0.3 0.3 0.5 0.5l-34.7 34.8c-38.8-19.1-78.8-53-79.8-111.9z m426.1 277.5L579.2 723.8 417.7 562l-48-101.4 17-17c14 5.8 27.9 10.1 40.7 13.1 1.1 4.7 3.5 9.3 7.2 13a27.22 27.22 0 0 0 38.6 0c10.7-10.7 10.7-28 0-38.7-10.3-10.3-26.6-10.6-37.3-1.1-7.5-1.8-17.1-4.4-27.6-8l55.8-55.9 101.2 48 161.5 161.9z" className="fill-gray-800 dark:fill-gray-200" />
                   </svg>
                   {list.label || <span className="text-gray-400">None</span>}
-                  <svg className={`h-3 w-3 transition-transform ${labelDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                  <svg className={`h-3 w-3 ${labelDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
-                {labelDropdownOpen && (
-                  <div className="absolute left-0 mt-1 min-w-[140px] rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden">
+                {listLabelDropdownAnim.mounted && (
+                  <div className={`absolute left-0 mt-1 min-w-[140px] rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden ${listLabelDropdownAnim.menuClassName}`}>
                     {labels.map(l => (
                       <button
                         key={l}
                         type="button"
                         onClick={() => { void onUpdateLabel(list.id, l); setLabelDropdownOpen(false) }}
-                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                        className={`w-full text-left px-3 py-1.5 text-sm ${
                           list.label === l ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800'
                         }`}
                       >
@@ -817,7 +826,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     <button
                       type="button"
                       onClick={() => { void onUpdateLabel(list.id, ''); setLabelDropdownOpen(false) }}
-                      className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                      className={`w-full text-left px-3 py-1.5 text-sm ${
                         !list.label ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'
                       }`}
                     >
@@ -832,10 +841,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     </button>
                   </div>
                 )}
-                {addingLabel && !labelDropdownOpen && (
+                {listAddLabelAnim.mounted && (
                   <div
                     ref={addLabelPopoverRef}
-                    className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
+                    className={`absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px] ${listAddLabelAnim.menuClassName}`}
                   >
                     <input
                       ref={addLabelInputRef}
@@ -970,18 +979,18 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <path d="M579.4 389.9l-112.2-53.4c-5.3-2.5-11.6-1.4-15.8 2.7L435 355.7c-85.5-108.1-150.2-83.1-152.9-82-5 2-8.4 6.7-8.8 12.1-4.6 72.2 38.2 118.1 86.8 145l-17 17c-4.2 4.2-5.3 10.5-2.7 15.8L393.7 576c0.7 1.4 1.6 2.8 2.7 3.9l173.1 173.5c5.4 5.4 14.2 5.4 19.7 0l167.3-167.6c2.6-2.6 4.1-6.2 4.1-9.9s-1.5-7.2-4.1-9.9L583.3 392.6c-1.2-1.1-2.5-2-3.9-2.7z m-278.7-91.5c17.3-0.6 58.8 5.9 114 76.6 0.1 0.2 0.3 0.3 0.5 0.5l-34.7 34.8c-38.8-19.1-78.8-53-79.8-111.9z m426.1 277.5L579.2 723.8 417.7 562l-48-101.4 17-17c14 5.8 27.9 10.1 40.7 13.1 1.1 4.7 3.5 9.3 7.2 13a27.22 27.22 0 0 0 38.6 0c10.7-10.7 10.7-28 0-38.7-10.3-10.3-26.6-10.6-37.3-1.1-7.5-1.8-17.1-4.4-27.6-8l55.8-55.9 101.2 48 161.5 161.9z" className="fill-gray-800 dark:fill-gray-200" />
               </svg>
               {dupLabel || <span className="text-gray-400">None</span>}
-              <svg className={`h-3 w-3 ml-auto transition-transform ${dupLabelDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+              <svg className={`h-3 w-3 ml-auto ${dupLabelDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
-            {dupLabelDropdownOpen && (
-              <div className="absolute left-0 mt-1 min-w-[140px] w-full rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden">
+            {dupLabelDropdownAnim.mounted && (
+              <div className={`absolute left-0 mt-1 min-w-[140px] w-full rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden ${dupLabelDropdownAnim.menuClassName}`}>
                 {labels.map(l => (
                   <button
                     key={l}
                     type="button"
                     onClick={() => { setDupLabel(l); setDupLabelDropdownOpen(false) }}
-                    className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                    className={`w-full text-left px-3 py-1.5 text-sm ${
                       dupLabel === l ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800'
                     }`}
                   >
@@ -991,7 +1000,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <button
                   type="button"
                   onClick={() => { setDupLabel(''); setDupLabelDropdownOpen(false) }}
-                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                  className={`w-full text-left px-3 py-1.5 text-sm ${
                     !dupLabel ? 'bg-teal/10 text-teal font-semibold' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'
                   }`}
                 >
@@ -1006,10 +1015,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 </button>
               </div>
             )}
-            {dupAddingLabel && !dupLabelDropdownOpen && (
+            {dupAddLabelAnim.mounted && (
               <div
                 ref={dupAddLabelPopoverRef}
-                className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
+                className={`absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px] ${dupAddLabelAnim.menuClassName}`}
               >
                 <input
                   ref={dupAddLabelInputRef}

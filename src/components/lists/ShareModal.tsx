@@ -349,7 +349,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
         <button
           type="button"
           onClick={() => void handleCopyListAsText()}
-          className="mx-auto block w-full max-w-full rounded-lg px-2 py-1.5 text-center transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40 dark:hover:bg-neutral-800"
+          className="mx-auto block w-full max-w-full rounded-lg px-2 py-1.5 text-center hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40 dark:hover:bg-neutral-800"
         >
           <span className="block font-medium text-gray-500 dark:text-gray-400">{list.name}</span>
           <span className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">(Click to copy list to text)</span>
@@ -368,7 +368,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
             disabled={loading}
             className="sr-only"
           />
-          <div className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
+          <div className={`flex items-center gap-3 p-4 border-2 rounded-lg ${
             visibility === 'private' 
               ? 'border-teal bg-teal-light' 
               : 'border-gray-200 dark:border-neutral-600 hover:bg-gray-50 dark:hover:bg-neutral-800'
@@ -392,7 +392,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
             disabled={loading}
             className="sr-only"
           />
-          <div className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
+          <div className={`flex items-center gap-3 p-4 border-2 rounded-lg ${
             visibility === 'link' 
               ? 'border-teal bg-teal-light' 
               : 'border-gray-200 dark:border-neutral-600 hover:bg-gray-50 dark:hover:bg-neutral-800'
@@ -415,7 +415,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               onClick={() => void handleRegenerateInvite()}
               disabled={loading}
               title="Regenerate invite link"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal text-white shadow-sm transition-all duration-300 ease-out hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal text-white shadow-sm hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Regenerate invite link"
             >
               <RegenerateIcon className="h-5 w-5 shrink-0" />
@@ -432,7 +432,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               onClick={() => void handleShareInvite()}
               disabled={loading}
               title={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-500 text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-500 text-white shadow-sm hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
             >
               <ShareActionIcon className="h-5 w-5 shrink-0" />

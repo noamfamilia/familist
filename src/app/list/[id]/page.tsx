@@ -12,6 +12,7 @@ import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
+import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useToast } from '@/components/ui/Toast'
 import {
   OFFLINE_ACTIONS_DISABLED_MSG,
@@ -570,6 +571,7 @@ export default function ListPage() {
   )
   const [newItemText, setNewItemText] = useState('')
   const [addItemBulkMode, setAddItemBulkMode] = useState(false)
+  const addItemCategoryAnim = useMenuOpenAnimation(!!newItemText)
   const newItemTextRef = useRef('')
   newItemTextRef.current = newItemText
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
@@ -906,15 +908,12 @@ export default function ListPage() {
 
       {/* Add item form */}
       <div ref={addItemWrapperRef} className="relative mb-4 sm:mb-6">
+          {addItemCategoryAnim.mounted && (
           <div
             onMouseDown={(e) => e.preventDefault()}
-            className={`absolute bottom-full left-0 right-0 z-20 mb-1 origin-bottom overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${
-              newItemText
-                ? 'translate-y-0 scale-y-100 opacity-100'
-                : 'pointer-events-none translate-y-1 scale-y-95 opacity-0'
-            }`}
+            className={`absolute bottom-full left-0 right-0 z-20 mb-1 origin-bottom overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${addItemCategoryAnim.menuClassName}`}
           >
-            <div className={`p-3 transition-colors ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
+            <div className={`p-3 ${ITEM_CATEGORY_STYLES[newItemCategory].shell}`}>
             <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Item category">
               {(categoryOrder || ITEM_CATEGORIES).map(c => {
                 const catId = c as ItemCategory
@@ -927,7 +926,7 @@ export default function ListPage() {
                     aria-label={`Category ${catId}`}
                     aria-pressed={catId === newItemCategory}
                     onClick={() => setNewItemCategory(catId)}
-                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
+                    className={`h-7 px-2 rounded-md touch-manipulation flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
                       catId === newItemCategory
                         ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary dark:ring-transparent dark:ring-offset-0 dark:outline-2 dark:outline-current'
                         : 'text-gray-500 hover:opacity-90 dark:hover:opacity-90'
@@ -940,6 +939,7 @@ export default function ListPage() {
             </div>
             </div>
           </div>
+          )}
         <form ref={addItemFormRef} onSubmit={handleAddItemFormSubmit} className="flex w-full min-w-0 items-start gap-2 sm:gap-3" data-tour="add-item">
           <div className="flex-1 relative">
             <textarea
@@ -968,7 +968,7 @@ export default function ListPage() {
               placeholder={addItemBulkMode ? 'Add items (one per line)' : 'Add an item...'}
               aria-label={addItemBulkMode ? 'New item names, one per line' : 'New item name'}
               rows={1}
-              className={`box-border w-full rounded-lg border border-gray-200 px-4 py-3 pr-14 text-base text-primary transition-all duration-300 ease-out focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 dark:border-neutral-600 dark:bg-neutral-900 dark:text-gray-100 ${
+              className={`box-border w-full rounded-lg border border-gray-200 px-4 py-3 pr-14 text-base text-primary focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 dark:border-neutral-600 dark:bg-neutral-900 dark:text-gray-100 ${
                 addItemBulkMode
                   ? 'min-h-[7.5rem] max-h-[min(70vh,32rem)] resize-y overflow-y-auto'
                   : 'min-h-[3.25rem] max-h-[3.25rem] resize-none overflow-hidden'
@@ -1021,7 +1021,7 @@ export default function ListPage() {
           <button
             type="submit"
             disabled={addItemBulkMode ? isOfflineActionsDisabled : false}
-            className={`relative shrink-0 font-medium rounded-lg transition-all duration-200 px-6 py-3 text-base disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-red-500 to-red-600 text-white hover:shadow-md ${newItemText && !addItemBulkMode ? 'animate-button-nudge' : ''} ${addItemBulkMode && isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
+            className={`relative shrink-0 font-medium rounded-lg px-6 py-3 text-base disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-red-500 to-red-600 text-white hover:shadow-md ${newItemText && !addItemBulkMode ? 'animate-button-nudge' : ''} ${addItemBulkMode && isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
           >
             Add
           </button>

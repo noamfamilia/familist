@@ -96,7 +96,7 @@ export function ListSumRowCard({
       className={compactRow ? 'block min-w-full w-max' : 'min-w-full'}
       onClick={onClearAddItemDraft}
     >
-      <div className={`block min-w-full w-max rounded-lg transition-colors ${DEFAULT_ITEM.shell}`}>
+      <div className={`block min-w-full w-max rounded-lg ${DEFAULT_ITEM.shell}`}>
         <div
           className={
             compactRow

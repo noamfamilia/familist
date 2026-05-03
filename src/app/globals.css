@@ -53,6 +53,20 @@ body {
   }
 }
 
+/* Dropdown / popover panels: opacity + slide (see useMenuOpenAnimation) */
+.menu {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.menu.open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
 @layer utilities {
   .gradient-primary {
     background: linear-gradient(135deg, var(--color-cyan) 0%, var(--color-teal) 100%);

@@ -17,6 +17,7 @@ import {
   ITEM_NAME_FONT_DEFAULT,
 } from '@/lib/itemNameFontStep'
 import { ITEM_TEXT_WIDTH_MIN } from '@/lib/itemTextWidthFit'
+import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 
 const CategoryNamesModal = dynamic(() => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
   ssr: false,
@@ -332,7 +333,9 @@ export function MemberHeader({
   }
 
   const openMember = openMenuId ? members.find(m => m.id === openMenuId) : null
-  const isOpenMemberOwner = openMember?.created_by === user?.id
+  const lastOpenMemberRef = useRef(openMember)
+  if (openMember) lastOpenMemberRef.current = openMember
+  const memberMenuDisplayMember = openMember ?? lastOpenMemberRef.current
 
   const memberMenuRef = useRef<HTMLDivElement>(null)
   const headerCardRef = useRef<HTMLDivElement>(null)
@@ -347,6 +350,26 @@ export function MemberHeader({
   const itemNameFontPopoverRef = useRef<HTMLDivElement>(null)
   const [itemNameFontOpen, setItemNameFontOpen] = useState(false)
   const [itemNameFontPos, setItemNameFontPos] = useState<{ top: number; left: number } | null>(null)
+
+  const renamePopoverPosStableRef = useRef(renamePopoverPos)
+  if (renamePopoverPos) renamePopoverPosStableRef.current = renamePopoverPos
+  const renameMemberMenuAnim = useMenuOpenAnimation(!!editingMemberId && !!renamePopoverPos)
+
+  const addMemberPopoverPosStableRef = useRef(addMemberPopoverPos)
+  if (addMemberPopoverPos) addMemberPopoverPosStableRef.current = addMemberPopoverPos
+  const addMemberMenuAnim = useMenuOpenAnimation(isAdding && !!addMemberPopoverPos)
+
+  const actionsMenuPosStableRef = useRef(actionsMenuPos)
+  if (actionsMenuPos) actionsMenuPosStableRef.current = actionsMenuPos
+  const actionsMenuAnim = useMenuOpenAnimation(actionsOpen && !!actionsMenuPos)
+
+  const memberMenuPosStableRef = useRef(memberMenuPos)
+  if (memberMenuPos) memberMenuPosStableRef.current = memberMenuPos
+  const memberFloatingMenuAnim = useMenuOpenAnimation(!!openMenuId && !!memberMenuPos && !editingMemberId)
+
+  const itemNameFontPosStableRef = useRef(itemNameFontPos)
+  if (itemNameFontPos) itemNameFontPosStableRef.current = itemNameFontPos
+  const itemNameFontMenuAnim = useMenuOpenAnimation(itemNameFontOpen && !!itemNameFontPos)
 
   const MENU_WIDTH = 224 // w-56
   const RENAME_WIDTH = 160
@@ -625,7 +648,7 @@ export function MemberHeader({
                 <div key={member.id} className="relative">
                   <div
                     ref={(el) => { if (el) chipRefsMap.current.set(member.id, el); else chipRefsMap.current.delete(member.id) }}
-                    className={`relative flex items-center justify-center px-2 py-1 rounded-lg border w-[90px] h-[40px] transition-colors ${
+                    className={`relative flex items-center justify-center px-2 py-1 rounded-lg border w-[90px] h-[40px] ${
                       isMenuOpen
                         ? 'bg-cyan border-cyan text-white'
                         : 'bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-600'
@@ -643,11 +666,14 @@ export function MemberHeader({
                     </span>
                   </div>
                   {/* Rename popover */}
-                  {isRenaming && renamePopoverPos && (
+                  {renameMemberMenuAnim.mounted && (renamePopoverPos ?? renamePopoverPosStableRef.current) && (
                     <div
                       ref={renamePopoverRef}
-                      className="fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
-                      style={{ top: renamePopoverPos.top, left: renamePopoverPos.left }}
+                      className={`fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${renameMemberMenuAnim.menuClassName}`}
+                      style={{
+                        top: (renamePopoverPos ?? renamePopoverPosStableRef.current)!.top,
+                        left: (renamePopoverPos ?? renamePopoverPosStableRef.current)!.left,
+                      }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <input
@@ -714,18 +740,21 @@ export function MemberHeader({
                     })
                   }
                 }}
-                className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-teal text-white ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-80'}`}
+                className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation bg-teal text-white ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-80'}`}
                 data-tour="add-member"
                 aria-label="Add task"
                 title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : undefined}
               >
                 <AddIcon className="w-[30px] h-[30px]" />
               </button>
-              {isAdding && addMemberPopoverPos && (
+              {addMemberMenuAnim.mounted && (addMemberPopoverPos ?? addMemberPopoverPosStableRef.current) && (
                 <div
                   ref={addMemberPopoverRef}
-                  className="fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
-                  style={{ top: addMemberPopoverPos.top, left: addMemberPopoverPos.left }}
+                  className={`fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${addMemberMenuAnim.menuClassName}`}
+                  style={{
+                    top: (addMemberPopoverPos ?? addMemberPopoverPosStableRef.current)!.top,
+                    left: (addMemberPopoverPos ?? addMemberPopoverPosStableRef.current)!.left,
+                  }}
                 >
                   <input
                     type="text"
@@ -769,19 +798,22 @@ export function MemberHeader({
                 data-tour="category-sort"
                 disabled={actionsMenuLoading}
                 onClick={handleToggleActions}
-                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
+                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
                 aria-label="List actions"
                 aria-expanded={actionsOpen}
                 aria-haspopup="menu"
               >
                 <GearIcon className="w-[30px] h-[30px]" />
               </button>
-              {actionsOpen && actionsMenuPos && (
+              {actionsMenuAnim.mounted && (actionsMenuPos ?? actionsMenuPosStableRef.current) && (
                 <div
                   ref={actionsMenuRef}
-                  className="fixed z-50 flex w-48 flex-col rounded-lg border border-gray-200 bg-white py-1 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
+                  className={`fixed z-50 flex w-48 flex-col rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${actionsMenuAnim.menuClassName}`}
                   role="menu"
-                  style={{ top: actionsMenuPos.top, right: actionsMenuPos.right }}
+                  style={{
+                    top: (actionsMenuPos ?? actionsMenuPosStableRef.current)!.top,
+                    right: (actionsMenuPos ?? actionsMenuPosStableRef.current)!.right,
+                  }}
                 >
                   {onSaveCategorySettings && (
                     <button
@@ -913,22 +945,28 @@ export function MemberHeader({
       </div>
 
       {/* Floating member dropdown menu */}
-      {openMenuId && openMember && memberMenuPos && !editingMemberId && (
+      {memberFloatingMenuAnim.mounted &&
+        (memberMenuPos ?? memberMenuPosStableRef.current) &&
+        memberMenuDisplayMember && (
         <div
           ref={memberMenuRef}
-          className="fixed z-50 flex w-64 flex-col rounded-lg border border-gray-200 bg-white py-1 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
+          className={`fixed z-50 flex w-64 flex-col rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${memberFloatingMenuAnim.menuClassName}`}
           role="menu"
-          style={{ top: memberMenuPos.top, left: memberMenuPos.left, right: memberMenuPos.right }}
+          style={{
+            top: (memberMenuPos ?? memberMenuPosStableRef.current)!.top,
+            left: (memberMenuPos ?? memberMenuPosStableRef.current)!.left,
+            right: (memberMenuPos ?? memberMenuPosStableRef.current)!.right,
+          }}
         >
-          {isOpenMemberOwner ? (
+          {memberMenuDisplayMember.created_by === user?.id ? (
             <>
               <button
                 type="button"
                 role="menuitem"
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center gap-2"
-                onClick={() => handleStartEdit(openMember)}
+                onClick={() => handleStartEdit(memberMenuDisplayMember)}
               >
-                Task: {openMember.name}
+                Task: {memberMenuDisplayMember.name}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40">
                   <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
                 </svg>
@@ -938,15 +976,15 @@ export function MemberHeader({
                 type="button"
                 role="menuitem"
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                onClick={() => void handleTogglePublic(openMember)}
+                onClick={() => void handleTogglePublic(memberMenuDisplayMember)}
               >
-                Owner: {openMember.creator?.nickname || 'Unknown'}
+                Owner: {memberMenuDisplayMember.creator?.nickname || 'Unknown'}
                 <br />
-                <span className={`text-xs ${openMember.is_public ? 'text-cyan' : 'text-gray-400'}`}>
-                  {openMember.is_public ? <>{'Other users can grab ownership.'}<br />{'Click to reclaim!'}</> : 'Click to transfer ownership'}
+                <span className={`text-xs ${memberMenuDisplayMember.is_public ? 'text-cyan' : 'text-gray-400'}`}>
+                  {memberMenuDisplayMember.is_public ? <>{'Other users can grab ownership.'}<br />{'Click to reclaim!'}</> : 'Click to transfer ownership'}
                 </span>
               </button>
-              {!openMember.is_target && (
+              {!memberMenuDisplayMember.is_target && (
                 <>
                   <hr className="border-gray-200 dark:border-neutral-600 mx-2" />
                   <button
@@ -955,17 +993,17 @@ export function MemberHeader({
                     className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                     onClick={() => {
                       closeMemberMenu()
-                      const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                      const isShowingAll = !hideDone[memberMenuDisplayMember.id] || !hideNotRelevant[memberMenuDisplayMember.id]
                       if (isShowingAll) {
-                        if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                        if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                        if (!hideDone[memberMenuDisplayMember.id]) onToggleHideDone(memberMenuDisplayMember.id)
+                        if (!hideNotRelevant[memberMenuDisplayMember.id]) onToggleHideNotRelevant(memberMenuDisplayMember.id)
                       } else {
-                        if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                        if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                        if (hideDone[memberMenuDisplayMember.id]) onToggleHideDone(memberMenuDisplayMember.id)
+                        if (hideNotRelevant[memberMenuDisplayMember.id]) onToggleHideNotRelevant(memberMenuDisplayMember.id)
                       }
                     }}
                   >
-                    {hideDone[openMember.id] && hideNotRelevant[openMember.id]
+                    {hideDone[memberMenuDisplayMember.id] && hideNotRelevant[memberMenuDisplayMember.id]
                       ? 'Show all items'
                       : 'Show uncompleted items'}
                   </button>
@@ -976,7 +1014,7 @@ export function MemberHeader({
                 type="button"
                 role="menuitem"
                 className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                onClick={() => handleDeleteClick(openMember)}
+                onClick={() => handleDeleteClick(memberMenuDisplayMember)}
               >
                 Delete
               </button>
@@ -984,26 +1022,26 @@ export function MemberHeader({
           ) : (
             <>
               <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
-                Task: {openMember.name}
+                Task: {memberMenuDisplayMember.name}
               </div>
               <hr className="border-gray-200 dark:border-neutral-600 mx-2" />
-              {openMember.is_public ? (
+              {memberMenuDisplayMember.is_public ? (
                 <button
                   type="button"
                   role="menuitem"
                   className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                  onClick={() => handleOwnClick(openMember)}
+                  onClick={() => handleOwnClick(memberMenuDisplayMember)}
                 >
-                  Owner: {openMember.creator?.nickname || 'Unknown'}
+                  Owner: {memberMenuDisplayMember.creator?.nickname || 'Unknown'}
                   <br />
                   <span className="text-xs text-cyan">Click to grab ownership!</span>
                 </button>
               ) : (
                 <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
-                  Owner: {openMember.creator?.nickname || 'Unknown'}
+                  Owner: {memberMenuDisplayMember.creator?.nickname || 'Unknown'}
                 </div>
               )}
-              {!openMember.is_target && (
+              {!memberMenuDisplayMember.is_target && (
                 <>
                   <hr className="border-gray-200 dark:border-neutral-600 mx-2" />
                   <button
@@ -1012,17 +1050,17 @@ export function MemberHeader({
                     className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                     onClick={() => {
                       closeMemberMenu()
-                      const isShowingAll = !hideDone[openMember.id] || !hideNotRelevant[openMember.id]
+                      const isShowingAll = !hideDone[memberMenuDisplayMember.id] || !hideNotRelevant[memberMenuDisplayMember.id]
                       if (isShowingAll) {
-                        if (!hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                        if (!hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                        if (!hideDone[memberMenuDisplayMember.id]) onToggleHideDone(memberMenuDisplayMember.id)
+                        if (!hideNotRelevant[memberMenuDisplayMember.id]) onToggleHideNotRelevant(memberMenuDisplayMember.id)
                       } else {
-                        if (hideDone[openMember.id]) onToggleHideDone(openMember.id)
-                        if (hideNotRelevant[openMember.id]) onToggleHideNotRelevant(openMember.id)
+                        if (hideDone[memberMenuDisplayMember.id]) onToggleHideDone(memberMenuDisplayMember.id)
+                        if (hideNotRelevant[memberMenuDisplayMember.id]) onToggleHideNotRelevant(memberMenuDisplayMember.id)
                       }
                     }}
                   >
-                    {hideDone[openMember.id] && hideNotRelevant[openMember.id]
+                    {hideDone[memberMenuDisplayMember.id] && hideNotRelevant[memberMenuDisplayMember.id]
                       ? 'Show all items'
                       : 'Show uncompleted items'}
                   </button>
@@ -1075,7 +1113,9 @@ export function MemberHeader({
         </div>
       </Modal>
 
-      {itemNameFontOpen && itemNameFontPos && onItemNameFontStepChange &&
+      {itemNameFontMenuAnim.mounted &&
+        (itemNameFontPos ?? itemNameFontPosStableRef.current) &&
+        onItemNameFontStepChange &&
         typeof document !== 'undefined' &&
         createPortal(
           <div
@@ -1083,8 +1123,11 @@ export function MemberHeader({
             tabIndex={-1}
             role="dialog"
             aria-label="Item name font size"
-            className="fixed z-[10000] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40"
-            style={{ top: itemNameFontPos.top, left: itemNameFontPos.left }}
+            className={`fixed z-[10000] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${itemNameFontMenuAnim.menuClassName}`}
+            style={{
+              top: (itemNameFontPos ?? itemNameFontPosStableRef.current)!.top,
+              left: (itemNameFontPos ?? itemNameFontPosStableRef.current)!.left,
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2">
@@ -1109,7 +1152,7 @@ export function MemberHeader({
                 onClick={handleFontBarClick}
               >
                 <div
-                  className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal transition-[width] duration-150"
+                  className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal"
                   style={{ width: `${(itemNameFontStep / ITEM_NAME_FONT_MAX) * 100}%` }}
                 />
               </div>

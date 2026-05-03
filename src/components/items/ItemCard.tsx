@@ -16,6 +16,7 @@ import {
   itemMemberCellHeightPx,
   itemQtyProgressBarTrackHeightPx,
 } from '@/lib/itemNameFontStep'
+import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -209,9 +210,16 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [editQuantityValue, setEditQuantityValue] = useState('')
   const quantityEditorRef = useRef<HTMLDivElement>(null)
   const [editorPos, setEditorPos] = useState<{ top: number; left: number } | null>(null)
+  const editorPosStableRef = useRef(editorPos)
+  if (editorPos) editorPosStableRef.current = editorPos
   const EDITOR_WIDTH = 200
   const EDGE_GUARD = 12
   const memberQuantityLocked = isOfflineActionsDisabled
+
+  const itemKebabMenuAnim = useMenuOpenAnimation(showMenu)
+  const itemRenameAnim = useMenuOpenAnimation(isEditing)
+  const itemCommentEditAnim = useMenuOpenAnimation(editingComment)
+  const itemQtyEditorAnim = useMenuOpenAnimation(!!editingQuantityMember && !!editorPos)
 
   // Sync editText with item.text when not editing (handles server updates/reverts)
   useEffect(() => {
@@ -528,7 +536,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     >
       {/* Main card content — min-w-full w-max matches list column: at least shell width, grows with wide rows */}
       <div
-        className={`block min-w-full w-max rounded-lg transition-all duration-300 ease-out ${shellClass} ${item.archived ? 'opacity-60' : ''}`}
+        className={`block min-w-full w-max rounded-lg ${shellClass} ${item.archived ? 'opacity-60' : ''}`}
       >
         {/* Card row */}
         <div
@@ -585,10 +593,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               {item.text}
             </span>
           )}
-          {isEditing && (
+          {itemRenameAnim.mounted && (
             <div
               ref={renamePopoverRef}
-              className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
+              className={`absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px] ${itemRenameAnim.menuClassName}`}
               onClick={(e) => e.stopPropagation()}
             >
               <input
@@ -656,7 +664,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-neutral-600 dark:bg-neutral-900 ${item.archived || memberQuantityLocked ? 'cursor-default opacity-45' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
+                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 dark:border-neutral-600 dark:bg-neutral-900 ${item.archived || memberQuantityLocked ? 'cursor-default opacity-45' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                     style={{ height: memberCellPx }}
                     onClick={(e) => {
                       if (memberQuantityLocked || !canEdit || item.archived) return
@@ -676,8 +684,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     <QtyTargetDoneChecks doneRatio={doneRatio} checkSizePx={qtyDoneCheckPx} />
                   </div>
 
-                  {isEditingThis && editorPos && (
-                    <div ref={quantityEditorRef} className="fixed bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-600 rounded-lg shadow-lg dark:shadow-black/40 p-2 z-50 w-[200px]" style={{ top: editorPos.top, left: editorPos.left }}>
+                  {itemQtyEditorAnim.mounted && (editorPos ?? editorPosStableRef.current) && isEditingThis && (
+                    <div
+                      ref={quantityEditorRef}
+                      className={`fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${itemQtyEditorAnim.menuClassName}`}
+                      style={{
+                        top: (editorPos ?? editorPosStableRef.current)!.top,
+                        left: (editorPos ?? editorPosStableRef.current)!.left,
+                      }}
+                    >
                       <input
                         type="number"
                         value={editQuantityValue}
@@ -726,7 +741,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               <div key={member.id} className="relative">
                 <div
                   data-state-container
-                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 w-[90px] transition-colors ${memberQuantityLocked || !canEdit || item.archived ? 'cursor-default opacity-45' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
+                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 w-[90px] ${memberQuantityLocked || !canEdit || item.archived ? 'cursor-default opacity-45' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                   style={{ height: memberCellPx }}
                   onClick={() => {
                     if (memberQuantityLocked || !canEdit || isEditingThis || item.archived) return
@@ -778,8 +793,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   )}
                 </div>
 
-                {isEditingThis && editorPos && (
-                  <div ref={quantityEditorRef} className="fixed bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-600 rounded-lg shadow-lg dark:shadow-black/40 p-2 z-50 w-[200px]" style={{ top: editorPos.top, left: editorPos.left }}>
+                {itemQtyEditorAnim.mounted && (editorPos ?? editorPosStableRef.current) && isEditingThis && (
+                  <div
+                    ref={quantityEditorRef}
+                    className={`fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${itemQtyEditorAnim.menuClassName}`}
+                    style={{
+                      top: (editorPos ?? editorPosStableRef.current)!.top,
+                      left: (editorPos ?? editorPosStableRef.current)!.left,
+                    }}
+                  >
                     <input
                       type="number"
                       value={editQuantityValue}
@@ -885,9 +907,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         </div>
 
         {/* Expanded menu with comment field and action buttons */}
-        {showMenu && (
+        {itemKebabMenuAnim.mounted && (
           <div
-            className={`space-y-2 rounded-b-lg bg-transparent px-3 py-2 transition-all duration-300 ease-out${compactRow ? ' min-w-full' : ''}`}
+            className={`space-y-2 rounded-b-lg bg-transparent px-3 py-2${compactRow ? ' min-w-full' : ''} ${itemKebabMenuAnim.menuClassName}`}
           >
             {/* Comment display / editor */}
             <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -909,10 +931,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   Add a comment...
                 </p>
               )}
-              {editingComment && (
+              {itemCommentEditAnim.mounted && (
                 <div
                   ref={commentPopoverRef}
-                  className="absolute left-0 right-0 top-0 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2"
+                  className={`absolute left-0 right-0 top-0 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 ${itemCommentEditAnim.menuClassName}`}
                 >
                   <textarea
                     ref={commentRef}
@@ -970,7 +992,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                       e.stopPropagation()
                       void handlePickCategory(catId)
                     }}
-                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
+                    className={`h-7 px-2 rounded-md touch-manipulation flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
                       catId === category
                         ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary dark:ring-transparent dark:ring-offset-0 dark:outline-2 dark:outline-current'
                         : 'text-gray-500 hover:opacity-90 dark:hover:opacity-90'
