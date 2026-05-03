@@ -910,7 +910,7 @@ export default function ListPage() {
           <div
             onMouseDown={(e) => e.preventDefault()}
             className={`absolute bottom-full left-0 right-0 z-20 mb-1 origin-bottom overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg transition-all duration-300 ease-out dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${
-              newItemText || addItemBulkMode
+              newItemText
                 ? 'translate-y-0 scale-y-100 opacity-100'
                 : 'pointer-events-none translate-y-1 scale-y-95 opacity-0'
             }`}
