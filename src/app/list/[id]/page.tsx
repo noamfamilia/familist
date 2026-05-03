@@ -1063,6 +1063,7 @@ export default function ListPage() {
               onDeleteMember={deleteMember}
               onOwnMember={ownMember}
               listId={listId}
+              isOfflineActionsDisabled={isOfflineActionsDisabled}
               showAddMember={memberFilter !== 'hide'}
               itemTextWidth={itemTextWidth}
               itemTextWidthMode={itemTextWidthMode}

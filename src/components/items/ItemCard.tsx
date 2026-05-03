@@ -43,7 +43,7 @@ interface ItemCardProps {
   itemNameFontClassName?: string
   /** Font step for row/cell/progress sizing (same delta as item name canvas px). */
   itemNameFontStep?: number
-  /** When true, delete and drag are blocked (offline / recovering). Item text, comment, category, and quantities stay editable when the list allows the mutation queue. */
+  /** When true, delete and drag are blocked (offline / recovering). */
   isOfflineActionsDisabled?: boolean
   /** When true with offline, archive/restore on the item name still runs (queued until online). */
   allowItemMutationQueue?: boolean
@@ -211,7 +211,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const [editorPos, setEditorPos] = useState<{ top: number; left: number } | null>(null)
   const EDITOR_WIDTH = 200
   const EDGE_GUARD = 12
-
+  const memberQuantityLocked = isOfflineActionsDisabled
 
   // Sync editText with item.text when not editing (handles server updates/reverts)
   useEffect(() => {
@@ -227,6 +227,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   useEffect(() => {
     if (collapseSignal > 0) setShowMenu(false)
   }, [collapseSignal])
+
+  useEffect(() => {
+    if (!memberQuantityLocked) return
+    setEditingQuantityMember(null)
+    setEditQuantityValue('')
+    setEditorPos(null)
+  }, [memberQuantityLocked])
 
   useEffect(() => {
     if (!editingQuantityMember) return
@@ -356,6 +363,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleAssign = async (memberId: string) => {
+    if (memberQuantityLocked) return
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: true })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to assign')
@@ -363,6 +371,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleMarkDone = async (memberId: string) => {
+    if (memberQuantityLocked) return
     const { error } = await onUpdateMemberState(item.id, memberId, { done: true })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to mark done')
@@ -370,6 +379,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleUnassign = async (memberId: string) => {
+    if (memberQuantityLocked) return
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: false, done: false })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to unassign')
@@ -377,6 +387,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleOpenQuantityEditor = (memberId: string, containerEl: HTMLElement) => {
+    if (memberQuantityLocked) return
     const m = members.find(x => x.id === memberId)
     if (!m) return
     const canEditMember = m.created_by === user?.id || m.is_public
@@ -645,10 +656,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 <div key={member.id} className="relative">
                   <div
                     data-state-container
-                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-neutral-600 dark:bg-neutral-900 ${item.archived ? 'cursor-default opacity-50' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
+                    className={`relative grid w-[90px] grid-cols-1 grid-rows-1 overflow-hidden rounded-lg border border-gray-200 bg-white px-0 transition-colors dark:border-neutral-600 dark:bg-neutral-900 ${item.archived || memberQuantityLocked ? 'cursor-default opacity-45' : !canEdit ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                     style={{ height: memberCellPx }}
                     onClick={(e) => {
-                      if (!canEdit || item.archived) return
+                      if (memberQuantityLocked || !canEdit || item.archived) return
                       e.stopPropagation()
                       const container = e.currentTarget as HTMLElement
                       handleOpenQuantityEditor(member.id, container)
@@ -715,10 +726,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               <div key={member.id} className="relative">
                 <div
                   data-state-container
-                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 w-[90px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
+                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 w-[90px] transition-colors ${memberQuantityLocked || !canEdit || item.archived ? 'cursor-default opacity-45' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                   style={{ height: memberCellPx }}
                   onClick={() => {
-                    if (!canEdit || isEditingThis || item.archived) return
+                    if (memberQuantityLocked || !canEdit || isEditingThis || item.archived) return
                     if (!assigned) {
                       void handleAssign(member.id)
                     } else if (!done) {
@@ -751,11 +762,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
+                          if (memberQuantityLocked) return
                           const container = (e.currentTarget as HTMLElement).closest('[data-state-container]') as HTMLElement
                           if (canEdit && !item.archived && container) handleOpenQuantityEditor(member.id, container)
                         }}
-                        className="flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 hover:text-teal"
+                        className={`flex-shrink-0 p-0.5 text-gray-400 dark:text-gray-500 ${memberQuantityLocked ? 'pointer-events-none opacity-40' : 'hover:text-teal'}`}
                         aria-label="Edit quantity"
+                        disabled={memberQuantityLocked}
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                           <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>

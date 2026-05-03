@@ -413,29 +413,31 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       {/* Invite link section */}
       {visibility === 'link' && (
         <div className="pt-4 border-t border-gray-200 dark:border-neutral-600">
-          <input
-            type="text"
-            value={token ? buildInviteUrl(token) : ''}
-            placeholder="Invite link"
-            readOnly
-            className="w-full min-w-0 px-3 py-2.5 border-2 border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-900 text-sm truncate"
-          />
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
+          <div className="flex items-stretch gap-2">
             <button
               type="button"
-              onClick={handleRegenerateInvite}
+              onClick={() => void handleRegenerateInvite()}
               disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
+              title="Regenerate invite link"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal text-white shadow-sm transition-colors hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Regenerate invite link"
             >
               <RegenerateIcon className="h-5 w-5 shrink-0" />
-              Regenerate link
             </button>
+            <input
+              type="text"
+              value={token ? buildInviteUrl(token) : ''}
+              placeholder="Invite link"
+              readOnly
+              className="min-w-0 flex-1 px-3 py-2.5 border-2 border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-900 text-sm truncate"
+            />
+          </div>
+          <div className="mt-3 flex gap-2">
             <button
               type="button"
               onClick={() => void handleShareInvite()}
               disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg bg-red-500 px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
             >
               <ShareActionIcon className="h-4 w-4 shrink-0" />
@@ -444,7 +446,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
             <button
               type="button"
               onClick={() => void handleCopyListAsText()}
-              className="inline-flex items-center justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-cyan-600 dark:bg-cyan-600 dark:hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-cyan-500 px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-cyan-600 dark:bg-cyan-600 dark:hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Copy list as text
             </button>

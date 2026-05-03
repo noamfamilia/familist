@@ -468,6 +468,23 @@ export function useList(listId: string) {
     connectivityStatusRef.current = connectivityStatus
   }, [connectivityStatus])
 
+  /** After offline/recovering → online, show last snapshot until `fetchList` applies server archive state (avoids flicker). */
+  const [itemsUntilReconnectReconciled, setItemsUntilReconnectReconciled] = useState<ItemWithState[] | null>(null)
+  const itemsRef = useRef<ItemWithState[]>(items)
+  itemsRef.current = items
+  const prevConnectivityForItemFreezeRef = useRef(connectivityStatus)
+  useEffect(() => {
+    const prev = prevConnectivityForItemFreezeRef.current
+    prevConnectivityForItemFreezeRef.current = connectivityStatus
+    if (connectivityStatus !== 'online') {
+      setItemsUntilReconnectReconciled(null)
+      return
+    }
+    if (prev === 'offline' || prev === 'recovering') {
+      setItemsUntilReconnectReconciled(itemsRef.current.map(i => ({ ...i, memberStates: { ...i.memberStates } })))
+    }
+  }, [connectivityStatus])
+
   const outboxDrainingRef = useRef(false)
 
   useEffect(() => {
@@ -843,6 +860,7 @@ export function useList(listId: string) {
           `fetchErr=${fetchErr ?? '(none)'}`,
         ].join(' '),
       )
+      setItemsUntilReconnectReconciled(null)
     }
   }, [beginServerWork, endServerWork, enterOffline, listId, markOnlineRecovered, pulseServerWorkProgress, userId])
 
@@ -1859,8 +1877,11 @@ export function useList(listId: string) {
   }
 
   const addMember = async (name: string, creatorNickname?: string) => {
+    if (isOfflineActionsDisabled) {
+      return { error: { message: blockedMutationMessage() } }
+    }
     if (!userId) return { error: new Error('Not authenticated') }
-    if (!tryBeginItemQueueableMutation()) {
+    if (!tryBeginMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
     try {
@@ -1887,23 +1908,6 @@ export function useList(listId: string) {
       skipRealtimeUntilRef.current = Date.now() + 2000
       setMembers(prev => [...prev, optimisticMember])
 
-      const persistQueuedAddMember = async () => {
-        await enqueueItemMutation({
-          kind: 'addMember',
-          listId,
-          itemKey: tempId,
-          updatedAt: Date.now(),
-          name,
-          sort_order: newSortOrder,
-          creator_nickname: creatorNickname ?? null,
-        })
-      }
-
-      if (!canMutateNow()) {
-        await persistQueuedAddMember()
-        return { data: null, error: null }
-      }
-
       const { data, error } = await trackSaveOperation(
         supabase
           .from('members')
@@ -1919,7 +1923,7 @@ export function useList(listId: string) {
 
       if (error) {
         if (isLikelyConnectivityError(error)) {
-          await persistQueuedAddMember()
+          setMembers(prev => prev.filter(member => member.id !== tempId))
           enterOffline()
           return { data: null, error: { message: blockedMutationMessage() } }
         }
@@ -2159,6 +2163,9 @@ export function useList(listId: string) {
     memberId: string,
     updates: { quantity?: number; done?: boolean; assigned?: boolean },
   ) => {
+    if (isOfflineActionsDisabled) {
+      return { error: { message: blockedMutationMessage() } }
+    }
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
@@ -2301,6 +2308,9 @@ export function useList(listId: string) {
   }
 
   const changeQuantity = async (itemId: string, memberId: string, delta: number) => {
+    if (isOfflineActionsDisabled) {
+      return { data: null, error: { message: blockedMutationMessage() } }
+    }
     if (!tryBeginItemQueueableMutation()) {
       return { data: null, error: { message: blockedMutationMessage() } }
     }
@@ -2741,6 +2751,7 @@ export function useList(listId: string) {
 
   const createTargets = async () => {
     if (!userId) return
+    if (isOfflineActionsDisabled) return
     const hasTarget = members.some(m => m.is_target)
     if (hasTarget) return
 
@@ -2841,25 +2852,22 @@ export function useList(listId: string) {
     }
   }
 
+  const itemsForUi = itemsUntilReconnectReconciled ?? items
+
   // Auto-fit width when mode is 'auto' and items change (include sumScope so cycling all/active/archived recalculates)
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
     const texts = [
-      ...items.map(i => i.text ?? ''),
-      ...sumRowTitlesForAutoWidth(sumScope, items),
+      ...itemsForUi.map(i => i.text ?? ''),
+      ...sumRowTitlesForAutoWidth(sumScope, itemsForUi),
     ]
     const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
     setItemTextWidth(fitWidth)
-  }, [
-    itemTextWidthMode,
-    items,
-    itemNameFontStep,
-    sumScope,
-  ])
+  }, [itemTextWidthMode, itemNameFontStep, sumScope, itemsForUi])
 
   return {
     list,
-    items,
+    items: itemsForUi,
     members,
     loading,
     isFetching,

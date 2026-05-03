@@ -74,6 +74,8 @@ interface MemberHeaderProps {
   /** When `'none'`, the sum row is hidden and "Sum items" may be shown in the gear menu. */
   sumScope?: 'none' | 'all' | 'active' | 'archived'
   onEnableSumItems?: () => void
+  /** Offline / recovering: add-member control is dimmed and disabled. */
+  isOfflineActionsDisabled?: boolean
 }
 
 export function MemberHeader({
@@ -111,6 +113,7 @@ export function MemberHeader({
   onCreateTargets,
   sumScope = 'none',
   onEnableSumItems,
+  isOfflineActionsDisabled = false,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
@@ -184,6 +187,7 @@ export function MemberHeader({
   }, [])
 
   const handleAddMember = async () => {
+    if (isOfflineActionsDisabled) return
     const fallbackName = suggestedName
     const nameToAdd = newMemberName.trim() || fallbackName
     if (!nameToAdd) {
@@ -216,6 +220,11 @@ export function MemberHeader({
     setIsAdding(false)
     setAddMemberPopoverPos(null)
   }
+
+  useEffect(() => {
+    if (!isOfflineActionsDisabled) return
+    if (isAdding) handleCancelAddMember()
+  }, [isOfflineActionsDisabled, isAdding])
 
   const handleCancelEdit = useCallback(() => {
     let clearedId: string | null = null
@@ -683,7 +692,9 @@ export function MemberHeader({
             <div ref={addMemberContainerRef} className="relative flex-shrink-0">
               <button
                 type="button"
+                disabled={isOfflineActionsDisabled}
                 onClick={() => {
+                  if (isOfflineActionsDisabled) return
                   if (isAdding) {
                     handleCancelAddMember()
                   } else {
@@ -703,9 +714,10 @@ export function MemberHeader({
                     })
                   }
                 }}
-                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-teal text-white hover:opacity-80"
+                className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation transition-colors bg-teal text-white ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-80'}`}
                 data-tour="add-member"
                 aria-label="Add task"
+                title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : undefined}
               >
                 <AddIcon className="w-[30px] h-[30px]" />
               </button>
@@ -861,8 +873,10 @@ export function MemberHeader({
                       <button
                         type="button"
                         role="menuitem"
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                        disabled={isOfflineActionsDisabled}
+                        className={`w-full text-left px-4 py-2.5 text-sm ${isOfflineActionsDisabled ? 'cursor-not-allowed text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                         onClick={() => {
+                          if (isOfflineActionsDisabled) return
                           closeActions()
                           onCreateTargets()
                         }}
