@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Modal } from '@/components/ui/Modal'
-import { Button } from '@/components/ui/Button'
-import { ListUlAltIcon } from '@/components/icons/ListUlAltIcon'
 import { RegenerateIcon, ShareActionIcon } from '@/components/ui/ShareIcons'
 import { useToast } from '@/components/ui/Toast'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
@@ -347,7 +345,16 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
         </div>
       ) : (
         <>
-      <p className="text-center text-gray-500 dark:text-gray-400 font-medium mb-3">{list.name}</p>
+      <div className="mb-3 text-center">
+        <button
+          type="button"
+          onClick={() => void handleCopyListAsText()}
+          className="mx-auto block w-full max-w-full rounded-lg px-2 py-1.5 text-center transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40 dark:hover:bg-neutral-800"
+        >
+          <span className="block font-medium text-gray-500 dark:text-gray-400">{list.name}</span>
+          <span className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">(Click to copy list to text)</span>
+        </button>
+      </div>
 
       <div className="space-y-3 mb-5">
         {/* Private option */}
@@ -399,18 +406,6 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
         </label>
       </div>
 
-      {visibility === 'private' && (
-        <div className="flex justify-center mb-5">
-          <button
-            type="button"
-            onClick={() => void handleCopyListAsText()}
-            className="rounded-lg px-4 py-2.5 text-sm font-medium text-white bg-cyan-500 hover:bg-cyan-600 dark:bg-cyan-600 dark:hover:bg-cyan-500 shadow-sm transition-colors"
-          >
-            Copy list as text
-          </button>
-        </div>
-      )}
-
       {/* Invite link section */}
       {visibility === 'link' && (
         <div className="pt-4 border-t border-gray-200 dark:border-neutral-600">
@@ -432,27 +427,15 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               readOnly
               className="min-w-0 flex-1 px-3 py-2.5 border-2 border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-900 text-sm truncate"
             />
-          </div>
-          <div className="mt-3 flex gap-2">
             <button
               type="button"
               onClick={() => void handleShareInvite()}
               disabled={loading}
-              className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-teal px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
+              title={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-500 text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
             >
-              <ShareActionIcon className="h-4 w-4 shrink-0" />
-              Share list
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleCopyListAsText()}
-              disabled={loading}
-              className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-teal px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
-              aria-label="Copy list as text"
-            >
-              <ListUlAltIcon className="h-4 w-4 shrink-0" />
-              Copy list
+              <ShareActionIcon className="h-5 w-5 shrink-0" />
             </button>
           </div>
         </div>
