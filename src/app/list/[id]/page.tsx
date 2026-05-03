@@ -25,6 +25,7 @@ import {
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
+import { ConnectivityStatusIconCompact } from '@/components/ui/ConnectivityStatusIcon'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
@@ -809,8 +810,11 @@ export default function ListPage() {
       </div>
 
       {/* Header */}
-      <header className="text-center mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-semibold text-teal">{list.name}</h1>
+      <header className="flex items-center justify-center gap-2 sm:gap-3 mb-4 sm:mb-6 min-w-0 px-1">
+        <ConnectivityStatusIconCompact />
+        <h1 className="text-xl sm:text-2xl font-semibold text-teal truncate min-w-0 text-center">
+          {list.name}
+        </h1>
       </header>
 
       {/* Add item form */}

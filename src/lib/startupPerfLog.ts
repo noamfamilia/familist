@@ -3,6 +3,8 @@
  * Lines are buffered until a UI sink registers (see DiagnosticsMessageBoxProvider).
  */
 
+import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
+
 let bootT0: number | null = null
 const pendingLines: string[] = []
 const PENDING_CAP = 50
@@ -47,6 +49,9 @@ export function perfLog(label: string, extra: Record<string, unknown> = {}): voi
     console.info(`[perf +${t}ms] ${label}`, extra)
   } else {
     console.info(`[perf +${t}ms] ${label}`)
+  }
+  if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+    return
   }
   if (sink) {
     sink(line)

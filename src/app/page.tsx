@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { ThemedImage } from '@/components/ui/ThemedImage'
+import { ConnectivityStatusIcon } from '@/components/ui/ConnectivityStatusIcon'
 import { ProfileModal } from '@/components/profile/ProfileModal'
 
 
@@ -544,13 +545,14 @@ function HomeContent() {
       </div>
 
       {/* Header */}
-      <header className="text-center mb-6 sm:mb-8">
+      <header className="flex items-center justify-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <ConnectivityStatusIcon />
         <ThemedImage
           src="/logo.png"
           alt="MyFamiList"
           width={256}
           height={64}
-          className="h-12 w-40 sm:h-16 sm:w-52 mx-auto"
+          className="h-12 w-40 sm:h-16 sm:w-52 shrink-0"
           priority
         />
       </header>

@@ -14,6 +14,10 @@ import {
   appendOfflineNavDiagnostic,
   registerOfflineNavDiagnosticSink,
 } from '@/lib/offlineNavDiagnostics'
+import {
+  DIAGNOSTICS_DATA_COLLECTION_ENABLED,
+  DIAGNOSTICS_PANEL_VISIBLE,
+} from '@/lib/diagnosticsFlags'
 
 const PERF_LOG_CAP = 100
 /** Trim oldest log text so the panel stays responsive after long sessions. */
@@ -267,12 +271,14 @@ export function DiagnosticsMessageBoxProvider({ children }: { children: React.Re
 
   useEffect(() => {
     registerPerfLogSink((line) => {
+      if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
       setPerfLines((prev) => [...prev, line].slice(-PERF_LOG_CAP))
     })
     return () => registerPerfLogSink(null)
   }, [])
 
   const appendDiagnostics = useCallback((section: string) => {
+    if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
     const stamp = new Date().toISOString()
     setDiagnosticsText((prev) => {
       const block = `[${stamp}]\n${section}`
@@ -290,6 +296,7 @@ export function DiagnosticsMessageBoxProvider({ children }: { children: React.Re
   }, [appendDiagnostics])
 
   useEffect(() => {
+    if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
     appendDiagnostics('[diagnostics] always-on nav/connectivity log started')
   }, [appendDiagnostics])
 
@@ -311,7 +318,7 @@ export function DiagnosticsMessageBoxProvider({ children }: { children: React.Re
       <div className="flex min-h-screen flex-col">
         <GlobalNavDiagnosticsLogger />
         <div className="min-h-0 flex-1">{children}</div>
-        <DiagnosticsMessageBoxPanel />
+        {DIAGNOSTICS_PANEL_VISIBLE ? <DiagnosticsMessageBoxPanel /> : null}
       </div>
     </DiagnosticsContext.Provider>
   )

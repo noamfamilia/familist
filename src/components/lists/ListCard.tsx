@@ -100,8 +100,12 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const labelDropdownRef = useRef<HTMLDivElement>(null)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
-  /** Throttle offline-unavailable toasts when user taps repeatedly. */
-  const lastUnavailableToastAtRef = useRef(0)
+  const offlineListAccessible =
+    browserOffline &&
+    swControlled &&
+    offlineAssetsReady &&
+    cachedListDataExists(list.id) &&
+    normalOfflineRouteReady(list.id)
 
   // Sync comment state when list updates from realtime
   useEffect(() => {
@@ -225,19 +229,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
       if (!allowed) {
         appendOfflineNavDiagnostic(`[list-click] blocked — no router.push reason=${reason}`)
-        const now = Date.now()
-        if (now - lastUnavailableToastAtRef.current > 1200) {
-          if (reason === 'blocked_sw_not_controlled') {
-            showError('Offline access is not ready. Open the app once while online.')
-          } else if (reason === 'blocked_offline_assets_not_ready') {
-            showError('Offline shell not ready yet. Reload once while online, then try again.')
-          } else if (reason === 'blocked_route_not_verified_offline' && hasCachedListData) {
-            showError('This list is not available offline yet. Open it once while online.')
-          } else {
-            showError('List is unavailable offline.')
-          }
-          lastUnavailableToastAtRef.current = now
-        }
         return
       }
 
@@ -254,7 +245,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
         )
       }
     },
-    [list.id, offlineAssetsReady, router, showError, swControlled],
+    [list.id, offlineAssetsReady, router, swControlled],
   )
 
   // Duplicate modal: outside-click for label dropdown
@@ -520,7 +511,16 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   return (
     <>
     {/* Main card content */}
-    <div className="group bg-gray-50 dark:bg-neutral-900 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors">
+    <div className="group relative bg-gray-50 dark:bg-neutral-900 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors">
+      {browserOffline ? (
+        <span
+          className={`pointer-events-none absolute right-11 top-2.5 z-10 h-2 w-2 rounded-full ring-1 ring-black/10 dark:ring-white/15 ${
+            offlineListAccessible ? 'bg-green-500' : 'bg-red-500'
+          }`}
+          role="status"
+          aria-label={offlineListAccessible ? 'Openable offline' : 'Not openable offline'}
+        />
+      ) : null}
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle - only for active lists */}
