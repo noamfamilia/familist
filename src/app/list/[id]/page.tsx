@@ -2,7 +2,7 @@
 
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { perfLog } from '@/lib/startupPerfLog'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -32,7 +32,6 @@ import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
 import { ConnectivityStatusIconCompact } from '@/components/ui/ConnectivityStatusIcon'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
@@ -304,6 +303,23 @@ export default function ListPage() {
     allowItemMutationQueue,
   } = useList(listId)
 
+  const listItemsClipboardText = useMemo(() => {
+    const active = [...items]
+      .filter(i => !i.archived)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    const archived = [...items]
+      .filter(i => i.archived)
+      .sort((a, b) => {
+        const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
+        const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
+        return bTime - aTime
+      })
+    return [...active, ...archived]
+      .map(i => i.text.trim())
+      .filter(t => t.length > 0)
+      .join('\n')
+  }, [items])
+
   const wasOfflineRef = useRef(isOfflineActionsDisabled)
   useEffect(() => {
     if (wasOfflineRef.current && !isOfflineActionsDisabled) {
@@ -565,7 +581,6 @@ export default function ListPage() {
   const [confirmRestoreArchived, setConfirmRestoreArchived] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
   const addItemFormRef = useRef<HTMLFormElement>(null)
-  const addItemInputRef = useRef<HTMLInputElement>(null)
   const addItemTextareaRef = useRef<HTMLTextAreaElement>(null)
   /** True when the add-item form was submitted via Enter in the text field (refocus after success). */
   const addItemSubmitFromKeyboardRef = useRef(false)
@@ -679,7 +694,7 @@ export default function ListPage() {
           err.message === RECOVERING_MUTATIONS_DISABLED_MSG ||
           err.message === STILL_SAVING_TEMP_ENTITY_MSG
         ) {
-          addItemInputRef.current?.blur()
+          addItemTextareaRef.current?.blur()
         }
         if (shouldShowConnectivityRelatedMutationToast(err.message)) {
           showError(err.message || 'Failed to add item')
@@ -692,7 +707,7 @@ export default function ListPage() {
       addItemSubmitFromKeyboardRef.current && !err
     addItemSubmitFromKeyboardRef.current = false
     if (refocus) {
-      requestAnimationFrame(() => addItemInputRef.current?.focus())
+      requestAnimationFrame(() => addItemTextareaRef.current?.focus())
     }
   }
 
@@ -725,9 +740,7 @@ export default function ListPage() {
       setAddItemBulkMode(false)
     }
     if (refocus) {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => addItemInputRef.current?.focus())
-      })
+      requestAnimationFrame(() => addItemTextareaRef.current?.focus())
     }
   }
 
@@ -930,45 +943,38 @@ export default function ListPage() {
           </div>
         <form ref={addItemFormRef} onSubmit={handleAddItemFormSubmit} className="flex w-full min-w-0 items-start gap-2 sm:gap-3" data-tour="add-item">
           <div className="flex-1 relative">
-            {addItemBulkMode ? (
-              <textarea
-                ref={addItemTextareaRef}
-                value={newItemText}
-                onChange={e => setNewItemText(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Escape') {
-                    clearNewItem()
-                  }
+            <textarea
+              ref={addItemTextareaRef}
+              value={newItemText}
+              onChange={e => setNewItemText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Escape') {
+                  clearNewItem()
+                }
+                if (addItemBulkMode) {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault()
                     if (!newItemText.trim()) return
                     addItemSubmitFromKeyboardRef.current = true
                     void handleAddMany()
                   }
-                }}
-                placeholder="Add items (one per line)"
-                aria-label="New item names, one per line"
-                rows={6}
-                className={`w-full min-h-[7.5rem] resize-y px-4 py-3 pr-14 border border-gray-200 dark:border-neutral-600 rounded-lg text-base text-primary dark:text-gray-100 dark:bg-neutral-900 transition-all duration-200 focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/20 ${ITEM_CATEGORY_STYLES[newItemCategory].itemName}`}
-              />
-            ) : (
-              <Input
-                ref={addItemInputRef}
-                value={newItemText}
-                onChange={e => setNewItemText(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
+                } else {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
                     addItemSubmitFromKeyboardRef.current = true
+                    void handleAddItem()
                   }
-                  if (e.key === 'Escape') {
-                    clearNewItem()
-                  }
-                }}
-                placeholder="Add an item..."
-                aria-label="New item name"
-                className={`pr-14 ${ITEM_CATEGORY_STYLES[newItemCategory].itemName}`}
-              />
-            )}
+                }
+              }}
+              placeholder={addItemBulkMode ? 'Add items (one per line)' : 'Add an item...'}
+              aria-label={addItemBulkMode ? 'New item names, one per line' : 'New item name'}
+              rows={1}
+              className={`box-border w-full px-4 py-3 pr-14 border border-gray-200 dark:border-neutral-600 rounded-lg text-base text-primary dark:text-gray-100 dark:bg-neutral-900 focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/20 transition-[min-height,max-height] duration-300 ease-in-out ${
+                addItemBulkMode
+                  ? 'min-h-[7.5rem] max-h-[min(70vh,32rem)] resize-y overflow-y-auto'
+                  : 'min-h-[3.25rem] max-h-[3.25rem] resize-none overflow-hidden'
+              } ${ITEM_CATEGORY_STYLES[newItemCategory].itemName}`}
+            />
             <div
               className={`absolute flex items-center gap-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 ${
                 addItemBulkMode ? 'right-2 top-3' : 'right-2 top-1/2 -translate-y-1/2'
@@ -1013,17 +1019,13 @@ export default function ListPage() {
               ) : null}
             </div>
           </div>
-          <Button
+          <button
             type="submit"
             disabled={addItemBulkMode ? isOfflineActionsDisabled : false}
-            className={`inline-flex shrink-0 items-center justify-center [transition:all_0.3s_ease] bg-red-500 hover:bg-red-600 ${newItemText ? 'animate-button-nudge' : ''} ${addItemBulkMode && isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''} ${
-              addItemBulkMode
-                ? 'self-start h-10 max-h-10 min-h-10 w-[90px] min-w-[90px] max-w-[90px] !px-1 !py-0 text-[10px] leading-tight sm:text-[11px]'
-                : ''
-            }`}
+            className={`relative shrink-0 font-medium rounded-lg transition-all duration-200 px-6 py-3 text-base disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-red-500 to-red-600 text-white hover:shadow-md ${newItemText && !addItemBulkMode ? 'animate-button-nudge' : ''} ${addItemBulkMode && isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
           >
-            {addItemBulkMode ? 'Add many' : 'Add'}
-          </Button>
+            Add
+          </button>
         </form>
       </div>
 
@@ -1250,6 +1252,7 @@ export default function ListPage() {
           onClose={() => setShowShareModal(false)}
           list={list}
           onUpdate={refresh}
+          listItemsAsText={listItemsClipboardText}
         />
       )}
     </div>

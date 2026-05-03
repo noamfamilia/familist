@@ -21,6 +21,8 @@ interface ShareModalProps {
   onClose: () => void
   list: List
   onUpdate: () => void
+  /** Active items then archived, one name per line, for copying as plain text. */
+  listItemsAsText: string
 }
 
 interface JoinedUser {
@@ -31,7 +33,7 @@ interface JoinedUser {
 
 type JoinedUsersRpcResult = Database['public']['Functions']['get_list_joined_users']['Returns']
 
-export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }: ShareModalProps) {
   const { success, error: showError } = useToast()
   const [visibility, setVisibility] = useState<'private' | 'link'>(list.visibility)
   const [token, setToken] = useState<string>('')
@@ -156,6 +158,15 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
     await copyTextToClipboard(inviteLink)
     if (!isMobileDevice()) {
       success('Copied to clipboard')
+    }
+  }
+
+  const handleCopyListAsText = async () => {
+    try {
+      await copyTextToClipboard(listItemsAsText)
+      success('Copied list to clipboard')
+    } catch {
+      showError('Could not copy')
     }
   }
 
@@ -335,7 +346,17 @@ export function ShareModal({ isOpen, onClose, list, onUpdate }: ShareModalProps)
         </div>
       ) : (
         <>
-      <p className="text-center text-gray-500 dark:text-gray-400 font-medium mb-5">{list.name}</p>
+      <p className="text-center text-gray-500 dark:text-gray-400 font-medium mb-3">{list.name}</p>
+
+      <div className="flex justify-center mb-5">
+        <button
+          type="button"
+          onClick={() => void handleCopyListAsText()}
+          className="rounded-lg px-4 py-2.5 text-sm font-medium text-white bg-cyan-500 hover:bg-cyan-600 dark:bg-cyan-600 dark:hover:bg-cyan-500 shadow-sm transition-colors"
+        >
+          Copy list as text
+        </button>
+      </div>
 
       <div className="space-y-3 mb-5">
         {/* Private option */}
