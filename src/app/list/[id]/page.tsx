@@ -753,8 +753,7 @@ export default function ListPage() {
     }
   }
 
-  const filterSourceText = addItemBulkMode ? (newItemText.split('\n')[0] ?? '') : newItemText
-  const searchText = filterSourceText.trim().toLowerCase()
+  const searchText = addItemBulkMode ? '' : newItemText.trim().toLowerCase()
 
   const activeItemsBase = items
     .filter(item => !item.archived)
