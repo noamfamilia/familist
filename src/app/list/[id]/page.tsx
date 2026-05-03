@@ -256,7 +256,7 @@ export default function ListPage() {
     perfLog('main page mounted', { route: 'list', listId })
   }, [listId])
   const { error: showError } = useToast()
-  const { offlineAssetsReady, swControlled, isOfflineActionsDisabled } = useConnectivity()
+  const { offlineAssetsReady, swControlled } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
