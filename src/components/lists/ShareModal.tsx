@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { ListUlAltIcon } from '@/components/icons/ListUlAltIcon'
 import { RegenerateIcon, ShareActionIcon } from '@/components/ui/ShareIcons'
 import { useToast } from '@/components/ui/Toast'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
@@ -437,7 +438,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               type="button"
               onClick={() => void handleShareInvite()}
               disabled={loading}
-              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg bg-coral px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-coral-dark disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-teal px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
               aria-label={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
             >
               <ShareActionIcon className="h-4 w-4 shrink-0" />
@@ -447,9 +448,11 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               type="button"
               onClick={() => void handleCopyListAsText()}
               disabled={loading}
-              className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-coral px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-coral-dark disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-teal px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label="Copy list as text"
             >
-              Copy list as text
+              <ListUlAltIcon className="h-4 w-4 shrink-0" />
+              Copy list
             </button>
           </div>
         </div>
