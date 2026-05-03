@@ -220,6 +220,10 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const probeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const probeInFlightRef = useRef(false)
   const probeStepRef = useRef(0)
+  /** After `window` `online` (or tab visible while browser reports online), next probe runs in 1s; then 5/10/20/30/60 on failures. */
+  const useNextProbeDelay1sRef = useRef(false)
+  /** While true, first probe failure after a 1s post-online schedule must not advance backoff step (next wait stays 5s). */
+  const skipNextProbeStepIncrementRef = useRef(false)
   const scheduleNextProbeRef = useRef<() => void>(() => {})
 
   const dismissSyncingToast = useCallback(() => {
@@ -246,6 +250,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     clearProbeSchedule()
     probeStepRef.current = 0
     probeInFlightRef.current = false
+    useNextProbeDelay1sRef.current = false
+    skipNextProbeStepIncrementRef.current = false
     setStatus('online')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'online')
@@ -260,7 +266,12 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     if (statusRef.current === 'online') return
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
 
-    const delay = connectivityProbeDelayForStep(probeStepRef.current)
+    const use1s = useNextProbeDelay1sRef.current
+    if (use1s) {
+      useNextProbeDelay1sRef.current = false
+      skipNextProbeStepIncrementRef.current = true
+    }
+    const delay = use1s ? 1000 : connectivityProbeDelayForStep(probeStepRef.current)
     probeTimeoutRef.current = setTimeout(() => {
       void (async () => {
         if (statusRef.current === 'online') return
@@ -285,13 +296,19 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
               // ignore
             }
             setStatus('offline')
+            skipNextProbeStepIncrementRef.current = false
           }
-          probeStepRef.current = Math.min(probeStepRef.current + 1, 4)
+          if (skipNextProbeStepIncrementRef.current) {
+            skipNextProbeStepIncrementRef.current = false
+          } else {
+            probeStepRef.current = Math.min(probeStepRef.current + 1, 4)
+          }
           scheduleNextProbeRef.current()
           return
         }
 
         probeStepRef.current = 0
+        skipNextProbeStepIncrementRef.current = false
         if (s === 'offline') {
           setStatus('recovering')
           bumpRecoveryFetchGeneration()
@@ -316,6 +333,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     clearProbeSchedule()
     probeStepRef.current = 0
     probeInFlightRef.current = false
+    useNextProbeDelay1sRef.current = false
+    skipNextProbeStepIncrementRef.current = false
     setStatus('offline')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
@@ -458,8 +477,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       if (statusRef.current === 'offline') {
         clearProbeSchedule()
         probeStepRef.current = 0
-        setStatus('recovering')
-        bumpRecoveryFetchGeneration()
+        useNextProbeDelay1sRef.current = true
+        skipNextProbeStepIncrementRef.current = false
         queueMicrotask(() => {
           scheduleNextProbeRef.current()
         })
@@ -493,8 +512,10 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       if (s === 'offline') {
         clearProbeSchedule()
         probeStepRef.current = 0
-        setStatus('recovering')
-        bumpRecoveryFetchGeneration()
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          useNextProbeDelay1sRef.current = true
+        }
+        skipNextProbeStepIncrementRef.current = false
         queueMicrotask(() => {
           scheduleNextProbeRef.current()
         })

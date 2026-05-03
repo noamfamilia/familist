@@ -68,7 +68,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     getNavigatorOnlineServerSnapshot,
   )
   const browserOffline = !navigatorOnLine
-  const { offlineAssetsReady, swControlled } = useConnectivity()
+  const { offlineAssetsReady, swControlled, status: connectivityStatus } = useConnectivity()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [newName, setNewName] = useState(list.name)
@@ -101,7 +101,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
   const offlineListAccessible =
-    browserOffline &&
     swControlled &&
     offlineAssetsReady &&
     cachedListDataExists(list.id) &&
@@ -150,6 +149,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   })
 
   const handleAddLabelDone = () => {
+    if (isOfflineActionsDisabled) {
+      handleCancelAddLabel()
+      return
+    }
     const trimmed = newLabelText.trim()
     if (trimmed && trimmed.toLowerCase() !== 'any' && onUpdateLabel) {
       void onUpdateLabel(list.id, trimmed)
@@ -358,6 +361,24 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     setEditingComment(false)
   }, [isOfflineActionsDisabled, editingComment, comment])
 
+  useEffect(() => {
+    if (!isOfflineActionsDisabled || !isRenaming) return
+    setNewName(list.name)
+    setIsRenaming(false)
+    inputRef.current?.blur()
+  }, [isOfflineActionsDisabled, isRenaming, list.name])
+
+  useEffect(() => {
+    if (!isOfflineActionsDisabled) return
+    setLabelDropdownOpen(false)
+    setAddingLabel(false)
+    setNewLabelText('')
+    setShowDuplicateModal(false)
+    setDupLabelDropdownOpen(false)
+    setDupAddingLabel(false)
+    setDupNewLabelText('')
+  }, [isOfflineActionsDisabled])
+
   // Focus input when renaming
   useEffect(() => {
     if (isRenaming && inputRef.current) {
@@ -406,6 +427,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
   const handleArchiveClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (isOfflineActionsDisabled) return
     onClearCreateInputIfTyped?.()
 
     // Toggle archive state
@@ -413,6 +435,11 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   const handleRename = () => {
+    if (isOfflineActionsDisabled) {
+      setNewName(list.name)
+      setIsRenaming(false)
+      return
+    }
     if (newName.trim() && newName !== list.name) {
       const trimmed = newName.trim()
       setIsRenaming(false)
@@ -470,6 +497,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   const handleDuplicateConfirm = () => {
+    if (isOfflineActionsDisabled) return
     if (!dupName.trim()) return
     if (duplicating) return
     setDuplicating(true)
@@ -518,7 +546,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     <>
     {/* Main card content */}
     <div className="group relative bg-gray-50 dark:bg-neutral-900 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors">
-      {browserOffline ? (
+      {connectivityStatus !== 'online' ? (
         <span
           className={`pointer-events-none absolute end-1.5 top-1.5 z-20 h-[5.6px] w-[5.6px] rounded-full ring-1 ring-black/10 dark:ring-white/15 ${
             offlineListAccessible ? 'bg-green-500' : 'bg-red-500'
@@ -542,8 +570,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
 
       {/* Archive/Restore icon */}
       <button
+        type="button"
+        disabled={isOfflineActionsDisabled}
         onClick={handleArchiveClick}
-        className="text-xl flex-shrink-0 hover:opacity-70 text-coral"
+        className={`text-xl flex-shrink-0 text-coral ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
         data-tour="list-archive"
       >
         {list.userArchived ? '▲' : '▼'}
@@ -560,21 +590,31 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             {ownerBadge}
           </span>
         ) : menuOpen && isOwner ? (
-          <span
-            className="flex items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal cursor-pointer"
-            data-tour="list-card"
-            onClick={(e) => {
-              e.stopPropagation()
-              setNewName(list.name)
-              setIsRenaming(true)
-            }}
-          >
-            <span className="truncate">{list.name}</span>
-            {ownerBadge}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40">
-              <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-            </svg>
-          </span>
+          isOfflineActionsDisabled ? (
+            <span
+              className="flex items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 cursor-default"
+              data-tour="list-card"
+            >
+              <span className="truncate">{list.name}</span>
+              {ownerBadge}
+            </span>
+          ) : (
+            <span
+              className="flex items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal cursor-pointer"
+              data-tour="list-card"
+              onClick={(e) => {
+                e.stopPropagation()
+                setNewName(list.name)
+                setIsRenaming(true)
+              }}
+            >
+              <span className="truncate">{list.name}</span>
+              {ownerBadge}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
+                <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+              </svg>
+            </span>
+          )
         ) : browserOffline ? (
           <a
             href={`/list/${list.id}`}
@@ -683,7 +723,9 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             ) : (
               <p
                 className={`text-sm text-gray-400 dark:text-gray-500 ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
-                onClick={() => handleStartEditComment()}
+                onClick={() => {
+                  if (!isOfflineActionsDisabled) handleStartEditComment()
+                }}
               >
                 Add a comment...
               </p>
@@ -740,8 +782,14 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               <div className="relative" ref={labelDropdownRef}>
                 <button
                   type="button"
-                  onClick={() => { setLabelDropdownOpen(o => !o); setAddingLabel(false); setNewLabelText('') }}
-                  className="text-sm bg-white dark:bg-neutral-900 border border-gray-300 dark:border-neutral-600 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal cursor-pointer flex items-center gap-1"
+                  disabled={isOfflineActionsDisabled}
+                  onClick={() => {
+                    if (isOfflineActionsDisabled) return
+                    setLabelDropdownOpen(o => !o)
+                    setAddingLabel(false)
+                    setNewLabelText('')
+                  }}
+                  className="text-sm bg-white dark:bg-neutral-900 border border-gray-300 dark:border-neutral-600 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-teal flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                 >
                   <svg className="h-8 w-8 flex-shrink-0 -my-1.5" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
                     <path d="M746.5 575.9L579.2 743.6l-173-173.5-53.3-112.4 108.3-108.6 112.2 53.4z" fill="#FBBA22" />

@@ -263,6 +263,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setEditingComment(false)
   }, [isOfflineActionsDisabled, editingComment, comment])
 
+  useEffect(() => {
+    if (!isOfflineActionsDisabled || !isEditing) return
+    setEditText(item.text)
+    setIsEditing(false)
+  }, [isOfflineActionsDisabled, isEditing, item.text])
+
   // Outside-click: cancel comment
   useEffect(() => {
     if (!editingComment) return
@@ -346,6 +352,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleSaveText = () => {
+    if (isOfflineActionsDisabled) {
+      handleCancelEditText()
+      return
+    }
     if (editText.trim() && editText !== item.text) {
       const trimmed = editText.trim()
       setIsEditing(false)
@@ -360,6 +370,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleAssign = async (memberId: string) => {
+    if (isOfflineActionsDisabled) return
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: true })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to assign')
@@ -367,6 +378,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleMarkDone = async (memberId: string) => {
+    if (isOfflineActionsDisabled) return
     const { error } = await onUpdateMemberState(item.id, memberId, { done: true })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to mark done')
@@ -374,6 +386,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleUnassign = async (memberId: string) => {
+    if (isOfflineActionsDisabled) return
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: false, done: false })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to unassign')
@@ -444,6 +457,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleArchive = async () => {
+    if (isOfflineActionsDisabled) return
     const { error } = item.archived
       ? await onUpdateItem(item.id, { archived: false, archived_at: null })
       : await onUpdateItem(item.id, { archived: true, archived_at: new Date().toISOString() })
@@ -485,6 +499,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   }
 
   const handleDeleteConfirm = async () => {
+    if (isOfflineActionsDisabled) {
+      setShowDeleteConfirm(false)
+      return
+    }
     setDeleting(true)
     const { error } = await onDeleteItem(item.id)
     if (error) {
@@ -502,6 +520,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const itemNameColorClass = item.archived ? '' : ITEM_CATEGORY_STYLES[category].itemName
 
   const handlePickCategory = async (next: ItemCategory) => {
+    if (isOfflineActionsDisabled) return
     if (next === category) return
     const { error } = await onUpdateItem(item.id, { category: next })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
@@ -545,25 +564,38 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           data-tour="item-name"
         >
           {showMenu ? (
-            <span
-              onClick={(e) => {
-                e.stopPropagation()
-                setEditText(item.text)
-                setIsEditing(true)
-              }}
-              className={`flex items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
-              data-tour="item-archive"
-            >
-              <span className="truncate">{item.text}</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40">
-                <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-              </svg>
-            </span>
+            isOfflineActionsDisabled ? (
+              <span
+                className={`flex items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-default ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+                data-tour="item-archive"
+              >
+                <span className="truncate">{item.text}</span>
+              </span>
+            ) : (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEditText(item.text)
+                  setIsEditing(true)
+                }}
+                className={`flex items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+                data-tour="item-archive"
+              >
+                <span className="truncate">{item.text}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
+                  <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
+                </svg>
+              </span>
+            )
           ) : (
             <span
-              onClick={handleArchive}
-              className={`block truncate ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
-              title={`Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`}
+              onClick={isOfflineActionsDisabled ? undefined : handleArchive}
+              className={`block truncate ${itemNameFontClassName} ${itemNameColorClass} ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'} ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              title={
+                isOfflineActionsDisabled
+                  ? undefined
+                  : `Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`
+              }
               data-tour="item-archive"
             >
               {item.text}
@@ -710,10 +742,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               <div key={member.id} className="relative">
                 <div
                   data-state-container
-                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 w-[90px] transition-colors ${!canEdit || item.archived ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
+                  className={`box-border flex items-center justify-center px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 w-[90px] transition-colors ${!canEdit || item.archived || isOfflineActionsDisabled ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                   style={{ height: memberCellPx }}
                   onClick={() => {
-                    if (!canEdit || isEditingThis || item.archived) return
+                    if (!canEdit || isEditingThis || item.archived || isOfflineActionsDisabled) return
                     if (!assigned) {
                       void handleAssign(member.id)
                     } else if (!done) {
@@ -818,12 +850,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           {/* Delete icon - only when expanded */}
           {showMenu && (
             <button
+              type="button"
+              disabled={isOfflineActionsDisabled}
               onClick={(e) => {
                 e.stopPropagation()
+                if (isOfflineActionsDisabled) return
                 setShowDeleteConfirm(true)
                 setShowMenu(false)
               }}
-              className="text-red-500 hover:opacity-70 px-2 py-1 text-lg leading-none flex-shrink-0"
+              className={`text-red-500 px-2 py-1 text-lg leading-none flex-shrink-0 ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
               title="Delete item"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -946,12 +981,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                     type="button"
                     aria-label={`Category ${catId}`}
                     aria-pressed={catId === category}
+                    disabled={isOfflineActionsDisabled}
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
                       void handlePickCategory(catId)
                     }}
-                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId].swatch} ${
+                    className={`h-7 px-2 rounded-md touch-manipulation transition-shadow flex items-center justify-center text-xs leading-none overflow-hidden disabled:cursor-not-allowed disabled:opacity-50 ${ITEM_CATEGORY_STYLES[catId].swatch} ${
                       catId === category
                         ? 'ring-2 ring-teal ring-offset-1 ring-offset-white shadow-sm font-semibold text-primary dark:ring-transparent dark:ring-offset-0 dark:outline-2 dark:outline-current'
                         : 'text-gray-500 hover:opacity-90 dark:hover:opacity-90'
