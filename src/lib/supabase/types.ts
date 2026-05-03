@@ -381,7 +381,10 @@ export type ListWithRole = List & {
   label?: string
 }
 
-export type ItemWithState = Database['public']['Functions']['get_list_data']['Returns']['items'][number]
+export type ItemWithState = Database['public']['Functions']['get_list_data']['Returns']['items'][number] & {
+  /** Stable id for optimistic creates; used to merge temp ↔ server without relying on temp row id. */
+  clientItemKey?: string
+}
 
 /** Keys "1"-"6", values are user-defined category names (empty string = unnamed). */
 export type CategoryNames = Record<string, string>

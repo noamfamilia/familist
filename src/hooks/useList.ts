@@ -7,6 +7,8 @@ import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import { perfLog } from '@/lib/startupPerfLog'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { buildQueuedItemCreatePayload, executeQueuedItemCreateOnServer, newClientItemKey } from '@/lib/itemCreatePayload'
+import { diagItemCreateReplace, diagMemberStateMutation } from '@/lib/itemMutationDiagnostics'
 import {
   isLikelyConnectivityError,
   resolveServerWorkOutcomeFromResult,
@@ -24,7 +26,9 @@ import {
   remapMemberDependentQueuedRecords,
   removePendingItemMutation,
   sortPendingForDrain,
+  buildItemMemberStateUpdatePatch,
   type QueuedCreatePayload,
+  type QueuedCreateRecord,
   type QueuedPatchServerItemRecord,
 } from '@/lib/itemMutationOutbox'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
@@ -179,19 +183,114 @@ function isTempEntityId(id: string) {
 function mergePreservedTempCreates(
   serverItems: ItemWithState[],
   prev: ItemWithState[],
-  pendingCreateTempIds: Set<string>,
+  pendingCreates: QueuedCreateRecord[],
+  clientKeyToServerId: ReadonlyMap<string, string>,
 ): ItemWithState[] {
-  const preserved = prev.filter(
-    (item) => isTempEntityId(item.id) && pendingCreateTempIds.has(item.id),
-  )
-  if (preserved.length === 0) return serverItems
-  const merged = [...serverItems]
-  for (const optimistic of preserved) {
-    if (!merged.some((row) => row.id === optimistic.id)) {
-      merged.push(optimistic)
+  const pendingTempIds = new Set(pendingCreates.map((c) => c.itemKey))
+  const payloadByTempId = new Map(pendingCreates.map((c) => [c.itemKey, c.payload] as const))
+
+  const clientKeyForTempItem = (opt: ItemWithState) =>
+    opt.clientItemKey ?? payloadByTempId.get(opt.id)?.clientItemKey
+
+  const preserved = prev.filter((item) => isTempEntityId(item.id) && pendingTempIds.has(item.id))
+
+  const merged: ItemWithState[] = []
+  for (const srv of serverItems) {
+    const matchedTemp = preserved.find((opt) => {
+      const ck = clientKeyForTempItem(opt)
+      return Boolean(ck && clientKeyToServerId.get(ck) === srv.id)
+    })
+    if (matchedTemp) {
+      const ck = clientKeyForTempItem(matchedTemp) ?? ''
+      const withKey: ItemWithState = {
+        ...srv,
+        clientItemKey: ck || matchedTemp.clientItemKey,
+        memberStates: srv.memberStates,
+      }
+      merged.push(withKey)
+      diagItemCreateReplace({
+        phase: 'fetch-merge',
+        listId: srv.list_id,
+        tempId: matchedTemp.id,
+        serverId: srv.id,
+        clientItemKey: ck,
+        matchBasis: 'client_key_mapping',
+        serverRowAppended: false,
+        itemName: srv.text,
+      })
+    } else {
+      const prevSame = prev.find((p) => p.id === srv.id)
+      merged.push(prevSame?.clientItemKey ? { ...srv, clientItemKey: prevSame.clientItemKey } : srv)
     }
   }
-  return merged
+
+  for (const opt of preserved) {
+    const ck = clientKeyForTempItem(opt)
+    const sid = ck ? clientKeyToServerId.get(ck) : undefined
+    if (sid && merged.some((m) => m.id === sid)) continue
+    if (!merged.some((m) => m.id === opt.id)) merged.push(opt)
+  }
+
+  const byId = new Map<string, ItemWithState>()
+  for (const row of merged) {
+    const existing = byId.get(row.id)
+    if (!existing) {
+      byId.set(row.id, row)
+      continue
+    }
+    const preferNew =
+      Boolean(row.clientItemKey && !existing.clientItemKey) ||
+      Object.keys(row.memberStates ?? {}).length > Object.keys(existing.memberStates ?? {}).length
+    byId.set(row.id, preferNew ? row : existing)
+  }
+  return Array.from(byId.values())
+}
+
+/** After items.insert: drop temp / duplicate server copies; keep one row tagged with `clientItemKey`. */
+function applyServerItemAfterCreate(
+  prev: ItemWithState[],
+  args: {
+    listId: string
+    tempId: string
+    clientItemKey: string
+    serverItem: Item
+    memberStates: Record<string, ItemMemberState>
+    itemName: string
+  },
+): ItemWithState[] {
+  const { tempId, clientItemKey, serverItem, memberStates, listId, itemName } = args
+  const sid = serverItem.id
+  const merged: ItemWithState = { ...serverItem, memberStates, clientItemKey }
+
+  const hadTemp = prev.some((i) => i.id === tempId)
+  const hadClientTemp = prev.some((i) => i.clientItemKey === clientItemKey && isTempEntityId(i.id))
+  const hadTaggedServer = prev.some((i) => i.id === sid && i.clientItemKey === clientItemKey)
+  let matchBasis: 'temp_id' | 'client_key_temp' | 'client_key_server' | 'append' = 'append'
+  if (hadTemp) matchBasis = 'temp_id'
+  else if (hadClientTemp) matchBasis = 'client_key_temp'
+  else if (hadTaggedServer) matchBasis = 'client_key_server'
+
+  const droppedServerCopies = prev.filter((i) => i.id === sid).length
+  const next = prev.filter((item) => {
+    if (item.id === tempId) return false
+    if (clientItemKey && item.clientItemKey === clientItemKey && isTempEntityId(item.id)) return false
+    if (item.id === sid) return false
+    return true
+  })
+  next.push(merged)
+
+  diagItemCreateReplace({
+    phase: 'post-create',
+    listId,
+    tempId,
+    serverId: sid,
+    clientItemKey,
+    matchBasis,
+    serverRowAppended: true,
+    droppedServerCopies,
+    itemName,
+  })
+  return next
 }
 
 function mergePreservedTempMembers(
@@ -321,6 +420,8 @@ export function useList(listId: string) {
   const pendingRealtimeRef = useRef(false)
   /** Bumped at the start of every mutation that optimistically changes list data a delayed `fetchList` could overwrite. */
   const mutationVersionRef = useRef(0)
+  /** Maps optimistic `clientItemKey` → server `items.id` after a create lands (online or drain). */
+  const clientItemKeyToServerIdRef = useRef<Map<string, string>>(new Map())
   /** First mutation version captured when a debounced realtime fetch is scheduled; preserved across reschedules until that fetch completes. */
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
@@ -634,9 +735,7 @@ export function useList(listId: string) {
       const serverMembers = data.members || []
       const nextItems = normalizeItemsCategory(data.items || [])
       const pendingMutations = await getPendingItemMutationsForList(listId)
-      const pendingCreateTempIds = new Set(
-        pendingMutations.filter((m) => m.kind === 'create').map((m) => m.itemKey),
-      )
+      const pendingCreates = pendingMutations.filter((m): m is QueuedCreateRecord => m.kind === 'create')
       const pendingTempMemberIds = new Set<string>()
       for (const m of pendingMutations) {
         if (m.kind === 'addMember') pendingTempMemberIds.add(m.itemKey)
@@ -649,7 +748,12 @@ export function useList(listId: string) {
       let mergedMembersForCache = serverMembers
 
       setItems((prev) => {
-        mergedItemsForCache = mergePreservedTempCreates(nextItems, prev, pendingCreateTempIds)
+        mergedItemsForCache = mergePreservedTempCreates(
+          nextItems,
+          prev,
+          pendingCreates,
+          clientItemKeyToServerIdRef.current,
+        )
         return mergedItemsForCache
       })
       setMembers((prev) => {
@@ -760,59 +864,26 @@ export function useList(listId: string) {
               `[db-write] target=supabase table=items action=insert-start listId=${listId} itemKey=${rec.itemKey}`,
             )
             const p = rec.payload
-            const { data, error } = await trackSaveOperation(
-              supabase
-                .from('items')
-                .insert({
-                  list_id: listId,
-                  text: p.text,
-                  sort_order: p.sort_order,
-                  category: p.category,
-                  ...(p.comment != null && p.comment !== '' ? { comment: p.comment } : {}),
-                  archived: p.archived,
-                  archived_at: p.archived_at,
-                })
-                .select()
-                .single(),
-            )
-            if (error) throw error
-            if (!data) throw new Error('missing row')
+            const clientItemKey = p.clientItemKey ?? rec.itemKey
+            const { data } = await executeQueuedItemCreateOnServer(supabase, listId, p, trackSaveOperation)
             appendOfflineNavDiagnostic(
               `[db-write] target=supabase table=items action=insert-end listId=${listId} itemKey=${rec.itemKey} serverItemId=${data.id}`,
             )
-            const memberStateEntries = Object.entries(p.memberStates)
-            if (memberStateEntries.length > 0) {
-              appendOfflineNavDiagnostic(
-                `[db-write] target=supabase table=item_member_state action=insert-seq-start listId=${listId} itemKey=${rec.itemKey} rowCount=${memberStateEntries.length}`,
-              )
-              for (const [memberId, st] of memberStateEntries) {
-                appendOfflineNavDiagnostic(
-                  `[db-write] target=supabase table=item_member_state action=insert-one listId=${listId} itemKey=${rec.itemKey} memberId=${memberId}`,
-                )
-                const { error: rowErr } = await trackSaveOperation(
-                  supabase.from('item_member_state').insert({
-                    item_id: data.id,
-                    member_id: memberId,
-                    quantity: st.quantity,
-                    done: st.done,
-                    assigned: st.assigned,
-                  }),
-                )
-                if (rowErr) throw rowErr
-              }
-              appendOfflineNavDiagnostic(
-                `[db-write] target=supabase table=item_member_state action=insert-seq-end listId=${listId} itemKey=${rec.itemKey} rowCount=${memberStateEntries.length}`,
-              )
-            }
             await remapItemDependentQueuedRecords(listId, rec.itemKey, data.id)
             const newMemberStates: Record<string, ItemMemberState> = {}
             for (const [mid, st] of Object.entries(p.memberStates)) {
               newMemberStates[mid] = { ...st, item_id: data.id }
             }
+            clientItemKeyToServerIdRef.current.set(clientItemKey, data.id)
             setItems(prev =>
-              prev.map(item =>
-                item.id === rec.itemKey ? ({ ...data, memberStates: newMemberStates } as ItemWithState) : item,
-              ),
+              applyServerItemAfterCreate(prev, {
+                listId,
+                tempId: rec.itemKey,
+                clientItemKey,
+                serverItem: data,
+                memberStates: newMemberStates,
+                itemName: p.text,
+              }),
             )
             await removePendingItemMutation(listId, rec.itemKey)
             anySuccess = true
@@ -904,16 +975,12 @@ export function useList(listId: string) {
               appendOfflineNavDiagnostic(
                 `[db-write] target=supabase table=item_member_state action=update-start listId=${listId} ims=${rec.itemKey}`,
               )
+              const patch =
+                rec.updatePatch && Object.keys(rec.updatePatch).length > 0
+                  ? rec.updatePatch
+                  : { quantity: rec.quantity, done: rec.done, assigned: rec.assigned }
               const { error } = await trackSaveOperation(
-                supabase
-                  .from('item_member_state')
-                  .update({
-                    quantity: rec.quantity,
-                    done: rec.done,
-                    assigned: rec.assigned,
-                  })
-                  .eq('item_id', rec.itemId)
-                  .eq('member_id', rec.memberId),
+                supabase.from('item_member_state').update(patch).eq('item_id', rec.itemId).eq('member_id', rec.memberId),
               )
               if (error) throw error
             }
@@ -1196,6 +1263,7 @@ export function useList(listId: string) {
         : 0
       const newSortOrder = items.length > 0 ? maxSortOrder + 1 : 0
       const tempId = createTempId('item')
+      const clientItemKey = newClientItemKey()
       const now = new Date().toISOString()
       const targetMember = members.find(m => m.is_target)
       const newMemberStates: Record<string, ItemMemberState> = {}
@@ -1209,6 +1277,17 @@ export function useList(listId: string) {
           updated_at: now,
         }
       }
+      const queuedPayload: QueuedCreatePayload = buildQueuedItemCreatePayload({
+        clientItemKey,
+        text,
+        category: category ?? 1,
+        comment: comment || null,
+        sort_order: newSortOrder,
+        archived: false,
+        archived_at: null,
+        memberStates: { ...newMemberStates },
+      })
+
       const optimisticItem: ItemWithState = {
         id: tempId,
         list_id: listId,
@@ -1221,21 +1300,12 @@ export function useList(listId: string) {
         created_at: now,
         updated_at: now,
         memberStates: newMemberStates,
+        clientItemKey,
       }
 
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setItems(prev => [...prev, optimisticItem])
-
-      const queuedPayload: QueuedCreatePayload = {
-        text,
-        category: category ?? 1,
-        comment: comment || null,
-        sort_order: newSortOrder,
-        archived: false,
-        archived_at: null,
-        memberStates: { ...newMemberStates },
-      }
 
       const persistQueuedCreate = async () => {
         await enqueueItemMutation({
@@ -1252,77 +1322,49 @@ export function useList(listId: string) {
         return { data: null, error: null }
       }
 
-      const { data, error } = await trackSaveOperation(
-        supabase
-          .from('items')
-          .insert({
-            list_id: listId,
-            text,
-            sort_order: newSortOrder,
-            ...(category != null && { category }),
-            ...(comment != null && { comment }),
-          })
-          .select()
-          .single()
-      )
+      let data: Item | null = null
+      let error: { code?: string; message?: string } | null = null
+      try {
+        const res = await executeQueuedItemCreateOnServer(supabase, listId, queuedPayload, trackSaveOperation)
+        data = res.data
+      } catch (e) {
+        error = e as { code?: string; message?: string }
+      }
 
-      if (error) {
-        if (isLikelyConnectivityError(error)) {
+      if (error || !data) {
+        if (error && isLikelyConnectivityError(error)) {
           await persistQueuedCreate()
           enterOffline()
           return { data: null, error: { message: blockedMutationMessage() } }
         }
-        setItems(prev => prev.filter(item => item.id !== tempId))
-        if (error.code === '23505') {
+        setItems(prev => prev.filter(item => item.id !== tempId && item.clientItemKey !== clientItemKey))
+        if (error?.code === '23505') {
           return { data: null, error: { ...error, message: 'An item with this name already exists' } }
         }
-        return { data: null, error }
+        return { data: null, error: error ?? { message: 'Failed to add item' } }
       }
 
       const newMemberStatesPersisted: Record<string, ItemMemberState> = {}
-
-      if (targetMember) {
-        const targetState: ItemMemberState = {
+      for (const [mid, st] of Object.entries(queuedPayload.memberStates)) {
+        newMemberStatesPersisted[mid] = {
+          ...st,
           item_id: data.id,
-          member_id: targetMember.id,
-          quantity: 1,
-          done: false,
-          assigned: true,
+          member_id: mid,
           updated_at: new Date().toISOString(),
         }
-        newMemberStatesPersisted[targetMember.id] = targetState
-
-        await trackSaveOperation(
-          supabase.from('item_member_state').insert({
-            item_id: data.id,
-            member_id: targetMember.id,
-            quantity: 1,
-            done: false,
-            assigned: true,
-          }),
-        )
       }
 
-      const newItem: ItemWithState = { ...data, memberStates: newMemberStatesPersisted }
-      setItems(prev => {
-        let replaced = false
-        const next = prev.map(item => {
-          if (item.id === tempId) {
-            replaced = true
-            return newItem
-          }
-          return item
-        })
-
-        const deduped: ItemWithState[] = []
-        for (const item of next) {
-          if (!deduped.some(existing => existing.id === item.id)) {
-            deduped.push(item)
-          }
-        }
-
-        return replaced ? deduped : [...deduped, newItem]
-      })
+      clientItemKeyToServerIdRef.current.set(clientItemKey, data.id)
+      setItems(prev =>
+        applyServerItemAfterCreate(prev, {
+          listId,
+          tempId,
+          clientItemKey,
+          serverItem: data,
+          memberStates: newMemberStatesPersisted,
+          itemName: text,
+        }),
+      )
       markOnlineRecovered()
       return { data, error: null }
     } finally {
@@ -2140,6 +2182,8 @@ export function useList(listId: string) {
         return { error: null }
       }
 
+      const updatePatchForQueue = existingState ? buildItemMemberStateUpdatePatch(updates) : undefined
+
       const persistQueuedIms = async () => {
         await enqueueItemMutation({
           kind: 'itemMemberState',
@@ -2152,6 +2196,11 @@ export function useList(listId: string) {
           quantity: optimisticState.quantity,
           done: optimisticState.done,
           assigned: optimisticState.assigned,
+          ...(existingState &&
+          updatePatchForQueue &&
+          Object.keys(updatePatchForQueue).length > 0
+            ? { updatePatch: updatePatchForQueue }
+            : {}),
         })
       }
 
@@ -2161,12 +2210,24 @@ export function useList(listId: string) {
       }
 
       if (existingState) {
+        const updatePatch = buildItemMemberStateUpdatePatch(updates)
+        if (Object.keys(updatePatch).length === 0) {
+          return { error: null }
+        }
+
+        diagMemberStateMutation({
+          itemId,
+          memberId,
+          listId,
+          existingState: true,
+          operation: 'update',
+          patchUpdated: updatePatch,
+          fullInsertPayload: null,
+          quantityIncluded: updates.quantity !== undefined,
+        })
+
         const { error } = await trackSaveOperation(
-          supabase
-            .from('item_member_state')
-            .update(updates)
-            .eq('item_id', itemId)
-            .eq('member_id', memberId),
+          supabase.from('item_member_state').update(updatePatch).eq('item_id', itemId).eq('member_id', memberId),
         )
 
         if (error) {
@@ -2190,18 +2251,27 @@ export function useList(listId: string) {
         return { error: null }
       }
 
+      const insertPayload = {
+        item_id: itemId,
+        member_id: memberId,
+        quantity: updates.quantity ?? 1,
+        done: updates.done ?? false,
+        assigned: updates.assigned ?? false,
+      }
+
+      diagMemberStateMutation({
+        itemId,
+        memberId,
+        listId,
+        existingState: false,
+        operation: 'insert',
+        fullInsertPayload: insertPayload,
+        patchUpdated: updates,
+        quantityIncluded: updates.quantity !== undefined,
+      })
+
       const { data, error } = await trackSaveOperation(
-        supabase
-          .from('item_member_state')
-          .insert({
-            item_id: itemId,
-            member_id: memberId,
-            quantity: updates.quantity ?? 1,
-            done: updates.done ?? false,
-            assigned: updates.assigned ?? false,
-          })
-          .select()
-          .single(),
+        supabase.from('item_member_state').insert(insertPayload).select().single(),
       )
 
       if (error || !data) {
@@ -2266,6 +2336,7 @@ export function useList(listId: string) {
           quantity: optimisticState.quantity,
           done: optimisticState.done,
           assigned: optimisticState.assigned,
+          ...(previousState ? { updatePatch: { quantity: optimisticState.quantity } } : {}),
         })
       }
 

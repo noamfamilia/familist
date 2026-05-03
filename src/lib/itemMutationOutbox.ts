@@ -11,6 +11,8 @@ const DB_VERSION = 1
 const STORE = 'mutations'
 
 export type QueuedCreatePayload = {
+  /** Stable client-side key for this create; temp `itemKey` stays the temp row id. */
+  clientItemKey?: string
   text: string
   category: number
   comment: string | null
@@ -52,6 +54,22 @@ export type QueuedPatchServerItemRecord = {
   category?: number
 }
 
+export type ItemMemberStateUpdatePatch = Partial<{
+  quantity: number
+  done: boolean
+  assigned: boolean
+}>
+
+export function buildItemMemberStateUpdatePatch(
+  updates: { quantity?: number; done?: boolean; assigned?: boolean },
+): ItemMemberStateUpdatePatch {
+  const patch: ItemMemberStateUpdatePatch = {}
+  if (updates.quantity !== undefined) patch.quantity = updates.quantity
+  if (updates.done !== undefined) patch.done = updates.done
+  if (updates.assigned !== undefined) patch.assigned = updates.assigned
+  return patch
+}
+
 export type QueuedItemMemberStateRecord = {
   kind: 'itemMemberState'
   listId: string
@@ -63,6 +81,8 @@ export type QueuedItemMemberStateRecord = {
   quantity: number
   done: boolean
   assigned: boolean
+  /** For updates: only these keys are sent to `item_member_state.update` (merged LWW). */
+  updatePatch?: ItemMemberStateUpdatePatch
 }
 
 export type QueuedPatchMemberRecord = {
@@ -190,6 +210,7 @@ function mergeRecords(
       payload: {
         ...existing.payload,
         ...incoming.payload,
+        clientItemKey: incoming.payload.clientItemKey ?? existing.payload.clientItemKey,
         memberStates: incoming.payload.memberStates ?? existing.payload.memberStates,
       },
     }
@@ -203,6 +224,7 @@ function mergeRecords(
       updatedAt: now,
       payload: {
         ...existing.payload,
+        clientItemKey: existing.payload.clientItemKey,
         archived: p.archived ?? existing.payload.archived,
         archived_at: p.archived_at ?? existing.payload.archived_at,
         ...(p.text !== undefined ? { text: p.text } : {}),
@@ -219,6 +241,7 @@ function mergeRecords(
       updatedAt: now,
       payload: {
         ...existing.payload,
+        clientItemKey: existing.payload.clientItemKey,
         ...(incoming.archived !== undefined
           ? { archived: incoming.archived, archived_at: incoming.archived_at ?? null }
           : {}),
@@ -240,6 +263,7 @@ function mergeRecords(
       updatedAt: now,
       payload: {
         ...existing.payload,
+        clientItemKey: existing.payload.clientItemKey,
         memberStates: { ...existing.payload.memberStates, ...incoming.memberStates },
       },
     }
@@ -256,6 +280,7 @@ function mergeRecords(
       updatedAt: now,
       payload: {
         ...incoming.payload,
+        clientItemKey: incoming.payload.clientItemKey,
         memberStates: { ...incoming.payload.memberStates, ...existing.memberStates },
       },
     }
@@ -346,7 +371,15 @@ function mergeRecords(
     return { ...incoming, updatedAt: now }
   }
   if (existing.kind === 'itemMemberState' && incoming.kind === 'itemMemberState' && existing.itemKey === incoming.itemKey) {
-    return { ...incoming, updatedAt: now }
+    const mergedPatch: ItemMemberStateUpdatePatch = {
+      ...(existing.updatePatch ?? {}),
+      ...(incoming.updatePatch ?? {}),
+    }
+    return {
+      ...incoming,
+      updatedAt: now,
+      updatePatch: Object.keys(mergedPatch).length > 0 ? mergedPatch : undefined,
+    }
   }
   if (existing.kind === 'addMember' && incoming.kind === 'addMember' && existing.itemKey === incoming.itemKey) {
     return { ...incoming, updatedAt: now }
@@ -549,6 +582,7 @@ export async function remapMemberDependentQueuedRecords(
         quantity: r.quantity,
         done: r.done,
         assigned: r.assigned,
+        ...(r.updatePatch !== undefined ? { updatePatch: r.updatePatch } : {}),
       })
     } else if (r.kind === 'patchMember' && r.memberId === tempMemberId) {
       await removePendingItemMutation(listId, r.itemKey)
@@ -588,6 +622,7 @@ export async function remapItemDependentQueuedRecords(
         quantity: r.quantity,
         done: r.done,
         assigned: r.assigned,
+        ...(r.updatePatch !== undefined ? { updatePatch: r.updatePatch } : {}),
       })
     }
   }
