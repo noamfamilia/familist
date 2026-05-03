@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
+import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
 import { useAuth } from '@/providers/AuthProvider'
 import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
@@ -341,7 +342,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       const trimmed = editText.trim()
       setIsEditing(false)
       void onUpdateItem(item.id, { text: trimmed }).then(({ error }) => {
-        if (error) showError(error.message || 'Failed to rename item')
+        if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
+          showError(error.message || 'Failed to rename item')
+        }
       })
       return
     }
@@ -350,17 +353,23 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   const handleAssign = async (memberId: string) => {
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: true })
-    if (error) showError(error.message || 'Failed to assign')
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
+      showError(error.message || 'Failed to assign')
+    }
   }
 
   const handleMarkDone = async (memberId: string) => {
     const { error } = await onUpdateMemberState(item.id, memberId, { done: true })
-    if (error) showError(error.message || 'Failed to mark done')
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
+      showError(error.message || 'Failed to mark done')
+    }
   }
 
   const handleUnassign = async (memberId: string) => {
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: false, done: false })
-    if (error) showError(error.message || 'Failed to unassign')
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
+      showError(error.message || 'Failed to unassign')
+    }
   }
 
   const handleOpenQuantityEditor = (memberId: string, containerEl: HTMLElement) => {
@@ -409,7 +418,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setEditorPos(null)
 
     void onUpdateMemberState(item.id, memberId, { quantity: newQuantity, assigned: true }).then(({ error }) => {
-      if (error) showError(error.message || 'Failed to update quantity')
+      if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
+        showError(error.message || 'Failed to update quantity')
+      }
     })
   }
 
@@ -428,7 +439,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       ? await onUpdateItem(item.id, { archived: false, archived_at: null })
       : await onUpdateItem(item.id, { archived: true, archived_at: new Date().toISOString() })
 
-    if (error) {
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || `Failed to ${item.archived ? 'restore' : 'archive'} item`)
     }
   }
@@ -444,7 +455,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setEditingComment(false)
     const { error } = await onUpdateItem(item.id, { comment: trimmed || null })
     if (error) {
-      showError(error.message || 'Failed to save comment')
+      if (shouldShowConnectivityRelatedMutationToast(error.message)) {
+        showError(error.message || 'Failed to save comment')
+      }
       setComment(item.comment || '')
     }
   }
@@ -465,7 +478,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setDeleting(true)
     const { error } = await onDeleteItem(item.id)
     if (error) {
-      showError('Failed to delete item')
+      const msg = typeof error === 'object' && error !== null && 'message' in error ? String((error as { message?: string }).message) : ''
+      if (shouldShowConnectivityRelatedMutationToast(msg)) {
+        showError('Failed to delete item')
+      }
     }
     setDeleting(false)
     setShowDeleteConfirm(false)
@@ -478,7 +494,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const handlePickCategory = async (next: ItemCategory) => {
     if (next === category) return
     const { error } = await onUpdateItem(item.id, { category: next })
-    if (error) {
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to update category')
     }
   }

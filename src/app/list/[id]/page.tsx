@@ -13,7 +13,10 @@ import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
-import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
+import {
+  OFFLINE_ACTIONS_DISABLED_MSG,
+  shouldShowConnectivityRelatedMutationToast,
+} from '@/lib/mutationToastPolicy'
 import { cachedListDataExists, getCachedList, logListDetailCacheValidation } from '@/lib/cache'
 import {
   getClientBuildId,
@@ -649,14 +652,10 @@ export default function ListPage() {
       const result = await addItem(itemText, cat)
       err = result.error as { message?: string } | null | undefined
       if (err) {
-        if (err.message === 'Offline (actions disabled)') {
+        if (err.message === OFFLINE_ACTIONS_DISABLED_MSG) {
           addItemInputRef.current?.blur()
         }
-        if (
-          err.message !== 'Syncing with server ...' &&
-          err.message !== USER_MUTATION_WAIT_MSG &&
-          err.message !== 'Offline (actions disabled)'
-        ) {
+        if (shouldShowConnectivityRelatedMutationToast(err.message)) {
           showError(err.message || 'Failed to add item')
         }
       }
@@ -720,7 +719,7 @@ export default function ListPage() {
     setCategorySortLoading(true)
     const { error: reorderError } = await reorderItems(fullOrder)
     setCategorySortLoading(false)
-    if (reorderError) {
+    if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
       showError(reorderError.message || 'Failed to sort by category')
     }
   }
@@ -730,7 +729,7 @@ export default function ListPage() {
 
   const persistSumScope = async (next: ListUserSumScope) => {
     const { error } = await updateListUserSumScope(next)
-    if (error) {
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to update sum row')
     }
   }
@@ -740,7 +739,7 @@ export default function ListPage() {
     const { error } = await deleteArchivedItems()
     setBulkLoading(false)
     setConfirmDeleteArchived(false)
-    if (error) {
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to delete archived items')
     }
   }
@@ -750,7 +749,7 @@ export default function ListPage() {
     const { error } = await restoreArchivedItems()
     setBulkLoading(false)
     setConfirmRestoreArchived(false)
-    if (error) {
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to restore archived items')
     }
   }
@@ -769,7 +768,7 @@ export default function ListPage() {
         const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         const fullOrder = reorderWithDrag(currentFull, newActiveOrder, active.id as string)
         const { error: reorderError } = await reorderItems(fullOrder)
-        if (reorderError) {
+        if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
           showError(reorderError.message || 'Failed to reorder items')
         }
       }

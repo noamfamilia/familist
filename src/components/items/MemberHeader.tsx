@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
+import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
 import type { CategoryNames, Member, MemberWithCreator } from '@/lib/supabase/types'
 import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
@@ -203,7 +204,9 @@ export function MemberHeader({
     if (error) {
       setNewMemberName(nameToAdd)
       setIsAdding(true)
-      showError(error.message || 'Failed to add member')
+      if (shouldShowConnectivityRelatedMutationToast(error.message)) {
+        showError(error.message || 'Failed to add member')
+      }
       return
     }
   }
@@ -271,7 +274,9 @@ export function MemberHeader({
 
     handleCancelEdit()
     void onUpdateMember(memberId, { name: trimmedName }).then(({ error }) => {
-      if (error) showError(error.message || 'Failed to update member')
+      if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
+        showError(error.message || 'Failed to update member')
+      }
     })
   }
 
@@ -287,7 +292,7 @@ export function MemberHeader({
     const { error } = await onDeleteMember(deleteConfirm.memberId)
     setDeleteLoading(false)
     
-    if (error) {
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to delete member')
     }
     setDeleteConfirm({ open: false, memberId: null, memberName: '' })
@@ -296,7 +301,7 @@ export function MemberHeader({
   const handleTogglePublic = async (member: MemberWithCreator) => {
     closeMemberMenu()
     const { error } = await onUpdateMember(member.id, { is_public: !member.is_public })
-    if (error) {
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to update member')
     }
   }
@@ -311,7 +316,7 @@ export function MemberHeader({
     setOwnLoading(true)
     const { error, newMemberId } = await onOwnMember(ownConfirm.memberId, profile?.nickname || undefined)
     setOwnLoading(false)
-    if (error) {
+    if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
       showError(error.message || 'Failed to take ownership')
     }
     setOwnConfirm({ open: false, memberId: null, memberName: '' })
