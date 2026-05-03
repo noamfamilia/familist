@@ -7,6 +7,7 @@ import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import { perfLog } from '@/lib/startupPerfLog'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { STILL_SAVING_TEMP_ENTITY_MSG } from '@/lib/mutationToastPolicy'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
@@ -254,6 +255,7 @@ export function useList(listId: string) {
   const { showToast, dismissToast, error: showErrorToast } = useToast()
   const {
     isOfflineActionsDisabled,
+    recoveryFetchGeneration,
     enterOffline,
     markOnlineRecovered,
     startTempSyncWatch,
@@ -614,6 +616,14 @@ export function useList(listId: string) {
     fetchList()
   }, [fetchList])
 
+  const lastRecoveryFetchGenRef = useRef(0)
+  useEffect(() => {
+    if (!userId || !listId) return
+    if (recoveryFetchGeneration <= lastRecoveryFetchGenRef.current) return
+    lastRecoveryFetchGenRef.current = recoveryFetchGeneration
+    void fetchList()
+  }, [recoveryFetchGeneration, fetchList, listId, userId])
+
   // Keep local cache in sync with optimistic updates too.
   useEffect(() => {
     if (!list) return
@@ -891,8 +901,7 @@ export function useList(listId: string) {
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
     if (isTempEntityId(itemId)) {
-      startTempSyncWatch()
-      return { error: { message: 'Syncing with server ...' } }
+      return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
     const previousItem = items.find(item => item.id === itemId)
     const persistedUpdates = { ...updates }
@@ -1136,8 +1145,7 @@ export function useList(listId: string) {
 
   const deleteItem = async (itemId: string) => {
     if (isTempEntityId(itemId)) {
-      startTempSyncWatch()
-      return { error: { message: 'Syncing with server ...' } }
+      return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
     if (!tryBeginMutation()) {
       return { error: { message: blockedMutationMessage() } }
@@ -1259,8 +1267,7 @@ export function useList(listId: string) {
 
   const updateMember = async (memberId: string, updates: Partial<Member>) => {
     if (isTempEntityId(memberId)) {
-      startTempSyncWatch()
-      return { error: { message: 'Syncing with server ...' } }
+      return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
     if (!tryBeginMutation()) {
       return { error: { message: blockedMutationMessage() } }
@@ -1304,8 +1311,7 @@ export function useList(listId: string) {
 
   const deleteMember = async (memberId: string) => {
     if (isTempEntityId(memberId)) {
-      startTempSyncWatch()
-      return { error: { message: 'Syncing with server ...' } }
+      return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
     if (!tryBeginMutation()) {
       return { error: { message: blockedMutationMessage() } }
@@ -1347,8 +1353,7 @@ export function useList(listId: string) {
 
   const ownMember = async (memberId: string, creatorNickname?: string) => {
     if (isTempEntityId(memberId)) {
-      startTempSyncWatch()
-      return { error: { message: 'Syncing with server ...' } }
+      return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
     if (!tryBeginMutation()) {
       return { error: { message: blockedMutationMessage() } }
@@ -1400,8 +1405,7 @@ export function useList(listId: string) {
     updates: { quantity?: number; done?: boolean; assigned?: boolean }
   ) => {
     if (isTempEntityId(itemId) || isTempEntityId(memberId)) {
-      startTempSyncWatch()
-      return { error: { message: 'Syncing with server ...' } }
+      return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
     if (!tryBeginMutation()) {
       return { error: { message: blockedMutationMessage() } }
@@ -1483,8 +1487,7 @@ export function useList(listId: string) {
 
   const changeQuantity = async (itemId: string, memberId: string, delta: number) => {
     if (isTempEntityId(itemId) || isTempEntityId(memberId)) {
-      startTempSyncWatch()
-      return { data: null, error: { message: 'Syncing with server ...' } }
+      return { data: null, error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
     if (!tryBeginMutation()) {
       return { data: null, error: { message: blockedMutationMessage() } }

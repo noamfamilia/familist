@@ -15,6 +15,8 @@ import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useToast } from '@/components/ui/Toast'
 import {
   OFFLINE_ACTIONS_DISABLED_MSG,
+  RECOVERING_MUTATIONS_DISABLED_MSG,
+  STILL_SAVING_TEMP_ENTITY_MSG,
   shouldShowConnectivityRelatedMutationToast,
 } from '@/lib/mutationToastPolicy'
 import { cachedListDataExists, getCachedList, logListDetailCacheValidation } from '@/lib/cache'
@@ -666,7 +668,11 @@ export default function ListPage() {
       const result = await addItem(itemText, cat)
       err = result.error as { message?: string } | null | undefined
       if (err) {
-        if (err.message === OFFLINE_ACTIONS_DISABLED_MSG) {
+        if (
+          err.message === OFFLINE_ACTIONS_DISABLED_MSG ||
+          err.message === RECOVERING_MUTATIONS_DISABLED_MSG ||
+          err.message === STILL_SAVING_TEMP_ENTITY_MSG
+        ) {
           addItemInputRef.current?.blur()
         }
         if (shouldShowConnectivityRelatedMutationToast(err.message)) {

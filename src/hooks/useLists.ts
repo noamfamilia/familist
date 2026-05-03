@@ -7,6 +7,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
 import { perfLog } from '@/lib/startupPerfLog'
+import { STILL_SAVING_TEMP_ENTITY_MSG } from '@/lib/mutationToastPolicy'
 import type { Database, ItemWithState, Json, ListWithRole } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -70,6 +71,7 @@ export function useLists() {
 
   const {
     isOfflineActionsDisabled,
+    recoveryFetchGeneration,
     enterOffline,
     markOnlineRecovered,
     startTempSyncWatch,
@@ -289,6 +291,14 @@ export function useLists() {
     fetchLists()
   }, [fetchLists])
 
+  const lastRecoveryFetchGenRef = useRef(0)
+  useEffect(() => {
+    if (!userId) return
+    if (recoveryFetchGeneration <= lastRecoveryFetchGenRef.current) return
+    lastRecoveryFetchGenRef.current = recoveryFetchGeneration
+    void fetchLists()
+  }, [recoveryFetchGeneration, fetchLists, userId])
+
   useEffect(() => {
     setCachedLists(userId, lists)
   }, [userId, lists])
@@ -487,8 +497,7 @@ export function useLists() {
 
   const updateList = async (listId: string, updates: { name?: string; archived?: boolean; comment?: string | null; category_names?: string | null; category_order?: string | null }) => {
     if (isTempEntityId(listId)) {
-      startTempSyncWatch()
-      return { error: new Error('Syncing with server ...') }
+      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
     }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
@@ -531,8 +540,7 @@ export function useLists() {
 
   const deleteList = async (listId: string) => {
     if (isTempEntityId(listId)) {
-      startTempSyncWatch()
-      return { error: new Error('Syncing with server ...') }
+      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
     }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
@@ -565,8 +573,7 @@ export function useLists() {
   const updateUserListState = async (listId: string, updates: { archived?: boolean; sort_order?: number }) => {
     if (!user) return { error: new Error('Not authenticated') }
     if (isTempEntityId(listId)) {
-      startTempSyncWatch()
-      return { error: new Error('Syncing with server ...') }
+      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
     }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
@@ -643,8 +650,7 @@ export function useLists() {
   const leaveList = async (listId: string) => {
     if (!user) return { error: new Error('Not authenticated') }
     if (isTempEntityId(listId)) {
-      startTempSyncWatch()
-      return { error: new Error('Syncing with server ...') }
+      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
     }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
@@ -679,8 +685,7 @@ export function useLists() {
   const duplicateList = async (listId: string, newName: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
     if (isTempEntityId(listId)) {
-      startTempSyncWatch()
-      return { error: new Error('Syncing with server ...') }
+      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
     }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
@@ -884,8 +889,7 @@ export function useLists() {
   const updateListLabel = async (listId: string, label: string) => {
     if (!user) return { error: new Error('Not authenticated') }
     if (isTempEntityId(listId)) {
-      startTempSyncWatch()
-      return { error: new Error('Syncing with server ...') }
+      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
     }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
@@ -900,8 +904,7 @@ export function useLists() {
   const applyListLabelsBatch = async (changes: Array<{ listId: string; label: string }>) => {
     if (!user) return { error: new Error('Not authenticated') }
     if (changes.some(c => isTempEntityId(c.listId))) {
-      startTempSyncWatch()
-      return { error: new Error('Syncing with server ...') }
+      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
     }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
@@ -928,7 +931,6 @@ export function useLists() {
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
     if (!user) return
     if (reorderedLists.some(l => isTempEntityId(l.id))) {
-      startTempSyncWatch()
       return
     }
     if (!tryBeginMutation()) {

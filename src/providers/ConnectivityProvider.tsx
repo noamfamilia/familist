@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useToast } from '@/components/ui/Toast'
 import type { PwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
@@ -14,14 +14,17 @@ import {
 import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { connectivityProbeDelayForStep } from '@/lib/connectivityBackoff'
+import {
+  OFFLINE_ACTIONS_DISABLED_MSG,
+  RECOVERING_MUTATIONS_DISABLED_MSG,
+} from '@/lib/mutationToastPolicy'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
-type ConnectivityStatus = 'online' | 'syncing' | 'offline'
+type ConnectivityStatus = 'online' | 'recovering' | 'offline'
 
 const CONNECTIVITY_STATUS_KEY = 'familist_connectivity_status'
 const TEMP_SYNC_TIMEOUT_MS = 10000
-const OFFLINE_PING_INTERVAL_MS = 10000
-const OFFLINE_ACTIONS_DISABLED_MSG = 'Offline (actions disabled)'
 const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
 const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
 const SW_FALLBACK_REGISTER_COUNT_KEY = 'familist_sw_js_fallback_register_count'
@@ -106,7 +109,9 @@ function logFallbackSwRegister(appendDiagnostics: (section: string) => void) {
 
 type ConnectivityContextType = {
   status: ConnectivityStatus
+  /** True when offline or recovering (navigation / optimistic UI should match). */
   isOfflineActionsDisabled: boolean
+  recoveryFetchGeneration: number
   swControlled: boolean
   enterOffline: () => void
   markOnlineRecovered: () => void
@@ -200,9 +205,22 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       `[connectivity] status=${status} swControlled=${swControlled} offlineAssetsReady=${offlineAssetsReady} navigator.onLine=${onLine}`,
     )
   }, [status, swControlled, offlineAssetsReady])
+  const [recoveryFetchGeneration, setRecoveryFetchGeneration] = useState(0)
+  const bumpRecoveryFetchGeneration = useCallback(() => {
+    setRecoveryFetchGeneration((n) => n + 1)
+  }, [])
+
+  const statusRef = useRef<ConnectivityStatus>('online')
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
+
   const syncToastIdRef = useRef<string | null>(null)
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const offlinePingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const probeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const probeInFlightRef = useRef(false)
+  const probeStepRef = useRef(0)
+  const scheduleNextProbeRef = useRef<() => void>(() => {})
 
   const dismissSyncingToast = useCallback(() => {
     if (!syncToastIdRef.current) return
@@ -216,46 +234,101 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     syncTimeoutRef.current = null
   }, [])
 
-  const clearOfflinePing = useCallback(() => {
-    if (!offlinePingIntervalRef.current) return
-    clearInterval(offlinePingIntervalRef.current)
-    offlinePingIntervalRef.current = null
+  const clearProbeSchedule = useCallback(() => {
+    if (!probeTimeoutRef.current) return
+    clearTimeout(probeTimeoutRef.current)
+    probeTimeoutRef.current = null
   }, [])
 
   const markOnlineRecovered = useCallback(() => {
     clearSyncTimeout()
     dismissSyncingToast()
-    clearOfflinePing()
+    clearProbeSchedule()
+    probeStepRef.current = 0
+    probeInFlightRef.current = false
     setStatus('online')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'online')
     } catch {
       // Ignore storage errors
     }
-  }, [clearOfflinePing, clearSyncTimeout, dismissSyncingToast])
+  }, [clearProbeSchedule, clearSyncTimeout, dismissSyncingToast])
+
+  const scheduleNextProbe = useCallback(() => {
+    clearProbeSchedule()
+    if (typeof window === 'undefined') return
+    if (statusRef.current === 'online') return
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+
+    const delay = connectivityProbeDelayForStep(probeStepRef.current)
+    probeTimeoutRef.current = setTimeout(() => {
+      void (async () => {
+        if (statusRef.current === 'online') return
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          return
+        }
+        if (probeInFlightRef.current) {
+          scheduleNextProbeRef.current()
+          return
+        }
+        probeInFlightRef.current = true
+        const ok = await probeInternetReachable()
+        probeInFlightRef.current = false
+        const s = statusRef.current
+        if (s === 'online') return
+
+        if (!ok) {
+          if (s === 'recovering') {
+            try {
+              localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
+            } catch {
+              // ignore
+            }
+            setStatus('offline')
+          }
+          probeStepRef.current = Math.min(probeStepRef.current + 1, 4)
+          scheduleNextProbeRef.current()
+          return
+        }
+
+        probeStepRef.current = 0
+        if (s === 'offline') {
+          setStatus('recovering')
+          bumpRecoveryFetchGeneration()
+          scheduleNextProbeRef.current()
+          return
+        }
+        if (s === 'recovering') {
+          probeStepRef.current = Math.min(probeStepRef.current + 1, 4)
+          scheduleNextProbeRef.current()
+        }
+      })()
+    }, delay)
+  }, [bumpRecoveryFetchGeneration, clearProbeSchedule])
+
+  useLayoutEffect(() => {
+    scheduleNextProbeRef.current = scheduleNextProbe
+  }, [scheduleNextProbe])
 
   const enterOffline = useCallback(() => {
     clearSyncTimeout()
     dismissSyncingToast()
+    clearProbeSchedule()
+    probeStepRef.current = 0
+    probeInFlightRef.current = false
     setStatus('offline')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
     } catch {
       // Ignore storage errors
     }
-    if (!offlinePingIntervalRef.current) {
-      offlinePingIntervalRef.current = setInterval(() => {
-        void probeInternetReachable().then((ok) => {
-          if (ok) markOnlineRecovered()
-        })
-      }, OFFLINE_PING_INTERVAL_MS)
-    }
-  }, [clearSyncTimeout, dismissSyncingToast, markOnlineRecovered])
+    queueMicrotask(() => {
+      scheduleNextProbeRef.current()
+    })
+  }, [clearProbeSchedule, clearSyncTimeout, dismissSyncingToast])
 
   useEffect(() => {
-    registerProfileFetchOfflineHandler(() => {
-      enterOffline()
-    })
+    registerProfileFetchOfflineHandler(null)
     registerProfileFetchRecoveryHandler(() => {
       markOnlineRecovered()
     })
@@ -263,31 +336,25 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       registerProfileFetchOfflineHandler(null)
       registerProfileFetchRecoveryHandler(null)
     }
-  }, [enterOffline, markOnlineRecovered])
+  }, [markOnlineRecovered])
 
   const startTempSyncWatch = useCallback(() => {
-    if (status === 'offline') return
-    if (status !== 'syncing') setStatus('syncing')
+    if (statusRef.current === 'offline') return
+    setStatus((s) => (s === 'offline' ? s : 'recovering'))
     if (!syncToastIdRef.current) {
       syncToastIdRef.current = showToast('Syncing with server ...', 'info', { durationMs: TEMP_SYNC_TIMEOUT_MS + 1000 })
     }
-    if (syncTimeoutRef.current) return
-    syncTimeoutRef.current = setTimeout(() => {
-      syncTimeoutRef.current = null
-      enterOffline()
-    }, TEMP_SYNC_TIMEOUT_MS)
-  }, [enterOffline, showToast, status])
+  }, [showToast])
 
   const canMutateNow = useCallback(() => {
-    if (status === 'offline') {
-      return false
-    }
-    return true
+    return status === 'online'
   }, [status])
 
-  const blockedMutationMessage = useCallback(() => (
-    status === 'offline' ? OFFLINE_ACTIONS_DISABLED_MSG : USER_MUTATION_WAIT_MSG
-  ), [status])
+  const blockedMutationMessage = useCallback(() => {
+    if (status === 'offline') return OFFLINE_ACTIONS_DISABLED_MSG
+    if (status === 'recovering') return RECOVERING_MUTATIONS_DISABLED_MSG
+    return USER_MUTATION_WAIT_MSG
+  }, [status])
 
   const requestOfflineAssetsReady = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
@@ -379,17 +446,31 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     try {
       if (localStorage.getItem(CONNECTIVITY_STATUS_KEY) === 'offline') {
-        setStatus('offline')
         enterOffline()
       }
     } catch {
       // Ignore storage errors
     }
-    const onOffline = () => enterOffline()
+    const onOffline = () => {
+      enterOffline()
+    }
     const onOnline = () => {
-      void probeInternetReachable().then((ok) => {
-        if (ok) markOnlineRecovered()
-      })
+      if (statusRef.current === 'offline') {
+        clearProbeSchedule()
+        probeStepRef.current = 0
+        setStatus('recovering')
+        bumpRecoveryFetchGeneration()
+        queueMicrotask(() => {
+          scheduleNextProbeRef.current()
+        })
+        return
+      }
+      if (statusRef.current === 'recovering') {
+        bumpRecoveryFetchGeneration()
+        queueMicrotask(() => {
+          scheduleNextProbeRef.current()
+        })
+      }
     }
     window.addEventListener('offline', onOffline)
     window.addEventListener('online', onOnline)
@@ -400,9 +481,33 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       window.removeEventListener('offline', onOffline)
       window.removeEventListener('online', onOnline)
       clearSyncTimeout()
-      clearOfflinePing()
+      clearProbeSchedule()
     }
-  }, [clearOfflinePing, clearSyncTimeout, enterOffline, markOnlineRecovered])
+  }, [bumpRecoveryFetchGeneration, clearProbeSchedule, clearSyncTimeout, enterOffline])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return
+      const s = statusRef.current
+      if (s === 'offline') {
+        clearProbeSchedule()
+        probeStepRef.current = 0
+        setStatus('recovering')
+        bumpRecoveryFetchGeneration()
+        queueMicrotask(() => {
+          scheduleNextProbeRef.current()
+        })
+      } else if (s === 'recovering') {
+        bumpRecoveryFetchGeneration()
+        queueMicrotask(() => {
+          scheduleNextProbeRef.current()
+        })
+      }
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [bumpRecoveryFetchGeneration, clearProbeSchedule])
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.serviceWorker) return
@@ -691,7 +796,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     <ConnectivityContext.Provider
       value={{
         status,
-        isOfflineActionsDisabled: status === 'offline',
+        isOfflineActionsDisabled: status === 'offline' || status === 'recovering',
+        recoveryFetchGeneration,
         swControlled,
         enterOffline,
         markOnlineRecovered,
