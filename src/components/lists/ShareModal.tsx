@@ -42,8 +42,17 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
   const [contentReady, setContentReady] = useState(false)
-  /** Increments on successful regenerate so the invite input remounts and replays the flourish animation. */
-  const [inviteLinkFlashKey, setInviteLinkFlashKey] = useState(0)
+  /** Remount key so regenerate replays the invite flourish animation. */
+  const [regenAnimSeq, setRegenAnimSeq] = useState(0)
+  /** True only for ~1s after a successful regenerate while the flourish CSS runs. */
+  const [regenAnimPlaying, setRegenAnimPlaying] = useState(false)
+  const [regeneratePending, setRegeneratePending] = useState(false)
+
+  useEffect(() => {
+    if (!regenAnimPlaying) return
+    const t = window.setTimeout(() => setRegenAnimPlaying(false), 1000)
+    return () => window.clearTimeout(t)
+  }, [regenAnimPlaying, regenAnimSeq])
 
   // Fetch joined users when modal opens
   const fetchJoinedUsers = async (): Promise<JoinedUser[]> => {
@@ -98,7 +107,9 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       setShowConfirm(false)
       setShowRemoveConfirm(false)
       setSelectedUserIds(new Set())
-      setInviteLinkFlashKey(0)
+      setRegenAnimSeq(0)
+      setRegenAnimPlaying(false)
+      setRegeneratePending(false)
       
       // Fetch joined users if link-enabled, then show content
       if (list.visibility === 'link') {
@@ -219,7 +230,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   }
 
   const handleRegenerateInvite = async () => {
-    setLoading(true)
+    setRegeneratePending(true)
     try {
       const supabase = forceNewClient()
       const { data, error } = await supabase.rpc('generate_share_token', {
@@ -228,12 +239,13 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       })
       if (error) throw error
       setToken(data)
-      setInviteLinkFlashKey(k => k + 1)
+      setRegenAnimSeq(s => s + 1)
+      setRegenAnimPlaying(true)
     } catch (err) {
       console.error('Error regenerating token:', err)
       showError('Failed to regenerate invite link')
     } finally {
-      setLoading(false)
+      setRegeneratePending(false)
     }
   }
 
@@ -426,7 +438,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               <button
                 type="button"
                 onClick={() => void handleRegenerateInvite()}
-                disabled={loading}
+                disabled={loading || regeneratePending}
                 title="Regenerate invite link"
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal text-white shadow-sm hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="Regenerate invite link"
@@ -434,15 +446,13 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
                 <RegenerateIcon className="h-5 w-5 shrink-0" />
               </button>
               <input
-                key={inviteLinkFlashKey === 0 ? 'invite-link-field' : `invite-link-flash-${inviteLinkFlashKey}`}
+                key={`invite-link-${regenAnimSeq}`}
                 type="text"
                 value={token ? buildInviteUrl(token) : ''}
                 placeholder="Invite link"
                 readOnly
-                className={`min-w-0 flex-1 truncate rounded-lg border-2 bg-gray-50 px-3 py-2.5 text-sm text-primary dark:bg-neutral-900 dark:text-gray-100 ${
-                  inviteLinkFlashKey > 0
-                    ? 'animate-invite-link-flourish border-teal/70 dark:border-teal/60'
-                    : 'border-gray-200 dark:border-neutral-600'
+                className={`min-w-0 flex-1 truncate rounded-lg border-2 border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-primary dark:border-neutral-600 dark:bg-neutral-900 dark:text-gray-100 ${
+                  regenAnimPlaying ? 'animate-invite-link-flourish' : ''
                 }`}
               />
             </div>
