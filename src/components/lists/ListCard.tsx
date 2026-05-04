@@ -14,7 +14,6 @@ import {
   normalOfflineRouteReady,
 } from '@/lib/offlineRouteReadiness'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
-import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import type { ListWithRole } from '@/lib/supabase/types'
 
 function subscribeNavigatorOnline(cb: () => void) {
@@ -106,14 +105,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     offlineAssetsReady &&
     cachedListDataExists(list.id) &&
     normalOfflineRouteReady(list.id)
-
-  const listKebabMenuAnim = useMenuOpenAnimation(menuOpen)
-  const listRenameAnim = useMenuOpenAnimation(isRenaming)
-  const listCommentEditAnim = useMenuOpenAnimation(editingComment)
-  const listLabelDropdownAnim = useMenuOpenAnimation(labelDropdownOpen)
-  const listAddLabelAnim = useMenuOpenAnimation(addingLabel && !labelDropdownOpen)
-  const dupLabelDropdownAnim = useMenuOpenAnimation(dupLabelDropdownOpen)
-  const dupAddLabelAnim = useMenuOpenAnimation(dupAddingLabel && !dupLabelDropdownOpen)
 
   // Sync comment state when list updates from realtime
   useEffect(() => {
@@ -646,10 +637,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             {ownerBadge}
           </Link>
         )}
-        {listRenameAnim.mounted && (
+        {isRenaming && (
           <div
             ref={renamePopoverRef}
-            className={`absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px] ${listRenameAnim.menuClassName}`}
+            className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
             onClick={(e) => e.stopPropagation()}
           >
             <input
@@ -713,8 +704,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       </div>
 
       {/* Expanded menu with comment field and action buttons */}
-      {listKebabMenuAnim.mounted && (
-        <div className={`space-y-2 rounded-b-lg bg-transparent px-3 py-2 ${listKebabMenuAnim.menuClassName}`}>
+      {menuOpen && (
+        <div className="space-y-2 rounded-b-lg bg-transparent px-3 py-2">
           {/* Comment display / editor */}
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             {comment ? (
@@ -739,10 +730,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 Add a comment...
               </p>
             )}
-            {listCommentEditAnim.mounted && (
+            {editingComment && (
               <div
                 ref={commentPopoverRef}
-                className={`absolute left-0 right-0 top-0 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 ${listCommentEditAnim.menuClassName}`}
+                className="absolute left-0 right-0 top-0 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2"
               >
                 <textarea
                   ref={commentRef}
@@ -809,8 +800,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
-                {listLabelDropdownAnim.mounted && (
-                  <div className={`absolute left-0 mt-1 min-w-[140px] rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden ${listLabelDropdownAnim.menuClassName}`}>
+                {labelDropdownOpen && (
+                  <div className="absolute left-0 mt-1 min-w-[140px] rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden">
                     {labels.map(l => (
                       <button
                         key={l}
@@ -841,10 +832,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                     </button>
                   </div>
                 )}
-                {listAddLabelAnim.mounted && (
+                {addingLabel && !labelDropdownOpen && (
                   <div
                     ref={addLabelPopoverRef}
-                    className={`absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px] ${listAddLabelAnim.menuClassName}`}
+                    className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
                   >
                     <input
                       ref={addLabelInputRef}
@@ -983,8 +974,8 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
-            {dupLabelDropdownAnim.mounted && (
-              <div className={`absolute left-0 mt-1 min-w-[140px] w-full rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden ${dupLabelDropdownAnim.menuClassName}`}>
+            {dupLabelDropdownOpen && (
+              <div className="absolute left-0 mt-1 min-w-[140px] w-full rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-lg dark:shadow-black/40 z-50 overflow-hidden">
                 {labels.map(l => (
                   <button
                     key={l}
@@ -1015,10 +1006,10 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
                 </button>
               </div>
             )}
-            {dupAddLabelAnim.mounted && (
+            {dupAddingLabel && !dupLabelDropdownOpen && (
               <div
                 ref={dupAddLabelPopoverRef}
-                className={`absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px] ${dupAddLabelAnim.menuClassName}`}
+                className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
               >
                 <input
                   ref={dupAddLabelInputRef}
