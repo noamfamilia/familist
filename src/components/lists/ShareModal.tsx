@@ -376,7 +376,9 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
           <span className="block min-w-0 truncate text-center text-xl font-semibold text-teal sm:text-2xl">
             {list.name}
           </span>
-          <span className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">(Click to copy list to text)</span>
+          <span className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">
+            (Click to copy list&apos;s items to clipboard)
+          </span>
         </button>
       </div>
 
