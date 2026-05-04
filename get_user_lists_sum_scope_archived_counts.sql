@@ -1,6 +1,10 @@
 -- Adds sumScope (from list_users.sum_scope) and archivedItemCount for home list cards
 -- when sum row is enabled. Also counts members excluding targets.
-create or replace function public.get_user_lists()
+--
+-- Postgres rejects CREATE OR REPLACE when the return type is considered changed; drop first.
+DROP FUNCTION IF EXISTS public.get_user_lists();
+
+CREATE OR REPLACE FUNCTION public.get_user_lists()
 returns json
 language plpgsql
 security definer
