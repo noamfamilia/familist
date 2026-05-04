@@ -551,10 +551,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     (list.activeItemCount ?? 0) + (list.archivedItemCount ?? 0)
   const sumCountsInline = listCardShowsSumRowMetadata(list) ? (
     <span
-      className="shrink-0 whitespace-nowrap tabular-nums text-xs font-normal text-gray-500 dark:text-gray-400"
+      className="inline-flex shrink-0 items-center gap-1 align-middle whitespace-nowrap text-xs text-gray-400 dark:text-gray-500"
       aria-label={`${list.activeItemCount ?? 0} active of ${listItemTotalForCard} items`}
     >
-      ({list.activeItemCount ?? 0} / {listItemTotalForCard})
+      <span aria-hidden="true">·</span>
+      <span className="tabular-nums font-normal">
+        ({list.activeItemCount ?? 0} / {listItemTotalForCard})
+      </span>
     </span>
   ) : null
 
