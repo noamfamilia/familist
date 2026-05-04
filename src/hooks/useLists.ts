@@ -14,7 +14,7 @@ import {
   type ServerWorkOutcome,
 } from '@/lib/connectivityErrors'
 import { STILL_SAVING_TEMP_ENTITY_MSG } from '@/lib/mutationToastPolicy'
-import type { Database, ItemWithState, Json, ListWithRole } from '@/lib/supabase/types'
+import type { Database, ItemWithState, Json, ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -30,6 +30,11 @@ function createTempId(prefix: string) {
 
 function isTempEntityId(id: string | null | undefined): boolean {
   return typeof id === 'string' && id.startsWith('temp-')
+}
+
+function coalesceListUserSumScope(raw: unknown): ListUserSumScope {
+  if (raw === 'all' || raw === 'active' || raw === 'archived' || raw === 'none') return raw
+  return 'none'
 }
 
 export function useLists() {
@@ -236,6 +241,8 @@ export function useLists() {
         userArchived: item.userArchived,
         memberCount: item.memberCount,
         activeItemCount: item.activeItemCount,
+        archivedItemCount: item.archivedItemCount ?? 0,
+        sumScope: coalesceListUserSumScope(item.sumScope),
         ownerNickname: item.ownerNickname,
         comment: item.comment,
         category_names: item.category_names ?? null,
@@ -456,6 +463,8 @@ export function useLists() {
       userArchived: false,
       memberCount: 0,
       activeItemCount: 0,
+      archivedItemCount: 0,
+      sumScope: 'none',
       label: label || '',
     }
 
@@ -485,6 +494,8 @@ export function useLists() {
       userArchived: false,
       memberCount: 0,
       activeItemCount: 0,
+      archivedItemCount: 0,
+      sumScope: 'none',
       label: label || '',
     }
     setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])
@@ -715,6 +726,8 @@ export function useLists() {
       userArchived: false,
       memberCount: sourceList?.memberCount ?? 0,
       activeItemCount: sourceList?.activeItemCount || 0,
+      archivedItemCount: sourceList?.archivedItemCount ?? 0,
+      sumScope: 'none',
       label: label || '',
     }
 
@@ -748,12 +761,15 @@ export function useLists() {
     }
 
     const dupMembers = (data.members ?? []) as { is_target?: boolean }[]
+    const dupItems = data.items ?? []
     const duplicatedList: ListWithRole = {
       ...data.list,
       role: 'owner',
       userArchived: false,
       memberCount: dupMembers.filter(m => !m.is_target).length,
-      activeItemCount: data.items?.filter((item: { archived: boolean }) => !item.archived).length || 0,
+      activeItemCount: dupItems.filter((item: { archived: boolean }) => !item.archived).length,
+      archivedItemCount: dupItems.filter((item: { archived: boolean }) => item.archived).length,
+      sumScope: 'none',
       label: label || '',
     }
 
@@ -812,6 +828,8 @@ export function useLists() {
       userArchived: false,
       memberCount: hasTargets ? 1 : 0,
       activeItemCount: itemCount,
+      archivedItemCount: 0,
+      sumScope: 'none',
       label: label || '',
     }
 
@@ -847,6 +865,8 @@ export function useLists() {
       userArchived: false,
       memberCount: hasTargets ? 1 : 0,
       activeItemCount: itemCount,
+      archivedItemCount: 0,
+      sumScope: 'none',
       label: label || '',
     }
     setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])

@@ -14,7 +14,12 @@ import {
   normalOfflineRouteReady,
 } from '@/lib/offlineRouteReadiness'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
-import type { ListWithRole } from '@/lib/supabase/types'
+import type { ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
+
+function listCardShowsSumRowMetadata(list: ListWithRole): boolean {
+  const s: ListUserSumScope | undefined = list.sumScope
+  return s === 'all' || s === 'active' || s === 'archived'
+}
 
 function subscribeNavigatorOnline(cb: () => void) {
   if (typeof window === 'undefined') return () => {}
@@ -636,6 +641,18 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             {list.name}
             {ownerBadge}
           </Link>
+        )}
+        {listCardShowsSumRowMetadata(list) && (
+          <p
+            className="mt-0.5 text-xs tabular-nums text-gray-500 dark:text-gray-400"
+            aria-label={`${list.activeItemCount ?? 0} active items, ${list.archivedItemCount ?? 0} archived`}
+          >
+            <span>{list.activeItemCount ?? 0}</span>
+            <span className="mx-1 opacity-70" aria-hidden>
+              ·
+            </span>
+            <span className="line-through">{list.archivedItemCount ?? 0}</span>
+          </p>
         )}
         {isRenaming && (
           <div

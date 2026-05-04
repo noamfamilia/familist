@@ -266,6 +266,8 @@ export interface Database {
           userArchived: boolean
           memberCount: number
           activeItemCount: number
+          archivedItemCount?: number
+          sumScope?: 'none' | 'all' | 'active' | 'archived'
           ownerNickname: string | null
           comment: string | null
           category_names: string | null
@@ -376,6 +378,8 @@ export type ListWithRole = List & {
   userArchived: boolean
   memberCount?: number
   activeItemCount?: number
+  archivedItemCount?: number
+  sumScope?: ListUserSumScope
   ownerNickname?: string | null
   comment?: string | null
   label?: string
