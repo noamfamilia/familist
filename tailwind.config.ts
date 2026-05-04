@@ -10,6 +10,26 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      keyframes: {
+        'invite-link-flourish': {
+          '0%': {
+            transform: 'scale(1)',
+            boxShadow: '0 0 0 0 rgb(42 161 152 / 0)',
+          },
+          '35%': {
+            transform: 'scale(1.02)',
+            boxShadow:
+              '0 0 0 2px rgb(42 161 152 / 0.55), 0 12px 36px -6px rgb(42 161 152 / 0.35)',
+          },
+          '100%': {
+            transform: 'scale(1)',
+            boxShadow: '0 0 0 0 rgb(42 161 152 / 0)',
+          },
+        },
+      },
+      animation: {
+        'invite-link-flourish': 'invite-link-flourish 1s ease-in-out forwards',
+      },
       colors: {
         primary: {
           DEFAULT: '#1e3a5f',

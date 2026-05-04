@@ -42,6 +42,8 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
   const [contentReady, setContentReady] = useState(false)
+  /** Increments on successful regenerate so the invite input remounts and replays the flourish animation. */
+  const [inviteLinkFlashKey, setInviteLinkFlashKey] = useState(0)
 
   // Fetch joined users when modal opens
   const fetchJoinedUsers = async (): Promise<JoinedUser[]> => {
@@ -96,6 +98,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       setShowConfirm(false)
       setShowRemoveConfirm(false)
       setSelectedUserIds(new Set())
+      setInviteLinkFlashKey(0)
       
       // Fetch joined users if link-enabled, then show content
       if (list.visibility === 'link') {
@@ -225,7 +228,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       })
       if (error) throw error
       setToken(data)
-      success('New link created. Old link is invalid.')
+      setInviteLinkFlashKey(k => k + 1)
     } catch (err) {
       console.error('Error regenerating token:', err)
       showError('Failed to regenerate invite link')
@@ -431,11 +434,16 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
                 <RegenerateIcon className="h-5 w-5 shrink-0" />
               </button>
               <input
+                key={inviteLinkFlashKey === 0 ? 'invite-link-field' : `invite-link-flash-${inviteLinkFlashKey}`}
                 type="text"
                 value={token ? buildInviteUrl(token) : ''}
                 placeholder="Invite link"
                 readOnly
-                className="min-w-0 flex-1 px-3 py-2.5 border-2 border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-900 text-sm truncate"
+                className={`min-w-0 flex-1 truncate rounded-lg border-2 bg-gray-50 px-3 py-2.5 text-sm text-primary dark:bg-neutral-900 dark:text-gray-100 ${
+                  inviteLinkFlashKey > 0
+                    ? 'animate-invite-link-flourish border-teal/70 dark:border-teal/60'
+                    : 'border-gray-200 dark:border-neutral-600'
+                }`}
               />
             </div>
             <div>
