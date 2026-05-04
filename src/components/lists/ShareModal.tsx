@@ -429,9 +429,12 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
                 className="min-w-0 flex-1 px-3 py-2.5 border-2 border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-900 text-sm truncate"
               />
             </div>
-            <p className="text-left text-[11px] leading-snug text-gray-500 dark:text-gray-400">
-              Regenerate link (invalidates old one)
-            </p>
+            <div>
+              <p className="text-left text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                Regenerate link invalidates old one
+              </p>
+              <div className="h-3 shrink-0" aria-hidden />
+            </div>
             <button
               type="button"
               onClick={() => void handleShareInvite()}
