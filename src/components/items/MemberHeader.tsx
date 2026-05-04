@@ -142,6 +142,7 @@ export function MemberHeader({
   }
 
   const handleToggleActions = () => {
+    if (isOfflineActionsDisabled) return
     if (actionsOpen) {
       closeActions()
     } else {
@@ -239,6 +240,16 @@ export function MemberHeader({
       setOpenMenuId(prev => (prev === clearedId ? null : prev))
     }
   }, [])
+
+  useEffect(() => {
+    if (!isOfflineActionsDisabled) return
+    setActionsOpen(false)
+    setActionsMenuPos(null)
+    closeMemberMenu()
+    setItemNameFontOpen(false)
+    setItemNameFontPos(null)
+    if (editingMemberId) handleCancelEdit()
+  }, [isOfflineActionsDisabled, closeMemberMenu, editingMemberId, handleCancelEdit])
 
   const handleStartEdit = (member: Member) => {
     closeMemberMenu()
@@ -400,6 +411,7 @@ export function MemberHeader({
   }, [])
 
   const handleChipClick = useCallback((memberId: string) => {
+    if (isOfflineActionsDisabled) return
     if (openMenuId === memberId) {
       closeMemberMenu()
       return
@@ -409,7 +421,7 @@ export function MemberHeader({
     setOpenMenuId(memberId)
     const chipEl = chipRefsMap.current.get(memberId)
     if (chipEl) computeMenuPos(chipEl)
-  }, [openMenuId, computeMenuPos, closeMemberMenu])
+  }, [openMenuId, computeMenuPos, closeMemberMenu, isOfflineActionsDisabled])
 
   const handleItemNameFontButtonClick = useCallback(
     (e: React.MouseEvent) => {
@@ -636,8 +648,13 @@ export function MemberHeader({
             </div>
           </div>
           
-          {/* Members section */}
-          <div className="flex items-center ml-2.5 flex-shrink-0 gap-2.5">
+          {/* Members section — dimmed and non-interactive while offline or recovering */}
+          <div
+            className={`flex items-center ml-2.5 flex-shrink-0 gap-2.5 ${
+              isOfflineActionsDisabled ? 'pointer-events-none cursor-not-allowed opacity-40' : ''
+            }`}
+            aria-disabled={isOfflineActionsDisabled || undefined}
+          >
             {members.map(member => {
               const isMenuOpen = openMenuId === member.id
               const isRenaming = editingMemberId === member.id
@@ -796,10 +813,15 @@ export function MemberHeader({
                 ref={actionsButtonRef}
                 type="button"
                 data-tour="category-sort"
-                disabled={actionsMenuLoading}
+                disabled={isOfflineActionsDisabled || actionsMenuLoading}
                 onClick={handleToggleActions}
-                className="flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation bg-cyan text-white hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
-                aria-label="List actions"
+                className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation bg-cyan text-white hover:opacity-80 disabled:pointer-events-none ${
+                  isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'disabled:opacity-50'
+                }`}
+                aria-label={
+                  isOfflineActionsDisabled ? 'List actions (unavailable while offline or reconnecting)' : 'List actions'
+                }
+                title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : undefined}
                 aria-expanded={actionsOpen}
                 aria-haspopup="menu"
               >
