@@ -761,14 +761,14 @@ export function useLists() {
     }
 
     const dupMembers = (data.members ?? []) as { is_target?: boolean }[]
-    const dupItems = data.items ?? []
+    const dupItemsForCounts = data.items ?? []
     const duplicatedList: ListWithRole = {
       ...data.list,
       role: 'owner',
       userArchived: false,
       memberCount: dupMembers.filter(m => !m.is_target).length,
-      activeItemCount: dupItems.filter((item: { archived: boolean }) => !item.archived).length,
-      archivedItemCount: dupItems.filter((item: { archived: boolean }) => item.archived).length,
+      activeItemCount: dupItemsForCounts.filter((item: { archived: boolean }) => !item.archived).length,
+      archivedItemCount: dupItemsForCounts.filter((item: { archived: boolean }) => item.archived).length,
       sumScope: 'none',
       label: label || '',
     }
