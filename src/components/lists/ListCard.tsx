@@ -541,7 +541,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   }
 
   const ownerBadge = !isOwner && list.ownerNickname ? (
-    <span className="ml-1 inline-flex items-center gap-1 align-middle text-xs text-gray-400 dark:text-gray-500">
+    <span className="inline-flex shrink-0 items-center gap-1 align-middle text-xs text-gray-400 dark:text-gray-500">
       <span aria-hidden="true">·</span>
       <bdi dir="auto">{list.ownerNickname}</bdi>
     </span>
@@ -599,26 +599,26 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       <div className="flex-1 min-w-0 relative">
         {list.userArchived ? (
           <span
-            className="flex min-w-0 items-center gap-1 font-medium text-lg text-gray-400 dark:text-gray-500"
+            className="flex min-w-0 w-full items-center gap-1 font-medium text-lg text-gray-400 dark:text-gray-500"
             data-tour="list-card"
           >
-            <span className="min-w-0 flex-1 truncate line-through">{list.name}</span>
-            {ownerBadge}
-            {sumCountsInline}
+            <span className="flex min-w-0 max-w-full items-center gap-1 overflow-hidden">
+              <span className="min-w-0 shrink truncate line-through">{list.name}</span>
+              {!menuOpen && ownerBadge}
+              {!menuOpen && sumCountsInline}
+            </span>
           </span>
         ) : menuOpen && isOwner ? (
           isOfflineActionsDisabled ? (
             <span
-              className="flex min-w-0 items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 cursor-default"
+              className="flex min-w-0 w-full items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 cursor-default"
               data-tour="list-card"
             >
               <span className="min-w-0 flex-1 truncate">{list.name}</span>
-              {ownerBadge}
-              {sumCountsInline}
             </span>
           ) : (
             <span
-              className="flex min-w-0 items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal cursor-pointer"
+              className="flex min-w-0 w-full items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal cursor-pointer"
               data-tour="list-card"
               onClick={(e) => {
                 e.stopPropagation()
@@ -627,8 +627,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
               }}
             >
               <span className="min-w-0 flex-1 truncate">{list.name}</span>
-              {ownerBadge}
-              {sumCountsInline}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
                 <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
               </svg>
@@ -640,22 +638,26 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             onClick={(e) => {
               void handleOfflineListTitleNav(e)
             }}
-            className="flex min-w-0 items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal"
+            className="flex min-w-0 w-full items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal"
             data-tour="list-card"
           >
-            <span className="min-w-0 flex-1 truncate">{list.name}</span>
-            {ownerBadge}
-            {sumCountsInline}
+            <span className="flex min-w-0 max-w-full items-center gap-1 overflow-hidden">
+              <span className="min-w-0 shrink truncate">{list.name}</span>
+              {!menuOpen && ownerBadge}
+              {!menuOpen && sumCountsInline}
+            </span>
           </a>
         ) : (
           <Link
             href={`/list/${list.id}`}
-            className="flex min-w-0 items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal"
+            className="flex min-w-0 w-full items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal"
             data-tour="list-card"
           >
-            <span className="min-w-0 flex-1 truncate">{list.name}</span>
-            {ownerBadge}
-            {sumCountsInline}
+            <span className="flex min-w-0 max-w-full items-center gap-1 overflow-hidden">
+              <span className="min-w-0 shrink truncate">{list.name}</span>
+              {!menuOpen && ownerBadge}
+              {!menuOpen && sumCountsInline}
+            </span>
           </Link>
         )}
         {isRenaming && (
@@ -705,7 +707,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
       )}
 
       {/* Link-enabled indicator — owned lists only; decorative (share settings: list ⋮ menu) */}
-      {isOwner && list.visibility === 'link' && (
+      {isOwner && list.visibility === 'link' && !menuOpen && (
         <span
           className={`flex-shrink-0 pointer-events-none select-none text-cyan ${list.userArchived ? 'opacity-40' : 'opacity-70'}`}
           aria-label="Link sharing enabled"
