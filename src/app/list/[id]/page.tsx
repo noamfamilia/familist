@@ -965,7 +965,7 @@ export default function ListPage() {
                   }
                 }
               }}
-              placeholder={addItemBulkMode ? 'Add items (one per line)' : 'Add an item...'}
+              placeholder={addItemBulkMode ? '\nAdd items (one per line)' : 'Add an item...'}
               aria-label={addItemBulkMode ? 'New item names, one per line' : 'New item name'}
               rows={1}
               className={`box-border w-full rounded-lg border border-gray-200 px-4 py-3 pr-14 text-base text-primary focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 dark:border-neutral-600 dark:bg-neutral-900 dark:text-gray-100 ${
