@@ -338,7 +338,14 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Share Settings">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Share Settings"
+      size="lg"
+      contentClassName="!max-w-lg max-sm:!max-w-none"
+      fullScreenMobile
+    >
       {!contentReady ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal"></div>
@@ -349,9 +356,11 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
         <button
           type="button"
           onClick={() => void handleCopyListAsText()}
-          className="mx-auto block w-full max-w-full rounded-lg px-2 py-1.5 text-center hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40 dark:hover:bg-neutral-800"
+          className="mx-auto block w-full min-w-0 max-w-full rounded-lg px-2 py-1.5 text-center hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40 dark:hover:bg-neutral-800"
         >
-          <span className="block font-medium text-gray-500 dark:text-gray-400">{list.name}</span>
+          <span className="block min-w-0 truncate text-center text-xl font-semibold text-teal sm:text-2xl">
+            {list.name}
+          </span>
           <span className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">(Click to copy list to text)</span>
         </button>
       </div>
