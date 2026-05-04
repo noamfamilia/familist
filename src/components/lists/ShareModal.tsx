@@ -409,13 +409,13 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       {/* Invite link section */}
       {visibility === 'link' && (
         <div className="pt-4 border-t border-gray-200 dark:border-neutral-600">
-          <div className="flex items-stretch gap-2">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-stretch gap-x-2 gap-y-1">
             <button
               type="button"
               onClick={() => void handleRegenerateInvite()}
               disabled={loading}
               title="Regenerate invite link"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal text-white shadow-sm hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
+              className="row-start-1 flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-lg bg-teal text-white shadow-sm hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Regenerate invite link"
             >
               <RegenerateIcon className="h-5 w-5 shrink-0" />
@@ -425,18 +425,24 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               value={token ? buildInviteUrl(token) : ''}
               placeholder="Invite link"
               readOnly
-              className="min-w-0 flex-1 px-3 py-2.5 border-2 border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-900 text-sm truncate"
+              className="row-start-1 min-w-0 px-3 py-2.5 border-2 border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-900 text-sm truncate"
             />
             <button
               type="button"
               onClick={() => void handleShareInvite()}
               disabled={loading}
               title={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-500 text-white shadow-sm hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="row-start-1 flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-lg bg-red-500 text-white shadow-sm hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
             >
               <ShareActionIcon className="h-5 w-5 shrink-0" />
             </button>
+            <p className="row-start-2 col-start-1 max-w-[11rem] text-left text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+              {'Regenerate link\n(invalidates old one)'}
+            </p>
+            <p className="row-start-2 col-start-3 max-w-[11rem] justify-self-end text-right text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+              {'Share list\n(link copied to clipboard)'}
+            </p>
           </div>
         </div>
       )}
