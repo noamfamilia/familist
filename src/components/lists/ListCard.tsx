@@ -556,7 +556,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     >
       <span aria-hidden="true">·</span>
       <span className="tabular-nums font-normal">
-        ({list.activeItemCount ?? 0} / {listItemTotalForCard})
+        ({list.activeItemCount ?? 0}/{listItemTotalForCard})
       </span>
     </span>
   ) : null
