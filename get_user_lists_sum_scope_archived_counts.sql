@@ -28,6 +28,7 @@ begin
         'updated_at', l.updated_at,
         'role', lu.role,
         'userArchived', lu.archived,
+        'sort_order', lu.sort_order,
         'memberCount', (
           select count(*)::int
           from public.members m

@@ -293,6 +293,7 @@ export function useLists() {
         updated_at: item.updated_at,
         role: item.role,
         userArchived: item.userArchived,
+        sort_order: item.sort_order ?? null,
         memberCount: item.memberCount,
         activeItemCount: item.activeItemCount,
         archivedItemCount: item.archivedItemCount ?? 0,

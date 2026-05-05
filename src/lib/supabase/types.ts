@@ -264,6 +264,7 @@ export interface Database {
           updated_at: string
           role: 'owner' | 'editor' | 'viewer'
           userArchived: boolean
+          sort_order: number | null
           memberCount: number
           activeItemCount: number
           archivedItemCount?: number
