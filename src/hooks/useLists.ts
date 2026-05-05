@@ -388,12 +388,9 @@ export function useLists() {
 
   useEffect(() => {
     setCachedLists(userId, lists)
-    if (userId) {
-      void upsertListsInDexie(userId, lists).catch((error) => {
-        const msg = error instanceof Error ? error.message : String(error)
-        appendMutationDiagnostic(`[fetchLists.debug] effect-dexie-upsert-error userId=${userId} msg=${msg}`)
-      })
-    }
+    // Do not write lists back into Dexie from this effect.
+    // lists state is itself sourced from Dexie (useLiveQuery), so writing here creates
+    // a feedback loop (especially with cachedAt updates) and can spam diagnostics.
   }, [userId, lists])
 
   // Real-time subscriptions
