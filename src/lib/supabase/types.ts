@@ -343,6 +343,10 @@ export interface Database {
         Args: { p_list_id: string; p_item_ids: string[] }
         Returns: undefined
       }
+      reorder_user_lists: {
+        Args: { p_list_ids: string[] }
+        Returns: undefined
+      }
       import_list: {
         Args: { p_name: string; p_label?: string; p_category_names?: string; p_rows?: Json; p_has_targets?: boolean }
         Returns: Database['public']['Tables']['lists']['Row']

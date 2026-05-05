@@ -222,6 +222,17 @@ export function useSyncStore(): SyncStoreState {
                   .eq('user_id', userId)
                 if (error) throw error
               }
+            } else if (row.kind === 'reorderListUsers' && row.entity === 'list') {
+              const payload = row.payload as {
+                list_ids?: string[]
+              }
+              const listIds = Array.isArray(payload.list_ids) ? payload.list_ids : []
+              if (listIds.length > 0) {
+                const { error } = await supabase.rpc('reorder_user_lists', {
+                  p_list_ids: listIds,
+                } as never)
+                if (error) throw error
+              }
             }
 
             await db.transaction('rw', db.sync_queue, async () => {

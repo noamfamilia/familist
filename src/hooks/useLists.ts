@@ -199,17 +199,20 @@ export function useLists() {
     await db.transaction('rw', db.lists, db.sync_queue, async () => {
       for (const [index, list] of orderedLists.entries()) {
         await db.lists.update([user.id, list.id], { sort_order: index, cachedAt: nowMs })
-        await db.sync_queue.put({
-          listId: list.id,
-          itemKey: `list-user:${user.id}:${list.id}`,
-          kind: 'patchListUser',
-          entity: 'list',
-          payload: { id: list.id, user_id: user.id, sort_order: index },
-          updatedAt: nowMs,
-          attemptCount: 0,
-          lastError: null,
-        })
       }
+      await db.sync_queue.put({
+        listId: `user:${user.id}`,
+        itemKey: `reorder-user-lists:${user.id}`,
+        kind: 'reorderListUsers',
+        entity: 'list',
+        payload: {
+          user_id: user.id,
+          list_ids: orderedLists.map((list) => list.id),
+        },
+        updatedAt: nowMs,
+        attemptCount: 0,
+        lastError: null,
+      })
     })
     return null
   }

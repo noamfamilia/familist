@@ -54,6 +54,7 @@ export type SyncMutationKind =
   | 'patchServerItem'
   | 'patchList'
   | 'patchListUser'
+  | 'reorderListUsers'
   | 'patchArchived'
   | 'itemMemberState'
   | 'patchMember'
