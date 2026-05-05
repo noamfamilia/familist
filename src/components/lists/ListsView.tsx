@@ -186,9 +186,30 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         appendMutationDiagnostic(
           `[mutation:list.reorder.drag] afterHead=${reordered.slice(0, 5).map((l) => l.id).join(',')} moved=${String(removed?.id ?? 'n/a')}`,
         )
-        
-        // Combine active reordered with archived (archived stay at end)
-        reorderLists([...reordered, ...archivedLists])
+
+        // Merge into full `lists` so RPC receives every list id once (hidden rows keep their slots).
+        const nextFull = [...lists]
+        const visibleActiveIds = new Set(activeLists.map((l) => l.id))
+        const activeIndicesInFull: number[] = []
+        for (let i = 0; i < lists.length; i++) {
+          const l = lists[i]
+          if (!l.userArchived && visibleActiveIds.has(l.id)) {
+            activeIndicesInFull.push(i)
+          }
+        }
+        if (activeIndicesInFull.length !== reordered.length) {
+          appendMutationDiagnostic(
+            `[mutation:list.reorder.drag] mergeSkip slots=${activeIndicesInFull.length} reordered=${reordered.length}`,
+          )
+        } else {
+          for (let i = 0; i < activeIndicesInFull.length; i++) {
+            nextFull[activeIndicesInFull[i]] = reordered[i]
+          }
+          appendMutationDiagnostic(
+            `[mutation:list.reorder.drag] mergeFull head=${nextFull.slice(0, 5).map((l) => l.id).join(',')}`,
+          )
+          reorderLists(nextFull)
+        }
       }
     }
   }
