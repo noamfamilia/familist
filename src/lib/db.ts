@@ -53,6 +53,8 @@ export type SyncMutationKind =
   | 'create'
   | 'patchServerItem'
   | 'reorderListItems'
+  | 'bulkAddListItems'
+  | 'bulkPatchListLabels'
   | 'patchList'
   | 'patchListUser'
   | 'reorderListUsers'

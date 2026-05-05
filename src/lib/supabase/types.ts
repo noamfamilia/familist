@@ -308,6 +308,10 @@ export interface Database {
         Args: { p_list_id: string; p_category: number; p_lines: string[] }
         Returns: number
       }
+      bulk_update_list_labels: {
+        Args: { p_updates: Json }
+        Returns: void
+      }
       update_member: {
         Args: { p_member_id: string; p_name: string | null; p_is_public: boolean | null }
         Returns: void

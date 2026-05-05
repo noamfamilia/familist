@@ -997,10 +997,35 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-      for (const { listId, label } of changes) {
-        const { error } = await persistListLabelOnly(listId, label)
-        if (error) return { error }
-      }
+      const nextLabelById = new Map(changes.map((c) => [c.listId, c.label]))
+      mutationVersionRef.current += 1
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      setLists((prev) => prev.map((list) => (
+        nextLabelById.has(list.id) ? { ...list, label: nextLabelById.get(list.id) ?? '' } : list
+      )))
+
+      const nowMs = Date.now()
+      await db.transaction('rw', db.lists, db.sync_queue, async () => {
+        for (const { listId, label } of changes) {
+          await db.lists.update([user.id, listId], { label, cachedAt: nowMs })
+        }
+        await db.sync_queue.put({
+          listId: `user:${user.id}`,
+          itemKey: `bulk-labels:${user.id}`,
+          kind: 'bulkPatchListLabels',
+          entity: 'list',
+          payload: {
+            updates: changes.map((c) => ({ list_id: c.listId, label: c.label })),
+          },
+          updatedAt: nowMs,
+          attemptCount: 0,
+          lastError: null,
+        })
+      })
+      appendMutationDiagnostic(
+        `[mutation:list.label.batch] local:queued count=${changes.length} server:queued`,
+      )
+      markOnlineRecovered()
       return { error: null }
     } finally {
       mutationGate.end()

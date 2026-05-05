@@ -173,6 +173,26 @@ export function useSyncStore(): SyncStoreState {
                 } as never)
                 if (error) throw error
               }
+            } else if (row.kind === 'bulkAddListItems' && row.entity === 'item') {
+              const payload = row.payload as {
+                list_id?: string
+                category?: number
+                lines?: string[]
+              }
+              const rpcListId = String(payload.list_id ?? row.listId ?? '')
+              const category = Number(payload.category ?? 1)
+              const lines = Array.isArray(payload.lines) ? payload.lines : []
+              appendMutationDiagnostic(
+                `[sync->server] bulkAddListItems payload listId=${rpcListId} count=${lines.length}`,
+              )
+              if (rpcListId && lines.length > 0) {
+                const { error } = await supabase.rpc('bulk_add_list_items', {
+                  p_list_id: rpcListId,
+                  p_category: category,
+                  p_lines: lines,
+                } as never)
+                if (error) throw error
+              }
             } else if (row.kind === 'patchMember' && row.entity === 'member') {
               const payload = row.payload as {
                 memberId?: string
@@ -250,6 +270,20 @@ export function useSyncStore(): SyncStoreState {
               if (listIds.length > 0) {
                 const { error } = await supabase.rpc('reorder_user_lists', {
                   p_list_ids: listIds,
+                } as never)
+                if (error) throw error
+              }
+            } else if (row.kind === 'bulkPatchListLabels' && row.entity === 'list') {
+              const payload = row.payload as {
+                updates?: Array<{ list_id: string; label: string }>
+              }
+              const updates = Array.isArray(payload.updates) ? payload.updates : []
+              appendMutationDiagnostic(
+                `[sync->server] bulkPatchListLabels payload count=${updates.length}`,
+              )
+              if (updates.length > 0) {
+                const { error } = await supabase.rpc('bulk_update_list_labels', {
+                  p_updates: updates,
                 } as never)
                 if (error) throw error
               }

@@ -1124,15 +1124,22 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
       const cat = normalizeItemCategory(category)
-      await db.transaction('rw', db.items, db.sync_queue, async () => {
-        for (const text of trimmed) {
-          await addItemMutation({
-            userId,
-            listId,
-            text,
+      const nowMs = Date.now()
+      await db.transaction('rw', db.sync_queue, async () => {
+        await db.sync_queue.put({
+          listId,
+          itemKey: `bulk-add-items:${listId}`,
+          kind: 'bulkAddListItems',
+          entity: 'item',
+          payload: {
+            list_id: listId,
             category: cat,
-          })
-        }
+            lines: trimmed,
+          },
+          updatedAt: nowMs,
+          attemptCount: 0,
+          lastError: null,
+        })
       })
       return { error: null, inserted: trimmed.length }
     } catch (error) {
@@ -1362,6 +1369,10 @@ export function useList(listId: string) {
       return { error: { message: blockedMutationMessage() } }
     }
     try {
+      const existing = members.find((m) => m.id === memberId)
+      if (existing && existing.created_by === userId) {
+        return { error: null, newMemberId: memberId }
+      }
       const { data, error } = await trackSaveOperation(
         supabase.rpc('own_member', { p_member_id: memberId })
       )
