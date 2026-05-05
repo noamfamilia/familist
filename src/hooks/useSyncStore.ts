@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { createClient } from '@/lib/supabase/client'
 import { isLikelyConnectivityError } from '@/lib/connectivityErrors'
+import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 
 const supabase = createClient()
 
@@ -41,6 +42,9 @@ export function useSyncStore(): SyncStoreState {
         for (const row of queueRows) {
           if (cancelled) break
           try {
+            appendMutationDiagnostic(
+              `[sync->server] send kind=${row.kind} entity=${row.entity} key=${row.itemKey}`,
+            )
             if (row.kind === 'delete') {
               if (row.entity === 'item') {
                 const id = String(row.payload.id ?? '')
@@ -75,6 +79,9 @@ export function useSyncStore(): SyncStoreState {
               await db.transaction('rw', db.sync_queue, async () => {
                 await db.sync_queue.delete([row.listId, row.itemKey])
               })
+              appendMutationDiagnostic(
+                `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${row.itemKey}`,
+              )
               continue
             }
 
@@ -95,6 +102,18 @@ export function useSyncStore(): SyncStoreState {
                 comment: payload.comment ?? null,
                 sort_order: payload.sort_order ?? null,
               })
+              if (error) throw error
+            } else if (row.kind === 'create' && row.entity === 'list') {
+              const payload = row.payload as {
+                id?: string
+                name?: string
+                label?: string
+              }
+              const { error } = await supabase.rpc('create_list', {
+                p_id: payload.id,
+                p_name: payload.name ?? '',
+                p_label: payload.label ?? '',
+              } as never)
               if (error) throw error
             } else if (row.kind === 'addMember' && row.entity === 'member') {
               const payload = row.payload as {
@@ -167,13 +186,55 @@ export function useSyncStore(): SyncStoreState {
                 })
                 .eq('id', id)
               if (error) throw error
+            } else if (row.kind === 'patchList' && row.entity === 'list') {
+              const payload = row.payload as {
+                id?: string
+                [key: string]: unknown
+              }
+              const id = String(payload.id ?? '')
+              if (!id) throw new Error('patchList missing id')
+              const patch: Record<string, unknown> = { ...payload }
+              delete patch.id
+              if (Object.keys(patch).length > 0) {
+                const { error } = await supabase.from('lists').update(patch).eq('id', id)
+                if (error) throw error
+              }
+            } else if (row.kind === 'patchListUser' && row.entity === 'list') {
+              const payload = row.payload as {
+                id?: string
+                user_id?: string
+                archived?: boolean
+                sort_order?: number
+                label?: string
+              }
+              const id = String(payload.id ?? '')
+              const userId = String(payload.user_id ?? '')
+              if (!id || !userId) throw new Error('patchListUser missing id/user_id')
+              const patch: Record<string, unknown> = {}
+              if (payload.archived !== undefined) patch.archived = payload.archived
+              if (payload.sort_order !== undefined) patch.sort_order = payload.sort_order
+              if (payload.label !== undefined) patch.label = payload.label
+              if (Object.keys(patch).length > 0) {
+                const { error } = await supabase
+                  .from('list_users')
+                  .update(patch)
+                  .eq('list_id', id)
+                  .eq('user_id', userId)
+                if (error) throw error
+              }
             }
 
             await db.transaction('rw', db.sync_queue, async () => {
               await db.sync_queue.delete([row.listId, row.itemKey])
             })
+            appendMutationDiagnostic(
+              `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${row.itemKey}`,
+            )
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
+            appendMutationDiagnostic(
+              `[sync<-server] error kind=${row.kind} entity=${row.entity} key=${row.itemKey} msg=${message}`,
+            )
             if (isLikelyConnectivityError(error)) {
               setLastError(message)
               break

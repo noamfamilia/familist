@@ -11,7 +11,6 @@ import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 type Sink = (section: string) => void
 
 let sink: Sink | null = null
-let offlineNavSessionArmed = false
 let lastDiagnosticPerfNow: number | null = null
 
 export function registerOfflineNavDiagnosticSink(fn: Sink | null) {
@@ -19,10 +18,12 @@ export function registerOfflineNavDiagnosticSink(fn: Sink | null) {
 }
 
 export function appendOfflineNavDiagnostic(section: string) {
+  // Legacy diagnostics are intentionally suppressed.
+  void section
+}
+
+export function appendMutationDiagnostic(section: string) {
   if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
-  if (typeof navigator === 'undefined') return
-  if (!navigator.onLine) offlineNavSessionArmed = true
-  if (!offlineNavSessionArmed) return
   const nowPerf = typeof performance !== 'undefined' ? performance.now() : null
   const deltaMs = nowPerf == null || lastDiagnosticPerfNow == null ? null : Math.round(nowPerf - lastDiagnosticPerfNow)
   if (nowPerf != null) lastDiagnosticPerfNow = nowPerf

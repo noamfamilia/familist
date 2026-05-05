@@ -739,22 +739,7 @@ export function useList(listId: string) {
           capturedVersion: staleCheck,
           mutationVersion: mutationVersionRef.current,
         })
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[useList] delayed fetch discarded (stale)', {
-            listId,
-            capturedVersion: staleCheck,
-            currentMutationVersion: mutationVersionRef.current,
-          })
-        }
         return
-      }
-
-      if (staleCheck != null && process.env.NODE_ENV === 'development') {
-        console.log('[useList] delayed fetch applied', {
-          listId,
-          capturedVersion: staleCheck,
-          currentMutationVersion: mutationVersionRef.current,
-        })
       }
 
       // Mark that we have access
@@ -945,9 +930,6 @@ export function useList(listId: string) {
     const scheduleRealtimeFetch = (delayMs: number) => {
       if (realtimeScheduleCaptureVersionRef.current === null) {
         realtimeScheduleCaptureVersionRef.current = mutationVersionRef.current
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[useList] realtime fetch scheduled, captured mutation version', realtimeScheduleCaptureVersionRef.current, { listId })
-        }
       }
 
       if (realtimeDebounceRef.current) {
@@ -1866,11 +1848,11 @@ export function useList(listId: string) {
     }
 
     const maxSortOrder = members.reduce((max, m) => Math.max(max, m.sort_order || 0), 0)
-    const tempId = createTempId('member')
+    const memberId = crypto.randomUUID()
     const now = new Date().toISOString()
     const creatorFromProfile = profile?.nickname ? { nickname: profile.nickname } : null
     const optimisticTarget: MemberWithCreator = {
-      id: tempId,
+      id: memberId,
       list_id: listId,
       name: 'Qty',
       created_by: userId,
@@ -1889,6 +1871,7 @@ export function useList(listId: string) {
       supabase
         .from('members')
         .insert({
+          id: memberId,
           list_id: listId,
           name: 'Qty',
           created_by: userId,
@@ -1901,18 +1884,17 @@ export function useList(listId: string) {
     )
 
     if (insertError || !data) {
-      setMembers(prev => prev.filter(m => m.id !== tempId))
+      setMembers(prev => prev.filter(m => m.id !== memberId))
       return
     }
 
-    const realMemberId = data.id
     const targetWithCreator: MemberWithCreator = {
       ...data,
       creator: creatorFromProfile,
     }
 
     setMembers(prev => {
-      const next = prev.map(m => m.id === tempId ? targetWithCreator : m)
+      const next = prev.map(m => m.id === memberId ? targetWithCreator : m)
       const deduped: MemberWithCreator[] = []
       for (const m of next) {
         if (!deduped.some(e => e.id === m.id)) deduped.push(m)
@@ -1924,7 +1906,7 @@ export function useList(listId: string) {
     if (items.length > 0) {
       const stateRows = items.map(i => ({
         item_id: i.id,
-        member_id: realMemberId,
+        member_id: memberId,
         quantity: 1,
         done: false,
         assigned: true,
@@ -1934,9 +1916,9 @@ export function useList(listId: string) {
         ...i,
         memberStates: {
           ...i.memberStates,
-          [realMemberId]: {
+          [memberId]: {
             item_id: i.id,
-            member_id: realMemberId,
+            member_id: memberId,
             quantity: 1,
             done: false,
             assigned: true,

@@ -10,7 +10,7 @@ import { useListsQuery } from '@/lib/data/queries'
 import { db } from '@/lib/db'
 import { APP_VERSION } from '@/lib/appVersion'
 import { perfLog } from '@/lib/startupPerfLog'
-import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import {
   isLikelyConnectivityError,
   resolveServerWorkOutcomeFromResult,
@@ -21,16 +21,13 @@ import { STILL_SAVING_TEMP_ENTITY_MSG } from '@/lib/mutationToastPolicy'
 import type { Database, ItemWithState, Json, ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import Dexie from 'dexie'
 
 const supabase = createClient()
 
 const FETCH_TIMEOUT_MS = 10_000
 const SAVE_TIMEOUT_MS = 10_000
 type UserListsRpcRow = Database['public']['Functions']['get_user_lists']['Returns'][number]
-
-function createTempId(prefix: string) {
-  return `temp-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
 
 function isTempEntityId(id: string | null | undefined): boolean {
   return typeof id === 'string' && id.startsWith('temp-')
@@ -43,6 +40,7 @@ function coalesceListUserSumScope(raw: unknown): ListUserSumScope {
 
 async function upsertListsInDexie(userId: string, rows: ListWithRole[]) {
   await db.transaction('rw', db.lists, async () => {
+    const incomingIds = new Set(rows.map((row) => row.id))
     for (const row of rows) {
       await db.lists.put({
         ...row,
@@ -52,14 +50,42 @@ async function upsertListsInDexie(userId: string, rows: ListWithRole[]) {
         app_version: APP_VERSION,
       })
     }
+    const existing = await db.lists.where('userId').equals(userId).toArray()
+    for (const row of existing) {
+      if (!incomingIds.has(row.id)) {
+        await db.lists.update([userId, row.id], {
+          deleted_at: Date.now(),
+          cachedAt: Date.now(),
+        })
+      }
+    }
   })
 }
 
-async function removeListFromDexie(userId: string | null, listId: string) {
+async function softDeleteListInDexie(userId: string | null, listId: string) {
   if (!userId) return
-  await db.transaction('rw', db.lists, db.listDetails, async () => {
-    await db.lists.delete([userId, listId])
-    await db.listDetails.delete([userId, listId])
+  const nowMs = Date.now()
+  await db.transaction('rw', db.lists, db.listDetails, db.items, db.members, db.item_member_state, db.sync_queue, async () => {
+    await db.lists.update([userId, listId], { deleted_at: nowMs, cachedAt: nowMs })
+    await db.listDetails.update([userId, listId], { deleted_at: nowMs, cachedAt: nowMs })
+    const [items, members, states] = await Promise.all([
+      db.items.where('[userId+listId]').equals([userId, listId]).toArray(),
+      db.members.where('[userId+listId]').equals([userId, listId]).toArray(),
+      db.item_member_state.where('[listId+item_id]').between([listId, Dexie.minKey], [listId, Dexie.maxKey]).toArray(),
+    ])
+    for (const item of items) await db.items.update([userId, listId, item.id], { deleted_at: nowMs })
+    for (const member of members) await db.members.update([userId, listId, member.id], { deleted_at: nowMs })
+    for (const state of states) await db.item_member_state.update([listId, state.item_id, state.member_id], { deleted_at: nowMs })
+    await db.sync_queue.put({
+      listId,
+      itemKey: `list:${listId}`,
+      kind: 'delete',
+      entity: 'list',
+      payload: { id: listId },
+      updatedAt: nowMs,
+      attemptCount: 0,
+      lastError: null,
+    })
   })
 }
 
@@ -169,20 +195,23 @@ export function useLists() {
 
   const persistListOrder = async (orderedLists: ListWithRole[]) => {
     if (!user) return null
-
-    const results = await Promise.all(
-      orderedLists.map((list, index) =>
-        trackSaveOperation(
-          supabase
-            .from('list_users')
-            .update({ sort_order: index })
-            .eq('list_id', list.id)
-            .eq('user_id', user.id)
-        )
-      )
-    )
-
-    return results.find(result => result.error)?.error || null
+    const nowMs = Date.now()
+    await db.transaction('rw', db.lists, db.sync_queue, async () => {
+      for (const [index, list] of orderedLists.entries()) {
+        await db.lists.update([user.id, list.id], { sort_order: index, cachedAt: nowMs })
+        await db.sync_queue.put({
+          listId: list.id,
+          itemKey: `list-user:${user.id}:${list.id}`,
+          kind: 'patchListUser',
+          entity: 'list',
+          payload: { id: list.id, user_id: user.id, sort_order: index },
+          updatedAt: nowMs,
+          attemptCount: 0,
+          lastError: null,
+        })
+      }
+    })
+    return null
   }
 
   const moveListBetweenSections = (currentLists: ListWithRole[], listId: string, archived: boolean) => {
@@ -247,21 +276,8 @@ export function useLists() {
 
       if (staleCheck != null && staleCheck !== mutationVersionRef.current) {
         staleDiscarded = true
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[useLists] delayed fetch discarded (stale)', {
-            capturedVersion: staleCheck,
-            currentMutationVersion: mutationVersionRef.current,
-          })
-        }
         serverOutcome = 'success'
         return
-      }
-
-      if (staleCheck != null && process.env.NODE_ENV === 'development') {
-        console.log('[useLists] delayed fetch applied', {
-          capturedVersion: staleCheck,
-          currentMutationVersion: mutationVersionRef.current,
-        })
       }
 
       const listsData: ListWithRole[] = (data || []).map((item: UserListsRpcRow) => ({
@@ -357,9 +373,6 @@ export function useLists() {
     const scheduleRealtimeFetch = (delayMs: number, consumePending = false) => {
       if (realtimeScheduleCaptureVersionRef.current === null) {
         realtimeScheduleCaptureVersionRef.current = mutationVersionRef.current
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[useLists] realtime fetch scheduled, captured mutation version', realtimeScheduleCaptureVersionRef.current)
-        }
       }
 
       if (realtimeDebounceRef.current) {
@@ -480,10 +493,11 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-    const tempId = createTempId('list')
+    appendMutationDiagnostic(`[mutation:list.create] local:start name="${name}"`)
+    const listId = crypto.randomUUID()
     const now = new Date().toISOString()
     const optimisticList: ListWithRole = {
-      id: tempId,
+      id: listId,
       name,
       owner_id: user.id,
       visibility: 'private',
@@ -510,37 +524,28 @@ export function useLists() {
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => [optimisticList, ...prev])
-
-    const { data, error } = await trackSaveOperation(
-      supabase.rpc('create_list', { p_name: name, p_label: label || '' })
-    )
-
-    if (error) {
-      setLists(prev => prev.filter(list => list.id !== tempId))
-      if (error.code === '23505') {
-        return { error: new Error('You already have a list with this name') }
-      }
-      if (isLikelyConnectivityError(error)) {
-        startTempSyncWatch()
-        return { error: new Error('Syncing with server ...') }
-      }
-      return { error }
-    }
-
-    const newList: ListWithRole = {
-      ...data,
-      role: 'owner',
-      userArchived: false,
-      memberCount: 0,
-      activeItemCount: 0,
-      archivedItemCount: 0,
-      sumScope: 'none',
-      label: label || '',
-    }
-    setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])
+    await db.transaction('rw', db.lists, db.sync_queue, async () => {
+      await db.lists.put({
+        ...optimisticList,
+        userId: user.id,
+        cachedAt: Date.now(),
+        deleted_at: null,
+        app_version: APP_VERSION,
+      })
+      await db.sync_queue.put({
+        listId,
+        itemKey: `list:${listId}`,
+        kind: 'create',
+        entity: 'list',
+        payload: { id: listId, name, label: label || '' },
+        updatedAt: Date.now(),
+        attemptCount: 0,
+        lastError: null,
+      })
+    })
+    appendMutationDiagnostic(`[mutation:list.create] local:queued listId=${listId} server:queued`)
     markOnlineRecovered()
-
-    return { data, error: null }
+    return { data: { id: listId }, error: null }
     } finally {
       mutationGate.end()
     }
@@ -554,33 +559,27 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-      const previousList = lists.find(list => list.id === listId)
+      appendMutationDiagnostic(`[mutation:list.update] local:start listId=${listId}`)
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLists(prev => prev.map(list =>
         list.id === listId ? { ...list, ...updates } : list
       ))
-
-      const { error } = await trackSaveOperation(
-        supabase
-          .from('lists')
-          .update(updates)
-          .eq('id', listId)
-      )
-
-      if (error) {
-        if (previousList) {
-          setLists(prev => prev.map(list => list.id === listId ? previousList : list))
-        }
-        if (error.code === '23505') {
-          return { error: new Error('You already have a list with this name') }
-        }
-        if (isLikelyConnectivityError(error)) {
-          startTempSyncWatch()
-          return { error: new Error('Syncing with server ...') }
-        }
-        return { error }
-      }
+      const nowMs = Date.now()
+      await db.transaction('rw', db.lists, db.sync_queue, async () => {
+        await db.lists.update([user!.id, listId], { ...updates, cachedAt: nowMs })
+        await db.sync_queue.put({
+          listId,
+          itemKey: `list:${listId}`,
+          kind: 'patchList',
+          entity: 'list',
+          payload: { id: listId, ...updates },
+          updatedAt: nowMs,
+          attemptCount: 0,
+          lastError: null,
+        })
+      })
+      appendMutationDiagnostic(`[mutation:list.update] local:queued listId=${listId} server:queued`)
 
       markOnlineRecovered()
       return { error: null }
@@ -590,48 +589,24 @@ export function useLists() {
   }
 
   const deleteList = async (listId: string) => {
-    appendOfflineNavDiagnostic(
-      `[lists-delete] start listId=${listId} userId=${user?.id ?? 'null'} canMutateNow=${canMutateNow() ? 1 : 0}`,
-    )
+    appendMutationDiagnostic(`[mutation:list.delete] local:start listId=${listId}`)
     if (isTempEntityId(listId)) {
-      appendOfflineNavDiagnostic(`[lists-delete] blocked reason=temp-id listId=${listId}`)
+      appendMutationDiagnostic(`[mutation:list.delete] local:blocked reason=temp-id listId=${listId}`)
       return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
     }
     if (!tryBeginMutation()) {
-      appendOfflineNavDiagnostic(
-        `[lists-delete] blocked reason=mutation-gate listId=${listId} msg=${blockedMutationMessage()}`,
-      )
+      appendMutationDiagnostic(`[mutation:list.delete] local:blocked reason=gate listId=${listId}`)
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-      const { error } = await trackSaveOperation(
-        supabase
-          .from('lists')
-          .delete()
-          .eq('id', listId)
-      )
-
-      if (!error) {
-        appendOfflineNavDiagnostic(`[lists-delete] rpc-success listId=${listId}`)
-        mutationVersionRef.current += 1
-        skipRealtimeUntilRef.current = Date.now() + 2000
-        setLists(prev => prev.filter(list => list.id !== listId))
-        removeCachedList(userId, listId)
-        void removeListFromDexie(userId, listId)
-        markOnlineRecovered()
-      } else if (isLikelyConnectivityError(error)) {
-        appendOfflineNavDiagnostic(
-          `[lists-delete] rpc-connectivity-error listId=${listId} code=${error.code ?? 'n/a'} msg=${error.message ?? 'n/a'}`,
-        )
-        startTempSyncWatch()
-        return { error: new Error('Syncing with server ...') }
-      } else {
-        appendOfflineNavDiagnostic(
-          `[lists-delete] rpc-error listId=${listId} code=${error.code ?? 'n/a'} msg=${error.message ?? 'n/a'}`,
-        )
-      }
-
-      return { error }
+      mutationVersionRef.current += 1
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      await softDeleteListInDexie(userId, listId)
+      setLists(prev => prev.filter(list => list.id !== listId))
+      removeCachedList(userId, listId)
+      markOnlineRecovered()
+      appendMutationDiagnostic(`[mutation:list.delete] local:queued-soft-delete listId=${listId} server:queued`)
+      return { error: null }
     } finally {
       mutationGate.end()
     }
@@ -646,6 +621,7 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
+    appendMutationDiagnostic(`[mutation:list.user_state] local:start listId=${listId}`)
     const previousLists = lists
     const nextLists = updates.archived !== undefined
       ? moveListBetweenSections(lists, listId, updates.archived)
@@ -656,23 +632,30 @@ export function useLists() {
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(nextLists)
-
-    const { error } = await trackSaveOperation(
-      supabase
-        .from('list_users')
-        .update(updates)
-        .eq('list_id', listId)
-        .eq('user_id', user.id)
-    )
-
-    if (error) {
-      setLists(previousLists)
-      if (isLikelyConnectivityError(error)) {
-        startTempSyncWatch()
-        return { error: new Error('Syncing with server ...') }
-      }
-      return { error }
-    }
+    const nowMs = Date.now()
+    await db.transaction('rw', db.lists, db.sync_queue, async () => {
+      await db.lists.update([user.id, listId], {
+        ...(updates.archived !== undefined ? { userArchived: updates.archived } : {}),
+        ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
+        cachedAt: nowMs,
+      })
+      await db.sync_queue.put({
+        listId,
+        itemKey: `list-user:${user.id}:${listId}`,
+        kind: 'patchListUser',
+        entity: 'list',
+        payload: {
+          id: listId,
+          user_id: user.id,
+          ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
+          ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
+        },
+        updatedAt: nowMs,
+        attemptCount: 0,
+        lastError: null,
+      })
+    })
+    appendMutationDiagnostic(`[mutation:list.user_state] local:queued listId=${listId} server:queued`)
 
     if (updates.archived !== undefined) {
       const orderError = await persistListOrder(nextLists)
@@ -741,7 +724,7 @@ export function useLists() {
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLists(prev => prev.filter(list => list.id !== listId))
       removeCachedList(userId, listId)
-      void removeListFromDexie(userId, listId)
+      void softDeleteListInDexie(userId, listId)
       markOnlineRecovered()
 
       return { error: null }
@@ -760,10 +743,10 @@ export function useLists() {
     }
     try {
     const sourceList = lists.find(l => l.id === listId)
-    const tempId = createTempId('list')
+    const duplicateId = crypto.randomUUID()
     const now = new Date().toISOString()
     const optimisticList: ListWithRole = {
-      id: tempId,
+      id: duplicateId,
       name: newName,
       owner_id: user.id,
       visibility: 'private',
@@ -794,13 +777,14 @@ export function useLists() {
     const { data, error } = await trackSaveOperation(
       supabase.rpc('duplicate_list', {
         p_source_list_id: listId,
+        p_id: duplicateId,
         p_new_name: newName,
         p_label: label || '',
-      })
+      } as never)
     )
 
     if (error) {
-      setLists(prev => prev.filter(list => list.id !== tempId))
+      setLists(prev => prev.filter(list => list.id !== duplicateId))
       if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
@@ -812,7 +796,7 @@ export function useLists() {
     }
 
     if (!data?.list) {
-      setLists(prev => prev.filter(list => list.id !== tempId))
+      setLists(prev => prev.filter(list => list.id !== duplicateId))
       return { error: new Error('Failed to duplicate list') }
     }
 
@@ -830,7 +814,7 @@ export function useLists() {
     }
 
     setLists(prev => {
-      const filtered = prev.filter(list => list.id !== tempId && list.id !== duplicatedList.id)
+      const filtered = prev.filter(list => list.id !== duplicateId && list.id !== duplicatedList.id)
       const nextLists = [duplicatedList, ...filtered]
       setCachedLists(userId, nextLists)
       return nextLists
@@ -861,11 +845,11 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-    const tempId = createTempId('list')
+    const importedId = crypto.randomUUID()
     const now = new Date().toISOString()
     const itemCount = Array.isArray(rows) ? rows.length : 0
     const optimisticList: ListWithRole = {
-      id: tempId,
+      id: importedId,
       name,
       owner_id: user.id,
       visibility: 'private',
@@ -895,16 +879,17 @@ export function useLists() {
 
     const { data, error } = await trackSaveOperation(
       supabase.rpc('import_list', {
+        p_id: importedId,
         p_name: name,
         p_label: label || '',
         p_category_names: categoryNames || '{}',
         p_rows: (rows || []) as unknown as Json,
         p_has_targets: hasTargets || false,
-      })
+      } as never)
     )
 
     if (error) {
-      setLists(prev => prev.filter(list => list.id !== tempId))
+      setLists(prev => prev.filter(list => list.id !== importedId))
       if (error.code === '23505') {
         return { error: new Error('You already have a list with this name') }
       }
@@ -925,7 +910,7 @@ export function useLists() {
       sumScope: 'none',
       label: label || '',
     }
-    setLists(prev => [newList, ...prev.filter(list => list.id !== tempId && list.id !== newList.id)])
+    setLists(prev => [newList, ...prev.filter(list => list.id !== importedId && list.id !== newList.id)])
     markOnlineRecovered()
 
     return { data, error: null }
@@ -942,25 +927,23 @@ export function useLists() {
       list.id === listId ? { ...list, label } : list
     ))
 
-    const { error } = await trackSaveOperation(
-      supabase
-        .from('list_users')
-        .update({ label })
-        .eq('list_id', listId)
-        .eq('user_id', user!.id)
-    )
-
-    if (error) {
-      setLists(previousLists)
-      if (isLikelyConnectivityError(error)) {
-        startTempSyncWatch()
-        return { error: new Error('Syncing with server ...') }
-      }
-    } else {
-      markOnlineRecovered()
-    }
-
-    return { error }
+    const nowMs = Date.now()
+    await db.transaction('rw', db.lists, db.sync_queue, async () => {
+      await db.lists.update([user!.id, listId], { label, cachedAt: nowMs })
+      await db.sync_queue.put({
+        listId,
+        itemKey: `list-user:${user!.id}:${listId}`,
+        kind: 'patchListUser',
+        entity: 'list',
+        payload: { id: listId, user_id: user!.id, label },
+        updatedAt: nowMs,
+        attemptCount: 0,
+        lastError: null,
+      })
+    })
+    appendMutationDiagnostic(`[mutation:list.label] local:queued listId=${listId} label="${label}" server:queued`)
+    markOnlineRecovered()
+    return { error: null }
   }
 
   const updateListLabel = async (listId: string, label: string) => {
@@ -1006,57 +989,26 @@ export function useLists() {
   }, [lists])
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
-    appendOfflineNavDiagnostic(
-      `[lists-reorder] start count=${reorderedLists.length} userId=${user?.id ?? 'null'} canMutateNow=${canMutateNow() ? 1 : 0}`,
-    )
+    appendMutationDiagnostic(`[mutation:list.reorder] local:start count=${reorderedLists.length}`)
     if (!user) {
-      appendOfflineNavDiagnostic('[lists-reorder] blocked reason=no-user')
+      appendMutationDiagnostic('[mutation:list.reorder] local:blocked reason=no-user')
       return
     }
     if (reorderedLists.some(l => isTempEntityId(l.id))) {
-      appendOfflineNavDiagnostic('[lists-reorder] blocked reason=temp-id-present')
+      appendMutationDiagnostic('[mutation:list.reorder] local:blocked reason=temp-id')
       return
     }
     if (!tryBeginMutation()) {
-      appendOfflineNavDiagnostic(`[lists-reorder] blocked reason=mutation-gate msg=${blockedMutationMessage()}`)
+      appendMutationDiagnostic('[mutation:list.reorder] local:blocked reason=gate')
       return
     }
     try {
-    const previousLists = lists
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(reorderedLists)
-
-    const results = await Promise.all(
-      reorderedLists.map((list, index) => 
-        trackSaveOperation(
-          supabase
-            .from('list_users')
-            .update({ sort_order: index })
-            .eq('list_id', list.id)
-            .eq('user_id', user.id)
-        )
-      )
-    )
-
-    const firstError = results.find(r => (r as { error?: unknown }).error) as { error?: unknown } | undefined
-    if (firstError?.error) {
-      appendOfflineNavDiagnostic(
-        `[lists-reorder] rpc-error msg=${
-          firstError.error instanceof Error
-            ? firstError.error.message
-            : String(firstError.error)
-        }`,
-      )
-      setLists(previousLists)
-      if (isLikelyConnectivityError(firstError.error)) {
-        appendOfflineNavDiagnostic('[lists-reorder] rpc-connectivity-error')
-        startTempSyncWatch()
-      }
-    } else {
-      appendOfflineNavDiagnostic('[lists-reorder] rpc-success')
-      markOnlineRecovered()
-    }
+    await persistListOrder(reorderedLists)
+    appendMutationDiagnostic('[mutation:list.reorder] local:queued server:queued')
+    markOnlineRecovered()
     } finally {
       mutationGate.end()
     }

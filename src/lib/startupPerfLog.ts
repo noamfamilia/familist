@@ -44,12 +44,6 @@ export function perfLog(label: string, extra: Record<string, unknown> = {}): voi
     extraKeys.length > 0
       ? `[perf +${t}ms] ${label} ${JSON.stringify(extra)}`
       : `[perf +${t}ms] ${label}`
-  // Match requested shape: log(`[perf +${t}ms] ${label}`, extra)
-  if (extraKeys.length > 0) {
-    console.info(`[perf +${t}ms] ${label}`, extra)
-  } else {
-    console.info(`[perf +${t}ms] ${label}`)
-  }
   if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
     return
   }

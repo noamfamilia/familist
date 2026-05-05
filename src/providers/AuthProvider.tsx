@@ -196,6 +196,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // best effort
         }
         await clearAuthAndAppStorage()
+        try {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations()
+            await Promise.all(regs.map((reg) => reg.unregister()))
+          }
+        } catch {
+          // best effort
+        }
       } finally {
         profileFetchGenRef.current++
         setUser(null)
@@ -205,6 +213,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfileFetchPhase('idle')
         setLoading(false)
         perfLog('auth/recovery end', { source })
+        if (typeof window !== 'undefined') {
+          window.location.reload()
+        }
       }
     },
     [supabase.auth],

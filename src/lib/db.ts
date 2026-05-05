@@ -52,6 +52,8 @@ export type SyncEntityKind = 'list' | 'item' | 'member' | 'item_member_state'
 export type SyncMutationKind =
   | 'create'
   | 'patchServerItem'
+  | 'patchList'
+  | 'patchListUser'
   | 'patchArchived'
   | 'itemMemberState'
   | 'patchMember'
