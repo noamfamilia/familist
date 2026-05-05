@@ -39,27 +39,37 @@ function coalesceListUserSumScope(raw: unknown): ListUserSumScope {
 }
 
 async function upsertListsInDexie(userId: string, rows: ListWithRole[]) {
-  await db.transaction('rw', db.lists, async () => {
-    const incomingIds = new Set(rows.map((row) => row.id))
-    for (const row of rows) {
-      await db.lists.put({
-        ...row,
-        userId,
-        cachedAt: Date.now(),
-        deleted_at: null,
-        app_version: APP_VERSION,
-      })
-    }
-    const existing = await db.lists.where('userId').equals(userId).toArray()
-    for (const row of existing) {
-      if (!incomingIds.has(row.id)) {
-        await db.lists.update([userId, row.id], {
-          deleted_at: Date.now(),
+  appendMutationDiagnostic(
+    `[fetchLists.debug] dexie-upsert-start userId=${userId} rows=${rows.length} firstId=${rows[0]?.id ?? 'none'}`,
+  )
+  try {
+    await db.transaction('rw', db.lists, async () => {
+      const incomingIds = new Set(rows.map((row) => row.id))
+      for (const row of rows) {
+        await db.lists.put({
+          ...row,
+          userId,
           cachedAt: Date.now(),
+          deleted_at: null,
+          app_version: APP_VERSION,
         })
       }
-    }
-  })
+      const existing = await db.lists.where('userId').equals(userId).toArray()
+      for (const row of existing) {
+        if (!incomingIds.has(row.id)) {
+          await db.lists.update([userId, row.id], {
+            deleted_at: Date.now(),
+            cachedAt: Date.now(),
+          })
+        }
+      }
+    })
+    appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert-ok userId=${userId} rows=${rows.length}`)
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert-error userId=${userId} msg=${msg}`)
+    throw error
+  }
 }
 
 async function softDeleteListInDexie(userId: string | null, listId: string) {
@@ -319,7 +329,7 @@ export function useLists() {
 
       setLists(listsData)
       setCachedLists(userId, listsData)
-      void upsertListsInDexie(userId, listsData)
+      await upsertListsInDexie(userId, listsData)
       appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert rows=${listsData.length}`)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
@@ -379,7 +389,10 @@ export function useLists() {
   useEffect(() => {
     setCachedLists(userId, lists)
     if (userId) {
-      void upsertListsInDexie(userId, lists)
+      void upsertListsInDexie(userId, lists).catch((error) => {
+        const msg = error instanceof Error ? error.message : String(error)
+        appendMutationDiagnostic(`[fetchLists.debug] effect-dexie-upsert-error userId=${userId} msg=${msg}`)
+      })
     }
   }, [userId, lists])
 
