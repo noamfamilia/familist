@@ -227,6 +227,9 @@ export function useSyncStore(): SyncStoreState {
                 list_ids?: string[]
               }
               const listIds = Array.isArray(payload.list_ids) ? payload.list_ids : []
+              appendMutationDiagnostic(
+                `[sync->server] reorderListUsers payload count=${listIds.length} head=${listIds.slice(0, 5).join(',')} tail=${listIds.slice(-5).join(',')}`,
+              )
               if (listIds.length > 0) {
                 const { error } = await supabase.rpc('reorder_user_lists', {
                   p_list_ids: listIds,

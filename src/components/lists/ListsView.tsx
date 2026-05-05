@@ -16,6 +16,7 @@ import { ImportModal } from '@/components/import/ImportModal'
 import { LabelManagerModal } from './LabelManagerModal'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
+import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
@@ -167,15 +168,24 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
+    appendMutationDiagnostic(
+      `[mutation:list.reorder.drag] event active=${String(active?.id ?? 'n/a')} over=${String(over?.id ?? 'n/a')} activeCount=${activeLists.length} archivedCount=${archivedLists.length} filteredCount=${filteredLists.length} totalCount=${lists.length}`,
+    )
     
     if (over && active.id !== over.id) {
       const oldIndex = activeLists.findIndex(l => l.id === active.id)
       const newIndex = activeLists.findIndex(l => l.id === over.id)
+      appendMutationDiagnostic(
+        `[mutation:list.reorder.drag] indices oldIndex=${oldIndex} newIndex=${newIndex} beforeHead=${activeLists.slice(0, 5).map((l) => l.id).join(',')}`,
+      )
       
       if (oldIndex !== -1 && newIndex !== -1) {
         const reordered = [...activeLists]
         const [removed] = reordered.splice(oldIndex, 1)
         reordered.splice(newIndex, 0, removed)
+        appendMutationDiagnostic(
+          `[mutation:list.reorder.drag] afterHead=${reordered.slice(0, 5).map((l) => l.id).join(',')} moved=${String(removed?.id ?? 'n/a')}`,
+        )
         
         // Combine active reordered with archived (archived stay at end)
         reorderLists([...reordered, ...archivedLists])

@@ -196,6 +196,10 @@ export function useLists() {
   const persistListOrder = async (orderedLists: ListWithRole[]) => {
     if (!user) return null
     const nowMs = Date.now()
+    const orderedIds = orderedLists.map((list) => list.id)
+    appendMutationDiagnostic(
+      `[mutation:list.reorder.queue] userId=${user.id} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')} tail=${orderedIds.slice(-5).join(',')}`,
+    )
     await db.transaction('rw', db.lists, db.sync_queue, async () => {
       for (const [index, list] of orderedLists.entries()) {
         await db.lists.update([user.id, list.id], { sort_order: index, cachedAt: nowMs })
@@ -207,7 +211,7 @@ export function useLists() {
         entity: 'list',
         payload: {
           user_id: user.id,
-          list_ids: orderedLists.map((list) => list.id),
+          list_ids: orderedIds,
         },
         updatedAt: nowMs,
         attemptCount: 0,
