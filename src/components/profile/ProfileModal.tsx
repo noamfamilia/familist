@@ -19,6 +19,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { user, profile, signOut, updateProfile } = useAuth()
   const { success, error: showError } = useToast()
   const [error, setError] = useState('')
+  const buildId = process.env.NEXT_PUBLIC_BUILD_ID || 'local'
+  const shortBuildId = buildId === 'local' ? buildId : buildId.slice(0, 7)
 
   const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
   const [isEditingNickname, setIsEditingNickname] = useState(false)
@@ -151,7 +153,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           </button>
         </div>
 
-        <div className="text-left text-xs text-gray-400 dark:text-gray-500">v{APP_VERSION}</div>
+        <div className="text-left text-xs text-gray-400 dark:text-gray-500">v{APP_VERSION} ({shortBuildId})</div>
         <div className="text-center text-xs text-gray-400 dark:text-gray-500">All rights reserved: Noam Familia</div>
       </div>
     </Modal>

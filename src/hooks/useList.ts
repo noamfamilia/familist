@@ -1565,23 +1565,24 @@ export function useList(listId: string) {
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
       const nowMs = Date.now()
       const nowIso = new Date(nowMs).toISOString()
+      const itemIds = reorderedItems.map((item) => item.id)
       await db.transaction('rw', db.items, db.sync_queue, async () => {
         for (const [index, item] of reorderedItems.entries()) {
           await db.items.update([userId, listId, item.id], {
             sort_order: index,
             updated_at: nowIso,
           })
-          await db.sync_queue.put({
-            listId,
-            itemKey: item.id,
-            kind: 'patchServerItem',
-            entity: 'item',
-            payload: { id: item.id, sort_order: index },
-            updatedAt: nowMs,
-            attemptCount: 0,
-            lastError: null,
-          })
         }
+        await db.sync_queue.put({
+          listId,
+          itemKey: `reorder-items:${listId}`,
+          kind: 'reorderListItems',
+          entity: 'item',
+          payload: { list_id: listId, item_ids: itemIds },
+          updatedAt: nowMs,
+          attemptCount: 0,
+          lastError: null,
+        })
       })
       return { error: null }
     } catch (error) {

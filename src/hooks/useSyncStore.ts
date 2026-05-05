@@ -156,6 +156,23 @@ export function useSyncStore(): SyncStoreState {
                 const { error } = await supabase.from('items').update(patch).eq('id', id)
                 if (error) throw error
               }
+            } else if (row.kind === 'reorderListItems' && row.entity === 'item') {
+              const payload = row.payload as {
+                list_id?: string
+                item_ids?: string[]
+              }
+              const rpcListId = String(payload.list_id ?? row.listId ?? '')
+              const itemIds = Array.isArray(payload.item_ids) ? payload.item_ids : []
+              appendMutationDiagnostic(
+                `[sync->server] reorderListItems payload listId=${rpcListId} count=${itemIds.length} head=${itemIds.slice(0, 5).join(',')} tail=${itemIds.slice(-5).join(',')}`,
+              )
+              if (rpcListId && itemIds.length > 0) {
+                const { error } = await supabase.rpc('reorder_list_items', {
+                  p_list_id: rpcListId,
+                  p_item_ids: itemIds,
+                } as never)
+                if (error) throw error
+              }
             } else if (row.kind === 'patchMember' && row.entity === 'member') {
               const payload = row.payload as {
                 memberId?: string
