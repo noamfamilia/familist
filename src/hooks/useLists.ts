@@ -10,6 +10,7 @@ import { useListsQuery } from '@/lib/data/queries'
 import { db } from '@/lib/db'
 import { APP_VERSION } from '@/lib/appVersion'
 import { perfLog } from '@/lib/startupPerfLog'
+import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import {
   isLikelyConnectivityError,
   resolveServerWorkOutcomeFromResult,
@@ -589,10 +590,17 @@ export function useLists() {
   }
 
   const deleteList = async (listId: string) => {
+    appendOfflineNavDiagnostic(
+      `[lists-delete] start listId=${listId} userId=${user?.id ?? 'null'} canMutateNow=${canMutateNow() ? 1 : 0}`,
+    )
     if (isTempEntityId(listId)) {
+      appendOfflineNavDiagnostic(`[lists-delete] blocked reason=temp-id listId=${listId}`)
       return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
     }
     if (!tryBeginMutation()) {
+      appendOfflineNavDiagnostic(
+        `[lists-delete] blocked reason=mutation-gate listId=${listId} msg=${blockedMutationMessage()}`,
+      )
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
@@ -604,6 +612,7 @@ export function useLists() {
       )
 
       if (!error) {
+        appendOfflineNavDiagnostic(`[lists-delete] rpc-success listId=${listId}`)
         mutationVersionRef.current += 1
         skipRealtimeUntilRef.current = Date.now() + 2000
         setLists(prev => prev.filter(list => list.id !== listId))
@@ -611,8 +620,15 @@ export function useLists() {
         void removeListFromDexie(userId, listId)
         markOnlineRecovered()
       } else if (isLikelyConnectivityError(error)) {
+        appendOfflineNavDiagnostic(
+          `[lists-delete] rpc-connectivity-error listId=${listId} code=${error.code ?? 'n/a'} msg=${error.message ?? 'n/a'}`,
+        )
         startTempSyncWatch()
         return { error: new Error('Syncing with server ...') }
+      } else {
+        appendOfflineNavDiagnostic(
+          `[lists-delete] rpc-error listId=${listId} code=${error.code ?? 'n/a'} msg=${error.message ?? 'n/a'}`,
+        )
       }
 
       return { error }
@@ -990,11 +1006,19 @@ export function useLists() {
   }, [lists])
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
-    if (!user) return
+    appendOfflineNavDiagnostic(
+      `[lists-reorder] start count=${reorderedLists.length} userId=${user?.id ?? 'null'} canMutateNow=${canMutateNow() ? 1 : 0}`,
+    )
+    if (!user) {
+      appendOfflineNavDiagnostic('[lists-reorder] blocked reason=no-user')
+      return
+    }
     if (reorderedLists.some(l => isTempEntityId(l.id))) {
+      appendOfflineNavDiagnostic('[lists-reorder] blocked reason=temp-id-present')
       return
     }
     if (!tryBeginMutation()) {
+      appendOfflineNavDiagnostic(`[lists-reorder] blocked reason=mutation-gate msg=${blockedMutationMessage()}`)
       return
     }
     try {
@@ -1017,11 +1041,20 @@ export function useLists() {
 
     const firstError = results.find(r => (r as { error?: unknown }).error) as { error?: unknown } | undefined
     if (firstError?.error) {
+      appendOfflineNavDiagnostic(
+        `[lists-reorder] rpc-error msg=${
+          firstError.error instanceof Error
+            ? firstError.error.message
+            : String(firstError.error)
+        }`,
+      )
       setLists(previousLists)
       if (isLikelyConnectivityError(firstError.error)) {
+        appendOfflineNavDiagnostic('[lists-reorder] rpc-connectivity-error')
         startTempSyncWatch()
       }
     } else {
+      appendOfflineNavDiagnostic('[lists-reorder] rpc-success')
       markOnlineRecovered()
     }
     } finally {
