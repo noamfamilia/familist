@@ -239,6 +239,9 @@ export function useLists() {
   const fetchLists = useCallback(async (options?: { staleCheckVersion?: number | null }) => {
     const staleCheck = options?.staleCheckVersion
     let staleDiscarded = false
+    appendMutationDiagnostic(
+      `[fetchLists.debug] start userId=${userId ?? 'null'} staleCheck=${staleCheck == null ? 'null' : String(staleCheck)} mutationVersion=${mutationVersionRef.current}`,
+    )
 
     if (!userId) {
       perfLog('fetchLists start', { note: 'no user' })
@@ -278,11 +281,15 @@ export function useLists() {
     try {
       // Fetch all lists with counts in a single RPC call
       const { data, error: rpcError } = await supabase.rpc('get_user_lists')
+      appendMutationDiagnostic(`[fetchLists.debug] rpc rows=${Array.isArray(data) ? data.length : 0}`)
 
       if (rpcError) throw rpcError
 
       if (staleCheck != null && staleCheck !== mutationVersionRef.current) {
         staleDiscarded = true
+        appendMutationDiagnostic(
+          `[fetchLists.debug] stale-discard captured=${staleCheck} current=${mutationVersionRef.current}`,
+        )
         serverOutcome = 'success'
         return
       }
@@ -308,10 +315,12 @@ export function useLists() {
         category_order: item.category_order ?? null,
         label: item.label ?? '',
       }))
+      appendMutationDiagnostic(`[fetchLists.debug] apply rows=${listsData.length}`)
 
       setLists(listsData)
       setCachedLists(userId, listsData)
       void upsertListsInDexie(userId, listsData)
+      appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert rows=${listsData.length}`)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
       listCount = listsData.length
