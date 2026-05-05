@@ -25,6 +25,11 @@ const serwist = new Serwist({
 
 serwist.addEventListeners()
 
+// Activate updated worker immediately instead of waiting for old clients to close.
+self.addEventListener('install', (event: ExtendableEvent) => {
+  event.waitUntil(self.skipWaiting())
+})
+
 async function hasAnyCachedRequestMatching(predicate: (url: URL) => boolean) {
   const cacheNames = await caches.keys()
   for (const cacheName of cacheNames) {
