@@ -1,12 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/lib/db'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { createClient } from '@/lib/supabase/client'
 import { isLikelyConnectivityError } from '@/lib/connectivityErrors'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { useToast } from '@/components/ui/Toast'
+import { syncListDetail, syncLists } from '@/lib/data/sync'
+import { getActiveCacheUserId } from '@/lib/cache'
 
 const supabase = createClient()
 
@@ -25,9 +28,50 @@ export function useSyncStore(): SyncStoreState {
   )
   const queueRows = useMemo(() => queue ?? [], [queue])
   const { status, markOnlineRecovered } = useConnectivity()
+  const { error: showErrorToast } = useToast()
   const drainingRef = useRef(false)
   const [isDraining, setIsDraining] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
+
+  const normalizeErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message
+    if (typeof error === 'object' && error !== null) {
+      const record = error as { message?: unknown; details?: unknown; code?: unknown }
+      const message = typeof record.message === 'string' ? record.message : String(record.message ?? '')
+      const details = typeof record.details === 'string' ? record.details : String(record.details ?? '')
+      const code = typeof record.code === 'string' ? record.code : String(record.code ?? '')
+      const parts = [message, details, code].filter((p) => p && p !== 'undefined' && p !== 'null')
+      if (parts.length > 0) return parts.join(' | ')
+    }
+    return String(error ?? 'Unknown sync error')
+  }
+
+  const resolveSyncUserId = useCallback((payloadUserId?: unknown): string | null => {
+    if (typeof payloadUserId === 'string' && payloadUserId) return payloadUserId
+    return getActiveCacheUserId()
+  }, [])
+
+  const isVirtualUserListKey = (listId: string): boolean => listId.startsWith('user:')
+
+  const rollbackFromServer = useCallback(async (row: (typeof queueRows)[number]): Promise<void> => {
+    const userId = resolveSyncUserId((row.payload as { user_id?: unknown })?.user_id)
+    if (!userId) return
+    await syncLists(userId)
+    if (row.listId && !isVirtualUserListKey(row.listId)) {
+      await syncListDetail(userId, row.listId)
+    }
+  }, [resolveSyncUserId])
+
+  const verifyMutationApplied = useCallback(async (row: (typeof queueRows)[number]): Promise<boolean> => {
+    // Verify every mutation by re-fetching authoritative server state into Dexie.
+    const userId = resolveSyncUserId((row.payload as { user_id?: unknown })?.user_id)
+    if (!userId) return true
+    await syncLists(userId)
+    if (row.listId && !isVirtualUserListKey(row.listId)) {
+      await syncListDetail(userId, row.listId)
+    }
+    return true
+  }, [resolveSyncUserId])
 
   useEffect(() => {
     if (status !== 'online') return
@@ -289,6 +333,10 @@ export function useSyncStore(): SyncStoreState {
               }
             }
 
+            const verified = await verifyMutationApplied(row)
+            if (!verified) {
+              throw new Error(`Verification failed for ${row.kind}/${row.entity}/${row.itemKey}`)
+            }
             await db.transaction('rw', db.sync_queue, async () => {
               await db.sync_queue.delete([row.listId, row.itemKey])
             })
@@ -296,7 +344,7 @@ export function useSyncStore(): SyncStoreState {
               `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${row.itemKey}`,
             )
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error)
+            const message = normalizeErrorMessage(error)
             appendMutationDiagnostic(
               `[sync<-server] error kind=${row.kind} entity=${row.entity} key=${row.itemKey} msg=${message}`,
             )
@@ -304,16 +352,15 @@ export function useSyncStore(): SyncStoreState {
               setLastError(message)
               break
             }
-            await db.sync_queue.update([row.listId, row.itemKey], {
-              attemptCount: row.attemptCount + 1,
-              lastError: message,
-            })
+            await rollbackFromServer(row)
+            await db.sync_queue.delete([row.listId, row.itemKey])
+            showErrorToast(message || 'Sync failed; reverted local changes.')
             setLastError(message)
-            break
+            continue
           }
         }
       } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
+        const msg = normalizeErrorMessage(error)
         setLastError(msg)
       } finally {
         drainingRef.current = false
@@ -325,7 +372,7 @@ export function useSyncStore(): SyncStoreState {
     return () => {
       cancelled = true
     }
-  }, [queueRows, status])
+  }, [markOnlineRecovered, queueRows, rollbackFromServer, showErrorToast, status, verifyMutationApplied])
 
   useEffect(() => {
     if (status === 'online' && queueRows.length > 0) {
