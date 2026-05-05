@@ -8,6 +8,7 @@ import { InstallAppButton } from '@/components/ui/InstallAppButton'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 import { ThemedImage } from '@/components/ui/ThemedImage'
 import { Modal } from '@/components/ui/Modal'
+import { APP_VERSION } from '@/lib/appVersion'
 
 interface ProfileModalProps {
   isOpen: boolean
@@ -150,6 +151,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           </button>
         </div>
 
+        <div className="text-left text-xs text-gray-400 dark:text-gray-500">v{APP_VERSION}</div>
         <div className="text-center text-xs text-gray-400 dark:text-gray-500">All rights reserved: Noam Familia</div>
       </div>
     </Modal>

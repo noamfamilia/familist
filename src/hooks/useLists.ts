@@ -6,6 +6,9 @@ import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
+import { useListsQuery } from '@/lib/data/queries'
+import { db } from '@/lib/db'
+import { APP_VERSION } from '@/lib/appVersion'
 import { perfLog } from '@/lib/startupPerfLog'
 import {
   isLikelyConnectivityError,
@@ -37,6 +40,28 @@ function coalesceListUserSumScope(raw: unknown): ListUserSumScope {
   return 'none'
 }
 
+async function upsertListsInDexie(userId: string, rows: ListWithRole[]) {
+  await db.transaction('rw', db.lists, async () => {
+    for (const row of rows) {
+      await db.lists.put({
+        ...row,
+        userId,
+        cachedAt: Date.now(),
+        deleted_at: null,
+        app_version: APP_VERSION,
+      })
+    }
+  })
+}
+
+async function removeListFromDexie(userId: string | null, listId: string) {
+  if (!userId) return
+  await db.transaction('rw', db.lists, db.listDetails, async () => {
+    await db.lists.delete([userId, listId])
+    await db.listDetails.delete([userId, listId])
+  })
+}
+
 export function useLists() {
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
   // Initialize from cache for instant load
@@ -60,6 +85,7 @@ export function useLists() {
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number, consumePending?: boolean) => void>(() => {})
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
+  const dexieLists = useListsQuery(userId)
 
   const {
     isOfflineActionsDisabled,
@@ -101,6 +127,14 @@ export function useLists() {
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = cachedLists.length > 0
   }, [userId])
+
+  useEffect(() => {
+    if (!userId) return
+    if (dexieLists === undefined) return
+    setLists(dexieLists)
+    setLoading(dexieLists.length === 0 && !hasCompletedInitialFetch)
+    hasInitialDataRef.current = dexieLists.length > 0
+  }, [dexieLists, hasCompletedInitialFetch, userId])
 
   const trackSaveOperation = async (operation: PromiseLike<unknown>): Promise<unknown> => {
     pendingSaveOpsRef.current++
@@ -252,6 +286,7 @@ export function useLists() {
 
       setLists(listsData)
       setCachedLists(userId, listsData)
+      void upsertListsInDexie(userId, listsData)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
       listCount = listsData.length
@@ -309,6 +344,9 @@ export function useLists() {
 
   useEffect(() => {
     setCachedLists(userId, lists)
+    if (userId) {
+      void upsertListsInDexie(userId, lists)
+    }
   }, [userId, lists])
 
   // Real-time subscriptions
@@ -570,6 +608,7 @@ export function useLists() {
         skipRealtimeUntilRef.current = Date.now() + 2000
         setLists(prev => prev.filter(list => list.id !== listId))
         removeCachedList(userId, listId)
+        void removeListFromDexie(userId, listId)
         markOnlineRecovered()
       } else if (isLikelyConnectivityError(error)) {
         startTempSyncWatch()
@@ -686,6 +725,7 @@ export function useLists() {
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLists(prev => prev.filter(list => list.id !== listId))
       removeCachedList(userId, listId)
+      void removeListFromDexie(userId, listId)
       markOnlineRecovered()
 
       return { error: null }

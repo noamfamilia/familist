@@ -49,7 +49,7 @@ export async function collectPwaDiagnostics(): Promise<PwaDiagnostics> {
   let manifestSameOriginAsPage: boolean | null = null
 
   try {
-    const res = await fetch(`${origin}/manifest.json`, { cache: 'no-store' })
+    const res = await fetch(`${origin}/manifest.webmanifest`, { cache: 'no-store' })
     if (res.ok) {
       const json = (await res.json()) as { start_url?: string; scope?: string }
       manifestStartUrl = typeof json.start_url === 'string' ? json.start_url : null

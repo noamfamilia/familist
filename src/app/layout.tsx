@@ -8,6 +8,7 @@ import { StartupPerfCapture } from '@/components/dev/StartupPerfCapture'
 import { InstallBanner } from '@/components/ui/InstallBanner'
 import { ConnectivityProvider } from '@/providers/ConnectivityProvider'
 import { DiagnosticsMessageBoxProvider } from '@/providers/DiagnosticsMessageBox'
+import { SyncStoreBridge } from '@/components/sync/SyncStoreBridge'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://myfamilist.com'),
   title: 'MyFamiList',
   description: 'Shared list application for family and friends',
-  manifest: '/manifest.json',
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: '/icon-192.png',
     apple: '/icon-192.png',
@@ -71,6 +72,7 @@ export default function RootLayout({
             <ToastProvider>
               <DiagnosticsMessageBoxProvider>
                 <ConnectivityProvider>
+                  <SyncStoreBridge />
                   <StartupPerfCapture />
                   <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
                     {children}

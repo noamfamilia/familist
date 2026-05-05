@@ -1,14 +1,22 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import Dexie from 'dexie'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
+import { useListDetailQuery } from '@/lib/data/queries'
+import {
+  addItemMutation,
+  addMemberMutation,
+  softDeleteItemMutation,
+  toggleItemMemberStateMutation,
+} from '@/lib/data/mutations'
+import { db } from '@/lib/db'
 import { perfLog } from '@/lib/startupPerfLog'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
-import { buildQueuedItemCreatePayload, executeQueuedItemCreateOnServer, newClientItemKey } from '@/lib/itemCreatePayload'
-import { diagItemCreateReplace, diagMemberStateMutation } from '@/lib/itemMutationDiagnostics'
+import { diagItemCreateReplace } from '@/lib/itemMutationDiagnostics'
 import {
   isLikelyConnectivityError,
   resolveServerWorkOutcomeFromResult,
@@ -16,21 +24,8 @@ import {
   type ServerWorkOutcome,
 } from '@/lib/connectivityErrors'
 import { STILL_SAVING_TEMP_ENTITY_MSG } from '@/lib/mutationToastPolicy'
-import {
-  enqueueItemMutation,
-  getPendingItemMutationsForList,
-  itemMemberStateOutboxKey,
-  memberProfileOutboxKey,
-  mergeQueuedCreateMemberState,
-  remapItemDependentQueuedRecords,
-  remapMemberDependentQueuedRecords,
-  removePendingItemMutation,
-  sortPendingForDrain,
-  buildItemMemberStateUpdatePatch,
-  type QueuedCreatePayload,
-  type QueuedCreateRecord,
-  type QueuedPatchServerItemRecord,
-} from '@/lib/itemMutationOutbox'
+import { memberProfileOutboxKey } from '@/lib/data/syncQueue'
+import { APP_VERSION } from '@/lib/appVersion'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
@@ -46,6 +41,7 @@ import {
   type ItemMemberState,
   type ItemWithState,
   type List,
+  type ListWithRole,
   type Member,
   type MemberWithCreator,
   type ListUserSumScope,
@@ -183,7 +179,7 @@ function isTempEntityId(id: string) {
 function mergePreservedTempCreates(
   serverItems: ItemWithState[],
   prev: ItemWithState[],
-  pendingCreates: QueuedCreateRecord[],
+  pendingCreates: Array<{ itemKey: string; payload: Record<string, unknown> }>,
   clientKeyToServerId: ReadonlyMap<string, string>,
 ): ItemWithState[] {
   const pendingTempIds = new Set(pendingCreates.map((c) => c.itemKey))
@@ -311,43 +307,6 @@ function mergePreservedTempMembers(
   return merged
 }
 
-function patchServerItemEnqueuePayload(
-  listId: string,
-  itemId: string,
-  u: Partial<Item>,
-): QueuedPatchServerItemRecord | null {
-  const rec: QueuedPatchServerItemRecord = {
-    kind: 'patchServerItem',
-    listId,
-    itemKey: itemId,
-    updatedAt: Date.now(),
-  }
-  let any = false
-  if (u.text !== undefined) {
-    rec.text = u.text
-    any = true
-  }
-  if (u.comment !== undefined) {
-    rec.comment = u.comment
-    any = true
-  }
-  if (u.category !== undefined) {
-    rec.category = u.category
-    any = true
-  }
-  if (u.archived !== undefined) {
-    rec.archived = u.archived
-    rec.archived_at = u.archived_at ?? null
-    any = true
-  }
-  return any ? rec : null
-}
-
-function memberUpdateIsProfileOnly(updates: Partial<Member>): boolean {
-  const keys = Object.keys(updates).filter(k => (updates as Record<string, unknown>)[k] !== undefined)
-  return keys.length > 0 && keys.every(k => k === 'name' || k === 'is_public')
-}
-
 const LEGACY_CARD_COLOR_TO_CATEGORY: Record<string, number> = {
   default: 1,
   mint: 2,
@@ -378,6 +337,49 @@ function rpcFailureMessage(err: unknown): string {
     if (typeof m === 'string' && m.length > 0) return m
   }
   return 'Unknown error'
+}
+
+async function upsertListDetailInDexie(
+  userId: string,
+  listId: string,
+  list: List | null,
+  items: ItemWithState[],
+  members: MemberWithCreator[],
+) {
+  await db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, async () => {
+    await db.listDetails.put({
+      userId,
+      listId,
+      list: list ? ({ ...list, role: 'viewer', userArchived: false } as ListWithRole) : null,
+      cachedAt: Date.now(),
+      schemaVersion: 1,
+      deleted_at: null,
+      app_version: APP_VERSION,
+    })
+    for (const item of items) {
+      await db.items.put({
+        ...item,
+        userId,
+        listId,
+        deleted_at: null,
+      })
+      for (const memberState of Object.values(item.memberStates ?? {})) {
+        await db.item_member_state.put({
+          ...memberState,
+          listId,
+          deleted_at: null,
+        })
+      }
+    }
+    for (const member of members) {
+      await db.members.put({
+        ...member,
+        userId,
+        listId,
+        deleted_at: null,
+      })
+    }
+  })
 }
 
 export function useList(listId: string) {
@@ -426,6 +428,7 @@ export function useList(listId: string) {
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
+  const dexieDetail = useListDetailQuery(userId, listId)
 
   const { showToast, dismissToast, error: showErrorToast } = useToast()
   const {
@@ -485,7 +488,15 @@ export function useList(listId: string) {
     }
   }, [connectivityStatus])
 
-  const outboxDrainingRef = useRef(false)
+  useEffect(() => {
+    if (!dexieDetail) return
+    setItems(normalizeItemsCategory(dexieDetail.items))
+    setMembers(dexieDetail.members)
+    if (dexieDetail.items.length > 0 || dexieDetail.members.length > 0) {
+      setLoading(false)
+    }
+    hasInitialDataRef.current = dexieDetail.items.length > 0 || dexieDetail.members.length > 0
+  }, [dexieDetail])
 
   useEffect(() => {
     perfLog('localStorage read start')
@@ -751,14 +762,29 @@ export function useList(listId: string) {
       setList(data.list)
       const serverMembers = data.members || []
       const nextItems = normalizeItemsCategory(data.items || [])
-      const pendingMutations = await getPendingItemMutationsForList(listId)
-      const pendingCreates = pendingMutations.filter((m): m is QueuedCreateRecord => m.kind === 'create')
+      const pendingMutations = await db.sync_queue
+        .where('listId')
+        .equals(listId)
+        .toArray()
+      const pendingCreates = pendingMutations
+        .filter((m) => m.kind === 'create' && m.entity === 'item')
+        .map((m) => ({ itemKey: m.itemKey, payload: m.payload }))
       const pendingTempMemberIds = new Set<string>()
       for (const m of pendingMutations) {
-        if (m.kind === 'addMember') pendingTempMemberIds.add(m.itemKey)
-        if (m.kind === 'patchMember' && isTempEntityId(m.memberId)) pendingTempMemberIds.add(m.memberId)
-        if (m.kind === 'patchMember' && isTempEntityId(m.itemKey)) pendingTempMemberIds.add(m.itemKey)
-        if (m.kind === 'itemMemberState' && isTempEntityId(m.memberId)) pendingTempMemberIds.add(m.memberId)
+        if (m.kind === 'addMember' && m.entity === 'member') {
+          pendingTempMemberIds.add(m.itemKey)
+          continue
+        }
+        if (m.kind === 'patchMember' && m.entity === 'member') {
+          const memberId = String((m.payload as { memberId?: string }).memberId ?? '')
+          if (isTempEntityId(memberId)) pendingTempMemberIds.add(memberId)
+          if (isTempEntityId(m.itemKey)) pendingTempMemberIds.add(m.itemKey)
+          continue
+        }
+        if (m.kind === 'itemMemberState' && m.entity === 'item_member_state') {
+          const memberId = String((m.payload as { member_id?: string }).member_id ?? '')
+          if (isTempEntityId(memberId)) pendingTempMemberIds.add(memberId)
+        }
       }
 
       let mergedItemsForCache = nextItems
@@ -787,6 +813,7 @@ export function useList(listId: string) {
         items: mergedItemsForCache,
         members: mergedMembersForCache,
       })
+      void upsertListDetailInDexie(userId, listId, data.list, mergedItemsForCache, mergedMembersForCache)
       listCount = 1
       itemCountResult = mergedItemsForCache.length
 
@@ -864,226 +891,6 @@ export function useList(listId: string) {
     }
   }, [beginServerWork, endServerWork, enterOffline, listId, markOnlineRecovered, pulseServerWorkProgress, userId])
 
-  const drainItemMutationOutbox = useCallback(async () => {
-    if (!userId || !listId || outboxDrainingRef.current || fetchingRef.current) return
-    appendOfflineNavDiagnostic(`[outbox-drain] start listId=${listId} status=${connectivityStatusRef.current}`)
-    const pendingRaw = await getPendingItemMutationsForList(listId)
-    const pending = sortPendingForDrain(pendingRaw)
-    if (pending.length === 0) return
-    outboxDrainingRef.current = true
-    let anySuccess = false
-    try {
-      for (const rec of pending) {
-        if (connectivityStatusRef.current !== 'online') break
-        mutationVersionRef.current += 1
-        try {
-          if (rec.kind === 'create') {
-            appendOfflineNavDiagnostic(
-              `[db-write] target=supabase table=items action=insert-start listId=${listId} itemKey=${rec.itemKey}`,
-            )
-            const p = rec.payload
-            const clientItemKey = p.clientItemKey ?? rec.itemKey
-            const { data } = await executeQueuedItemCreateOnServer(supabase, listId, p, trackSaveOperation)
-            appendOfflineNavDiagnostic(
-              `[db-write] target=supabase table=items action=insert-end listId=${listId} itemKey=${rec.itemKey} serverItemId=${data.id}`,
-            )
-            await remapItemDependentQueuedRecords(listId, rec.itemKey, data.id)
-            const newMemberStates: Record<string, ItemMemberState> = {}
-            for (const [mid, st] of Object.entries(p.memberStates)) {
-              newMemberStates[mid] = { ...st, item_id: data.id }
-            }
-            clientItemKeyToServerIdRef.current.set(clientItemKey, data.id)
-            setItems(prev =>
-              applyServerItemAfterCreate(prev, {
-                listId,
-                tempId: rec.itemKey,
-                clientItemKey,
-                serverItem: data,
-                memberStates: newMemberStates,
-                itemName: p.text,
-              }),
-            )
-            await removePendingItemMutation(listId, rec.itemKey)
-            anySuccess = true
-          } else if (rec.kind === 'addMember') {
-            if (!userId) break
-            appendOfflineNavDiagnostic(
-              `[db-write] target=supabase table=members action=insert-start listId=${listId} itemKey=${rec.itemKey}`,
-            )
-            const { data, error } = await trackSaveOperation(
-              supabase
-                .from('members')
-                .insert({
-                  list_id: listId,
-                  name: rec.name,
-                  created_by: userId,
-                  sort_order: rec.sort_order,
-                  ...(rec.is_public !== undefined ? { is_public: rec.is_public } : {}),
-                })
-                .select()
-                .single(),
-            )
-            if (error) throw error
-            if (!data) throw new Error('missing member row')
-            await remapMemberDependentQueuedRecords(listId, rec.itemKey, data.id)
-            const memberWithCreator: MemberWithCreator = {
-              ...data,
-              creator: rec.creator_nickname ? { nickname: rec.creator_nickname } : null,
-            }
-            setMembers(prev => prev.map(m => (m.id === rec.itemKey ? memberWithCreator : m)))
-            setItems(prev =>
-              prev.map(item => {
-                if (!item.memberStates[rec.itemKey]) return item
-                const { [rec.itemKey]: st, ...rest } = item.memberStates
-                return {
-                  ...item,
-                  memberStates: { ...rest, [data.id]: { ...st, member_id: data.id } },
-                }
-              }),
-            )
-            appendOfflineNavDiagnostic(
-              `[db-write] target=supabase table=members action=insert-end listId=${listId} itemKey=${rec.itemKey} serverMemberId=${data.id}`,
-            )
-            await removePendingItemMutation(listId, rec.itemKey)
-            anySuccess = true
-          } else if (rec.kind === 'patchServerItem' || rec.kind === 'patchArchived') {
-            const patch: Record<string, unknown> =
-              rec.kind === 'patchArchived'
-                ? { archived: rec.archived, archived_at: rec.archived_at }
-                : {
-                    ...(rec.text !== undefined ? { text: rec.text } : {}),
-                    ...(rec.comment !== undefined ? { comment: rec.comment } : {}),
-                    ...(rec.category !== undefined ? { category: rec.category } : {}),
-                    ...(rec.archived !== undefined
-                      ? { archived: rec.archived, archived_at: rec.archived_at }
-                      : {}),
-                  }
-            if (Object.keys(patch).length === 0) {
-              await removePendingItemMutation(listId, rec.itemKey)
-              anySuccess = true
-            } else {
-              appendOfflineNavDiagnostic(
-                `[db-write] target=supabase table=items action=update-patch-start listId=${listId} itemKey=${rec.itemKey}`,
-              )
-              const { error } = await trackSaveOperation(
-                supabase.from('items').update(patch).eq('id', rec.itemKey),
-              )
-              if (error) throw error
-              appendOfflineNavDiagnostic(
-                `[db-write] target=supabase table=items action=update-patch-end listId=${listId} itemKey=${rec.itemKey}`,
-              )
-              await removePendingItemMutation(listId, rec.itemKey)
-              anySuccess = true
-            }
-          } else if (rec.kind === 'itemMemberState') {
-            const row = {
-              item_id: rec.itemId,
-              member_id: rec.memberId,
-              quantity: rec.quantity,
-              done: rec.done,
-              assigned: rec.assigned,
-            }
-            if (rec.insert) {
-              appendOfflineNavDiagnostic(
-                `[db-write] target=supabase table=item_member_state action=insert-start listId=${listId} ims=${rec.itemKey}`,
-              )
-              const { error } = await trackSaveOperation(supabase.from('item_member_state').insert(row))
-              if (error) throw error
-            } else {
-              appendOfflineNavDiagnostic(
-                `[db-write] target=supabase table=item_member_state action=update-start listId=${listId} ims=${rec.itemKey}`,
-              )
-              const patch =
-                rec.updatePatch && Object.keys(rec.updatePatch).length > 0
-                  ? rec.updatePatch
-                  : { quantity: rec.quantity, done: rec.done, assigned: rec.assigned }
-              const { error } = await trackSaveOperation(
-                supabase.from('item_member_state').update(patch).eq('item_id', rec.itemId).eq('member_id', rec.memberId),
-              )
-              if (error) throw error
-            }
-            const updatedAt = new Date().toISOString()
-            setItems(prev =>
-              prev.map(item =>
-                item.id === rec.itemId
-                  ? {
-                      ...item,
-                      memberStates: {
-                        ...item.memberStates,
-                        [rec.memberId]: {
-                          item_id: rec.itemId,
-                          member_id: rec.memberId,
-                          quantity: rec.quantity,
-                          done: rec.done,
-                          assigned: rec.assigned,
-                          updated_at: updatedAt,
-                        },
-                      },
-                    }
-                  : item,
-              ),
-            )
-            await removePendingItemMutation(listId, rec.itemKey)
-            anySuccess = true
-          } else if (rec.kind === 'patchMember') {
-            appendOfflineNavDiagnostic(
-              `[db-write] target=supabase rpc=update_member action=start listId=${listId} memberId=${rec.memberId}`,
-            )
-            const { error } = await trackSaveOperation(
-              supabase.rpc('update_member', {
-                p_member_id: rec.memberId,
-                p_name: rec.name !== undefined ? rec.name : null,
-                p_is_public: rec.is_public !== undefined ? rec.is_public : null,
-              }),
-            )
-            if (error) throw error
-            setMembers(prev =>
-              prev.map(m => {
-                if (m.id !== rec.memberId) return m
-                let next: MemberWithCreator = m
-                if (rec.name !== undefined) next = { ...next, name: rec.name as string }
-                if (rec.is_public !== undefined) next = { ...next, is_public: Boolean(rec.is_public) }
-                return next
-              }),
-            )
-            appendOfflineNavDiagnostic(
-              `[db-write] target=supabase rpc=update_member action=end listId=${listId} memberId=${rec.memberId}`,
-            )
-            await removePendingItemMutation(listId, rec.itemKey)
-            anySuccess = true
-          } else {
-            const _exhaust: never = rec
-            void _exhaust
-            appendOfflineNavDiagnostic(`[outbox-drain] unknown record kind listId=${listId}`)
-            break
-          }
-        } catch (e) {
-          appendOfflineNavDiagnostic(
-            `[outbox-drain] error listId=${listId} itemKey=${rec.itemKey} connectivity-ish=${isLikelyConnectivityError(e) ? 1 : 0} msg=${e instanceof Error ? e.message : String(e)}`,
-          )
-          if (isLikelyConnectivityError(e)) {
-            enterOffline('outbox-drain-connectivity-error')
-          }
-          break
-        }
-      }
-    } finally {
-      outboxDrainingRef.current = false
-      appendOfflineNavDiagnostic(
-        `[outbox-drain] end listId=${listId} anySuccess=${anySuccess ? 1 : 0} status=${connectivityStatusRef.current}`,
-      )
-    }
-    if (anySuccess && connectivityStatusRef.current === 'online') {
-      mutationVersionRef.current += 1
-      await fetchList()
-    }
-  }, [userId, listId, fetchList, enterOffline])
-
-  useEffect(() => {
-    if (connectivityStatus !== 'online' || !userId || !listId) return
-    void drainItemMutationOutbox()
-  }, [connectivityStatus, userId, listId, drainItemMutationOutbox, loading, hasCompletedInitialFetch])
-
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && !!list
 
   const refreshList = useCallback(() => {
@@ -1107,11 +914,28 @@ export function useList(listId: string) {
   useEffect(() => {
     if (!list) return
     setCachedList(userId, listId, { list, items, members })
+    if (userId) {
+      void upsertListDetailInDexie(userId, listId, list, items, members)
+    }
   }, [userId, listId, list, items, members])
 
   useEffect(() => {
     if (!accessDenied) return
     removeCachedList(userId, listId)
+    if (userId) {
+      void db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, async () => {
+        await db.listDetails.delete([userId, listId])
+        const itemsToDelete = await db.items.where('[userId+listId]').equals([userId, listId]).toArray()
+        const membersToDelete = await db.members.where('[userId+listId]').equals([userId, listId]).toArray()
+        const imsToDelete = await db.item_member_state
+          .where('[listId+item_id]')
+          .between([listId, Dexie.minKey], [listId, Dexie.maxKey])
+          .toArray()
+        for (const row of itemsToDelete) await db.items.delete([userId, listId, row.id])
+        for (const row of membersToDelete) await db.members.delete([userId, listId, row.id])
+        for (const ims of imsToDelete) await db.item_member_state.delete([listId, ims.item_id, ims.member_id])
+      })
+    }
   }, [accessDenied, userId, listId])
 
   // Real-time subscriptions
@@ -1272,119 +1096,24 @@ export function useList(listId: string) {
   }, [userId, listId, fetchList])
 
   const addItem = async (text: string, category?: number, comment?: string | null) => {
+    if (!userId) {
+      return { data: null, error: { message: 'Not authenticated' } }
+    }
     if (!tryBeginItemQueueableMutation()) {
       return { data: null, error: { message: blockedMutationMessage() } }
     }
     try {
-      const maxSortOrder = items.length > 0
-        ? items.reduce((max, item) => Math.max(max, item.sort_order ?? 0), 0)
-        : 0
-      const newSortOrder = items.length > 0 ? maxSortOrder + 1 : 0
-      const tempId = createTempId('item')
-      const clientItemKey = newClientItemKey()
-      const now = new Date().toISOString()
-      const targetMember = members.find(m => m.is_target)
-      const newMemberStates: Record<string, ItemMemberState> = {}
-      if (targetMember) {
-        newMemberStates[targetMember.id] = {
-          item_id: tempId,
-          member_id: targetMember.id,
-          quantity: 1,
-          done: false,
-          assigned: true,
-          updated_at: now,
-        }
-      }
-      const queuedPayload: QueuedCreatePayload = buildQueuedItemCreatePayload({
-        clientItemKey,
+      const id = await addItemMutation({
+        userId,
+        listId,
         text,
-        category: category ?? 1,
-        comment: comment || null,
-        sort_order: newSortOrder,
-        archived: false,
-        archived_at: null,
-        memberStates: { ...newMemberStates },
+        category: normalizeItemCategory(category ?? 1),
       })
-
-      const optimisticItem: ItemWithState = {
-        id: tempId,
-        list_id: listId,
-        text,
-        comment: comment || null,
-        archived: false,
-        archived_at: null,
-        sort_order: newSortOrder,
-        category: category ?? 1,
-        created_at: now,
-        updated_at: now,
-        memberStates: newMemberStates,
-        clientItemKey,
-      }
-
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      setItems(prev => [...prev, optimisticItem])
-
-      const persistQueuedCreate = async () => {
-        await enqueueItemMutation({
-          kind: 'create',
-          listId,
-          itemKey: tempId,
-          updatedAt: Date.now(),
-          payload: queuedPayload,
-        })
-      }
-
-      if (!canMutateNow()) {
-        await persistQueuedCreate()
-        return { data: null, error: null }
-      }
-
-      let data: Item | null = null
-      let error: { code?: string; message?: string } | null = null
-      try {
-        const res = await executeQueuedItemCreateOnServer(supabase, listId, queuedPayload, trackSaveOperation)
-        data = res.data
-      } catch (e) {
-        error = e as { code?: string; message?: string }
-      }
-
-      if (error || !data) {
-        if (error && isLikelyConnectivityError(error)) {
-          await persistQueuedCreate()
-          enterOffline()
-          return { data: null, error: { message: blockedMutationMessage() } }
-        }
-        setItems(prev => prev.filter(item => item.id !== tempId && item.clientItemKey !== clientItemKey))
-        if (error?.code === '23505') {
-          return { data: null, error: { ...error, message: 'An item with this name already exists' } }
-        }
-        return { data: null, error: error ?? { message: 'Failed to add item' } }
-      }
-
-      const newMemberStatesPersisted: Record<string, ItemMemberState> = {}
-      for (const [mid, st] of Object.entries(queuedPayload.memberStates)) {
-        newMemberStatesPersisted[mid] = {
-          ...st,
-          item_id: data.id,
-          member_id: mid,
-          updated_at: new Date().toISOString(),
-        }
-      }
-
-      clientItemKeyToServerIdRef.current.set(clientItemKey, data.id)
-      setItems(prev =>
-        applyServerItemAfterCreate(prev, {
-          listId,
-          tempId,
-          clientItemKey,
-          serverItem: data,
-          memberStates: newMemberStatesPersisted,
-          itemName: text,
-        }),
-      )
-      markOnlineRecovered()
-      return { data, error: null }
+      return { data: { id } as Item, error: null }
+    } catch (error) {
+      return { data: null, error: { message: rpcFailureMessage(error) } }
     } finally {
       mutationGate.end()
     }
@@ -1403,436 +1132,102 @@ export function useList(listId: string) {
         inserted: 0,
       }
     }
-    if (!tryBeginMutation()) {
+    if (!userId) {
+      return { error: { message: 'Not authenticated' }, inserted: 0 }
+    }
+    if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() }, inserted: 0 }
     }
     try {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
       const cat = normalizeItemCategory(category)
-
-      const { data, error } = await trackSaveOperation(
-        supabase.rpc('bulk_add_list_items', {
-          p_list_id: listId,
-          p_category: cat,
-          p_lines: trimmed,
-        }),
-      )
-
-      if (error) {
-        if (error.code === '23505') {
-          return {
-            error: { ...error, message: 'An item with this name already exists' },
-            inserted: 0,
-          }
+      await db.transaction('rw', db.items, db.sync_queue, async () => {
+        for (const text of trimmed) {
+          await addItemMutation({
+            userId,
+            listId,
+            text,
+            category: cat,
+          })
         }
-        return { error, inserted: 0 }
-      }
-
-      const inserted = typeof data === 'number' ? data : 0
-      markOnlineRecovered()
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'item_updated',
-          payload: { listId, bulkAdd: true },
-        })
-      }
-      mutationVersionRef.current += 1
-      await fetchList()
-      return { error: null, inserted }
+      })
+      return { error: null, inserted: trimmed.length }
+    } catch (error) {
+      return { error: { message: rpcFailureMessage(error) }, inserted: 0 }
     } finally {
       mutationGate.end()
     }
   }
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
-    const previousItem = items.find(item => item.id === itemId)
-    const persistedUpdates = { ...updates }
-
-    const onlyArchiveFields = (u: Partial<Item>) => {
-      const keys = Object.keys(u).filter(k => (u as Record<string, unknown>)[k] !== undefined)
-      return keys.every(k => k === 'archived' || k === 'archived_at')
+    const previousItem = items.find((item) => item.id === itemId)
+    if (!userId) {
+      return { error: { message: 'Not authenticated' } }
     }
-
-    if (isTempEntityId(itemId)) {
-      if (!previousItem) {
-        return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
-      }
-      const tempPatchableKeys = new Set([
-        'text',
-        'comment',
-        'category',
-        'archived',
-        'archived_at',
-      ])
-      const definedKeys = Object.keys(persistedUpdates).filter(
-        k => (persistedUpdates as Record<string, unknown>)[k] !== undefined,
-      )
-      if (!definedKeys.every(k => tempPatchableKeys.has(k))) {
-        return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
-      }
-      if (!tryBeginItemQueueableMutation()) {
-        return { error: { message: blockedMutationMessage() } }
-      }
-      try {
-        mutationVersionRef.current += 1
-        const skipMs = 'category' in persistedUpdates ? 4500 : 2000
-        skipRealtimeUntilRef.current = Math.max(
-          skipRealtimeUntilRef.current,
-          Date.now() + skipMs,
-        )
-        setItems(prev =>
-          prev.map(item => (item.id === itemId ? { ...item, ...persistedUpdates } : item)),
-        )
-        const pending = await getPendingItemMutationsForList(listId)
-        const hasQueuedCreate = pending.some(m => m.kind === 'create' && m.itemKey === itemId)
-        const q = patchServerItemEnqueuePayload(listId, itemId, persistedUpdates)
-        if (q && (hasQueuedCreate || !canMutateNow())) {
-          await enqueueItemMutation(q)
-        }
-        return { error: null }
-      } finally {
-        mutationGate.end()
-      }
-    }
-
-    if (persistedUpdates.archived === false) {
-      desiredArchivedByItemRef.current[itemId] = false
-    }
-
-    const optimisticArchiveWithImmediateUndoToast =
-      previousItem &&
-      !previousItem.archived &&
-      persistedUpdates.archived === true &&
-      onlyArchiveFields(persistedUpdates)
-
-    if (optimisticArchiveWithImmediateUndoToast) {
-      if (archiveDbWriteInflightRef.current[itemId]) {
-        return { error: { message: blockedMutationMessage() } }
-      }
-      if (!tryBeginItemQueueableMutation()) {
-        return { error: { message: blockedMutationMessage() } }
-      }
-      try {
-        mutationVersionRef.current += 1
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[useList] archive start (optimistic + Undo toast), mutation version', mutationVersionRef.current, { listId, itemId })
-        }
-
-        desiredArchivedByItemRef.current[itemId] = true
-
-        const skipMs = 'category' in persistedUpdates ? 4500 : 2000
-        skipRealtimeUntilRef.current = Math.max(
-          skipRealtimeUntilRef.current,
-          Date.now() + skipMs
-        )
-        setItems(prev => prev.map(item =>
-          item.id === itemId ? { ...item, ...persistedUpdates } : item
-        ))
-
-        if (archiveUndoToastIdRef.current) {
-          dismissToast(archiveUndoToastIdRef.current)
-        }
-        const label =
-          previousItem.text.length > 48 ? `${previousItem.text.slice(0, 45)}…` : previousItem.text
-        const toastId = showToast(`Archived "${label}"`, 'info', {
-          durationMs: 8000,
-          action: {
-            label: 'Undo',
-            onClick: () => {
-              dismissToast(toastId)
-              if (archiveUndoToastIdRef.current === toastId) {
-                archiveUndoToastIdRef.current = null
-              }
-              void updateItemRef.current(itemId, { archived: false, archived_at: null }).then(
-                ({ error: undoErr }) => {
-                  if (undoErr?.message) {
-                    showErrorToast(undoErr.message)
-                  }
-                },
-              )
-            },
-          },
-        })
-        archiveUndoToastIdRef.current = toastId
-      } finally {
-        mutationGate.end()
-      }
-
-      archiveDbWriteInflightRef.current[itemId] = true
-      let error: { code?: string; message?: string } | null = null
-      if (canMutateNow()) {
-        const res = await trackSaveOperation(
-          supabase
-            .from('items')
-            .update(persistedUpdates)
-            .eq('id', itemId),
-        )
-        error = res.error
-      }
-      archiveDbWriteInflightRef.current[itemId] = false
-
-      const desiredNow = desiredArchivedByItemRef.current[itemId]
-
-      if (error) {
-        if (desiredNow === true) {
-          if (isLikelyConnectivityError(error)) {
-            void enqueueItemMutation({
-              kind: 'patchArchived',
-              listId,
-              itemKey: itemId,
-              updatedAt: Date.now(),
-              archived: Boolean(persistedUpdates.archived),
-              archived_at: (persistedUpdates.archived_at ?? null) as string | null,
-            })
-            enterOffline()
-            if (archiveUndoToastIdRef.current) {
-              dismissToast(archiveUndoToastIdRef.current)
-              archiveUndoToastIdRef.current = null
-            }
-            delete desiredArchivedByItemRef.current[itemId]
-            return { error: { message: blockedMutationMessage() } }
-          }
-          if (previousItem) {
-            setItems(prev => prev.map(item => item.id === itemId ? previousItem : item))
-          }
-          delete desiredArchivedByItemRef.current[itemId]
-          if (error.code === '23505') {
-            return { error: { ...error, message: 'An item with this name already exists' } }
-          }
-          return { error }
-        }
-        delete desiredArchivedByItemRef.current[itemId]
-        return { error: null }
-      }
-
-      if (!canMutateNow() && desiredNow === true) {
-        void enqueueItemMutation({
-          kind: 'patchArchived',
-          listId,
-          itemKey: itemId,
-          updatedAt: Date.now(),
-          archived: true,
-          archived_at: (persistedUpdates.archived_at ?? null) as string | null,
-        })
-        delete desiredArchivedByItemRef.current[itemId]
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'item_updated',
-            payload: { itemId },
-          })
-        }
-        return { error: null }
-      }
-
-      if (desiredNow === true) {
-        delete desiredArchivedByItemRef.current[itemId]
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'item_updated',
-            payload: { itemId },
-          })
-        }
-        return { error: null }
-      }
-
-      if (desiredNow === false) {
-        delete desiredArchivedByItemRef.current[itemId]
-        mutationVersionRef.current += 1
-        skipRealtimeUntilRef.current = Math.max(
-          skipRealtimeUntilRef.current,
-          Date.now() + 2000
-        )
-        if (!canMutateNow()) {
-          await enqueueItemMutation({
-            kind: 'patchArchived',
-            listId,
-            itemKey: itemId,
-            updatedAt: Date.now(),
-            archived: false,
-            archived_at: null,
-          })
-          if (channelRef.current) {
-            channelRef.current.send({
-              type: 'broadcast',
-              event: 'item_updated',
-              payload: { itemId },
-            })
-          }
-          return { error: null }
-        }
-        const { error: fixErr } = await trackSaveOperation(
-          supabase
-            .from('items')
-            .update({ archived: false, archived_at: null })
-            .eq('id', itemId)
-        )
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'item_updated',
-            payload: { itemId },
-          })
-        }
-        if (fixErr) {
-          if (isLikelyConnectivityError(fixErr)) {
-            await enqueueItemMutation({
-              kind: 'patchArchived',
-              listId,
-              itemKey: itemId,
-              updatedAt: Date.now(),
-              archived: false,
-              archived_at: null,
-            })
-            enterOffline()
-            return { error: { message: blockedMutationMessage() } }
-          }
-          if (fixErr.code === '23505') {
-            return { error: { ...fixErr, message: 'An item with this name already exists' } }
-          }
-          return { error: fixErr }
-        }
-        return { error: null }
-      }
-
-      delete desiredArchivedByItemRef.current[itemId]
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'item_updated',
-          payload: { itemId },
-        })
-      }
-      return { error: null }
-    }
-
-    const onlyArchUpdate = onlyArchiveFields(persistedUpdates)
-    if (!onlyArchUpdate && !tryBeginItemQueueableMutation()) {
-      return { error: { message: blockedMutationMessage() } }
-    }
-    if (onlyArchUpdate && !tryBeginItemQueueableMutation()) {
+    if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
     try {
-      mutationVersionRef.current += 1
-      if (process.env.NODE_ENV === 'development') {
-        const archiving = previousItem && !previousItem.archived && persistedUpdates.archived === true
-        const restoringUndo = previousItem?.archived && persistedUpdates.archived === false
-        if (archiving) {
-          console.log('[useList] archive start, mutation version', mutationVersionRef.current, { listId, itemId })
-        } else if (restoringUndo) {
-          console.log('[useList] undo/restore start, mutation version', mutationVersionRef.current, { listId, itemId })
-        }
-      }
+      const persistedUpdates = { ...updates }
+      const nowMs = Date.now()
+      const nowIso = new Date(nowMs).toISOString()
+      const dbPatch: Partial<Item> & { updated_at: string } = { updated_at: nowIso }
+      if (persistedUpdates.text !== undefined) dbPatch.text = persistedUpdates.text
+      if (persistedUpdates.comment !== undefined) dbPatch.comment = persistedUpdates.comment
+      if (persistedUpdates.category !== undefined) dbPatch.category = persistedUpdates.category
+      if (persistedUpdates.archived !== undefined) dbPatch.archived = persistedUpdates.archived
+      if (persistedUpdates.archived_at !== undefined) dbPatch.archived_at = persistedUpdates.archived_at
+      if (persistedUpdates.sort_order !== undefined) dbPatch.sort_order = persistedUpdates.sort_order
 
-      const skipMs = 'category' in persistedUpdates ? 4500 : 2000
-      skipRealtimeUntilRef.current = Math.max(
-        skipRealtimeUntilRef.current,
-        Date.now() + skipMs
-      )
-      setItems(prev => prev.map(item =>
-        item.id === itemId ? { ...item, ...persistedUpdates } : item
-      ))
-
-      if (onlyArchUpdate && !canMutateNow()) {
-        await enqueueItemMutation({
-          kind: 'patchArchived',
+      await db.transaction('rw', db.items, db.sync_queue, async () => {
+        await db.items.update([userId, listId, itemId], dbPatch)
+        const payload: Record<string, unknown> = { id: itemId }
+        if (persistedUpdates.text !== undefined) payload.text = persistedUpdates.text
+        if (persistedUpdates.comment !== undefined) payload.comment = persistedUpdates.comment
+        if (persistedUpdates.category !== undefined) payload.category = persistedUpdates.category
+        if (persistedUpdates.archived !== undefined) payload.archived = persistedUpdates.archived
+        if (persistedUpdates.archived_at !== undefined) payload.archived_at = persistedUpdates.archived_at
+        if (persistedUpdates.sort_order !== undefined) payload.sort_order = persistedUpdates.sort_order
+        await db.sync_queue.put({
           listId,
           itemKey: itemId,
-          updatedAt: Date.now(),
-          archived: Boolean(persistedUpdates.archived),
-          archived_at: (persistedUpdates.archived_at ?? null) as string | null,
+          kind: 'patchServerItem',
+          entity: 'item',
+          payload,
+          updatedAt: nowMs,
+          attemptCount: 0,
+          lastError: null,
         })
-        return { error: null }
-      }
+      })
 
-      if (!onlyArchUpdate && !canMutateNow()) {
-        const q = patchServerItemEnqueuePayload(listId, itemId, persistedUpdates)
-        if (q) await enqueueItemMutation(q)
-        return { error: null }
-      }
-
-      const { error } = await trackSaveOperation(
-        supabase
-          .from('items')
-          .update(persistedUpdates)
-          .eq('id', itemId)
-      )
-
-      if (error) {
-        if (onlyArchUpdate && isLikelyConnectivityError(error)) {
-          await enqueueItemMutation({
-            kind: 'patchArchived',
-            listId,
-            itemKey: itemId,
-            updatedAt: Date.now(),
-            archived: Boolean(persistedUpdates.archived),
-            archived_at: (persistedUpdates.archived_at ?? null) as string | null,
-          })
-          enterOffline()
-          return { error: { message: blockedMutationMessage() } }
-        }
-        if (!onlyArchUpdate && isLikelyConnectivityError(error)) {
-          const q = patchServerItemEnqueuePayload(listId, itemId, persistedUpdates)
-          if (q) await enqueueItemMutation(q)
-          enterOffline()
-          return { error: { message: blockedMutationMessage() } }
-        }
-        if (previousItem) {
-          setItems(prev => prev.map(item => item.id === itemId ? previousItem : item))
-        }
-        if (error.code === '23505') {
-          return { error: { ...error, message: 'An item with this name already exists' } }
-        }
-        return { error }
-      }
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'item_updated',
-          payload: { itemId }
-        })
-      }
-
-      const becameArchivedMixedOrAwaitedToast =
-        previousItem &&
-        !previousItem.archived &&
-        persistedUpdates.archived === true &&
-        !onlyArchiveFields(persistedUpdates)
-
-      if (becameArchivedMixedOrAwaitedToast) {
-        if (archiveUndoToastIdRef.current) {
-          dismissToast(archiveUndoToastIdRef.current)
-        }
+      const becameArchived = previousItem && !previousItem.archived && persistedUpdates.archived === true
+      if (becameArchived) {
+        if (archiveUndoToastIdRef.current) dismissToast(archiveUndoToastIdRef.current)
         const label =
-          previousItem.text.length > 48 ? `${previousItem.text.slice(0, 45)}…` : previousItem.text
+          previousItem.text.length > 48 ? `${previousItem.text.slice(0, 45)}...` : previousItem.text
         const toastId = showToast(`Archived "${label}"`, 'info', {
           durationMs: 8000,
           action: {
             label: 'Undo',
             onClick: () => {
               dismissToast(toastId)
-              if (archiveUndoToastIdRef.current === toastId) {
-                archiveUndoToastIdRef.current = null
-              }
-              void updateItemRef.current(itemId, { archived: false, archived_at: null }).then(
-                ({ error: undoErr }) => {
-                  if (undoErr?.message) {
-                    showErrorToast(undoErr.message)
-                  }
-                },
-              )
+              if (archiveUndoToastIdRef.current === toastId) archiveUndoToastIdRef.current = null
+              void updateItemRef.current(itemId, { archived: false, archived_at: null }).then(({ error: undoErr }) => {
+                if (undoErr?.message) showErrorToast(undoErr.message)
+              })
             },
           },
         })
         archiveUndoToastIdRef.current = toastId
       }
 
+      mutationVersionRef.current += 1
+      const skipMs = persistedUpdates.category !== undefined ? 4500 : 2000
+      skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + skipMs)
       return { error: null }
+    } catch (error) {
+      return { error: { message: rpcFailureMessage(error) } }
     } finally {
       mutationGate.end()
     }
@@ -1844,33 +1239,20 @@ export function useList(listId: string) {
     if (isTempEntityId(itemId)) {
       return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
-    if (!tryBeginMutation()) {
+    if (!userId) {
+      return { error: { message: 'Not authenticated' } }
+    }
+    if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
     try {
-      const { error } = await trackSaveOperation(
-        supabase
-          .from('items')
-          .delete()
-          .eq('id', itemId)
-      )
-
-      if (!error) {
-        mutationVersionRef.current += 1
-        skipRealtimeUntilRef.current = Date.now() + 2000
-        delete desiredArchivedByItemRef.current[itemId]
-        setItems(prev => prev.filter(item => item.id !== itemId))
-
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'item_deleted',
-            payload: { itemId }
-          })
-        }
-      }
-
-      return { error }
+      await softDeleteItemMutation(userId, listId, itemId)
+      mutationVersionRef.current += 1
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      delete desiredArchivedByItemRef.current[itemId]
+      return { error: null }
+    } catch (error) {
+      return { error: { message: rpcFailureMessage(error) } }
     } finally {
       mutationGate.end()
     }
@@ -1881,188 +1263,60 @@ export function useList(listId: string) {
       return { error: { message: blockedMutationMessage() } }
     }
     if (!userId) return { error: new Error('Not authenticated') }
-    if (!tryBeginMutation()) {
+    if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
     try {
-      const nonTargetMembers = members.filter(m => !m.is_target)
-      const maxSortOrder = nonTargetMembers.reduce((max, member) =>
-        Math.max(max, member.sort_order || 0), 0)
-      const newSortOrder = maxSortOrder + 1
-      const tempId = createTempId('member')
-      const now = new Date().toISOString()
-      const optimisticMember: MemberWithCreator = {
-        id: tempId,
-        list_id: listId,
+      const memberId = await addMemberMutation({
+        userId,
+        listId,
         name,
-        created_by: userId,
-        sort_order: newSortOrder,
-        is_public: false,
-        is_target: false,
-        created_at: now,
-        updated_at: now,
-        creator: creatorNickname ? { nickname: creatorNickname } : null,
-      }
-
+      })
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      setMembers(prev => [...prev, optimisticMember])
-
-      const { data, error } = await trackSaveOperation(
-        supabase
-          .from('members')
-          .insert({
-            list_id: listId,
-            name,
-            created_by: userId,
-            sort_order: newSortOrder,
-          })
-          .select()
-          .single(),
-      )
-
-      if (error) {
-        if (isLikelyConnectivityError(error)) {
-          setMembers(prev => prev.filter(member => member.id !== tempId))
-          enterOffline()
-          return { data: null, error: { message: blockedMutationMessage() } }
-        }
-        setMembers(prev => prev.filter(member => member.id !== tempId))
-        return { data, error }
-      }
-
-      if (!data) {
-        setMembers(prev => prev.filter(member => member.id !== tempId))
-        return { data: null, error: new Error('missing row') }
-      }
-
-      const memberWithCreator = {
-        ...data,
-        creator: creatorNickname ? { nickname: creatorNickname } : null,
-      }
-      setMembers(prev => {
-        let replaced = false
-        const next = prev.map(member => {
-          if (member.id === tempId) {
-            replaced = true
-            return memberWithCreator
-          }
-          return member
-        })
-
-        const deduped: MemberWithCreator[] = []
-        for (const member of next) {
-          if (!deduped.some(existing => existing.id === member.id)) {
-            deduped.push(member)
-          }
-        }
-
-        return replaced ? deduped : [...deduped, memberWithCreator]
-      })
-      markOnlineRecovered()
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'member_added',
-          payload: { memberId: data.id },
-        })
-      }
-
-      return { data, error: null }
+      return { data: { id: memberId, creator: creatorNickname ? { nickname: creatorNickname } : null }, error: null }
+    } catch (error) {
+      return { data: null, error: { message: rpcFailureMessage(error) } }
     } finally {
       mutationGate.end()
     }
   }
 
   const updateMember = async (memberId: string, updates: Partial<Member>) => {
-    const profileOnly = memberUpdateIsProfileOnly(updates)
-    if (isTempEntityId(memberId)) {
-      if (!profileOnly) {
-        return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
-      }
-      if (!tryBeginItemQueueableMutation()) {
-        return { error: { message: blockedMutationMessage() } }
-      }
-      try {
-        mutationVersionRef.current += 1
-        skipRealtimeUntilRef.current = Date.now() + 2000
-        setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, ...updates } : m)))
-        await enqueueItemMutation({
-          kind: 'patchMember',
-          listId,
-          itemKey: isTempEntityId(memberId) ? memberId : memberProfileOutboxKey(memberId),
-          updatedAt: Date.now(),
-          memberId,
-          ...(updates.name !== undefined ? { name: updates.name } : {}),
-          ...(updates.is_public !== undefined ? { is_public: updates.is_public } : {}),
-        })
-        return { error: null }
-      } finally {
-        mutationGate.end()
-      }
-    }
-    if (profileOnly) {
-      if (!tryBeginItemQueueableMutation()) {
-        return { error: { message: blockedMutationMessage() } }
-      }
-    } else if (!tryBeginMutation()) {
+    if (!userId) return { error: { message: 'Not authenticated' } }
+    if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
     try {
-      const previousMember = members.find(member => member.id === memberId)
+      const nowMs = Date.now()
+      const nowIso = new Date(nowMs).toISOString()
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      setMembers(prev => prev.map(member =>
-        member.id === memberId ? { ...member, ...updates } : member,
-      ))
-
-      const persistQueuedPatchMember = async () => {
-        await enqueueItemMutation({
-          kind: 'patchMember',
+      await db.transaction('rw', db.members, db.sync_queue, async () => {
+        const memberPatch: Record<string, unknown> = { updated_at: nowIso }
+        if (updates.name !== undefined) memberPatch.name = updates.name
+        if (updates.is_public !== undefined) memberPatch.is_public = updates.is_public
+        if (updates.is_target !== undefined) memberPatch.is_target = updates.is_target
+        if (updates.sort_order !== undefined) memberPatch.sort_order = updates.sort_order
+        await db.members.update([userId, listId, memberId], memberPatch)
+        await db.sync_queue.put({
           listId,
           itemKey: memberProfileOutboxKey(memberId),
-          updatedAt: Date.now(),
-          memberId,
-          ...(updates.name !== undefined ? { name: updates.name } : {}),
-          ...(updates.is_public !== undefined ? { is_public: updates.is_public } : {}),
+          kind: 'patchMember',
+          entity: 'member',
+          payload: {
+            memberId,
+            ...(updates.name !== undefined ? { name: updates.name } : {}),
+            ...(updates.is_public !== undefined ? { is_public: updates.is_public } : {}),
+          },
+          updatedAt: nowMs,
+          attemptCount: 0,
+          lastError: null,
         })
-      }
-
-      if (profileOnly && !canMutateNow()) {
-        await persistQueuedPatchMember()
-        return { error: null }
-      }
-
-      const { error } = await trackSaveOperation(
-        supabase.rpc('update_member', {
-          p_member_id: memberId,
-          p_name: updates.name !== undefined ? updates.name : null,
-          p_is_public: updates.is_public !== undefined ? updates.is_public : null,
-        }),
-      )
-
-      if (error) {
-        if (profileOnly && isLikelyConnectivityError(error)) {
-          await persistQueuedPatchMember()
-          enterOffline()
-          return { error: { message: blockedMutationMessage() } }
-        }
-        if (previousMember) {
-          setMembers(prev => prev.map(member => member.id === memberId ? previousMember : member))
-        }
-        return { error: { ...error, message: error.message || 'Failed to update member' } }
-      }
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'member_updated',
-          payload: { memberId },
-        })
-      }
-
+      })
       return { error: null }
+    } catch (error) {
+      return { error: { message: rpcFailureMessage(error) } }
     } finally {
       mutationGate.end()
     }
@@ -2072,39 +1326,43 @@ export function useList(listId: string) {
     if (isTempEntityId(memberId)) {
       return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
     }
-    if (!tryBeginMutation()) {
+    if (!userId) return { error: { message: 'Not authenticated' } }
+    if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
     try {
-      const { error } = await trackSaveOperation(
-        supabase.rpc('delete_member', {
-          p_member_id: memberId,
-        })
-      )
-
-      if (error) {
-        return { error: { ...error, message: error.message || 'Failed to delete member' } }
-      }
-
+      const nowMs = Date.now()
+      const nowIso = new Date(nowMs).toISOString()
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      setMembers(prev => prev.filter(member => member.id !== memberId))
-      setItems(prev => prev.map(item => ({
-        ...item,
-        memberStates: Object.fromEntries(
-          Object.entries(item.memberStates).filter(([mid]) => mid !== memberId)
-        ),
-      })))
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'member_deleted',
-          payload: { memberId }
+      await db.transaction('rw', db.members, db.item_member_state, db.sync_queue, async () => {
+        await db.members.update([userId, listId, memberId], {
+          deleted_at: nowMs,
+          updated_at: nowIso,
         })
-      }
-
+        const memberStates = await db.item_member_state
+          .where('[listId+member_id]')
+          .equals([listId, memberId])
+          .toArray()
+        for (const state of memberStates) {
+          await db.item_member_state.update([listId, state.item_id, state.member_id], {
+            deleted_at: nowMs,
+          })
+        }
+        await db.sync_queue.put({
+          listId,
+          itemKey: memberProfileOutboxKey(memberId),
+          kind: 'delete',
+          entity: 'member',
+          payload: { id: memberId },
+          updatedAt: nowMs,
+          attemptCount: 0,
+          lastError: null,
+        })
+      })
       return { error: null }
+    } catch (error) {
+      return { error: { message: rpcFailureMessage(error) } }
     } finally {
       mutationGate.end()
     }
@@ -2113,6 +1371,10 @@ export function useList(listId: string) {
   const ownMember = async (memberId: string, creatorNickname?: string) => {
     if (isTempEntityId(memberId)) {
       return { error: { message: STILL_SAVING_TEMP_ENTITY_MSG } }
+    }
+    // Ownership changes can remap IDs; keep this online-only until queued remap lands.
+    if (!canMutateNow()) {
+      return { error: { message: blockedMutationMessage() } }
     }
     if (!tryBeginMutation()) {
       return { error: { message: blockedMutationMessage() } }
@@ -2123,6 +1385,10 @@ export function useList(listId: string) {
       )
 
       if (error) {
+        if (isLikelyConnectivityError(error)) {
+          enterOffline()
+          return { error: { message: blockedMutationMessage() } }
+        }
         return { error: { ...error, message: error.message || 'Failed to take ownership' } }
       }
 
@@ -2179,129 +1445,17 @@ export function useList(listId: string) {
         assigned: updates.assigned ?? existingState?.assigned ?? false,
         updated_at: new Date().toISOString(),
       }
-
-      mutationVersionRef.current += 1
-      skipRealtimeUntilRef.current = Date.now() + 2000
-      setLocalMemberState(itemId, memberId, optimisticState)
-
-      if (isTempEntityId(itemId)) {
-        await mergeQueuedCreateMemberState(listId, itemId, memberId, optimisticState)
-        return { error: null }
-      }
-
-      const updatePatchForQueue = existingState ? buildItemMemberStateUpdatePatch(updates) : undefined
-
-      const persistQueuedIms = async () => {
-        await enqueueItemMutation({
-          kind: 'itemMemberState',
-          listId,
-          itemKey: itemMemberStateOutboxKey(itemId, memberId),
-          updatedAt: Date.now(),
-          itemId,
-          memberId,
-          insert: !existingState,
-          quantity: optimisticState.quantity,
-          done: optimisticState.done,
-          assigned: optimisticState.assigned,
-          ...(existingState &&
-          updatePatchForQueue &&
-          Object.keys(updatePatchForQueue).length > 0
-            ? { updatePatch: updatePatchForQueue }
-            : {}),
-        })
-      }
-
-      if (!canMutateNow() || isTempEntityId(memberId)) {
-        await persistQueuedIms()
-        return { error: null }
-      }
-
-      if (existingState) {
-        const updatePatch = buildItemMemberStateUpdatePatch(updates)
-        if (Object.keys(updatePatch).length === 0) {
-          return { error: null }
-        }
-
-        diagMemberStateMutation({
-          itemId,
-          memberId,
-          listId,
-          existingState: true,
-          operation: 'update',
-          patchUpdated: updatePatch,
-          fullInsertPayload: null,
-          quantityIncluded: updates.quantity !== undefined,
-        })
-
-        const { error } = await trackSaveOperation(
-          supabase.from('item_member_state').update(updatePatch).eq('item_id', itemId).eq('member_id', memberId),
-        )
-
-        if (error) {
-          if (isLikelyConnectivityError(error)) {
-            await persistQueuedIms()
-            enterOffline()
-            return { error: { message: blockedMutationMessage() } }
-          }
-          setLocalMemberState(itemId, memberId, existingState)
-          return { error }
-        }
-
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'member_state_updated',
-            payload: { listId, itemId, memberId },
-          })
-        }
-
-        return { error: null }
-      }
-
-      const insertPayload = {
-        item_id: itemId,
-        member_id: memberId,
-        quantity: updates.quantity ?? 1,
-        done: updates.done ?? false,
-        assigned: updates.assigned ?? false,
-      }
-
-      diagMemberStateMutation({
+      await toggleItemMemberStateMutation({
+        listId,
         itemId,
         memberId,
-        listId,
-        existingState: false,
-        operation: 'insert',
-        fullInsertPayload: insertPayload,
-        patchUpdated: updates,
-        quantityIncluded: updates.quantity !== undefined,
+        state: optimisticState,
       })
-
-      const { data, error } = await trackSaveOperation(
-        supabase.from('item_member_state').insert(insertPayload).select().single(),
-      )
-
-      if (error || !data) {
-        if (error && isLikelyConnectivityError(error)) {
-          await persistQueuedIms()
-          enterOffline()
-          return { error: { message: blockedMutationMessage() } }
-        }
-        setLocalMemberState(itemId, memberId, null)
-        return { error }
-      }
-
-      setLocalMemberState(itemId, memberId, data)
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'member_state_updated',
-          payload: { listId, itemId, memberId },
-        })
-      }
-
+      mutationVersionRef.current += 1
+      skipRealtimeUntilRef.current = Date.now() + 2000
       return { error: null }
+    } catch (error) {
+      return { error: { message: rpcFailureMessage(error) } }
     } finally {
       mutationGate.end()
     }
@@ -2324,184 +1478,132 @@ export function useList(listId: string) {
         assigned: previousState?.assigned ?? true,
         updated_at: new Date().toISOString(),
       }
-
+      await toggleItemMemberStateMutation({
+        listId,
+        itemId,
+        memberId,
+        state: optimisticState,
+      })
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      setLocalMemberState(itemId, memberId, optimisticState)
-
-      if (isTempEntityId(itemId)) {
-        await mergeQueuedCreateMemberState(listId, itemId, memberId, optimisticState)
-        return { data: null, error: null }
-      }
-
-      const persistQueuedIms = async () => {
-        await enqueueItemMutation({
-          kind: 'itemMemberState',
-          listId,
-          itemKey: itemMemberStateOutboxKey(itemId, memberId),
-          updatedAt: Date.now(),
-          itemId,
-          memberId,
-          insert: !previousState,
-          quantity: optimisticState.quantity,
-          done: optimisticState.done,
-          assigned: optimisticState.assigned,
-          ...(previousState ? { updatePatch: { quantity: optimisticState.quantity } } : {}),
-        })
-      }
-
-      if (!canMutateNow() || isTempEntityId(memberId)) {
-        await persistQueuedIms()
-        return { data: null, error: null }
-      }
-
-      const { data, error } = await trackSaveOperation(
-        supabase.rpc('change_quantity', {
-          p_item_id: itemId,
-          p_member_id: memberId,
-          p_delta: delta,
-        }),
-      )
-
-      if (error) {
-        if (isLikelyConnectivityError(error)) {
-          await persistQueuedIms()
-          enterOffline()
-          return { data: null, error: { message: blockedMutationMessage() } }
-        }
-        setLocalMemberState(itemId, memberId, previousState || null)
-        return { data, error }
-      }
-
-      setLocalMemberState(itemId, memberId, {
-        ...optimisticState,
-        quantity: typeof data === 'number' ? data : optimisticState.quantity,
-      })
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'member_state_updated',
-          payload: { listId, itemId, memberId },
-        })
-      }
-
-      return { data, error }
+      return { data: optimisticState.quantity, error: null }
+    } catch (error) {
+      return { data: null, error: { message: rpcFailureMessage(error) } }
     } finally {
       mutationGate.end()
     }
   }
 
   const deleteArchivedItems = async () => {
-    const previousItems = items
     const archivedIds = new Set(items.filter(i => i.archived).map(i => i.id))
     if (archivedIds.size === 0) return { error: null, count: 0 }
+    if (!userId) return { error: { message: 'Not authenticated' }, count: 0 }
 
-    if (!tryBeginMutation()) {
+    if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() }, count: 0 }
     }
     try {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
-      setItems(prev => prev.filter(i => !archivedIds.has(i.id)))
-
-      const { data, error } = await trackSaveOperation(
-        supabase.rpc('delete_archived_items', { p_list_id: listId })
-      )
-
-      if (error) {
-        setItems(previousItems)
-        return { error, count: 0 }
-      }
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'item_deleted',
-          payload: { listId, bulkDelete: true },
-        })
-      }
-
-      return { error: null, count: typeof data === 'number' ? data : archivedIds.size }
+      const nowMs = Date.now()
+      const nowIso = new Date(nowMs).toISOString()
+      await db.transaction('rw', db.items, db.sync_queue, async () => {
+        for (const itemId of archivedIds) {
+          await db.items.update([userId, listId, itemId], {
+            deleted_at: nowMs,
+            updated_at: nowIso,
+          })
+          await db.sync_queue.put({
+            listId,
+            itemKey: `item:${itemId}`,
+            kind: 'delete',
+            entity: 'item',
+            payload: { id: itemId },
+            updatedAt: nowMs,
+            attemptCount: 0,
+            lastError: null,
+          })
+        }
+      })
+      return { error: null, count: archivedIds.size }
+    } catch (error) {
+      return { error: { message: rpcFailureMessage(error) }, count: 0 }
     } finally {
       mutationGate.end()
     }
   }
 
   const restoreArchivedItems = async () => {
-    const previousItems = items
-    const hasArchived = items.some(i => i.archived)
-    if (!hasArchived) return { error: null, count: 0 }
+    const archivedIds = items.filter(i => i.archived).map(i => i.id)
+    if (archivedIds.length === 0) return { error: null, count: 0 }
+    if (!userId) return { error: { message: 'Not authenticated' }, count: 0 }
 
-    if (!tryBeginMutation()) {
+    if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() }, count: 0 }
     }
     try {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
-      setItems(prev => prev.map(i => {
-        if (!i.archived) return i
-        return { ...i, archived: false, archived_at: null }
-      }))
-
-      const { data, error } = await trackSaveOperation(
-        supabase.rpc('restore_archived_items', { p_list_id: listId })
-      )
-
-      if (error) {
-        setItems(previousItems)
-        return { error, count: 0 }
-      }
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'item_updated',
-          payload: { listId, bulkRestore: true },
-        })
-      }
-
-      return { error: null, count: typeof data === 'number' ? data : 0 }
+      const nowMs = Date.now()
+      const nowIso = new Date(nowMs).toISOString()
+      await db.transaction('rw', db.items, db.sync_queue, async () => {
+        for (const itemId of archivedIds) {
+          await db.items.update([userId, listId, itemId], {
+            archived: false,
+            archived_at: null,
+            updated_at: nowIso,
+          })
+          await db.sync_queue.put({
+            listId,
+            itemKey: itemId,
+            kind: 'patchServerItem',
+            entity: 'item',
+            payload: { id: itemId, archived: false, archived_at: null },
+            updatedAt: nowMs,
+            attemptCount: 0,
+            lastError: null,
+          })
+        }
+      })
+      return { error: null, count: archivedIds.length }
+    } catch (error) {
+      return { error: { message: rpcFailureMessage(error) }, count: 0 }
     } finally {
       mutationGate.end()
     }
   }
 
   const reorderItems = async (reorderedItems: ItemWithState[]) => {
-    if (!tryBeginMutation()) {
+    if (!userId) return { error: { message: 'Not authenticated' } }
+    if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
     try {
-      const previousItems = items
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
-      const itemsWithUpdatedOrder = reorderedItems.map((item, index) => ({
-        ...item,
-        sort_order: index
-      }))
-      setItems(itemsWithUpdatedOrder)
-
-      const { error } = await trackSaveOperation(
-        supabase.rpc('reorder_list_items', {
-          p_list_id: listId,
-          p_item_ids: reorderedItems.map(item => item.id),
-        })
-      )
-
-      if (error) {
-        setItems(previousItems)
-        return { error }
-      }
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'item_updated',
-          payload: { listId, bulkReorder: true },
-        })
-      }
-
+      const nowMs = Date.now()
+      const nowIso = new Date(nowMs).toISOString()
+      await db.transaction('rw', db.items, db.sync_queue, async () => {
+        for (const [index, item] of reorderedItems.entries()) {
+          await db.items.update([userId, listId, item.id], {
+            sort_order: index,
+            updated_at: nowIso,
+          })
+          await db.sync_queue.put({
+            listId,
+            itemKey: item.id,
+            kind: 'patchServerItem',
+            entity: 'item',
+            payload: { id: item.id, sort_order: index },
+            updatedAt: nowMs,
+            attemptCount: 0,
+            lastError: null,
+          })
+        }
+      })
       return { error: null }
+    } catch (error) {
+      return { error: { message: rpcFailureMessage(error) } }
     } finally {
       mutationGate.end()
     }

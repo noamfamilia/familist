@@ -14,10 +14,7 @@ function ensureFileExists(filePath, label) {
 
 const projectRoot = process.cwd()
 const swPath = path.join(projectRoot, 'public', 'sw.js')
-const manifestPath = path.join(projectRoot, 'public', 'manifest.json')
-
 ensureFileExists(swPath, 'Service worker file')
-ensureFileExists(manifestPath, 'Manifest file')
 
 const swContent = fs.readFileSync(swPath, 'utf8')
 if (!swContent || swContent.trim().length === 0) {

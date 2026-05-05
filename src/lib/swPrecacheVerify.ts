@@ -28,7 +28,7 @@ function toAbsolute(origin: string, path: string): string {
   return `${origin}${p}`
 }
 
-/** Extract root-relative paths from generated next-pwa / workbox sw.js text. */
+/** Extract root-relative paths from generated serwist/workbox sw.js text. */
 export function extractUrlsFromSwScript(swText: string): {
   precachePaths: string[]
   importScriptPaths: string[]
@@ -260,7 +260,7 @@ export async function runSwPrecacheVerification(
         '   - importScripts failures',
         '   - bad-precaching-response / non-ok precache',
         '   - MIME / CORS / uncaught during install',
-        '4) Confirm only one register path: next-pwa auto + our fallback only if getRegistration() stayed empty.',
+        '4) Confirm only one register path: serwist auto + our fallback only if getRegistration() stayed empty.',
       ].join('\n'),
     )
   }

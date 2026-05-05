@@ -32,12 +32,12 @@ const TEMP_SYNC_TIMEOUT_MS = 10000
 const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
 const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
 const SW_FALLBACK_REGISTER_COUNT_KEY = 'familist_sw_js_fallback_register_count'
-/** next-pwa registers asynchronously; avoid calling register() until this elapses with no registration */
+/** Serwist registration appears asynchronously; avoid calling register() until this elapses with no registration */
 const SW_NEXT_PWA_MAX_WAIT_MS = 12_000
 const SW_NEXT_PWA_POLL_MS = 200
-/** Extra getRegistration() checks before fallback to avoid racing next-pwa */
+/** Extra getRegistration() checks before fallback to avoid racing Serwist registration */
 const SW_FALLBACK_REGISTER_GRACE_MS = 600
-/** When PWA debug is off, short poll only — do not block startup on long next-pwa wait */
+/** When PWA debug is off, short poll only — do not block startup on long Serwist wait */
 const SW_QUIET_MAX_WAIT_MS = 3_000
 const SW_QUIET_POLL_MS = 500
 
@@ -103,7 +103,7 @@ function logFallbackSwRegister(appendDiagnostics: (section: string) => void) {
     )
     if (n > 1) {
       appendDiagnostics(
-        `[sw-register-fallback] WARNING: fallback register() invoked ${n} times this tab — possible supersession race with next-pwa`,
+        `[sw-register-fallback] WARNING: fallback register() invoked ${n} times this tab — possible supersession race with serwist`,
       )
     }
   } catch {
@@ -197,7 +197,7 @@ function PwaDebugPrecacheButton({
 async function probeInternetReachable(): Promise<boolean> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return false
   try {
-    const res = await fetch('/manifest.json', { cache: 'no-store' })
+    const res = await fetch('/manifest.webmanifest', { cache: 'no-store' })
     return res.ok
   } catch {
     return false
@@ -335,7 +335,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         probeInFlightRef.current = true
         const probeStartedAt = performance.now()
         appendOfflineNavDiagnostic(
-          `[probe] start path=/manifest.json status=${statusRef.current} step=${probeStepRef.current}`,
+          `[probe] start path=/manifest.webmanifest status=${statusRef.current} step=${probeStepRef.current}`,
         )
         const ok = await probeInternetReachable()
         probeInFlightRef.current = false
@@ -722,7 +722,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
             attachToRegistration?.(reg)
             if (appendPwaBlock) {
               logDiag(
-                `SW lifecycle listeners attached (poll #${i + 1}, next-pwa may still be registering; our register() not used yet)`,
+                `SW lifecycle listeners attached (poll #${i + 1}, serwist may still be registering; our register() not used yet)`,
               )
             }
             break
@@ -742,7 +742,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
             attachToRegistration?.(reg)
             if (appendPwaBlock) {
               logDiag(
-                'SW registration appeared during grace — next-pwa (or other); fallback register() skipped',
+                'SW registration appeared during grace — serwist (or other); fallback register() skipped',
               )
             }
           }
@@ -773,7 +773,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
         if (appendPwaBlock) {
           logDiag(
-            `SW registration source: ${registeredByUs ? 'fallback register() after extended wait + grace (next-pwa never showed a registration)' : 'existing registration — next-pwa or prior session; our register() NOT called'}`,
+            `SW registration source: ${registeredByUs ? 'fallback register() after extended wait + grace (serwist never showed a registration)' : 'existing registration — serwist or prior session; our register() NOT called'}`,
           )
         }
 
