@@ -6,6 +6,7 @@ import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import { clearActiveCacheUserId, getActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
+import { db } from '@/lib/db'
 import { notifyProfileFetchSucceeded, notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
 import { perfLog } from '@/lib/startupPerfLog'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
@@ -32,6 +33,70 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const PROFILE_FETCH_STARTUP_TIMEOUT_MS = 10_000
 const PROFILE_FETCH_TIMEOUT_MESSAGE = 'profile fetch timeout'
+const AUTH_RECOVERY_ONCE_KEY = 'familist_auth_recovery_done_once'
+
+function errorMessageOf(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    const m = (err as { message?: unknown }).message
+    return typeof m === 'string' ? m : String(m ?? '')
+  }
+  return String(err ?? '')
+}
+
+function isInvalidRefreshTokenError(err: unknown): boolean {
+  const msg = errorMessageOf(err).toLowerCase()
+  return (
+    msg.includes('invalid refresh token') ||
+    msg.includes('refresh token not found') ||
+    msg.includes('refresh_token_not_found') ||
+    msg.includes('refresh token is invalid')
+  )
+}
+
+async function clearAuthAndAppStorage(): Promise<void> {
+  if (typeof window === 'undefined') return
+
+  try {
+    const toRemove: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k) continue
+      if (
+        k.startsWith('sb-') ||
+        k.startsWith('cached_') ||
+        k.startsWith('recent_lists_') ||
+        k.startsWith('list_') ||
+        k.startsWith('label_filter_') ||
+        k.startsWith('tutorial_') ||
+        k === 'active_cache_user' ||
+        k === 'familist_connectivity_status' ||
+        k === 'pending_invite_token' ||
+        k === 'pwa-install-dismissed'
+      ) {
+        toRemove.push(k)
+      }
+    }
+    for (const k of toRemove) localStorage.removeItem(k)
+  } catch {
+    // ignore
+  }
+
+  try {
+    await db.delete()
+  } catch {
+    // ignore
+  }
+
+  try {
+    if ('caches' in window) {
+      const names = await caches.keys()
+      await Promise.all(names.map((name) => caches.delete(name)))
+    }
+  } catch {
+    // ignore
+  }
+}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -112,6 +177,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
     }
   }, [])
+
+  const hardRecoverInvalidRefreshToken = useCallback(
+    async (source: string) => {
+      if (typeof window !== 'undefined' && sessionStorage.getItem(AUTH_RECOVERY_ONCE_KEY) === '1') {
+        perfLog('auth/recovery skipped already-ran', { source })
+        return
+      }
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(AUTH_RECOVERY_ONCE_KEY, '1')
+      }
+
+      perfLog('auth/recovery start', { source })
+      try {
+        try {
+          await supabase.auth.signOut({ scope: 'local' })
+        } catch {
+          // best effort
+        }
+        await clearAuthAndAppStorage()
+      } finally {
+        profileFetchGenRef.current++
+        setUser(null)
+        setProfile(null)
+        setBootstrapUserId(null)
+        clearActiveCacheUserId()
+        setProfileFetchPhase('idle')
+        setLoading(false)
+        perfLog('auth/recovery end', { source })
+      }
+    },
+    [supabase.auth],
+  )
 
   const scheduleStartupProfileFetch = useCallback(
     (userId: string) => {
@@ -199,6 +296,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!mounted) return
 
+        if (sessionError && isInvalidRefreshTokenError(sessionError)) {
+          perfLog('auth/getSession invalid-refresh-token', { message: sessionError.message })
+          await hardRecoverInvalidRefreshToken('getSession')
+          return
+        }
+
         if (isStartupDiagnosticsEnabled()) {
           perfLog('auth/getUser start')
           const gu0 = performance.now()
@@ -233,6 +336,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         perfLog('auth/session try error', {
           message: error instanceof Error ? error.message : String(error),
         })
+        if (isInvalidRefreshTokenError(error)) {
+          await hardRecoverInvalidRefreshToken('getSession-catch')
+          return
+        }
       } finally {
         hydratedFromGetSessionRef.current = true
         if (mounted) {
@@ -304,7 +411,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false
       subscription?.unsubscribe()
     }
-  }, [scheduleStartupProfileFetch, supabase.auth])
+  }, [hardRecoverInvalidRefreshToken, scheduleStartupProfileFetch, supabase.auth])
 
   useEffect(() => {
     const t = profile?.theme
