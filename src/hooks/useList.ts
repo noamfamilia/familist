@@ -516,20 +516,20 @@ export function useList(listId: string) {
     void (async () => {
       const dexiePrefs = await readListPrefsFromDexie(userId, listId)
       if (!dexiePrefs || cancelled) return
-      const dexieFilter = VALID_MEMBER_FILTERS.includes(dexiePrefs.memberFilter as MemberFilter)
-        ? dexiePrefs.memberFilter as MemberFilter
+      const dexieFilter = VALID_MEMBER_FILTERS.includes(dexiePrefs.member_filter as MemberFilter)
+        ? dexiePrefs.member_filter as MemberFilter
         : 'all' as MemberFilter
-      const parsed = parseWidthValue(dexiePrefs.itemTextWidth)
+      const parsed = parseWidthValue(dexiePrefs.item_text_width)
       setMemberFilter(dexieFilter)
       setItemTextWidthMode(parsed.mode)
       if (parsed.mode === 'manual') {
         setItemTextWidth(parsed.width)
       }
-      const dexieFontStep = parseItemNameFontStep(dexiePrefs.itemNameFontStep)
+      const dexieFontStep = parseItemNameFontStep(dexiePrefs.item_name_font_step)
       itemNameFontStepRef.current = dexieFontStep
       setItemNameFontStep(dexieFontStep)
-      setLastViewedMembers(dexiePrefs.lastViewedMembers ?? null)
-      setSumScope(parseListUserSumScope(dexiePrefs.sumScope))
+      setLastViewedMembers(dexiePrefs.last_viewed_members ?? null)
+      setSumScope(parseListUserSumScope(dexiePrefs.sum_scope))
     })()
     return () => {
       cancelled = true
@@ -913,9 +913,9 @@ export function useList(listId: string) {
     if (!accessDenied) return
     removeCachedList(userId, listId)
     if (userId) {
-      void db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, db.listPrefs, async () => {
+      void db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, db.list_users, async () => {
         await db.listDetails.delete([userId, listId])
-        await db.listPrefs.delete([userId, listId])
+        await db.list_users.delete([listId, userId])
         const itemsToDelete = await db.items.where('[userId+listId]').equals([userId, listId]).toArray()
         const membersToDelete = await db.members.where('[userId+listId]').equals([userId, listId]).toArray()
         const imsToDelete = await db.item_member_state

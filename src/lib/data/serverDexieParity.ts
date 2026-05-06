@@ -1,5 +1,5 @@
 import { APP_VERSION } from '@/lib/appVersion'
-import { db, type DbListPrefRow } from '@/lib/db'
+import { db } from '@/lib/db'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import type { Database, ItemWithState, List, ListWithRole, MemberWithCreator, Profile } from '@/lib/supabase/types'
 
@@ -9,7 +9,7 @@ export const PARITY_SCOPE = {
   get_list_data_items: ['items'],
   get_list_data_member_states: ['item_member_state'],
   get_list_data_members: ['members'],
-  list_users_prefs: ['listPrefs'],
+  list_users_prefs: ['list_users'],
   get_list_joined_users: ['joinedUsers'],
   lists_join_token: ['listShareTokens'],
   profiles_row: ['profiles'],
@@ -21,13 +21,13 @@ const PARITY_SCOPED_TABLES = [
   'items',
   'item_member_state',
   'members',
-  'listPrefs',
+  'list_users',
   'joinedUsers',
   'listShareTokens',
   'profiles',
 ] as const
 
-function normalizeListUserSumScope(raw: unknown): DbListPrefRow['sumScope'] {
+function normalizeListUserSumScope(raw: unknown): 'none' | 'all' | 'active' | 'archived' {
   if (raw === 'none' || raw === 'all' || raw === 'active' || raw === 'archived') return raw
   return 'none'
 }
@@ -118,29 +118,32 @@ export async function upsertListPrefsFromServer(
 ) {
   if (!row) return
   const itemTextWidthRaw = row.item_text_width
-  const widthString =
+  const itemTextWidth =
     typeof itemTextWidthRaw === 'number'
       ? String(itemTextWidthRaw)
       : typeof itemTextWidthRaw === 'string'
         ? itemTextWidthRaw
-        : null
-  const mode: DbListPrefRow['itemTextWidthMode'] =
-    widthString == null || widthString === 'auto' ? 'auto' : 'manual'
-  await db.listPrefs.put({
-    userId,
-    listId,
-    memberFilter: row.member_filter ?? null,
-    itemTextWidth: widthString,
-    itemTextWidthMode: mode,
-    itemNameFontStep: row.item_name_font_step ?? null,
-    lastViewedMembers: row.last_viewed_members ?? null,
-    sumScope: normalizeListUserSumScope(row.sum_scope),
-    updatedAt: Date.now(),
+        : 'auto'
+  const existing = await db.list_users.get([listId, userId])
+  await db.list_users.put({
+    list_id: listId,
+    user_id: userId,
+    role: existing?.role ?? 'viewer',
+    archived: existing?.archived ?? false,
+    sort_order: existing?.sort_order ?? null,
+    created_at: existing?.created_at ?? new Date().toISOString(),
+    member_filter: row.member_filter ?? existing?.member_filter ?? 'all',
+    item_text_width: itemTextWidth,
+    label: existing?.label ?? '',
+    last_viewed_members: row.last_viewed_members ?? null,
+    show_targets: existing?.show_targets ?? false,
+    item_name_font_step: row.item_name_font_step ?? existing?.item_name_font_step ?? 3,
+    sum_scope: normalizeListUserSumScope(row.sum_scope),
   })
 }
 
 export async function readListPrefsFromDexie(userId: string, listId: string) {
-  return db.listPrefs.get([userId, listId])
+  return db.list_users.get([listId, userId])
 }
 
 type JoinedUserServerRow = Database['public']['Functions']['get_list_joined_users']['Returns'][number]

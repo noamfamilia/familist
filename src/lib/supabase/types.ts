@@ -370,6 +370,7 @@ export interface Database {
 export type Profile = Database['public']['Tables']['profiles']['Row']
 export type List = Database['public']['Tables']['lists']['Row']
 export type ListUser = Database['public']['Tables']['list_users']['Row']
+export type Feedback = Database['public']['Tables']['feedback']['Row']
 export type ListUserSumScope = ListUser['sum_scope']
 export type Member = Database['public']['Tables']['members']['Row']
 export type Item = Database['public']['Tables']['items']['Row']

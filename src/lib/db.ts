@@ -1,5 +1,13 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Item, ItemMemberState, ListWithRole, MemberWithCreator, Profile } from '@/lib/supabase/types'
+import type {
+  Feedback,
+  Item,
+  ItemMemberState,
+  ListUser,
+  ListWithRole,
+  MemberWithCreator,
+  Profile,
+} from '@/lib/supabase/types'
 
 export type SoftDeleteMeta = {
   deleted_at: number | null
@@ -38,17 +46,9 @@ export type DbItemMemberStateRow = ItemMemberState &
     listId: string
   }
 
-export type DbListPrefRow = {
-  userId: string
-  listId: string
-  memberFilter: string | null
-  itemTextWidth: string | null
-  itemTextWidthMode: 'auto' | 'manual' | null
-  itemNameFontStep: number | null
-  lastViewedMembers: string | null
-  sumScope: 'none' | 'all' | 'active' | 'archived' | null
-  updatedAt: number
-}
+export type DbListUserRow = ListUser
+
+export type DbFeedbackRow = Feedback
 
 export type DbJoinedUserRow = {
   listId: string
@@ -114,7 +114,8 @@ export class FamilistDexie extends Dexie {
   items!: EntityTable<DbItemRow, '[userId+listId+id]'>
   members!: EntityTable<DbMemberRow, '[userId+listId+id]'>
   item_member_state!: EntityTable<DbItemMemberStateRow, '[listId+item_id+member_id]'>
-  listPrefs!: EntityTable<DbListPrefRow, '[userId+listId]'>
+  list_users!: EntityTable<DbListUserRow, '[list_id+user_id]'>
+  feedback!: EntityTable<DbFeedbackRow, 'id'>
   joinedUsers!: EntityTable<DbJoinedUserRow, '[listId+userId]'>
   listShareTokens!: EntityTable<DbListShareTokenRow, 'listId'>
   profiles!: EntityTable<DbProfileRow, 'id'>
@@ -131,7 +132,8 @@ export class FamilistDexie extends Dexie {
       members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
       item_member_state:
         '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
-      listPrefs: '&[userId+listId]',
+      list_users: '&[list_id+user_id], list_id, user_id, sort_order, role, archived, sum_scope',
+      feedback: '&id, user_id, created_at',
       sync_queue: '&[listId+itemKey], listId, kind, updatedAt',
       offlineRouteMarkers: '&[userId+listId+buildId], [userId+listId], buildId',
       meta: '&key',
@@ -143,7 +145,24 @@ export class FamilistDexie extends Dexie {
       members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
       item_member_state:
         '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
-      listPrefs: '&[userId+listId], userId, listId, updatedAt',
+      list_users: '&[list_id+user_id], list_id, user_id, sort_order, role, archived, sum_scope',
+      feedback: '&id, user_id, created_at',
+      joinedUsers: '&[listId+userId], listId, cachedAt',
+      listShareTokens: '&listId, cachedAt',
+      profiles: '&id, updated_at, cachedAt',
+      sync_queue: '&[listId+itemKey], listId, kind, updatedAt',
+      offlineRouteMarkers: '&[userId+listId+buildId], [userId+listId], buildId',
+      meta: '&key',
+    })
+    this.version(4).stores({
+      lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
+      listDetails: '&[userId+listId], userId, listId, cachedAt, deleted_at',
+      items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
+      members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
+      item_member_state:
+        '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
+      list_users: '&[list_id+user_id], list_id, user_id, sort_order, role, archived, sum_scope',
+      feedback: '&id, user_id, created_at',
       joinedUsers: '&[listId+userId], listId, cachedAt',
       listShareTokens: '&listId, cachedAt',
       profiles: '&id, updated_at, cachedAt',
