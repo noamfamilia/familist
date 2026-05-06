@@ -913,8 +913,7 @@ export function useList(listId: string) {
     if (!accessDenied) return
     removeCachedList(userId, listId)
     if (userId) {
-      void db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, db.list_users, async () => {
-        await db.listDetails.delete([userId, listId])
+      void db.transaction('rw', db.items, db.members, db.item_member_state, db.list_users, async () => {
         await db.list_users.delete([listId, userId])
         const itemsToDelete = await db.items.where('[userId+listId]').equals([userId, listId]).toArray()
         const membersToDelete = await db.members.where('[userId+listId]').equals([userId, listId]).toArray()

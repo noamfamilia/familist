@@ -20,15 +20,6 @@ export type DbListRow = ListWithRole &
     app_version?: string | null
   }
 
-export type DbListDetailRow = SoftDeleteMeta & {
-  userId: string
-  listId: string
-  list: ListWithRole | null
-  cachedAt: number
-  schemaVersion: number
-  app_version?: string | null
-}
-
 export type DbItemRow = Item &
   SoftDeleteMeta & {
     userId: string
@@ -110,7 +101,6 @@ export type DbMetaRow = {
 
 export class FamilistDexie extends Dexie {
   lists!: EntityTable<DbListRow, '[userId+id]'>
-  listDetails!: EntityTable<DbListDetailRow, '[userId+listId]'>
   items!: EntityTable<DbItemRow, '[userId+listId+id]'>
   members!: EntityTable<DbMemberRow, '[userId+listId+id]'>
   item_member_state!: EntityTable<DbItemMemberStateRow, '[listId+item_id+member_id]'>
@@ -127,7 +117,6 @@ export class FamilistDexie extends Dexie {
     super('familist')
     this.version(2).stores({
       lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
-      listDetails: '&[userId+listId], userId, listId, cachedAt, deleted_at',
       items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
       members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
       item_member_state:
@@ -140,7 +129,6 @@ export class FamilistDexie extends Dexie {
     })
     this.version(3).stores({
       lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
-      listDetails: '&[userId+listId], userId, listId, cachedAt, deleted_at',
       items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
       members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
       item_member_state:
@@ -156,7 +144,21 @@ export class FamilistDexie extends Dexie {
     })
     this.version(4).stores({
       lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
-      listDetails: '&[userId+listId], userId, listId, cachedAt, deleted_at',
+      items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
+      members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
+      item_member_state:
+        '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
+      list_users: '&[list_id+user_id], list_id, user_id, sort_order, role, archived, sum_scope',
+      feedback: '&id, user_id, created_at',
+      joinedUsers: '&[listId+userId], listId, cachedAt',
+      listShareTokens: '&listId, cachedAt',
+      profiles: '&id, updated_at, cachedAt',
+      sync_queue: '&[listId+itemKey], listId, kind, updatedAt',
+      offlineRouteMarkers: '&[userId+listId+buildId], [userId+listId], buildId',
+      meta: '&key',
+    })
+    this.version(5).stores({
+      lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
       items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
       members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
       item_member_state:

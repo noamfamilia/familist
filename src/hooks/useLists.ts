@@ -45,7 +45,6 @@ async function softDeleteListInDexie(userId: string | null, listId: string) {
   await db.transaction(
     'rw',
     db.lists,
-    db.listDetails,
     db.items,
     db.members,
     db.item_member_state,
@@ -55,7 +54,6 @@ async function softDeleteListInDexie(userId: string | null, listId: string) {
     db.sync_queue,
     async () => {
     await db.lists.update([userId, listId], { deleted_at: nowMs, cachedAt: nowMs })
-    await db.listDetails.update([userId, listId], { deleted_at: nowMs, cachedAt: nowMs })
     await db.list_users.delete([listId, userId])
     const joinedUsers = await db.joinedUsers.where('listId').equals(listId).toArray()
     for (const row of joinedUsers) {

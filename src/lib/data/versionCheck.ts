@@ -9,9 +9,8 @@ const LAST_FORCED_RELOAD_MAJOR_META_KEY = 'lastForcedReloadMajor'
 const supabase = createClient()
 
 async function removeRejectedLocalListCopy(userId: string, listId: string): Promise<void> {
-  await db.transaction('rw', db.lists, db.listDetails, db.items, db.members, db.item_member_state, db.sync_queue, async () => {
+  await db.transaction('rw', db.lists, db.items, db.members, db.item_member_state, db.sync_queue, async () => {
     await db.lists.delete([userId, listId])
-    await db.listDetails.delete([userId, listId])
     const [items, members, states, queueRows] = await Promise.all([
       db.items.where('[userId+listId]').equals([userId, listId]).toArray(),
       db.members.where('[userId+listId]').equals([userId, listId]).toArray(),

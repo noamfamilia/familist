@@ -34,15 +34,15 @@ export async function runLegacyStorageMigration() {
 export async function migrateCachedListDetail(userId: string, listId: string) {
   const cached = getCachedList(userId, listId)
   if (!cached) return
-  await db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, async () => {
-    await db.listDetails.put({
-      userId,
-      listId,
-      list: cached.list ? { ...cached.list, role: 'viewer', userArchived: false } : null,
-      cachedAt: Date.now(),
-      schemaVersion: 1,
-      deleted_at: null,
-    })
+  await db.transaction('rw', db.lists, db.items, db.members, db.item_member_state, async () => {
+    if (cached.list) {
+      await db.lists.put({
+        ...cached.list,
+        userId,
+        cachedAt: Date.now(),
+        deleted_at: null,
+      })
+    }
 
     for (const item of cached.items) {
       await db.items.put({
@@ -79,21 +79,18 @@ export async function cleanupTombstones() {
   await db.transaction(
     'rw',
     db.lists,
-    db.listDetails,
     db.items,
     db.members,
     db.item_member_state,
     async () => {
-      const [lists, details, items, members, states] = await Promise.all([
+      const [lists, items, members, states] = await Promise.all([
         db.lists.toArray(),
-        db.listDetails.toArray(),
         db.items.toArray(),
         db.members.toArray(),
         db.item_member_state.toArray(),
       ])
 
       for (const row of await clean(lists)) await db.lists.delete([row.userId, row.id])
-      for (const row of await clean(details)) await db.listDetails.delete([row.userId, row.listId])
       for (const row of await clean(items)) await db.items.delete([row.userId, row.listId, row.id])
       for (const row of await clean(members)) await db.members.delete([row.userId, row.listId, row.id])
       for (const row of await clean(states))

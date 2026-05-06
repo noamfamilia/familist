@@ -5,7 +5,7 @@ import type { Database, ItemWithState, List, ListWithRole, MemberWithCreator, Pr
 
 export const PARITY_SCOPE = {
   get_user_lists: ['lists'],
-  get_list_data_list: ['listDetails'],
+  get_list_data_list: ['lists'],
   get_list_data_items: ['items'],
   get_list_data_member_states: ['item_member_state'],
   get_list_data_members: ['members'],
@@ -17,7 +17,6 @@ export const PARITY_SCOPE = {
 
 const PARITY_SCOPED_TABLES = [
   'lists',
-  'listDetails',
   'items',
   'item_member_state',
   'members',
@@ -75,16 +74,28 @@ export async function upsertListDataPayloadFromServer(
   },
 ) {
   const now = Date.now()
-  await db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, async () => {
-    await db.listDetails.put({
-      userId,
-      listId,
-      list: payload.list ? ({ ...payload.list, role: 'viewer', userArchived: false } as ListWithRole) : null,
-      cachedAt: now,
-      schemaVersion: 1,
-      deleted_at: null,
-      app_version: APP_VERSION,
-    })
+  await db.transaction('rw', db.lists, db.items, db.members, db.item_member_state, async () => {
+    if (payload.list) {
+      const existing = await db.lists.get([userId, listId])
+      const mergedList: ListWithRole = {
+        ...payload.list,
+        role: existing?.role ?? 'viewer',
+        userArchived: existing?.userArchived ?? false,
+        memberCount: existing?.memberCount,
+        activeItemCount: existing?.activeItemCount,
+        archivedItemCount: existing?.archivedItemCount,
+        sumScope: existing?.sumScope ?? 'none',
+        ownerNickname: existing?.ownerNickname ?? null,
+        label: existing?.label ?? '',
+      }
+      await db.lists.put({
+        ...mergedList,
+        userId,
+        cachedAt: now,
+        deleted_at: null,
+        app_version: APP_VERSION,
+      })
+    }
     for (const item of payload.items) {
       await db.items.put({
         ...item,
