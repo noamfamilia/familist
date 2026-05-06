@@ -110,6 +110,7 @@ export interface Database {
           item_text_width: string | null
           item_name_font_step: number
           show_targets: boolean
+          last_viewed_members: string | null
           sum_scope: 'none' | 'all' | 'active' | 'archived'
           label: string
           created_at: string
@@ -124,6 +125,7 @@ export interface Database {
           item_text_width?: string | null
           item_name_font_step?: number
           show_targets?: boolean
+          last_viewed_members?: string | null
           sum_scope?: 'none' | 'all' | 'active' | 'archived'
           label?: string
           created_at?: string
@@ -138,6 +140,7 @@ export interface Database {
           item_text_width?: string | null
           item_name_font_step?: number
           show_targets?: boolean
+          last_viewed_members?: string | null
           sum_scope?: 'none' | 'all' | 'active' | 'archived'
           label?: string
           created_at?: string

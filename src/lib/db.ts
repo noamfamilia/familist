@@ -1,10 +1,10 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type {
   Feedback,
+  List,
   Item,
   ItemMemberState,
   ListUser,
-  ListWithRole,
   MemberWithCreator,
   Profile,
 } from '@/lib/supabase/types'
@@ -13,7 +13,7 @@ export type SoftDeleteMeta = {
   deleted_at: number | null
 }
 
-export type DbListRow = ListWithRole &
+export type DbListRow = List &
   SoftDeleteMeta & {
     userId: string
     cachedAt: number
@@ -40,6 +40,15 @@ export type DbItemMemberStateRow = ItemMemberState &
 export type DbListUserRow = ListUser
 
 export type DbFeedbackRow = Feedback
+export type DbListSummaryRow = {
+  userId: string
+  listId: string
+  memberCount: number
+  activeItemCount: number
+  archivedItemCount: number
+  ownerNickname: string | null
+  cachedAt: number
+}
 
 export type DbJoinedUserRow = {
   listId: string
@@ -105,6 +114,7 @@ export class FamilistDexie extends Dexie {
   members!: EntityTable<DbMemberRow, '[userId+listId+id]'>
   item_member_state!: EntityTable<DbItemMemberStateRow, '[listId+item_id+member_id]'>
   list_users!: EntityTable<DbListUserRow, '[list_id+user_id]'>
+  listSummaries!: EntityTable<DbListSummaryRow, '[userId+listId]'>
   feedback!: EntityTable<DbFeedbackRow, 'id'>
   joinedUsers!: EntityTable<DbJoinedUserRow, '[listId+userId]'>
   listShareTokens!: EntityTable<DbListShareTokenRow, 'listId'>
@@ -116,24 +126,26 @@ export class FamilistDexie extends Dexie {
   constructor() {
     super('familist')
     this.version(2).stores({
-      lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
+      lists: '&[userId+id], userId, owner_id, visibility, archived, updated_at, deleted_at',
       items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
       members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
       item_member_state:
         '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
       list_users: '&[list_id+user_id], list_id, user_id, sort_order, role, archived, sum_scope',
+      listSummaries: '&[userId+listId], userId, listId, cachedAt',
       feedback: '&id, user_id, created_at',
       sync_queue: '&[listId+itemKey], listId, kind, updatedAt',
       offlineRouteMarkers: '&[userId+listId+buildId], [userId+listId], buildId',
       meta: '&key',
     })
     this.version(3).stores({
-      lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
+      lists: '&[userId+id], userId, owner_id, visibility, archived, updated_at, deleted_at',
       items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
       members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
       item_member_state:
         '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
       list_users: '&[list_id+user_id], list_id, user_id, sort_order, role, archived, sum_scope',
+      listSummaries: '&[userId+listId], userId, listId, cachedAt',
       feedback: '&id, user_id, created_at',
       joinedUsers: '&[listId+userId], listId, cachedAt',
       listShareTokens: '&listId, cachedAt',
@@ -143,12 +155,13 @@ export class FamilistDexie extends Dexie {
       meta: '&key',
     })
     this.version(4).stores({
-      lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
+      lists: '&[userId+id], userId, owner_id, visibility, archived, updated_at, deleted_at',
       items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
       members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
       item_member_state:
         '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
       list_users: '&[list_id+user_id], list_id, user_id, sort_order, role, archived, sum_scope',
+      listSummaries: '&[userId+listId], userId, listId, cachedAt',
       feedback: '&id, user_id, created_at',
       joinedUsers: '&[listId+userId], listId, cachedAt',
       listShareTokens: '&listId, cachedAt',
@@ -158,12 +171,29 @@ export class FamilistDexie extends Dexie {
       meta: '&key',
     })
     this.version(5).stores({
-      lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
+      lists: '&[userId+id], userId, owner_id, visibility, archived, updated_at, deleted_at',
       items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
       members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
       item_member_state:
         '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
       list_users: '&[list_id+user_id], list_id, user_id, sort_order, role, archived, sum_scope',
+      listSummaries: '&[userId+listId], userId, listId, cachedAt',
+      feedback: '&id, user_id, created_at',
+      joinedUsers: '&[listId+userId], listId, cachedAt',
+      listShareTokens: '&listId, cachedAt',
+      profiles: '&id, updated_at, cachedAt',
+      sync_queue: '&[listId+itemKey], listId, kind, updatedAt',
+      offlineRouteMarkers: '&[userId+listId+buildId], [userId+listId], buildId',
+      meta: '&key',
+    })
+    this.version(6).stores({
+      lists: '&[userId+id], userId, owner_id, visibility, archived, updated_at, deleted_at',
+      items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
+      members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
+      item_member_state:
+        '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
+      list_users: '&[list_id+user_id], list_id, user_id, sort_order, role, archived, sum_scope',
+      listSummaries: '&[userId+listId], userId, listId, cachedAt',
       feedback: '&id, user_id, created_at',
       joinedUsers: '&[listId+userId], listId, cachedAt',
       listShareTokens: '&listId, cachedAt',

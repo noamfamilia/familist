@@ -39,6 +39,29 @@ function coalesceListUserSumScope(raw: unknown): ListUserSumScope {
   return 'none'
 }
 
+function extractListRowFields(list: ListWithRole) {
+  const {
+    role,
+    userArchived,
+    memberCount,
+    activeItemCount,
+    archivedItemCount,
+    sumScope,
+    ownerNickname,
+    label,
+    ...listFields
+  } = list
+  void role
+  void userArchived
+  void memberCount
+  void activeItemCount
+  void archivedItemCount
+  void sumScope
+  void ownerNickname
+  void label
+  return listFields
+}
+
 async function softDeleteListInDexie(userId: string | null, listId: string) {
   if (!userId) return
   const nowMs = Date.now()
@@ -49,12 +72,14 @@ async function softDeleteListInDexie(userId: string | null, listId: string) {
     db.members,
     db.item_member_state,
     db.list_users,
+    db.listSummaries,
     db.joinedUsers,
     db.listShareTokens,
     db.sync_queue,
     async () => {
     await db.lists.update([userId, listId], { deleted_at: nowMs, cachedAt: nowMs })
     await db.list_users.delete([listId, userId])
+    await db.listSummaries.delete([userId, listId])
     const joinedUsers = await db.joinedUsers.where('listId').equals(listId).toArray()
     for (const row of joinedUsers) {
       await db.joinedUsers.delete([listId, row.userId])
@@ -196,9 +221,9 @@ export function useLists() {
     appendMutationDiagnostic(
       `[mutation:list.reorder.queue] userId=${user.id} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')} tail=${orderedIds.slice(-5).join(',')}`,
     )
-    await db.transaction('rw', db.lists, db.sync_queue, async () => {
+    await db.transaction('rw', db.list_users, db.sync_queue, async () => {
       for (const [index, list] of orderedLists.entries()) {
-        await db.lists.update([user.id, list.id], { sort_order: index, cachedAt: nowMs })
+        await db.list_users.update([list.id, user.id], { sort_order: index })
       }
       await db.sync_queue.put({
         listId: `user:${user.id}`,
@@ -535,13 +560,37 @@ export function useLists() {
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => [optimisticList, ...prev])
-    await db.transaction('rw', db.lists, db.sync_queue, async () => {
+    await db.transaction('rw', db.lists, db.list_users, db.listSummaries, db.sync_queue, async () => {
       await db.lists.put({
-        ...optimisticList,
+        ...extractListRowFields(optimisticList),
         userId: user.id,
         cachedAt: Date.now(),
         deleted_at: null,
         app_version: APP_VERSION,
+      })
+      await db.list_users.put({
+        list_id: listId,
+        user_id: user.id,
+        role: 'owner',
+        archived: false,
+        sort_order: null,
+        created_at: now,
+        member_filter: 'all',
+        item_text_width: 'auto',
+        label: label || '',
+        last_viewed_members: null,
+        show_targets: false,
+        item_name_font_step: 3,
+        sum_scope: 'none',
+      })
+      await db.listSummaries.put({
+        userId: user.id,
+        listId,
+        memberCount: 0,
+        activeItemCount: 0,
+        archivedItemCount: 0,
+        ownerNickname: null,
+        cachedAt: Date.now(),
       })
       await db.sync_queue.put({
         listId,
@@ -644,11 +693,10 @@ export function useLists() {
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(nextLists)
     const nowMs = Date.now()
-    await db.transaction('rw', db.lists, db.sync_queue, async () => {
-      await db.lists.update([user.id, listId], {
-        ...(updates.archived !== undefined ? { userArchived: updates.archived } : {}),
+    await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+      await db.list_users.update([listId, user.id], {
+        ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
         ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
-        cachedAt: nowMs,
       })
       await db.sync_queue.put({
         listId,
@@ -939,8 +987,8 @@ export function useLists() {
     ))
 
     const nowMs = Date.now()
-    await db.transaction('rw', db.lists, db.sync_queue, async () => {
-      await db.lists.update([user!.id, listId], { label, cachedAt: nowMs })
+    await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+      await db.list_users.update([listId, user!.id], { label })
       await db.sync_queue.put({
         listId,
         itemKey: `list-user:${user!.id}:${listId}`,
@@ -989,9 +1037,9 @@ export function useLists() {
       )))
 
       const nowMs = Date.now()
-      await db.transaction('rw', db.lists, db.sync_queue, async () => {
+      await db.transaction('rw', db.list_users, db.sync_queue, async () => {
         for (const { listId, label } of changes) {
-          await db.lists.update([user.id, listId], { label, cachedAt: nowMs })
+          await db.list_users.update([listId, user.id], { label })
         }
         await db.sync_queue.put({
           listId: `user:${user.id}`,

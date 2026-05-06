@@ -3,16 +3,42 @@
 import Dexie from 'dexie'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type DbItemMemberStateRow } from '@/lib/db'
-import type { ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
+import type { ItemWithState, ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
 
 export function useListsQuery(userId: string | null | undefined) {
   return useLiveQuery(async () => {
     if (!userId) return []
-    return db.lists
+    const rows = await db.lists
       .where('userId')
       .equals(userId)
       .filter((row) => row.deleted_at == null)
-      .sortBy('sort_order')
+      .toArray()
+    const merged: ListWithRole[] = []
+    for (const row of rows) {
+      const [listUser, summary] = await Promise.all([
+        db.list_users.get([row.id, userId]),
+        db.listSummaries.get([userId, row.id]),
+      ])
+      if (!listUser) continue
+      merged.push({
+        ...row,
+        role: listUser.role,
+        userArchived: listUser.archived,
+        sort_order: listUser.sort_order,
+        sumScope: listUser.sum_scope ?? 'none',
+        label: listUser.label ?? '',
+        memberCount: summary?.memberCount ?? 0,
+        activeItemCount: summary?.activeItemCount ?? 0,
+        archivedItemCount: summary?.archivedItemCount ?? 0,
+        ownerNickname: summary?.ownerNickname ?? null,
+      })
+    }
+    return merged.sort((a, b) => {
+      const aOrd = a.sort_order ?? Number.MAX_SAFE_INTEGER
+      const bOrd = b.sort_order ?? Number.MAX_SAFE_INTEGER
+      if (aOrd !== bOrd) return aOrd - bOrd
+      return (b.created_at ?? '').localeCompare(a.created_at ?? '')
+    })
   }, [userId])
 }
 

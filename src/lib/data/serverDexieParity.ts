@@ -4,7 +4,7 @@ import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import type { Database, ItemWithState, List, ListWithRole, MemberWithCreator, Profile } from '@/lib/supabase/types'
 
 export const PARITY_SCOPE = {
-  get_user_lists: ['lists'],
+  get_user_lists: ['lists', 'list_users', 'listSummaries'],
   get_list_data_list: ['lists'],
   get_list_data_items: ['items'],
   get_list_data_member_states: ['item_member_state'],
@@ -21,6 +21,7 @@ const PARITY_SCOPED_TABLES = [
   'item_member_state',
   'members',
   'list_users',
+  'listSummaries',
   'joinedUsers',
   'listShareTokens',
   'profiles',
@@ -41,15 +42,52 @@ type ListUserPrefsServerRow = {
 
 export async function upsertListsSummaryFromServer(userId: string, rows: ListWithRole[]) {
   const now = Date.now()
-  await db.transaction('rw', db.lists, async () => {
+  await db.transaction('rw', db.lists, db.list_users, db.listSummaries, async () => {
     const incomingIds = new Set(rows.map((row) => row.id))
     for (const row of rows) {
+      const {
+        role,
+        userArchived,
+        sort_order,
+        sumScope,
+        label,
+        memberCount,
+        activeItemCount,
+        archivedItemCount,
+        ownerNickname,
+        ...listFields
+      } = row
       await db.lists.put({
-        ...row,
+        ...listFields,
         userId,
         cachedAt: now,
         deleted_at: null,
         app_version: APP_VERSION,
+      })
+      const existingListUser = await db.list_users.get([row.id, userId])
+      await db.list_users.put({
+        list_id: row.id,
+        user_id: userId,
+        role,
+        archived: userArchived,
+        sort_order,
+        created_at: existingListUser?.created_at ?? new Date().toISOString(),
+        member_filter: existingListUser?.member_filter ?? 'all',
+        item_text_width: existingListUser?.item_text_width ?? 'auto',
+        item_name_font_step: existingListUser?.item_name_font_step ?? 3,
+        show_targets: existingListUser?.show_targets ?? false,
+        last_viewed_members: existingListUser?.last_viewed_members ?? null,
+        sum_scope: sumScope ?? 'none',
+        label: label ?? '',
+      })
+      await db.listSummaries.put({
+        userId,
+        listId: row.id,
+        memberCount: memberCount ?? 0,
+        activeItemCount: activeItemCount ?? 0,
+        archivedItemCount: archivedItemCount ?? 0,
+        ownerNickname: ownerNickname ?? null,
+        cachedAt: now,
       })
     }
     const existing = await db.lists.where('userId').equals(userId).toArray()
@@ -59,6 +97,8 @@ export async function upsertListsSummaryFromServer(userId: string, rows: ListWit
           deleted_at: now,
           cachedAt: now,
         })
+        await db.list_users.delete([row.id, userId])
+        await db.listSummaries.delete([userId, row.id])
       }
     }
   })
@@ -76,20 +116,8 @@ export async function upsertListDataPayloadFromServer(
   const now = Date.now()
   await db.transaction('rw', db.lists, db.items, db.members, db.item_member_state, async () => {
     if (payload.list) {
-      const existing = await db.lists.get([userId, listId])
-      const mergedList: ListWithRole = {
-        ...payload.list,
-        role: existing?.role ?? 'viewer',
-        userArchived: existing?.userArchived ?? false,
-        memberCount: existing?.memberCount,
-        activeItemCount: existing?.activeItemCount,
-        archivedItemCount: existing?.archivedItemCount,
-        sumScope: existing?.sumScope ?? 'none',
-        ownerNickname: existing?.ownerNickname ?? null,
-        label: existing?.label ?? '',
-      }
       await db.lists.put({
-        ...mergedList,
+        ...payload.list,
         userId,
         cachedAt: now,
         deleted_at: null,
