@@ -8,6 +8,12 @@ import { useToast } from '@/components/ui/Toast'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 import { buildInviteUrl } from '@/lib/invite'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
+import {
+  reportServerDexieParityDiagnostics,
+  upsertJoinedUsersFromServer,
+  upsertListShareTokenFromServer,
+} from '@/lib/data/serverDexieParity'
 import type { Database, List } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -47,6 +53,9 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   /** True only for ~1s after a successful regenerate while the flourish CSS runs. */
   const [regenAnimPlaying, setRegenAnimPlaying] = useState(false)
   const [regeneratePending, setRegeneratePending] = useState(false)
+  useEffect(() => {
+    reportServerDexieParityDiagnostics()
+  }, [])
 
   useEffect(() => {
     if (!regenAnimPlaying) return
@@ -65,11 +74,17 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
     if (error) {
       console.error('Error fetching joined users:', error)
       showError('Failed to load joined users')
-      setJoinedUsers([])
+      const cachedRows = await db.joinedUsers.where('listId').equals(list.id).toArray()
+      setJoinedUsers(cachedRows.map((row) => ({
+        user_id: row.userId,
+        nickname: row.nickname,
+        member_count: row.memberCount,
+      })))
       return []
     }
 
     const nextUsers: JoinedUsersRpcResult = data || []
+    void upsertJoinedUsersFromServer(list.id, nextUsers)
     setJoinedUsers(nextUsers)
     setSelectedUserIds(prev => {
       const validUserIds = new Set(nextUsers.map(user => user.user_id))
@@ -90,11 +105,14 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
     if (error) {
       console.error('Error fetching invite token:', error)
       showError('Failed to load invite link')
-      setToken('')
-      return null
+      const cached = await db.listShareTokens.get(list.id)
+      const fallbackToken = cached?.joinToken || ''
+      setToken(fallbackToken)
+      return fallbackToken || null
     }
 
     const nextToken = data?.join_token || ''
+    void upsertListShareTokenFromServer(list.id, nextToken || null)
     setToken(nextToken)
     return nextToken
   }
@@ -192,6 +210,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
         p_force_regenerate: false,
       })
       if (error) throw error
+      void upsertListShareTokenFromServer(list.id, data || null)
       setToken(data)
       return data
     } catch (err) {
@@ -238,6 +257,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
         p_force_regenerate: true,
       })
       if (error) throw error
+      void upsertListShareTokenFromServer(list.id, data || null)
       setToken(data)
       setRegenAnimSeq(s => s + 1)
       setRegenAnimPlaying(true)
@@ -305,6 +325,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       })
 
       if (error) throw error
+      void upsertListShareTokenFromServer(list.id, null)
       setToken('')
       setVisibility('private')
       setShowConfirm(false)

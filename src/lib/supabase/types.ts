@@ -271,8 +271,6 @@ export interface Database {
           sumScope?: 'none' | 'all' | 'active' | 'archived'
           ownerNickname: string | null
           comment: string | null
-          category_names: string | null
-          category_order: string | null
           label: string
         }[]
       }

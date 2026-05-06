@@ -1,0 +1,205 @@
+import { APP_VERSION } from '@/lib/appVersion'
+import { db, type DbListPrefRow } from '@/lib/db'
+import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
+import type { Database, ItemWithState, List, ListWithRole, MemberWithCreator, Profile } from '@/lib/supabase/types'
+
+export const PARITY_SCOPE = {
+  get_user_lists: ['lists'],
+  get_list_data_list: ['listDetails'],
+  get_list_data_items: ['items'],
+  get_list_data_member_states: ['item_member_state'],
+  get_list_data_members: ['members'],
+  list_users_prefs: ['listPrefs'],
+  get_list_joined_users: ['joinedUsers'],
+  lists_join_token: ['listShareTokens'],
+  profiles_row: ['profiles'],
+} as const
+
+const PARITY_SCOPED_TABLES = [
+  'lists',
+  'listDetails',
+  'items',
+  'item_member_state',
+  'members',
+  'listPrefs',
+  'joinedUsers',
+  'listShareTokens',
+  'profiles',
+] as const
+
+function normalizeListUserSumScope(raw: unknown): DbListPrefRow['sumScope'] {
+  if (raw === 'none' || raw === 'all' || raw === 'active' || raw === 'archived') return raw
+  return 'none'
+}
+
+type ListUserPrefsServerRow = {
+  member_filter?: string | null
+  item_text_width?: string | number | null
+  item_name_font_step?: number | null
+  last_viewed_members?: string | null
+  sum_scope?: unknown
+}
+
+export async function upsertListsSummaryFromServer(userId: string, rows: ListWithRole[]) {
+  const now = Date.now()
+  await db.transaction('rw', db.lists, async () => {
+    const incomingIds = new Set(rows.map((row) => row.id))
+    for (const row of rows) {
+      await db.lists.put({
+        ...row,
+        userId,
+        cachedAt: now,
+        deleted_at: null,
+        app_version: APP_VERSION,
+      })
+    }
+    const existing = await db.lists.where('userId').equals(userId).toArray()
+    for (const row of existing) {
+      if (!incomingIds.has(row.id)) {
+        await db.lists.update([userId, row.id], {
+          deleted_at: now,
+          cachedAt: now,
+        })
+      }
+    }
+  })
+}
+
+export async function upsertListDataPayloadFromServer(
+  userId: string,
+  listId: string,
+  payload: {
+    list: List | null
+    items: ItemWithState[]
+    members: MemberWithCreator[]
+  },
+) {
+  const now = Date.now()
+  await db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, async () => {
+    await db.listDetails.put({
+      userId,
+      listId,
+      list: payload.list ? ({ ...payload.list, role: 'viewer', userArchived: false } as ListWithRole) : null,
+      cachedAt: now,
+      schemaVersion: 1,
+      deleted_at: null,
+      app_version: APP_VERSION,
+    })
+    for (const item of payload.items) {
+      await db.items.put({
+        ...item,
+        userId,
+        listId,
+        deleted_at: null,
+      })
+      for (const memberState of Object.values(item.memberStates ?? {})) {
+        await db.item_member_state.put({
+          ...memberState,
+          listId,
+          deleted_at: null,
+        })
+      }
+    }
+    for (const member of payload.members) {
+      await db.members.put({
+        ...member,
+        userId,
+        listId,
+        deleted_at: null,
+      })
+    }
+  })
+}
+
+export async function upsertListPrefsFromServer(
+  userId: string,
+  listId: string,
+  row: ListUserPrefsServerRow | null | undefined,
+) {
+  if (!row) return
+  const itemTextWidthRaw = row.item_text_width
+  const widthString =
+    typeof itemTextWidthRaw === 'number'
+      ? String(itemTextWidthRaw)
+      : typeof itemTextWidthRaw === 'string'
+        ? itemTextWidthRaw
+        : null
+  const mode: DbListPrefRow['itemTextWidthMode'] =
+    widthString == null || widthString === 'auto' ? 'auto' : 'manual'
+  await db.listPrefs.put({
+    userId,
+    listId,
+    memberFilter: row.member_filter ?? null,
+    itemTextWidth: widthString,
+    itemTextWidthMode: mode,
+    itemNameFontStep: row.item_name_font_step ?? null,
+    lastViewedMembers: row.last_viewed_members ?? null,
+    sumScope: normalizeListUserSumScope(row.sum_scope),
+    updatedAt: Date.now(),
+  })
+}
+
+export async function readListPrefsFromDexie(userId: string, listId: string) {
+  return db.listPrefs.get([userId, listId])
+}
+
+type JoinedUserServerRow = Database['public']['Functions']['get_list_joined_users']['Returns'][number]
+export async function upsertJoinedUsersFromServer(listId: string, rows: JoinedUserServerRow[]) {
+  const now = Date.now()
+  await db.transaction('rw', db.joinedUsers, async () => {
+    const nextIds = new Set(rows.map((r) => r.user_id))
+    const existing = await db.joinedUsers.where('listId').equals(listId).toArray()
+    for (const row of rows) {
+      await db.joinedUsers.put({
+        listId,
+        userId: row.user_id,
+        nickname: row.nickname ?? null,
+        memberCount: row.member_count ?? 0,
+        cachedAt: now,
+      })
+    }
+    for (const row of existing) {
+      if (!nextIds.has(row.userId)) {
+        await db.joinedUsers.delete([listId, row.userId])
+      }
+    }
+  })
+}
+
+export async function upsertListShareTokenFromServer(listId: string, token: string | null) {
+  await db.listShareTokens.put({
+    listId,
+    joinToken: token,
+    cachedAt: Date.now(),
+  })
+}
+
+export async function upsertProfileFromServer(row: Profile) {
+  await db.profiles.put({
+    ...row,
+    cachedAt: Date.now(),
+  })
+}
+
+let parityDiagnosticsReported = false
+export function reportServerDexieParityDiagnostics() {
+  if (parityDiagnosticsReported) return
+  parityDiagnosticsReported = true
+
+  const mappedServerKeys = Object.keys(PARITY_SCOPE).length
+  const mappedTables = new Set(Object.values(PARITY_SCOPE).flat())
+  const missingDexieMirror = Object.entries(PARITY_SCOPE)
+    .filter(([, tables]) => tables.length === 0)
+    .map(([serverKey]) => serverKey)
+  const orphanDexieTable = PARITY_SCOPED_TABLES.filter((tableName) => !mappedTables.has(tableName))
+
+  appendMutationDiagnostic(
+    `[parity] mappedServerObjects=${mappedServerKeys} mappedDexieTables=${mappedTables.size} missingDexieMirror=${missingDexieMirror.length} orphanDexieTable=${orphanDexieTable.length}`,
+  )
+  if (missingDexieMirror.length > 0) {
+    appendMutationDiagnostic(`[parity] missingDexieMirror keys=${missingDexieMirror.join(',')}`)
+  }
+  if (orphanDexieTable.length > 0) {
+    appendMutationDiagnostic(`[parity] orphanDexieTable names=${orphanDexieTable.join(',')}`)
+  }
+}

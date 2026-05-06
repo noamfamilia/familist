@@ -11,6 +11,7 @@ import { notifyProfileFetchSucceeded, notifyProfileFetchTimedOut } from '@/lib/p
 import { perfLog } from '@/lib/startupPerfLog'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
+import { reportServerDexieParityDiagnostics, upsertProfileFromServer } from '@/lib/data/serverDexieParity'
 
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 
@@ -128,6 +129,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const mountedRef = useRef(true)
   const userRef = useRef<User | null>(null)
   const profileFetchGenRef = useRef(0)
+  useEffect(() => {
+    reportServerDexieParityDiagnostics()
+  }, [])
 
   useEffect(() => {
     mountedRef.current = true
@@ -160,9 +164,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (!mountedRef.current || userRef.current?.id !== userId) return
-      if (error) return
+      if (error) {
+        const cachedProfile = await db.profiles.get(userId)
+        if (!cachedProfile) return
+        setProfile({
+          ...cachedProfile,
+          theme: cachedProfile.theme === 'dark' ? 'dark' : 'light',
+        })
+        return
+      }
       if (!data) return
       const row = data as Profile & { theme?: string }
+      void upsertProfileFromServer(row)
       setProfile({
         ...row,
         theme: row.theme === 'dark' ? 'dark' : 'light',

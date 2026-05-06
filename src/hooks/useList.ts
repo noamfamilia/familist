@@ -14,6 +14,12 @@ import {
   toggleItemMemberStateMutation,
 } from '@/lib/data/mutations'
 import { db } from '@/lib/db'
+import {
+  readListPrefsFromDexie,
+  reportServerDexieParityDiagnostics,
+  upsertListDataPayloadFromServer,
+  upsertListPrefsFromServer,
+} from '@/lib/data/serverDexieParity'
 import { perfLog } from '@/lib/startupPerfLog'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { diagItemCreateReplace } from '@/lib/itemMutationDiagnostics'
@@ -164,6 +170,14 @@ function setCachedPrefs(
     const updated = { ...current, ...prefs }
     localStorage.setItem(prefsKey, JSON.stringify(updated))
   } catch { /* ignore */ }
+  if (userId) {
+    void upsertListPrefsFromServer(userId, listId, {
+      member_filter: prefs.memberFilter ?? null,
+      item_text_width: prefs.itemTextWidth ?? null,
+      item_name_font_step: prefs.itemNameFontStep ?? null,
+      sum_scope: prefs.sumScope ?? null,
+    })
+  }
 }
 
 const FETCH_TIMEOUT_MS = 10_000
@@ -339,49 +353,6 @@ function rpcFailureMessage(err: unknown): string {
   return 'Unknown error'
 }
 
-async function upsertListDetailInDexie(
-  userId: string,
-  listId: string,
-  list: List | null,
-  items: ItemWithState[],
-  members: MemberWithCreator[],
-) {
-  await db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, async () => {
-    await db.listDetails.put({
-      userId,
-      listId,
-      list: list ? ({ ...list, role: 'viewer', userArchived: false } as ListWithRole) : null,
-      cachedAt: Date.now(),
-      schemaVersion: 1,
-      deleted_at: null,
-      app_version: APP_VERSION,
-    })
-    for (const item of items) {
-      await db.items.put({
-        ...item,
-        userId,
-        listId,
-        deleted_at: null,
-      })
-      for (const memberState of Object.values(item.memberStates ?? {})) {
-        await db.item_member_state.put({
-          ...memberState,
-          listId,
-          deleted_at: null,
-        })
-      }
-    }
-    for (const member of members) {
-      await db.members.put({
-        ...member,
-        userId,
-        listId,
-        deleted_at: null,
-      })
-    }
-  })
-}
-
 export function useList(listId: string) {
   const { user, profile, loading: authLoading, bootstrapUserId } = useAuth()
   const cached = getCachedList(undefined, listId)
@@ -429,6 +400,9 @@ export function useList(listId: string) {
   const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
   const dexieDetail = useListDetailQuery(userId, listId)
+  useEffect(() => {
+    reportServerDexieParityDiagnostics()
+  }, [])
 
   const { showToast, dismissToast, error: showErrorToast } = useToast()
   const {
@@ -536,7 +510,33 @@ export function useList(listId: string) {
     prefsFetchedRef.current = false
   }, [listId, userId])
 
-  const trackSaveOperation = async (operation: PromiseLike<unknown>): Promise<unknown> => {
+  useEffect(() => {
+    if (!userId || !listId) return
+    let cancelled = false
+    void (async () => {
+      const dexiePrefs = await readListPrefsFromDexie(userId, listId)
+      if (!dexiePrefs || cancelled) return
+      const dexieFilter = VALID_MEMBER_FILTERS.includes(dexiePrefs.memberFilter as MemberFilter)
+        ? dexiePrefs.memberFilter as MemberFilter
+        : 'all' as MemberFilter
+      const parsed = parseWidthValue(dexiePrefs.itemTextWidth)
+      setMemberFilter(dexieFilter)
+      setItemTextWidthMode(parsed.mode)
+      if (parsed.mode === 'manual') {
+        setItemTextWidth(parsed.width)
+      }
+      const dexieFontStep = parseItemNameFontStep(dexiePrefs.itemNameFontStep)
+      itemNameFontStepRef.current = dexieFontStep
+      setItemNameFontStep(dexieFontStep)
+      setLastViewedMembers(dexiePrefs.lastViewedMembers ?? null)
+      setSumScope(parseListUserSumScope(dexiePrefs.sumScope))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [listId, userId])
+
+  const trackSaveOperation = useCallback(async (operation: PromiseLike<unknown>): Promise<unknown> => {
     pendingSaveOpsRef.current++
     setSaveTimedOut(false)
 
@@ -564,7 +564,7 @@ export function useList(listId: string) {
         setSaveTimedOut(false)
       }
     }
-  }
+  }, [beginServerWork, endServerWork])
 
   const setLocalMemberState = (itemId: string, memberId: string, nextState: ItemMemberState | null) => {
     setItems(prev => prev.map(item => {
@@ -798,11 +798,16 @@ export function useList(listId: string) {
         items: mergedItemsForCache,
         members: mergedMembersForCache,
       })
-      void upsertListDetailInDexie(userId, listId, data.list, mergedItemsForCache, mergedMembersForCache)
+      void upsertListDataPayloadFromServer(userId, listId, {
+        list: data.list,
+        items: mergedItemsForCache,
+        members: mergedMembersForCache,
+      })
       listCount = 1
       itemCountResult = mergedItemsForCache.length
 
       if (listUserData) {
+        void upsertListPrefsFromServer(userId, listId, listUserData)
         const serverFilter = VALID_MEMBER_FILTERS.includes(listUserData.member_filter as MemberFilter)
           ? listUserData.member_filter as MemberFilter
           : 'all' as MemberFilter
@@ -900,7 +905,7 @@ export function useList(listId: string) {
     if (!list) return
     setCachedList(userId, listId, { list, items, members })
     if (userId) {
-      void upsertListDetailInDexie(userId, listId, list, items, members)
+      void upsertListDataPayloadFromServer(userId, listId, { list, items, members })
     }
   }, [userId, listId, list, items, members])
 
@@ -908,8 +913,9 @@ export function useList(listId: string) {
     if (!accessDenied) return
     removeCachedList(userId, listId)
     if (userId) {
-      void db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, async () => {
+      void db.transaction('rw', db.listDetails, db.items, db.members, db.item_member_state, db.listPrefs, async () => {
         await db.listDetails.delete([userId, listId])
+        await db.listPrefs.delete([userId, listId])
         const itemsToDelete = await db.items.where('[userId+listId]').equals([userId, listId]).toArray()
         const membersToDelete = await db.members.where('[userId+listId]').equals([userId, listId]).toArray()
         const imsToDelete = await db.item_member_state
@@ -1759,7 +1765,7 @@ export function useList(listId: string) {
         mutationGate.end()
       }
     },
-    [listId, userId, mutationGate, tryBeginMutation],
+    [listId, mutationGate, trackSaveOperation, tryBeginMutation, userId],
   )
 
   const persistCategoryNamesOnly = async (names: CategoryNames) => {

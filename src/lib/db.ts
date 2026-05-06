@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Item, ItemMemberState, ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
+import type { Item, ItemMemberState, ListWithRole, MemberWithCreator, Profile } from '@/lib/supabase/types'
 
 export type SoftDeleteMeta = {
   deleted_at: number | null
@@ -42,10 +42,30 @@ export type DbListPrefRow = {
   userId: string
   listId: string
   memberFilter: string | null
-  itemTextWidth: number | null
+  itemTextWidth: string | null
   itemTextWidthMode: 'auto' | 'manual' | null
   itemNameFontStep: number | null
+  lastViewedMembers: string | null
+  sumScope: 'none' | 'all' | 'active' | 'archived' | null
   updatedAt: number
+}
+
+export type DbJoinedUserRow = {
+  listId: string
+  userId: string
+  nickname: string | null
+  memberCount: number
+  cachedAt: number
+}
+
+export type DbListShareTokenRow = {
+  listId: string
+  joinToken: string | null
+  cachedAt: number
+}
+
+export type DbProfileRow = Profile & {
+  cachedAt: number
 }
 
 export type SyncEntityKind = 'list' | 'item' | 'member' | 'item_member_state'
@@ -95,6 +115,9 @@ export class FamilistDexie extends Dexie {
   members!: EntityTable<DbMemberRow, '[userId+listId+id]'>
   item_member_state!: EntityTable<DbItemMemberStateRow, '[listId+item_id+member_id]'>
   listPrefs!: EntityTable<DbListPrefRow, '[userId+listId]'>
+  joinedUsers!: EntityTable<DbJoinedUserRow, '[listId+userId]'>
+  listShareTokens!: EntityTable<DbListShareTokenRow, 'listId'>
+  profiles!: EntityTable<DbProfileRow, 'id'>
   sync_queue!: EntityTable<DbSyncQueueRow, '[listId+itemKey]'>
   offlineRouteMarkers!: EntityTable<DbOfflineRouteMarkerRow, '[userId+listId+buildId]'>
   meta!: EntityTable<DbMetaRow, 'key'>
@@ -109,6 +132,21 @@ export class FamilistDexie extends Dexie {
       item_member_state:
         '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
       listPrefs: '&[userId+listId]',
+      sync_queue: '&[listId+itemKey], listId, kind, updatedAt',
+      offlineRouteMarkers: '&[userId+listId+buildId], [userId+listId], buildId',
+      meta: '&key',
+    })
+    this.version(3).stores({
+      lists: '&[userId+id], userId, userArchived, sort_order, deleted_at',
+      listDetails: '&[userId+listId], userId, listId, cachedAt, deleted_at',
+      items: '&[userId+listId+id], [userId+listId], list_id, archived, sort_order, category, deleted_at',
+      members: '&[userId+listId+id], [userId+listId], list_id, sort_order, deleted_at',
+      item_member_state:
+        '&[listId+item_id+member_id], [listId+item_id], [listId+member_id], item_id, member_id, deleted_at',
+      listPrefs: '&[userId+listId], userId, listId, updatedAt',
+      joinedUsers: '&[listId+userId], listId, cachedAt',
+      listShareTokens: '&listId, cachedAt',
+      profiles: '&id, updated_at, cachedAt',
       sync_queue: '&[listId+itemKey], listId, kind, updatedAt',
       offlineRouteMarkers: '&[userId+listId+buildId], [userId+listId], buildId',
       meta: '&key',

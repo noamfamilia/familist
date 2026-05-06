@@ -11,6 +11,7 @@ import { db } from '@/lib/db'
 import { APP_VERSION } from '@/lib/appVersion'
 import { perfLog } from '@/lib/startupPerfLog'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { reportServerDexieParityDiagnostics, upsertListsSummaryFromServer } from '@/lib/data/serverDexieParity'
 import {
   isLikelyConnectivityError,
   resolveServerWorkOutcomeFromResult,
@@ -38,46 +39,29 @@ function coalesceListUserSumScope(raw: unknown): ListUserSumScope {
   return 'none'
 }
 
-async function upsertListsInDexie(userId: string, rows: ListWithRole[]) {
-  appendMutationDiagnostic(
-    `[fetchLists.debug] dexie-upsert-start userId=${userId} rows=${rows.length} firstId=${rows[0]?.id ?? 'none'}`,
-  )
-  try {
-    await db.transaction('rw', db.lists, async () => {
-      const incomingIds = new Set(rows.map((row) => row.id))
-      for (const row of rows) {
-        await db.lists.put({
-          ...row,
-          userId,
-          cachedAt: Date.now(),
-          deleted_at: null,
-          app_version: APP_VERSION,
-        })
-      }
-      const existing = await db.lists.where('userId').equals(userId).toArray()
-      for (const row of existing) {
-        if (!incomingIds.has(row.id)) {
-          await db.lists.update([userId, row.id], {
-            deleted_at: Date.now(),
-            cachedAt: Date.now(),
-          })
-        }
-      }
-    })
-    appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert-ok userId=${userId} rows=${rows.length}`)
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert-error userId=${userId} msg=${msg}`)
-    throw error
-  }
-}
-
 async function softDeleteListInDexie(userId: string | null, listId: string) {
   if (!userId) return
   const nowMs = Date.now()
-  await db.transaction('rw', db.lists, db.listDetails, db.items, db.members, db.item_member_state, db.sync_queue, async () => {
+  await db.transaction(
+    'rw',
+    db.lists,
+    db.listDetails,
+    db.items,
+    db.members,
+    db.item_member_state,
+    db.listPrefs,
+    db.joinedUsers,
+    db.listShareTokens,
+    db.sync_queue,
+    async () => {
     await db.lists.update([userId, listId], { deleted_at: nowMs, cachedAt: nowMs })
     await db.listDetails.update([userId, listId], { deleted_at: nowMs, cachedAt: nowMs })
+    await db.listPrefs.delete([userId, listId])
+    const joinedUsers = await db.joinedUsers.where('listId').equals(listId).toArray()
+    for (const row of joinedUsers) {
+      await db.joinedUsers.delete([listId, row.userId])
+    }
+    await db.listShareTokens.delete(listId)
     const [items, members, states] = await Promise.all([
       db.items.where('[userId+listId]').equals([userId, listId]).toArray(),
       db.members.where('[userId+listId]').equals([userId, listId]).toArray(),
@@ -96,7 +80,8 @@ async function softDeleteListInDexie(userId: string | null, listId: string) {
       attemptCount: 0,
       lastError: null,
     })
-  })
+    },
+  )
 }
 
 export function useLists() {
@@ -123,6 +108,9 @@ export function useLists() {
   const scheduleRealtimeFetchRef = useRef<(delayMs: number, consumePending?: boolean) => void>(() => {})
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
   const dexieLists = useListsQuery(userId)
+  useEffect(() => {
+    reportServerDexieParityDiagnostics()
+  }, [])
 
   const {
     isOfflineActionsDisabled,
@@ -321,15 +309,13 @@ export function useLists() {
         sumScope: coalesceListUserSumScope(item.sumScope),
         ownerNickname: item.ownerNickname,
         comment: item.comment,
-        category_names: item.category_names ?? null,
-        category_order: item.category_order ?? null,
         label: item.label ?? '',
       }))
       appendMutationDiagnostic(`[fetchLists.debug] apply rows=${listsData.length}`)
 
       setLists(listsData)
       setCachedLists(userId, listsData)
-      await upsertListsInDexie(userId, listsData)
+      await upsertListsSummaryFromServer(userId, listsData)
       appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert rows=${listsData.length}`)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
