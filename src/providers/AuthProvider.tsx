@@ -8,7 +8,7 @@ import type { Profile } from '@/lib/supabase/types'
 import { clearActiveCacheUserId, getActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { notifyProfileFetchSucceeded, notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
-import { perfLog } from '@/lib/startupPerfLog'
+import { log, perfLog } from '@/lib/startupPerfLog'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
 import { runLocalDexieGc } from '@/lib/data/localDexieGc'
@@ -33,7 +33,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const PROFILE_FETCH_STARTUP_TIMEOUT_MS = 500
+const PROFILE_FETCH_STARTUP_TIMEOUT_MS = 2_000
 const PROFILE_FETCH_TIMEOUT_MESSAGE = 'profile fetch timeout'
 const AUTH_RECOVERY_ONCE_KEY = 'familist_auth_recovery_done_once'
 
@@ -278,6 +278,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   theme: cachedProfile.theme === 'dark' ? 'dark' : 'light',
                 })
               }
+              log.warn('AUTH', 'fetchProfile timeout; proceeding with cached profile', {
+                userId,
+                gen,
+                timeoutMs: PROFILE_FETCH_STARTUP_TIMEOUT_MS,
+                hadCachedProfile: !!cachedProfile,
+              })
               notifyProfileFetchTimedOut()
               setProfileFetchPhase('timeout')
             } else if (profileFetchGenRef.current === gen) {
