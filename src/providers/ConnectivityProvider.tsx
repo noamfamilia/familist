@@ -6,7 +6,7 @@ import type { PwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { isPwaDebugEnabled, isPwaDeepDebugEnabled } from '@/lib/pwaDebug'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
-import { perfLog } from '@/lib/startupPerfLog'
+import { log, perfLog } from '@/lib/startupPerfLog'
 import {
   registerProfileFetchOfflineHandler,
   registerProfileFetchRecoveryHandler,
@@ -42,7 +42,9 @@ const SW_QUIET_MAX_WAIT_MS = 3_000
 const SW_QUIET_POLL_MS = 500
 const BOOT_ONLINE_GRACE_MS = 1_500
 const OFFLINE_BANNER_DEBOUNCE_MS = 3_000
-const REACHABILITY_PROBE_TIMEOUT_MS = 1_000
+const REACHABILITY_PROBE_TIMEOUT_MS = 5_000
+const OFFLINE_FAILURE_THRESHOLD = 2
+const RECENT_NETWORK_SUCCESS_OVERRIDE_MS = 60_000
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -304,6 +306,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const probeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const probeInFlightRef = useRef(false)
   const probeStepRef = useRef(0)
+  const consecutiveProbeFailuresRef = useRef(0)
+  const lastNetworkSuccessAtRef = useRef(Date.now())
   /** After `window` `online` (or tab visible while browser reports online), next probe runs in 1s; then 5/10/20/30/60 on failures. */
   const useNextProbeDelay1sRef = useRef(false)
   /** While true, first probe failure after a 1s post-online schedule must not advance backoff step (next wait stays 5s). */
@@ -337,9 +341,11 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     dismissSyncingToast()
     clearProbeSchedule()
     probeStepRef.current = 0
+    consecutiveProbeFailuresRef.current = 0
     probeInFlightRef.current = false
     useNextProbeDelay1sRef.current = false
     skipNextProbeStepIncrementRef.current = false
+    lastNetworkSuccessAtRef.current = Date.now()
     setInternetReachable(true)
     setStatus('online')
     try {
@@ -378,7 +384,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         probeInFlightRef.current = true
         const probeStartedAt = performance.now()
         appendOfflineNavDiagnostic(
-          `[probe] start path=/favicon.ico method=HEAD timeoutMs=1000 status=${statusRef.current} step=${probeStepRef.current}`,
+          `[probe] start path=/favicon.ico method=HEAD timeoutMs=${REACHABILITY_PROBE_TIMEOUT_MS} status=${statusRef.current} step=${probeStepRef.current}`,
         )
         const ok = await probeInternetReachable()
         probeInFlightRef.current = false
@@ -390,29 +396,57 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         const s = statusRef.current
 
         if (!ok) {
-          if (s === 'recovering') {
+          const recentSuccessAgeMs = Date.now() - lastNetworkSuccessAtRef.current
+          if (recentSuccessAgeMs <= RECENT_NETWORK_SUCCESS_OVERRIDE_MS) {
+            appendOfflineNavDiagnostic(
+              `[probe] ignore-failure reason=recent-network-success ageMs=${recentSuccessAgeMs}`,
+            )
+            consecutiveProbeFailuresRef.current = 0
+            probeStepRef.current = 0
+            skipNextProbeStepIncrementRef.current = false
+            scheduleNextProbeRef.current()
+            return
+          }
+          consecutiveProbeFailuresRef.current += 1
+          const failureCount = consecutiveProbeFailuresRef.current
+          const thresholdReached = failureCount >= OFFLINE_FAILURE_THRESHOLD
+          if (thresholdReached && (s === 'recovering' || s === 'online')) {
             try {
               localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
             } catch {
               // ignore
             }
             appendOfflineNavDiagnostic(
-              '[connectivity-transition] trigger=probe-failure from=recovering to=offline',
+              `[connectivity-transition] trigger=probe-failure-threshold from=${s} to=offline failures=${failureCount}`,
             )
+            log.warn('CONNECTIVITY', `Heartbeat failed after ${failureCount} retries`, {
+              trigger: 'heartbeat',
+              failures: failureCount,
+              step: probeStepRef.current,
+              status: s,
+            })
             setStatus('offline')
-            skipNextProbeStepIncrementRef.current = false
+          } else {
+            appendOfflineNavDiagnostic(
+              `[probe] failure-pending failures=${failureCount}/${OFFLINE_FAILURE_THRESHOLD} status=${s}`,
+            )
+            if (s === 'online') {
+              setStatus('recovering')
+            }
           }
           if (skipNextProbeStepIncrementRef.current) {
             skipNextProbeStepIncrementRef.current = false
           } else {
-            probeStepRef.current = Math.min(probeStepRef.current + 1, 4)
+            probeStepRef.current = Math.min(probeStepRef.current + 1, 2)
           }
           scheduleNextProbeRef.current()
           return
         }
 
         probeStepRef.current = 0
+        consecutiveProbeFailuresRef.current = 0
         skipNextProbeStepIncrementRef.current = false
+        lastNetworkSuccessAtRef.current = Date.now()
         if (s === 'offline') {
           appendOfflineNavDiagnostic(
             '[connectivity-transition] trigger=probe-success from=offline to=recovering',
@@ -423,7 +457,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           return
         }
         if (s === 'recovering') {
-          probeStepRef.current = Math.min(probeStepRef.current + 1, 4)
+          probeStepRef.current = Math.min(probeStepRef.current + 1, 2)
           scheduleNextProbeRef.current()
         }
       })()
@@ -443,6 +477,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     dismissSyncingToast()
     clearProbeSchedule()
     probeStepRef.current = 0
+    consecutiveProbeFailuresRef.current = 0
     probeInFlightRef.current = false
     useNextProbeDelay1sRef.current = false
     skipNextProbeStepIncrementRef.current = false
@@ -482,8 +517,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     registerProfileFetchOfflineHandler(null)
-    registerProfileFetchRecoveryHandler(() => {
-      markOnlineRecovered('profile-fetch-recovery-handler')
+    registerProfileFetchRecoveryHandler((source) => {
+      markOnlineRecovered(source ? `network-success-listener:${source}` : 'profile-fetch-recovery-handler')
     })
     return () => {
       registerProfileFetchOfflineHandler(null)
@@ -617,13 +652,41 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       if (cancelled) return
       setInternetReachable(ok)
       if (!ok) {
+        const recentSuccessAgeMs = Date.now() - lastNetworkSuccessAtRef.current
+        if (recentSuccessAgeMs <= RECENT_NETWORK_SUCCESS_OVERRIDE_MS) {
+          appendOfflineNavDiagnostic(
+            `[probe] ignore-failure reason=recent-network-success ageMs=${recentSuccessAgeMs} cause=${cause}`,
+          )
+          consecutiveProbeFailuresRef.current = 0
+          return
+        }
         if (sinceBootMs >= BOOT_ONLINE_GRACE_MS) {
-          enterOfflineRef.current(`reachability-failed:${cause}`)
+          consecutiveProbeFailuresRef.current += 1
+          appendOfflineNavDiagnostic(
+            `[probe] initial-failure count=${consecutiveProbeFailuresRef.current}/${OFFLINE_FAILURE_THRESHOLD} cause=${cause}`,
+          )
+          if (consecutiveProbeFailuresRef.current >= OFFLINE_FAILURE_THRESHOLD) {
+            log.warn('CONNECTIVITY', `Heartbeat failed after ${consecutiveProbeFailuresRef.current} retries`, {
+              trigger: 'initial-reachability',
+              failures: consecutiveProbeFailuresRef.current,
+              cause,
+            })
+            enterOfflineRef.current(`heartbeat-failed-after-${consecutiveProbeFailuresRef.current}-retries:${cause}`)
+          } else if (statusRef.current === 'online') {
+            setStatus('recovering')
+          }
+          queueMicrotask(() => {
+            scheduleNextProbeRef.current()
+          })
         } else {
           appendOfflineNavDiagnostic(
             `[probe] suppress-offline-during-boot-grace cause=${cause} sinceBootMs=${sinceBootMs}`,
           )
         }
+      }
+      if (ok) {
+        consecutiveProbeFailuresRef.current = 0
+        lastNetworkSuccessAtRef.current = Date.now()
       }
     }
     void probeAndUpdate('initial')

@@ -13,6 +13,7 @@ import { perfLog } from '@/lib/startupPerfLog'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { reportServerDexieParityDiagnostics, upsertListsSummaryFromServer } from '@/lib/data/serverDexieParity'
 import { collectListIdsNeedingMirrorFromSummaries, enqueueListMirrorJobs } from '@/lib/data/listMirror'
+import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 import {
   clearSyncQueueForList,
   enqueueSyncQueueRecord,
@@ -366,6 +367,7 @@ export function useLists() {
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
       listCount = listsData.length
+      notifyNetworkOpSucceeded('fetchLists')
       markOnlineRecovered('fetchLists-success')
       serverOutcome = 'success'
     } catch (err) {

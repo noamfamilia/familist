@@ -68,6 +68,7 @@ import {
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useToast } from '@/components/ui/Toast'
 import { createUserMutationGate } from '@/lib/userMutationGate'
+import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 
 const supabase = createClient()
 
@@ -790,6 +791,7 @@ export function useList(listId: string) {
         setSumScope(serverSumScope)
         setCachedPrefs(listId, { sumScope: serverSumScope }, userId)
       }
+      notifyNetworkOpSucceeded('fetchList')
       markOnlineRecovered('fetchList-success')
       setFetchTimedOut(false)
       appendOfflineNavDiagnostic(

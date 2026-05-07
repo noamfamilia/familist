@@ -7,7 +7,7 @@ import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import { clearActiveCacheUserId, getActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
 import { db } from '@/lib/db'
-import { notifyProfileFetchSucceeded, notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
+import { notifyNetworkOpSucceeded, notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
 import { log, perfLog } from '@/lib/startupPerfLog'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...row,
         theme: row.theme === 'dark' ? 'dark' : 'light',
       })
-      notifyProfileFetchSucceeded()
+      notifyNetworkOpSucceeded('fetchProfile')
     } catch (err) {
       console.error('fetchProfile error:', err)
     } finally {

@@ -4,14 +4,14 @@
  */
 
 let enterOfflineOnProfileTimeout: (() => void) | null = null
-let markOnlineAfterProfileRecovery: (() => void) | null = null
+let markOnlineAfterProfileRecovery: ((source?: string) => void) | null = null
 let offlineWasDueToProfileTimeout = false
 
 export function registerProfileFetchOfflineHandler(fn: (() => void) | null): void {
   enterOfflineOnProfileTimeout = fn
 }
 
-export function registerProfileFetchRecoveryHandler(fn: (() => void) | null): void {
+export function registerProfileFetchRecoveryHandler(fn: ((source?: string) => void) | null): void {
   markOnlineAfterProfileRecovery = fn
 }
 
@@ -26,11 +26,10 @@ export function notifyProfileFetchSucceeded(): void {
     offlineWasDueToProfileTimeout = false
   }
   // Any successful profile fetch is a strong online signal.
-  markOnlineAfterProfileRecovery?.()
+  markOnlineAfterProfileRecovery?.('fetchProfile')
 }
 
 export function notifyNetworkOpSucceeded(source: string): void {
-  void source
   offlineWasDueToProfileTimeout = false
-  markOnlineAfterProfileRecovery?.()
+  markOnlineAfterProfileRecovery?.(source)
 }
