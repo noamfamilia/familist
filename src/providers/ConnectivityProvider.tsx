@@ -28,6 +28,7 @@ type ConnectivityStatus = 'online' | 'recovering' | 'offline'
 const SERVER_PROGRESS_STALL_MS = 15_000
 
 const CONNECTIVITY_STATUS_KEY = 'familist_connectivity_status'
+const LEGACY_OFFLINE_WALL_PURGE_KEY = 'familist_legacy_offline_wall_purged_v2'
 const TEMP_SYNC_TIMEOUT_MS = 10000
 const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
 const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
@@ -236,6 +237,47 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const [swControlled, setSwControlled] = useState(false)
   const [internetReachable, setInternetReachable] = useState<boolean | null>(null)
   const [showOfflineBanner, setShowOfflineBanner] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const runLegacyOfflineWallPurge = async () => {
+      if (typeof window === 'undefined' || !('caches' in window)) return
+      try {
+        if (localStorage.getItem(LEGACY_OFFLINE_WALL_PURGE_KEY) === '1') return
+      } catch {
+        // ignore storage access errors
+      }
+      try {
+        const cacheNames = await caches.keys()
+        for (const cacheName of cacheNames) {
+          if (cancelled) return
+          if (cacheName.startsWith('serwist-')) {
+            await caches.delete(cacheName)
+            continue
+          }
+          const cache = await caches.open(cacheName)
+          const requests = await cache.keys()
+          for (const req of requests) {
+            const url = new URL(req.url)
+            if (url.pathname === '/~offline') {
+              await cache.delete(req)
+            }
+          }
+        }
+        try {
+          localStorage.setItem(LEGACY_OFFLINE_WALL_PURGE_KEY, '1')
+        } catch {
+          // ignore storage access errors
+        }
+      } catch {
+        // best-effort cleanup only
+      }
+    }
+    void runLegacyOfflineWallPurge()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const onLine = typeof navigator !== 'undefined' ? navigator.onLine : true
