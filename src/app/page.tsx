@@ -77,8 +77,8 @@ function HomeContent() {
   const {
     showOfflineBanner,
     offlineAssetsReady,
+    online,
     internetReachable,
-    status,
     isOfflineActionsDisabled: connectivityOffline,
   } = useConnectivity()
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -345,7 +345,7 @@ function HomeContent() {
   useEffect(() => {
     const payload = {
       shouldRender: showListsShell,
-      online: status === 'online',
+      online,
       internetReachable: internetReachable === true,
       authReady: !loading,
     }
@@ -353,7 +353,7 @@ function HomeContent() {
     if (snapshot === homeGateLogPrevRef.current) return
     homeGateLogPrevRef.current = snapshot
     log.info('GATE', 'HomeContent', payload)
-  }, [internetReachable, loading, showListsShell, status])
+  }, [internetReachable, loading, online, showListsShell])
 
   return (
     <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">

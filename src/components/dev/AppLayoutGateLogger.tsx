@@ -7,13 +7,13 @@ import { log } from '@/lib/startupPerfLog'
 
 export function AppLayoutGateLogger() {
   const { loading } = useAuth()
-  const { status, internetReachable } = useConnectivity()
+  const { online, internetReachable } = useConnectivity()
   const prevRef = useRef<string>('')
 
   useEffect(() => {
     const payload = {
       shouldRender: true,
-      online: status === 'online',
+      online,
       internetReachable: internetReachable === true,
       authReady: !loading,
     }
@@ -21,7 +21,7 @@ export function AppLayoutGateLogger() {
     if (snapshot === prevRef.current) return
     prevRef.current = snapshot
     log.info('GATE', 'AppLayout', payload)
-  }, [internetReachable, loading, status])
+  }, [internetReachable, loading, online])
 
   return null
 }

@@ -118,6 +118,7 @@ function logFallbackSwRegister(appendDiagnostics: (section: string) => void) {
 
 type ConnectivityContextType = {
   status: ConnectivityStatus
+  online: boolean
   internetReachable: boolean | null
   /** True when offline or recovering (navigation / optimistic UI should match). */
   isOfflineActionsDisabled: boolean
@@ -1071,6 +1072,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     <ConnectivityContext.Provider
       value={{
         status,
+        online: status === 'online',
         internetReachable,
         isOfflineActionsDisabled: status === 'offline' || status === 'recovering',
         allowItemMutationQueue: status !== 'online',

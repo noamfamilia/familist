@@ -271,7 +271,7 @@ export default function ListPage() {
 
   const { error: showError } = useToast()
   const hasHydrated = useHasHydrated()
-  const { showOfflineBanner, offlineAssetsReady, swControlled, internetReachable, status } = useConnectivity()
+  const { showOfflineBanner, offlineAssetsReady, swControlled, internetReachable, online } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
@@ -318,7 +318,7 @@ export default function ListPage() {
   useEffect(() => {
     const payload = {
       shouldRender: !!list,
-      online: status === 'online',
+      online,
       internetReachable: internetReachable === true,
       authReady: !authLoading,
     }
@@ -326,7 +326,7 @@ export default function ListPage() {
     if (snapshot === listGateLogPrevRef.current) return
     listGateLogPrevRef.current = snapshot
     log.info('GATE', 'ListPage', payload)
-  }, [authLoading, internetReachable, list, status])
+  }, [authLoading, internetReachable, list, online])
 
   const listItemsClipboardText = useMemo(() => {
     const active = [...items]
