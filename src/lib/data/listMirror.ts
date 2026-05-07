@@ -10,6 +10,8 @@ const supabase = createClient()
 export const LIST_MIRROR_QUEUE_META_ID = 'list_mirror_queue'
 const PRIORITY_META_ID = 'list_mirror_priority_list_id'
 const MIRROR_DETAIL_VERSION_PREFIX = 'mirror_detail_list_version:'
+export const LIST_MIRROR_RUNNING_META_ID = 'list_mirror_running'
+export const LIST_MIRROR_LAST_SUCCESS_LIST_ID_META_ID = 'list_mirror_last_success'
 
 /** Stable per-tab owner for list mirror locks (fetchList + background worker share this). */
 export const LIST_MIRROR_SESSION_OWNER =
@@ -107,6 +109,11 @@ export async function runListMirrorJob(
     return
   }
   try {
+    await db.meta.put({
+      id: LIST_MIRROR_RUNNING_META_ID,
+      value: { running: true, list_id: listId, since_ms: Date.now() },
+      updated_at: Date.now(),
+    })
     const list = await db.lists.get(listId)
     if (!list) {
       appendMutationDiagnostic(`[list-mirror] skip no list row listId=${listId}`)
@@ -143,10 +150,20 @@ export async function runListMirrorJob(
       members,
     })
     await setLastMirroredListDetailVersion(listId, data.list.version ?? list.version)
+    await db.meta.put({
+      id: LIST_MIRROR_LAST_SUCCESS_LIST_ID_META_ID,
+      value: { list_id: listId, at_iso: new Date().toISOString() },
+      updated_at: Date.now(),
+    })
     appendMutationDiagnostic(`[list-mirror] ok listId=${listId} items=${items.length} members=${members.length}`)
   } catch (e) {
     appendMutationDiagnostic(`[list-mirror] error listId=${listId} msg=${e instanceof Error ? e.message : String(e)}`)
   } finally {
+    await db.meta.put({
+      id: LIST_MIRROR_RUNNING_META_ID,
+      value: { running: false, list_id: listId, since_ms: null },
+      updated_at: Date.now(),
+    })
     await releaseListMirrorLock(listId, owner)
   }
 }

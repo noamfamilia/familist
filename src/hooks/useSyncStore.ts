@@ -427,6 +427,8 @@ export function useSyncStore(): SyncStoreState {
           p_rows?: unknown
           p_has_targets?: boolean
           member_id?: string
+          force_regenerate?: boolean
+          p_user_ids?: string[]
         }
         const method = String(payload.method ?? '')
         if (method === 'reorderListItems') {
