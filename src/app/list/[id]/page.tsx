@@ -657,7 +657,11 @@ export default function ListPage() {
     setNewItemText('')
   }, [])
 
-  if (!hasMounted || (authLoading && !bootstrapUserId) || loading) {
+  if (!hasMounted) {
+    return null
+  }
+
+  if ((authLoading && !bootstrapUserId) || loading) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />
