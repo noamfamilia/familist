@@ -658,10 +658,12 @@ function HomeContent() {
       )}
 
       {/* Auth modal */}
-      <AuthModal
-        isOpen={showAuthModal && !user}
-        onClose={() => setShowAuthModal(false)}
-      />
+      {showAuthModal && !user ? (
+        <AuthModal
+          isOpen
+          onClose={() => setShowAuthModal(false)}
+        />
+      ) : null}
 
       <ProfileModal
         isOpen={showProfile}

@@ -94,12 +94,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   // Sign in / Sign up / Forgot password form
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={handleClose} 
-      title={getTitle()}
-    >
-      <ClientHydrationGate>
+    <ClientHydrationGate>
+      <Modal 
+        isOpen={isOpen} 
+        onClose={handleClose} 
+        title={getTitle()}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Email"
@@ -186,28 +186,28 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </button>
           )}
         </form>
-      </ClientHydrationGate>
 
-      <div className="mt-6 flex flex-col items-center gap-2">
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          {mode === 'signUp' ? "Already have an account?" : mode === 'forgotPassword' ? "Remember your password?" : "Don't have an account?"}
-        </span>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => {
-            if (mode === 'signUp') {
-              setMode('signIn')
-            } else {
-              setMode(mode === 'forgotPassword' ? 'signIn' : 'signUp')
-            }
-            setError('')
-            setSuccessMessage('')
-          }}
-        >
-          {mode === 'signUp' ? 'Sign In' : mode === 'forgotPassword' ? 'Sign In' : 'Sign Up'}
-        </Button>
-      </div>
-    </Modal>
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {mode === 'signUp' ? "Already have an account?" : mode === 'forgotPassword' ? "Remember your password?" : "Don't have an account?"}
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              if (mode === 'signUp') {
+                setMode('signIn')
+              } else {
+                setMode(mode === 'forgotPassword' ? 'signIn' : 'signUp')
+              }
+              setError('')
+              setSuccessMessage('')
+            }}
+          >
+            {mode === 'signUp' ? 'Sign In' : mode === 'forgotPassword' ? 'Sign In' : 'Sign Up'}
+          </Button>
+        </div>
+      </Modal>
+    </ClientHydrationGate>
   )
 }
