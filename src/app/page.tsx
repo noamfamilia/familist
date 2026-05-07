@@ -25,6 +25,7 @@ import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
+import { ClientHydrationGate } from '@/components/app/ClientHydrationGate'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -750,7 +751,9 @@ function HomeFallback() {
 export default function Home() {
   return (
     <Suspense fallback={<HomeFallback />}>
-      <HomeContent />
+      <ClientHydrationGate>
+        <HomeContent />
+      </ClientHydrationGate>
     </Suspense>
   )
 }
