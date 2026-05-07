@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/providers/AuthProvider'
+import { ClientHydrationGate } from '@/components/app/ClientHydrationGate'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -98,92 +99,94 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       onClose={handleClose} 
       title={getTitle()}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="your@email.com"
-          required
-          autoComplete="email"
-        />
-
-        {mode === 'signUp' && (
+      <ClientHydrationGate>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Nickname (you can change it later)"
-            type="text"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="e.g. John"
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="your@email.com"
             required
-            maxLength={50}
-            autoComplete="nickname"
+            autoComplete="email"
           />
-        )}
 
-        {mode !== 'forgotPassword' && (
-          <Input
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Your password"
-            required
-            minLength={6}
-            autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
-          />
-        )}
-
-        {mode === 'signUp' && (
-          <>
+          {mode === 'signUp' && (
             <Input
-              label="Confirm Password"
+              label="Nickname (you can change it later)"
+              type="text"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="e.g. John"
+              required
+              maxLength={50}
+              autoComplete="nickname"
+            />
+          )}
+
+          {mode !== 'forgotPassword' && (
+            <Input
+              label="Password"
               type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Your password"
               required
               minLength={6}
-              autoComplete="new-password"
+              autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
             />
-          </>
-        )}
+          )}
 
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm text-center">
-            {error}
-          </div>
-        )}
+          {mode === 'signUp' && (
+            <>
+              <Input
+                label="Confirm Password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm your password"
+                required
+                minLength={6}
+                autoComplete="new-password"
+              />
+            </>
+          )}
 
-        {successMessage && (
-          <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg text-sm text-center">
-            {successMessage}
-          </div>
-        )}
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm text-center">
+              {error}
+            </div>
+          )}
 
-        <Button
-          type="submit"
-          className="w-full"
-          loading={loading}
-        >
-          {mode === 'forgotPassword' ? 'Send Reset Email' : mode === 'signUp' ? 'Sign Up' : 'Sign In'}
-        </Button>
+          {successMessage && (
+            <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg text-sm text-center">
+              {successMessage}
+            </div>
+          )}
 
-        {mode === 'signIn' && (
-          <button
-            type="button"
-            onClick={() => {
-              setMode('forgotPassword')
-              setError('')
-              setSuccessMessage('')
-            }}
-            className="w-full text-sm text-gray-500 dark:text-gray-400 hover:text-teal"
+          <Button
+            type="submit"
+            className="w-full"
+            loading={loading}
           >
-            Forgot your password?
-          </button>
-        )}
-      </form>
+            {mode === 'forgotPassword' ? 'Send Reset Email' : mode === 'signUp' ? 'Sign Up' : 'Sign In'}
+          </Button>
+
+          {mode === 'signIn' && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode('forgotPassword')
+                setError('')
+                setSuccessMessage('')
+              }}
+              className="w-full text-sm text-gray-500 dark:text-gray-400 hover:text-teal"
+            >
+              Forgot your password?
+            </button>
+          )}
+        </form>
+      </ClientHydrationGate>
 
       <div className="mt-6 flex flex-col items-center gap-2">
         <span className="text-sm text-gray-500 dark:text-gray-400">
