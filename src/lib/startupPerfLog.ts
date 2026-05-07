@@ -3,7 +3,7 @@
  * Lines are buffered until a UI sink registers (see DiagnosticsMessageBoxProvider).
  */
 
-import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
+import { DIAGNOSTICS_DATA_COLLECTION_ENABLED, isDebugVerboseEnabled } from '@/lib/diagnosticsFlags'
 
 let bootT0: number | null = null
 const pendingLines: string[] = []
@@ -36,21 +36,95 @@ function ensureBootT0(): void {
 
 /** Elapsed ms from first perfLog (boot reference). */
 export function perfLog(label: string, extra: Record<string, unknown> = {}): void {
+  const namespace = namespaceFromLabel(label)
+  const msg = withInlineErrorMessage(label, extra)
+  log.info(namespace, msg, extra)
+}
+
+type LogLevel = 'INFO' | 'WARN' | 'ERROR'
+
+function utcClock(now: Date): string {
+  return now.toISOString().slice(11, 19) + 'Z'
+}
+
+function relativeMs(): number {
   ensureBootT0()
   const t0 = bootT0 ?? 0
-  const t = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - t0)
-  const extraKeys = Object.keys(extra)
-  const line =
-    extraKeys.length > 0
-      ? `[perf +${t}ms] ${label} ${JSON.stringify(extra)}`
-      : `[perf +${t}ms] ${label}`
-  if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-    return
-  }
+  return Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - t0)
+}
+
+function namespaceFromLabel(label: string): string {
+  const first = label.split(/[ /:_-]/).find(Boolean) ?? 'APP'
+  const upper = first.toUpperCase()
+  if (upper.startsWith('FETCH')) return 'DB'
+  if (upper.includes('SYNC')) return 'SYNC'
+  if (upper.includes('DEXIE')) return 'DEXIE'
+  return upper.slice(0, 24)
+}
+
+function hasGateKeyword(text: string): boolean {
+  return /\bgate\b/i.test(text)
+}
+
+function withInlineErrorMessage(message: string, extra?: Record<string, unknown>): string {
+  if (!extra) return message
+  const err = extra.error
+  const errMsg =
+    typeof err === 'string'
+      ? err
+      : err instanceof Error
+        ? err.message
+        : typeof extra.message === 'string'
+          ? extra.message
+          : null
+  if (!errMsg) return message
+  return `${message} :: ${errMsg}`
+}
+
+function emojiFor(level: LogLevel, namespace: string, message: string): string {
+  if (level === 'ERROR') return '🔴'
+  if (/SYNC|MIRROR|QUEUE/i.test(namespace) || /sync|mirror|queue/i.test(message)) return '🔄'
+  if (/DEXIE|DB/i.test(namespace) || /dexie|db\.|bulkPut|bulkAdd|put|write/i.test(message)) return '💾'
+  return ''
+}
+
+function shouldEmit(level: LogLevel, namespace: string, message: string): boolean {
+  if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return false
+  if (level === 'ERROR') return true
+  if (/SYNC/i.test(namespace) || /sync|mirror|queue/i.test(message)) return true
+  if (!isDebugVerboseEnabled() && hasGateKeyword(`${namespace} ${message}`)) return false
+  return true
+}
+
+function emitLine(line: string): void {
   if (sink) {
     sink(line)
   } else {
     pendingLines.push(line)
     while (pendingLines.length > PENDING_CAP) pendingLines.shift()
   }
+}
+
+function writeLog(level: LogLevel, namespace: string, message: string, extra?: Record<string, unknown>): void {
+  const msg = withInlineErrorMessage(message, extra)
+  if (!shouldEmit(level, namespace, msg)) return
+  const now = new Date()
+  const emoji = emojiFor(level, namespace, msg)
+  const rel = relativeMs()
+  const prefix = `[${utcClock(now)}] [+${rel}ms] [${level}] [${namespace}]`
+  const json = extra && Object.keys(extra).length > 0 ? ` ${JSON.stringify(extra)}` : ''
+  const decorated = emoji ? `${emoji} ${msg}` : msg
+  emitLine(`${prefix} ${decorated}${json}`)
+}
+
+export const log = {
+  info(namespace: string, message: string, extra: Record<string, unknown> = {}) {
+    writeLog('INFO', namespace.toUpperCase(), message, extra)
+  },
+  warn(namespace: string, message: string, extra: Record<string, unknown> = {}) {
+    writeLog('WARN', namespace.toUpperCase(), message, extra)
+  },
+  error(namespace: string, message: string, extra: Record<string, unknown> = {}) {
+    writeLog('ERROR', namespace.toUpperCase(), message, extra)
+  },
 }

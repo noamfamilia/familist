@@ -11,6 +11,7 @@ import {
 import { PENDING_SCHEMA_10_MIRROR_RECONCILE_META_ID } from '@/lib/data/versionCheck'
 import { registerPerfLogSink } from '@/lib/startupPerfLog'
 import { useToast } from '@/components/ui/Toast'
+import { isDebugVerboseEnabled, setDebugVerboseEnabled } from '@/lib/diagnosticsFlags'
 
 type LogLine = { ts: string; message: string }
 const LOG_CAP = 20
@@ -72,6 +73,7 @@ export function DiagnosticOverlay() {
     typeof navigator !== 'undefined' ? navigator.onLine : true,
   )
   const [logs, clearLogs] = useInMemoryLogBuffer()
+  const [verboseLogging, setVerboseLogging] = useState<boolean>(() => isDebugVerboseEnabled())
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true)
@@ -132,6 +134,17 @@ export function DiagnosticOverlay() {
     }
   }
 
+  const toggleVerboseLogging = () => {
+    const next = !verboseLogging
+    setVerboseLogging(next)
+    setDebugVerboseEnabled(next)
+    if (next) {
+      showSuccess('Verbose logging enabled')
+    } else {
+      showSuccess('Verbose logging disabled')
+    }
+  }
+
   return (
     <section className="w-full shrink-0 border-t-4 border-teal-600 bg-neutral-950 text-emerald-50 dark:border-teal-500">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-700 px-3 py-2">
@@ -142,6 +155,17 @@ export function DiagnosticOverlay() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleVerboseLogging}
+            className={`rounded border px-2 py-1 text-xs ${
+              verboseLogging
+                ? 'border-emerald-500/60 bg-emerald-900/30 text-emerald-100 hover:bg-emerald-900/50'
+                : 'border-neutral-600 bg-neutral-800 text-neutral-200 hover:bg-neutral-700'
+            }`}
+          >
+            Verbose logging: {verboseLogging ? 'ON' : 'OFF'}
+          </button>
           <button
             type="button"
             onClick={() => void copyLogs()}
