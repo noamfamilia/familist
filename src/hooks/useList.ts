@@ -1030,6 +1030,7 @@ export function useList(listId: string) {
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
+          markOnlineRecovered('realtime-subscribed-list')
           logRealtimeSubscribeEnd({})
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           logRealtimeSubscribeEnd({ error: err?.message ?? status })
@@ -1047,7 +1048,7 @@ export function useList(listId: string) {
         supabase.removeChannel(channelRef.current)
       }
     }
-  }, [userId, listId, fetchList])
+  }, [fetchList, listId, markOnlineRecovered, userId])
 
   const addItem = async (text: string, category?: number, comment?: string | null) => {
     if (!userId) {

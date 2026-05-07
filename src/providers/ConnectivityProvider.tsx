@@ -40,6 +40,9 @@ const SW_FALLBACK_REGISTER_GRACE_MS = 600
 /** When PWA debug is off, short poll only — do not block startup on long Serwist wait */
 const SW_QUIET_MAX_WAIT_MS = 3_000
 const SW_QUIET_POLL_MS = 500
+const BOOT_ONLINE_GRACE_MS = 1_500
+const OFFLINE_BANNER_DEBOUNCE_MS = 3_000
+const REACHABILITY_PROBE_TIMEOUT_MS = 1_000
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -131,6 +134,7 @@ type ConnectivityContextType = {
   canMutateNow: () => boolean
   blockedMutationMessage: () => string
   offlineAssetsReady: boolean
+  showOfflineBanner: boolean
 }
 
 const ConnectivityContext = createContext<ConnectivityContextType | undefined>(undefined)
@@ -200,7 +204,7 @@ async function probeInternetReachable(): Promise<boolean> {
     controller != null
       ? setTimeout(() => {
           controller.abort()
-        }, 1_000)
+        }, REACHABILITY_PROBE_TIMEOUT_MS)
       : null
   try {
     const res = await fetch('/favicon.ico', {
@@ -222,9 +226,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const [status, setStatus] = useState<ConnectivityStatus>('online')
   const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
   const [swControlled, setSwControlled] = useState(false)
-  const [internetReachable, setInternetReachable] = useState(
-    typeof navigator !== 'undefined' ? navigator.onLine : true,
-  )
+  const [internetReachable, setInternetReachable] = useState<boolean | null>(null)
+  const [showOfflineBanner, setShowOfflineBanner] = useState(false)
 
   useEffect(() => {
     const onLine = typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -238,8 +241,32 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const statusRef = useRef<ConnectivityStatus>('online')
+  const bootStartedAtRef = useRef(Date.now())
+  const offlineBannerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     statusRef.current = status
+  }, [status])
+
+  useEffect(() => {
+    if (offlineBannerTimeoutRef.current) {
+      clearTimeout(offlineBannerTimeoutRef.current)
+      offlineBannerTimeoutRef.current = null
+    }
+    if (status !== 'offline') {
+      setShowOfflineBanner(false)
+      return
+    }
+    offlineBannerTimeoutRef.current = setTimeout(() => {
+      if (statusRef.current === 'offline') {
+        setShowOfflineBanner(true)
+      }
+    }, OFFLINE_BANNER_DEBOUNCE_MS)
+    return () => {
+      if (offlineBannerTimeoutRef.current) {
+        clearTimeout(offlineBannerTimeoutRef.current)
+        offlineBannerTimeoutRef.current = null
+      }
+    }
   }, [status])
 
   const serverWorkInFlightRef = useRef(0)
@@ -313,6 +340,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     probeInFlightRef.current = false
     useNextProbeDelay1sRef.current = false
     skipNextProbeStepIncrementRef.current = false
+    setInternetReachable(true)
     setStatus('online')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'online')
@@ -560,10 +588,13 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
+    const withinBootGrace = Date.now() - bootStartedAtRef.current < BOOT_ONLINE_GRACE_MS
+    const navigatorOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
+    const computedOnline = withinBootGrace || internetReachable !== false
     perfLog('offline readiness computed', {
-      online:
-        (typeof navigator !== 'undefined' ? navigator.onLine : true) && internetReachable,
-      navigatorOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+      online: computedOnline,
+      withinBootGrace,
+      navigatorOnline,
       internetReachable,
       swControlled,
       assetsReady: offlineAssetsReady,
@@ -574,11 +605,25 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     let cancelled = false
     const probeAndUpdate = async (cause: string) => {
-      const ok = await probeInternetReachable()
+      const firstAttemptStartedAt = performance.now()
+      let ok = await probeInternetReachable()
+      const firstAttemptMs = Math.round(performance.now() - firstAttemptStartedAt)
+      const sinceBootMs = Date.now() - bootStartedAtRef.current
+      if (!ok && firstAttemptMs < 250 && sinceBootMs < BOOT_ONLINE_GRACE_MS + 1_000) {
+        await sleep(300)
+        if (cancelled) return
+        ok = await probeInternetReachable()
+      }
       if (cancelled) return
       setInternetReachable(ok)
       if (!ok) {
-        enterOfflineRef.current(`reachability-failed:${cause}`)
+        if (sinceBootMs >= BOOT_ONLINE_GRACE_MS) {
+          enterOfflineRef.current(`reachability-failed:${cause}`)
+        } else {
+          appendOfflineNavDiagnostic(
+            `[probe] suppress-offline-during-boot-grace cause=${cause} sinceBootMs=${sinceBootMs}`,
+          )
+        }
       }
     }
     void probeAndUpdate('initial')
@@ -971,6 +1016,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         canMutateNow,
         blockedMutationMessage,
         offlineAssetsReady,
+        showOfflineBanner,
       }}
     >
       <>

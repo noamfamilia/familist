@@ -271,7 +271,7 @@ export default function ListPage() {
 
   const { error: showError } = useToast()
   const hasHydrated = useHasHydrated()
-  const { status, offlineAssetsReady, swControlled } = useConnectivity()
+  const { showOfflineBanner, offlineAssetsReady, swControlled } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
@@ -911,7 +911,7 @@ export default function ListPage() {
       </div>
 
       {/* Header */}
-      {status !== 'online' ? (
+      {showOfflineBanner ? (
         <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
           Offline Mode - Changes will sync later
         </div>

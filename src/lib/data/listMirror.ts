@@ -101,12 +101,12 @@ export async function runListMirrorJob(
   userId: string,
   listId: string,
   options?: { bypassVersionGate?: boolean },
-): Promise<void> {
+): Promise<boolean> {
   const owner = LIST_MIRROR_SESSION_OWNER
   const acquired = await waitForListMirrorLock(listId, owner, { maxWaitMs: 5_000, pollMs: 100 })
   if (!acquired) {
     appendMutationDiagnostic(`[list-mirror] skip lock timeout listId=${listId}`)
-    return
+    return false
   }
   try {
     await db.meta.put({
@@ -117,11 +117,11 @@ export async function runListMirrorJob(
     const list = await db.lists.get(listId)
     if (!list) {
       appendMutationDiagnostic(`[list-mirror] skip no list row listId=${listId}`)
-      return
+      return false
     }
     if (isTombstoned(list.deleted_at ?? null)) {
       appendMutationDiagnostic(`[list-mirror] skip tombstoned local list listId=${listId}`)
-      return
+      return false
     }
     const lastMirrored = await getLastMirroredListDetailVersion(listId)
     const bypass = options?.bypassVersionGate === true
@@ -129,7 +129,7 @@ export async function runListMirrorJob(
       appendMutationDiagnostic(
         `[list-mirror] skip version gate listId=${listId} list.version=${list.version} lastMirrored=${lastMirrored}`,
       )
-      return
+      return false
     }
 
     appendMutationDiagnostic(
@@ -139,7 +139,7 @@ export async function runListMirrorJob(
     if (error) throw error
     if (!data?.list) {
       appendMutationDiagnostic(`[list-mirror] skip empty payload listId=${listId}`)
-      return
+      return false
     }
 
     const items = data.items ?? []
@@ -156,8 +156,10 @@ export async function runListMirrorJob(
       updated_at: Date.now(),
     })
     appendMutationDiagnostic(`[list-mirror] ok listId=${listId} items=${items.length} members=${members.length}`)
+    return true
   } catch (e) {
     appendMutationDiagnostic(`[list-mirror] error listId=${listId} msg=${e instanceof Error ? e.message : String(e)}`)
+    return false
   } finally {
     await db.meta.put({
       id: LIST_MIRROR_RUNNING_META_ID,
@@ -168,16 +170,16 @@ export async function runListMirrorJob(
   }
 }
 
-export async function drainListMirrorQueueOnce(userId: string): Promise<number> {
+export async function drainListMirrorQueueOnce(userId: string): Promise<{ processed: number; succeeded: boolean }> {
   const priority = await getListMirrorPriorityListId()
   const raw = await peekListMirrorQueue()
-  if (raw.length === 0) return 0
+  if (raw.length === 0) return { processed: 0, succeeded: false }
   const ordered = sortQueueWithPriority(raw, priority)
   const head = ordered[0]
-  if (!head) return 0
-  await runListMirrorJob(userId, head)
+  if (!head) return { processed: 0, succeeded: false }
+  const succeeded = await runListMirrorJob(userId, head)
   await popListMirrorQueueHead(head)
-  return 1
+  return { processed: 1, succeeded }
 }
 
 export async function collectListIdsNeedingMirrorFromSummaries(rows: GetUserListsRow[]): Promise<string[]> {

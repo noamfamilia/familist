@@ -22,7 +22,15 @@ export function notifyProfileFetchTimedOut(): void {
 
 /** Call after profile rows load successfully so we can undo profile-timeout offline only. */
 export function notifyProfileFetchSucceeded(): void {
-  if (!offlineWasDueToProfileTimeout) return
+  if (offlineWasDueToProfileTimeout) {
+    offlineWasDueToProfileTimeout = false
+  }
+  // Any successful profile fetch is a strong online signal.
+  markOnlineAfterProfileRecovery?.()
+}
+
+export function notifyNetworkOpSucceeded(source: string): void {
+  void source
   offlineWasDueToProfileTimeout = false
   markOnlineAfterProfileRecovery?.()
 }

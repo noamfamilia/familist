@@ -14,7 +14,7 @@ import { runOneTimeReconcileAfterDexieSchemaBelow10Upgrade } from '@/lib/data/ve
  */
 export function ListMirrorWorker() {
   const { user, loading, bootstrapUserId } = useAuth()
-  const { status } = useConnectivity()
+  const { status, markOnlineRecovered } = useConnectivity()
   const userId = user?.id ?? (loading ? bootstrapUserId : null)
 
   const queueLen = useLiveQuery(
@@ -48,8 +48,11 @@ export function ListMirrorWorker() {
       drainingRef.current = true
       try {
         for (let i = 0; i < 8 && !cancelled; i++) {
-          const done = await drainListMirrorQueueOnce(userId)
-          if (done === 0) break
+          const result = await drainListMirrorQueueOnce(userId)
+          if (result.succeeded) {
+            markOnlineRecovered('list-mirror-success')
+          }
+          if (result.processed === 0) break
         }
       } finally {
         drainingRef.current = false
@@ -64,7 +67,7 @@ export function ListMirrorWorker() {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [status, userId, queueLen])
+  }, [markOnlineRecovered, queueLen, status, userId])
 
   return null
 }

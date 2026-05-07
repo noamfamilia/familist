@@ -525,6 +525,7 @@ export function useLists() {
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
+          markOnlineRecovered('realtime-subscribed-lists')
           logRealtimeSubscribeEnd({})
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           logRealtimeSubscribeEnd({ error: err?.message ?? status })
@@ -545,7 +546,7 @@ export function useLists() {
         supabase.removeChannel(channelRef.current)
       }
     }
-  }, [userId, fetchLists])
+  }, [fetchLists, markOnlineRecovered, userId])
 
   const createList = async (name: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
