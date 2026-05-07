@@ -42,6 +42,29 @@ self.addEventListener('install', (event: ExtendableEvent) => {
   event.waitUntil(self.skipWaiting())
 })
 
+/**
+ * Clean stale offline-wall assets from older deployments so navigation cannot
+ * land on "/~offline" once we're on the banner-first local UI.
+ */
+async function purgeLegacyOfflineWallCacheEntries() {
+  const cacheNames = await caches.keys()
+  const targets = ['/~offline']
+  for (const cacheName of cacheNames) {
+    const cache = await caches.open(cacheName)
+    const requests = await cache.keys()
+    for (const req of requests) {
+      const url = new URL(req.url)
+      if (targets.includes(url.pathname)) {
+        await cache.delete(req)
+      }
+    }
+  }
+}
+
+self.addEventListener('activate', (event: ExtendableEvent) => {
+  event.waitUntil(purgeLegacyOfflineWallCacheEntries())
+})
+
 async function hasAnyCachedRequestMatching(predicate: (url: URL) => boolean) {
   const cacheNames = await caches.keys()
   for (const cacheName of cacheNames) {
