@@ -118,14 +118,14 @@ function HomeContent() {
     const profileLoading = profileFetchPhase === 'loading'
     const authReady = !loading
     const effectiveUserId = user?.id ?? (loading ? bootstrapUserId : null)
-    const shouldRenderListsView = !!(user || (loading && bootstrapUserId))
+    const shouldRenderListsView = !!(user || (effectiveUserId && offlineAssetsReady))
     let reasonIfNot = ''
     if (!shouldRenderListsView) {
       if (loading && !bootstrapUserId) reasonIfNot = 'auth.loading_no_bootstrapUserId'
       else if (!user && !loading) reasonIfNot = '!user_session_resolved'
       else reasonIfNot = 'unknown'
-    } else if (!user && loading && bootstrapUserId) {
-      reasonIfNot = 'lists_via_bootstrapUserId_pending_session'
+    } else if (!user && effectiveUserId && offlineAssetsReady) {
+      reasonIfNot = 'lists_via_dexie_offline_assets_ready'
     } else {
       reasonIfNot = 'user_ok'
     }
@@ -325,7 +325,8 @@ function HomeContent() {
     router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
   }
 
-  if (!hasHydrated || (loading && !bootstrapUserId)) {
+  const effectiveUserId = user?.id ?? bootstrapUserId
+  if (!hasHydrated || (loading && !effectiveUserId && !offlineAssetsReady)) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
@@ -333,7 +334,7 @@ function HomeContent() {
     )
   }
 
-  const showListsShell = !!(user || (loading && bootstrapUserId))
+  const showListsShell = !!(user || (effectiveUserId && offlineAssetsReady))
 
   return (
     <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">

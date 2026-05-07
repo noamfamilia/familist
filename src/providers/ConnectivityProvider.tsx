@@ -210,6 +210,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const [status, setStatus] = useState<ConnectivityStatus>('online')
   const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
   const [swControlled, setSwControlled] = useState(false)
+  const [internetReachable, setInternetReachable] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  )
 
   useEffect(() => {
     const onLine = typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -546,12 +549,35 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     perfLog('offline readiness computed', {
-      online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+      online:
+        (typeof navigator !== 'undefined' ? navigator.onLine : true) && internetReachable,
+      navigatorOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+      internetReachable,
       swControlled,
       assetsReady: offlineAssetsReady,
       cachedDataReady: undefined,
     })
-  }, [offlineAssetsReady, swControlled])
+  }, [internetReachable, offlineAssetsReady, swControlled])
+
+  useEffect(() => {
+    let cancelled = false
+    const probeAndUpdate = async (cause: string) => {
+      const ok = await probeInternetReachable()
+      if (cancelled) return
+      setInternetReachable(ok)
+      if (!ok) {
+        enterOfflineRef.current(`reachability-failed:${cause}`)
+      }
+    }
+    void probeAndUpdate('initial')
+    const id = window.setInterval(() => {
+      void probeAndUpdate('interval')
+    }, 15_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [])
 
   useEffect(() => {
     try {

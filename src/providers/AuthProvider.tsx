@@ -33,7 +33,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const PROFILE_FETCH_STARTUP_TIMEOUT_MS = 10_000
+const PROFILE_FETCH_STARTUP_TIMEOUT_MS = 500
 const PROFILE_FETCH_TIMEOUT_MESSAGE = 'profile fetch timeout'
 const AUTH_RECOVERY_ONCE_KEY = 'familist_auth_recovery_done_once'
 
@@ -271,6 +271,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               message: msg,
             })
             if (msg === PROFILE_FETCH_TIMEOUT_MESSAGE && profileFetchGenRef.current === gen) {
+              const cachedProfile = await db.profiles.get(userId)
+              if (cachedProfile) {
+                setProfile({
+                  ...cachedProfile,
+                  theme: cachedProfile.theme === 'dark' ? 'dark' : 'light',
+                })
+              }
               notifyProfileFetchTimedOut()
               setProfileFetchPhase('timeout')
             } else if (profileFetchGenRef.current === gen) {
