@@ -31,6 +31,11 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined)
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [hasMounted, setHasMounted] = useState(false)
+
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   const dismissToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id))
@@ -75,11 +80,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       
       {/* Toast container */}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none">
-        {toasts.map(toast => (
-          <ToastItem key={toast.id} toast={toast} onDismiss={() => removeToast(toast.id)} />
-        ))}
-      </div>
+      {hasMounted ? (
+        <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none">
+          {toasts.map(toast => (
+            <ToastItem key={toast.id} toast={toast} onDismiss={() => removeToast(toast.id)} />
+          ))}
+        </div>
+      ) : null}
     </ToastContext.Provider>
   )
 }

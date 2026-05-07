@@ -46,10 +46,8 @@ export function DiagnosticsMessageBoxProvider({ children }: { children: React.Re
 
   return (
     <DiagnosticsContext.Provider value={value}>
-      <div className="flex min-h-screen flex-col">
-        <div className="min-h-0 flex-1">{children}</div>
-        {DIAGNOSTICS_PANEL_VISIBLE ? <DiagnosticsMessageBoxPanel /> : null}
-      </div>
+      {children}
+      {DIAGNOSTICS_PANEL_VISIBLE ? <DiagnosticsMessageBoxPanel /> : null}
     </DiagnosticsContext.Provider>
   )
 }

@@ -232,11 +232,16 @@ async function probeInternetReachable(): Promise<boolean> {
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
   const { showToast, dismissToast } = useToast()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
+  const [hasMounted, setHasMounted] = useState(false)
   const [status, setStatus] = useState<ConnectivityStatus>('online')
   const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
   const [swControlled, setSwControlled] = useState(false)
   const [internetReachable, setInternetReachable] = useState<boolean | null>(null)
   const [showOfflineBanner, setShowOfflineBanner] = useState(false)
+
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1134,7 +1139,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     >
       <>
         {children}
-        <PwaDebugPrecacheButton appendDiagnostics={appendDiagnostics} />
+        {hasMounted ? <PwaDebugPrecacheButton appendDiagnostics={appendDiagnostics} /> : null}
       </>
     </ConnectivityContext.Provider>
   )
