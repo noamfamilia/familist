@@ -380,6 +380,7 @@ export function useLists() {
       perfLog('fetchLists end', {
         durationMs: Math.round(performance.now() - fetchT0),
         listCount,
+        appVersion: APP_VERSION,
         error: fetchErr,
         staleDiscarded,
       })
