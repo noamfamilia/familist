@@ -195,12 +195,24 @@ function PwaDebugPrecacheButton({
 }
 
 async function probeInternetReachable(): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return false
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+  const timeoutId =
+    controller != null
+      ? setTimeout(() => {
+          controller.abort()
+        }, 1_000)
+      : null
   try {
-    const res = await fetch('/manifest.webmanifest', { cache: 'no-store' })
+    const res = await fetch('/favicon.ico', {
+      method: 'HEAD',
+      cache: 'no-store',
+      signal: controller?.signal,
+    })
     return res.ok
   } catch {
     return false
+  } finally {
+    if (timeoutId != null) clearTimeout(timeoutId)
   }
 }
 
@@ -338,7 +350,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         probeInFlightRef.current = true
         const probeStartedAt = performance.now()
         appendOfflineNavDiagnostic(
-          `[probe] start path=/manifest.webmanifest status=${statusRef.current} step=${probeStepRef.current}`,
+          `[probe] start path=/favicon.ico method=HEAD timeoutMs=1000 status=${statusRef.current} step=${probeStepRef.current}`,
         )
         const ok = await probeInternetReachable()
         probeInFlightRef.current = false

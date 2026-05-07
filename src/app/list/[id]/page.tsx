@@ -271,7 +271,7 @@ export default function ListPage() {
 
   const { error: showError } = useToast()
   const hasHydrated = useHasHydrated()
-  const { offlineAssetsReady, swControlled } = useConnectivity()
+  const { status, offlineAssetsReady, swControlled } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
@@ -911,6 +911,11 @@ export default function ListPage() {
       </div>
 
       {/* Header */}
+      {status !== 'online' ? (
+        <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+          Offline Mode - Changes will sync later
+        </div>
+      ) : null}
       <header className="flex items-center justify-center gap-1.5 sm:gap-2 mb-4 sm:mb-6 min-w-0 px-1">
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
           <ConnectivityStatusIconCompact />

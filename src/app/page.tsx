@@ -74,7 +74,7 @@ function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, profile, loading, bootstrapUserId, profileFetchPhase, updateProfile } = useAuth()
-  const { offlineAssetsReady, isOfflineActionsDisabled: connectivityOffline } = useConnectivity()
+  const { status, offlineAssetsReady, isOfflineActionsDisabled: connectivityOffline } = useConnectivity()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -573,6 +573,11 @@ function HomeContent() {
       </div>
 
       {/* Header */}
+      {status !== 'online' ? (
+        <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+          Offline Mode - Changes will sync later
+        </div>
+      ) : null}
       <header className="flex items-center justify-center gap-2 sm:gap-3 mb-6 sm:mb-8">
         <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           <ConnectivityStatusIcon />
