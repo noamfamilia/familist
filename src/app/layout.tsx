@@ -11,6 +11,7 @@ import { SyncStatusProvider } from '@/providers/SyncStatusProvider'
 import { DiagnosticsMessageBoxProvider } from '@/providers/DiagnosticsMessageBox'
 import { SyncStoreBridge } from '@/components/sync/SyncStoreBridge'
 import { AppLayoutGateLogger } from '@/components/dev/AppLayoutGateLogger'
+import { ClientHydrationGate } from '@/components/app/ClientHydrationGate'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -69,25 +70,27 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider>
-          <AuthProvider>
-            <ToastProvider>
-              <DiagnosticsMessageBoxProvider>
-                <ConnectivityProvider>
-                  <SyncStatusProvider>
-                    <SyncStoreBridge />
-                    <AppLayoutGateLogger />
-                    <StartupPerfCapture />
-                    <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
-                      {children}
-                    </main>
-                    <InstallBanner />
-                  </SyncStatusProvider>
-                </ConnectivityProvider>
-              </DiagnosticsMessageBoxProvider>
-            </ToastProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <ClientHydrationGate>
+          <ThemeProvider>
+            <AuthProvider>
+              <ToastProvider>
+                <DiagnosticsMessageBoxProvider>
+                  <ConnectivityProvider>
+                    <SyncStatusProvider>
+                      <SyncStoreBridge />
+                      <AppLayoutGateLogger />
+                      <StartupPerfCapture />
+                      <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
+                        {children}
+                      </main>
+                      <InstallBanner />
+                    </SyncStatusProvider>
+                  </ConnectivityProvider>
+                </DiagnosticsMessageBoxProvider>
+              </ToastProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </ClientHydrationGate>
       </body>
     </html>
   )
