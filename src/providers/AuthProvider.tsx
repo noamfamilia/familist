@@ -120,9 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(() =>
-    typeof window === 'undefined' ? null : getActiveCacheUserId(),
-  )
+  const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(null)
   const [profileFetchPhase, setProfileFetchPhase] = useState<ProfileFetchPhase>('idle')
   const supabase = createClient()
   const { setTheme } = useTheme()
@@ -147,6 +145,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     userRef.current = user
   }, [user])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const cachedUserId = getActiveCacheUserId()
+    if (cachedUserId) {
+      setBootstrapUserId(cachedUserId)
+    }
+  }, [])
 
   const fetchProfile = useCallback(async (userId: string) => {
     const t0 = performance.now()

@@ -94,7 +94,7 @@ function HomeContent() {
   const hasMounted = useHasMounted()
   const [themeMounted, setThemeMounted] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
-  const [selectedLabel, setSelectedLabel] = useState(() => getCachedLabelFilter() ?? profile?.label_filter ?? 'Any')
+  const [selectedLabel, setSelectedLabel] = useState('Any')
   const labelSyncedRef = useRef(false)
   const [labelDropdownOpen, setLabelDropdownOpen] = useState(false)
   const [availableLabels, setAvailableLabels] = useState<string[]>([])
@@ -105,9 +105,7 @@ function HomeContent() {
   const [addingLabel, setAddingLabel] = useState(false)
   const [newLabelText, setNewLabelText] = useState('')
   const [labelManagerOpen, setLabelManagerOpen] = useState(false)
-  const [isOfflineActionsDisabled, setIsOfflineActionsDisabled] = useState(
-    () => typeof navigator !== 'undefined' ? !navigator.onLine : false
-  )
+  const [isOfflineActionsDisabled, setIsOfflineActionsDisabled] = useState(false)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
 
@@ -165,6 +163,19 @@ function HomeContent() {
 
   useEffect(() => {
     setThemeMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const cachedLabel = getCachedLabelFilter()
+    if (cachedLabel !== null) {
+      setSelectedLabel(cachedLabel)
+      return
+    }
+    if (profile?.label_filter) {
+      setSelectedLabel(profile.label_filter)
+    }
+  // Intentionally run once after mount to avoid SSR/client init drift.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
