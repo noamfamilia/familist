@@ -14,7 +14,7 @@ import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useToast } from '@/components/ui/Toast'
-import { useHasHydrated } from '@/hooks/useHasHydrated'
+import { useHasMounted } from '@/hooks/useHasMounted'
 import {
   OFFLINE_ACTIONS_DISABLED_MSG,
   RECOVERING_MUTATIONS_DISABLED_MSG,
@@ -270,7 +270,7 @@ export default function ListPage() {
   }, [listId])
 
   const { error: showError } = useToast()
-  const hasHydrated = useHasHydrated()
+  const hasMounted = useHasMounted()
   const { showOfflineBanner, offlineAssetsReady, swControlled, internetReachable, online } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
@@ -657,7 +657,7 @@ export default function ListPage() {
     setNewItemText('')
   }, [])
 
-  if (!hasHydrated || (authLoading && !bootstrapUserId) || loading) {
+  if (!hasMounted || (authLoading && !bootstrapUserId) || loading) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />

@@ -12,6 +12,7 @@ const withSerwist = withSerwistInit({
   swSrc: 'src/app/sw.ts',
   swDest: 'public/sw.js',
   disable: !isProdBuild || isPwaDisabledByEnv,
+  additionalPrecacheEntries: [{ url: '/', revision: buildId }],
 })
 
 /** @type {import('next').NextConfig} */
