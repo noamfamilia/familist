@@ -332,14 +332,6 @@ function HomeContent() {
   }
 
   const effectiveUserId = user?.id ?? bootstrapUserId
-  if (!hasHydrated || (loading && !effectiveUserId)) {
-    return (
-      <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
-      </div>
-    )
-  }
-
   const showListsShell = !!effectiveUserId
   const homeGateLogPrevRef = useRef<string>('')
   useEffect(() => {
@@ -354,6 +346,14 @@ function HomeContent() {
     homeGateLogPrevRef.current = snapshot
     log.info('GATE', 'HomeContent', payload)
   }, [internetReachable, loading, online, showListsShell])
+
+  if (!hasHydrated || (loading && !effectiveUserId)) {
+    return (
+      <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">
