@@ -3,7 +3,7 @@
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
-import { perfLog } from '@/lib/startupPerfLog'
+import { log, perfLog } from '@/lib/startupPerfLog'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -271,7 +271,7 @@ export default function ListPage() {
 
   const { error: showError } = useToast()
   const hasHydrated = useHasHydrated()
-  const { showOfflineBanner, offlineAssetsReady, swControlled } = useConnectivity()
+  const { showOfflineBanner, offlineAssetsReady, swControlled, internetReachable, status } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
@@ -314,6 +314,19 @@ export default function ListPage() {
     isOfflineActionsDisabled,
     allowItemMutationQueue,
   } = useList(listId)
+  const listGateLogPrevRef = useRef<string>('')
+  useEffect(() => {
+    const payload = {
+      shouldRender: !!list,
+      online: status === 'online',
+      internetReachable: internetReachable === true,
+      authReady: !authLoading,
+    }
+    const snapshot = JSON.stringify(payload)
+    if (snapshot === listGateLogPrevRef.current) return
+    listGateLogPrevRef.current = snapshot
+    log.info('GATE', 'ListPage', payload)
+  }, [authLoading, internetReachable, list, status])
 
   const listItemsClipboardText = useMemo(() => {
     const active = [...items]

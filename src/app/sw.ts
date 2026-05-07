@@ -2,6 +2,7 @@
 
 import { Serwist, type PrecacheEntry, type SerwistGlobalConfig } from 'serwist'
 import { defaultCache } from '@serwist/next/worker'
+import { NetworkOnly } from 'serwist'
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -22,7 +23,16 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching: [
+    {
+      matcher: ({ url, sameOrigin, request }) =>
+        sameOrigin &&
+        request.method === 'GET' &&
+        url.pathname === '/api/reachability',
+      handler: new NetworkOnly(),
+    },
+    ...defaultCache,
+  ],
 })
 
 serwist.addEventListeners()

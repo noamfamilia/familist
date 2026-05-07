@@ -10,7 +10,7 @@ import { ProfileModal } from '@/components/profile/ProfileModal'
 
 
 import { Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { perfLog } from '@/lib/startupPerfLog'
+import { log, perfLog } from '@/lib/startupPerfLog'
 import { useTheme } from 'next-themes'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
@@ -74,7 +74,13 @@ function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, profile, loading, bootstrapUserId, profileFetchPhase, updateProfile } = useAuth()
-  const { showOfflineBanner, offlineAssetsReady, isOfflineActionsDisabled: connectivityOffline } = useConnectivity()
+  const {
+    showOfflineBanner,
+    offlineAssetsReady,
+    internetReachable,
+    status,
+    isOfflineActionsDisabled: connectivityOffline,
+  } = useConnectivity()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -335,6 +341,19 @@ function HomeContent() {
   }
 
   const showListsShell = !!effectiveUserId
+  const homeGateLogPrevRef = useRef<string>('')
+  useEffect(() => {
+    const payload = {
+      shouldRender: showListsShell,
+      online: status === 'online',
+      internetReachable: internetReachable === true,
+      authReady: !loading,
+    }
+    const snapshot = JSON.stringify(payload)
+    if (snapshot === homeGateLogPrevRef.current) return
+    homeGateLogPrevRef.current = snapshot
+    log.info('GATE', 'HomeContent', payload)
+  }, [internetReachable, loading, showListsShell, status])
 
   return (
     <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full sm:w-[450px] max-w-4xl min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8 relative">

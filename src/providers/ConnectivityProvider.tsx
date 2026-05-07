@@ -118,6 +118,7 @@ function logFallbackSwRegister(appendDiagnostics: (section: string) => void) {
 
 type ConnectivityContextType = {
   status: ConnectivityStatus
+  internetReachable: boolean | null
   /** True when offline or recovering (navigation / optimistic UI should match). */
   isOfflineActionsDisabled: boolean
   /** When true, add/archive/restore item may be queued locally until status is online. */
@@ -209,10 +210,14 @@ async function probeInternetReachable(): Promise<boolean> {
         }, REACHABILITY_PROBE_TIMEOUT_MS)
       : null
   try {
-    const res = await fetch('/favicon.ico', {
-      method: 'HEAD',
+    const probeUrl = `/api/reachability?ts=${Date.now()}`
+    const res = await fetch(probeUrl, {
+      method: 'GET',
       cache: 'no-store',
       signal: controller?.signal,
+      headers: {
+        Accept: 'application/json',
+      },
     })
     return res.ok
   } catch {
@@ -384,7 +389,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         probeInFlightRef.current = true
         const probeStartedAt = performance.now()
         appendOfflineNavDiagnostic(
-          `[probe] start path=/favicon.ico method=HEAD timeoutMs=${REACHABILITY_PROBE_TIMEOUT_MS} status=${statusRef.current} step=${probeStepRef.current}`,
+          `[probe] start path=/api/reachability method=GET timeoutMs=${REACHABILITY_PROBE_TIMEOUT_MS} status=${statusRef.current} step=${probeStepRef.current}`,
         )
         const ok = await probeInternetReachable()
         probeInFlightRef.current = false
@@ -1066,6 +1071,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     <ConnectivityContext.Provider
       value={{
         status,
+        internetReachable,
         isOfflineActionsDisabled: status === 'offline' || status === 'recovering',
         allowItemMutationQueue: status !== 'online',
         recoveryFetchGeneration,

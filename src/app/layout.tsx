@@ -10,6 +10,7 @@ import { ConnectivityProvider } from '@/providers/ConnectivityProvider'
 import { SyncStatusProvider } from '@/providers/SyncStatusProvider'
 import { DiagnosticsMessageBoxProvider } from '@/providers/DiagnosticsMessageBox'
 import { SyncStoreBridge } from '@/components/sync/SyncStoreBridge'
+import { AppLayoutGateLogger } from '@/components/dev/AppLayoutGateLogger'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -75,6 +76,7 @@ export default function RootLayout({
                 <ConnectivityProvider>
                   <SyncStatusProvider>
                     <SyncStoreBridge />
+                    <AppLayoutGateLogger />
                     <StartupPerfCapture />
                     <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
                       {children}
