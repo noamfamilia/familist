@@ -93,7 +93,7 @@ function finalizeBreakdown(b: Partial<ListDetailCacheBreakdown> & { requestedLis
  * Validates the list-detail offline blob (`cached_list_<user>_<listId>`), not the home summary (`cached_lists_*`).
  * Home list summaries never satisfy this check by design.
  */
-export function validateListDetailOfflineCache(listId: string, userId?: string): ListDetailCacheValidation {
+export function validateListDetailOfflineCache(listId: string, userId?: string | null): ListDetailCacheValidation {
   const requestedListId = listId
   const passedUserId = userId ?? null
   const activeCacheUserId = typeof window === 'undefined' ? null : getActiveCacheUserId()
@@ -348,11 +348,11 @@ export function clearActiveCacheUserId() {
   }
 }
 
-function resolveUserId(userId?: string) {
+function resolveUserId(userId?: string | null) {
   return userId || getActiveCacheUserId()
 }
 
-export function getCachedLists(userId?: string): CachedLists | null {
+export function getCachedLists(userId?: string | null): CachedLists | null {
   const scopedUserId = resolveUserId(userId)
   if (!scopedUserId) return null
   if (typeof window === 'undefined') return null
@@ -364,7 +364,7 @@ export function getCachedLists(userId?: string): CachedLists | null {
   }
 }
 
-export function setCachedLists(userId: string | undefined, lists: ListWithRole[]) {
+export function setCachedLists(userId: string | undefined | null, lists: ListWithRole[]) {
   const scopedUserId = resolveUserId(userId)
   if (!scopedUserId) return
   if (typeof window === 'undefined') return
@@ -379,7 +379,7 @@ export function setCachedLists(userId: string | undefined, lists: ListWithRole[]
   }
 }
 
-export function getCachedList(userId: string | undefined, listId: string): CachedListData | null {
+export function getCachedList(userId: string | undefined | null, listId: string): CachedListData | null {
   const v = validateListDetailOfflineCache(listId, userId)
   return v.ok ? (v.data ?? null) : null
 }
@@ -389,7 +389,7 @@ export function cachedListDataExists(listId: string, userId?: string): boolean {
   return validateListDetailOfflineCache(listId, userId).ok
 }
 
-export function setCachedList(userId: string | undefined, listId: string, data: Omit<CachedListData, 'cachedAt'>) {
+export function setCachedList(userId: string | undefined | null, listId: string, data: Omit<CachedListData, 'cachedAt'>) {
   const scopedUserId = resolveUserId(userId)
   if (!scopedUserId) return
   if (typeof window === 'undefined') return
@@ -406,7 +406,7 @@ export function setCachedList(userId: string | undefined, listId: string, data: 
   }
 }
 
-export function removeCachedList(userId: string | undefined, listId: string) {
+export function removeCachedList(userId: string | undefined | null, listId: string) {
   const scopedUserId = resolveUserId(userId)
   if (!scopedUserId) return
   if (typeof window === 'undefined') return

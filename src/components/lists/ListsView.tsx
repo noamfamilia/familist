@@ -250,7 +250,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         }
         router.replace(`/list/${data}`)
       } else {
-        success('Joined list!')
+        success('Invite saved — the list will show up after sync.')
       }
     }
 

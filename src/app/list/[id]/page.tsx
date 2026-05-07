@@ -18,7 +18,6 @@ import { useHasHydrated } from '@/hooks/useHasHydrated'
 import {
   OFFLINE_ACTIONS_DISABLED_MSG,
   RECOVERING_MUTATIONS_DISABLED_MSG,
-  STILL_SAVING_TEMP_ENTITY_MSG,
   shouldShowConnectivityRelatedMutationToast,
 } from '@/lib/mutationToastPolicy'
 import { cachedListDataExists, getCachedList, logListDetailCacheValidation } from '@/lib/cache'
@@ -30,9 +29,11 @@ import {
   setNormalOfflineRouteReadyMarker,
 } from '@/lib/offlineRouteReadiness'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
 import { ConnectivityStatusIconCompact } from '@/components/ui/ConnectivityStatusIcon'
+import { SyncIcon } from '@/components/sync/SyncIcon'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
@@ -260,6 +261,14 @@ export default function ListPage() {
   useLayoutEffect(() => {
     perfLog('main page mounted', { route: 'list', listId })
   }, [listId])
+
+  useEffect(() => {
+    void setListMirrorPriorityListId(listId)
+    return () => {
+      void setListMirrorPriorityListId(null)
+    }
+  }, [listId])
+
   const { error: showError } = useToast()
   const hasHydrated = useHasHydrated()
   const { offlineAssetsReady, swControlled } = useConnectivity()
@@ -532,7 +541,9 @@ export default function ListPage() {
         return
       }
       const hasNewFromOthers = nonTargetMembers.some(
-        m => m.created_by !== user.id && new Date(m.created_at) > new Date(lastViewedMembers)
+        m =>
+          m.created_by !== user.id &&
+          new Date(m.server_created_at ?? m.client_created_at) > new Date(lastViewedMembers)
       )
       if (hasNewFromOthers) setShowNewMemberAlert(true)
       return
@@ -695,8 +706,7 @@ export default function ListPage() {
       if (err) {
         if (
           err.message === OFFLINE_ACTIONS_DISABLED_MSG ||
-          err.message === RECOVERING_MUTATIONS_DISABLED_MSG ||
-          err.message === STILL_SAVING_TEMP_ENTITY_MSG
+          err.message === RECOVERING_MUTATIONS_DISABLED_MSG
         ) {
           addItemTextareaRef.current?.blur()
         }
@@ -901,8 +911,11 @@ export default function ListPage() {
       </div>
 
       {/* Header */}
-      <header className="flex items-center justify-center gap-2 sm:gap-3 mb-4 sm:mb-6 min-w-0 px-1">
-        <ConnectivityStatusIconCompact />
+      <header className="flex items-center justify-center gap-1.5 sm:gap-2 mb-4 sm:mb-6 min-w-0 px-1">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <ConnectivityStatusIconCompact />
+          <SyncIcon compact />
+        </div>
         <h1 className="text-xl sm:text-2xl font-semibold text-teal truncate min-w-0 text-center">
           {list.name}
         </h1>

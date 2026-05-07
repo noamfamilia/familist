@@ -16,11 +16,13 @@ const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
+  precacheOptions: {
+    navigateFallback: '/~offline',
+  },
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: defaultCache,
-  fallbackRoutes: ['/~offline'],
 })
 
 serwist.addEventListeners()

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/lib/db'
+import { db, type DbSyncQueueRow } from '@/lib/db'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { createClient } from '@/lib/supabase/client'
 import { isLikelyConnectivityError } from '@/lib/connectivityErrors'
@@ -10,8 +10,116 @@ import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useToast } from '@/components/ui/Toast'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
 import { getActiveCacheUserId } from '@/lib/cache'
+import { isoNow } from '@/lib/data/base_sync_fields'
+import { resetFailedSyncQueueRows } from '@/lib/data/syncQueue'
+import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
+import {
+  normalizeItemCategory,
+  type ItemWithState,
+  type List,
+  type MemberWithCreator,
+} from '@/lib/supabase/types'
 
 const supabase = createClient()
+
+const LOCK_STALE_MS = 60_000
+const CONNECTIVITY_RETRY_DELAY_MS = 2_000
+
+/** `attemptCount` is 1-based after increment (first failure → 1). */
+function backoffMsAfterFailure(attemptCount: number): number {
+  const exp = Math.min(Math.max(attemptCount, 1), 10)
+  return Math.min(300_000, 1000 * 2 ** exp)
+}
+
+function rowListIdForSync(row: DbSyncQueueRow): string | null {
+  if (row.parent1_type === 'list' && row.parent1_id) return row.parent1_id
+  const pl = row.payload as { list_id?: string }
+  if (typeof pl.list_id === 'string' && pl.list_id.length > 0 && !pl.list_id.startsWith('user:')) {
+    return pl.list_id
+  }
+  return null
+}
+
+function queueDiagKey(row: DbSyncQueueRow): string {
+  return row.entity_id
+}
+
+function isEligibleForSync(row: DbSyncQueueRow, now: number): boolean {
+  const nr = row.next_retry_at ?? null
+  const stale = row.locked_at != null && now - row.locked_at > LOCK_STALE_MS
+
+  if (row.status === 'processing') {
+    return stale
+  }
+  if (row.status === 'queued') {
+    return nr == null || nr <= now
+  }
+  if (row.status === 'failed') {
+    return nr == null || nr <= now
+  }
+  return false
+}
+
+async function tryClaimSyncRow(id: string): Promise<DbSyncQueueRow | null> {
+  return db.transaction('rw', db.sync_queue, async () => {
+    const row = await db.sync_queue.get(id)
+    if (!row) return null
+    const now = Date.now()
+    const nr = row.next_retry_at ?? null
+    const stale = row.locked_at != null && now - row.locked_at > LOCK_STALE_MS
+
+    if (row.status === 'processing') {
+      if (!stale) return null
+      await db.sync_queue.update(id, { locked_at: now, updated_at: now })
+      return (await db.sync_queue.get(id)) ?? null
+    }
+
+    if (row.status === 'queued') {
+      if (nr != null && nr > now) return null
+      await db.sync_queue.update(id, {
+        status: 'processing',
+        locked_at: now,
+        updated_at: now,
+      })
+      return (await db.sync_queue.get(id)) ?? null
+    }
+
+    if (row.status === 'failed') {
+      if (nr != null && nr > now) return null
+      await db.sync_queue.update(id, {
+        status: 'processing',
+        locked_at: now,
+        updated_at: now,
+      })
+      return (await db.sync_queue.get(id)) ?? null
+    }
+
+    return null
+  })
+}
+
+async function releaseRowForConnectivityRetry(rowId: string): Promise<void> {
+  const now = Date.now()
+  await db.sync_queue.update(rowId, {
+    status: 'queued',
+    locked_at: null,
+    next_retry_at: now + CONNECTIVITY_RETRY_DELAY_MS,
+    updated_at: now,
+  })
+}
+
+async function markRowFailedAfterError(row: DbSyncQueueRow, message: string): Promise<void> {
+  const now = Date.now()
+  const ac = row.attempt_count + 1
+  await db.sync_queue.update(row.id, {
+    status: 'failed',
+    attempt_count: ac,
+    last_error: message,
+    locked_at: null,
+    next_retry_at: now + backoffMsAfterFailure(ac),
+    updated_at: now,
+  })
+}
 
 type SyncStoreState = {
   pendingCount: number
@@ -21,19 +129,21 @@ type SyncStoreState = {
 }
 
 export function useSyncStore(): SyncStoreState {
-  const queue = useLiveQuery(
-    async () => db.sync_queue.orderBy('updatedAt').toArray(),
-    [],
-    [],
-  )
-  const queueRows = useMemo(() => queue ?? [], [queue])
+  const allRows = useLiveQuery(async () => db.sync_queue.orderBy('updated_at').toArray(), [], [])
+  const rows = useMemo(() => allRows ?? [], [allRows])
   const { status, markOnlineRecovered } = useConnectivity()
+  const statusRef = useRef(status)
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
+
   const { error: showErrorToast } = useToast()
   const drainingRef = useRef(false)
   const [isDraining, setIsDraining] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
+  const [retryPulse, setRetryPulse] = useState(0)
 
-  const normalizeErrorMessage = (error: unknown): string => {
+  const normalizeErrorMessage = useCallback((error: unknown): string => {
     if (error instanceof Error) return error.message
     if (typeof error === 'object' && error !== null) {
       const record = error as { message?: unknown; details?: unknown; code?: unknown }
@@ -44,7 +154,7 @@ export function useSyncStore(): SyncStoreState {
       if (parts.length > 0) return parts.join(' | ')
     }
     return String(error ?? 'Unknown sync error')
-  }
+  }, [])
 
   const resolveSyncUserId = useCallback((payloadUserId?: unknown): string | null => {
     if (typeof payloadUserId === 'string' && payloadUserId) return payloadUserId
@@ -53,310 +163,585 @@ export function useSyncStore(): SyncStoreState {
 
   const isVirtualUserListKey = (listId: string): boolean => listId.startsWith('user:')
 
-  const rollbackFromServer = useCallback(async (row: (typeof queueRows)[number]): Promise<void> => {
-    const userId = resolveSyncUserId((row.payload as { user_id?: unknown })?.user_id)
-    if (!userId) return
-    await syncLists(userId)
-    if (row.listId && !isVirtualUserListKey(row.listId)) {
-      await syncListDetail(userId, row.listId)
-    }
-  }, [resolveSyncUserId])
+  const verifyMutationApplied = useCallback(
+    async (row: DbSyncQueueRow): Promise<boolean> => {
+      const userId = resolveSyncUserId((row.payload as { user_id?: unknown })?.user_id)
+      if (!userId) return true
+      await syncLists(userId)
+      const listId = rowListIdForSync(row)
+      if (listId && !isVirtualUserListKey(listId)) {
+        await syncListDetail(userId, listId)
+      }
+      return true
+    },
+    [resolveSyncUserId],
+  )
 
-  const verifyMutationApplied = useCallback(async (row: (typeof queueRows)[number]): Promise<boolean> => {
-    // Verify every mutation by re-fetching authoritative server state into Dexie.
-    const userId = resolveSyncUserId((row.payload as { user_id?: unknown })?.user_id)
-    if (!userId) return true
-    await syncLists(userId)
-    if (row.listId && !isVirtualUserListKey(row.listId)) {
-      await syncListDetail(userId, row.listId)
+  const executeOutboundRow = useCallback(
+    async (row: DbSyncQueueRow): Promise<void> => {
+      appendMutationDiagnostic(
+        `[sync->server] send kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
+      )
+      if (row.kind === 'delete') {
+        if (row.entity === 'item') {
+          const id = String(row.payload.id ?? '')
+          if (id) {
+            const { error } = await supabase.from('items').delete().eq('id', id)
+            if (error) throw error
+          }
+        } else if (row.entity === 'member') {
+          const id = String(row.payload.id ?? '')
+          if (id) {
+            const { error } = await supabase.rpc('delete_member', { p_member_id: id })
+            if (error) throw error
+          }
+        } else if (row.entity === 'item_member_state') {
+          const itemId = String(row.payload.item_id ?? '')
+          const memberId = String(row.payload.member_id ?? '')
+          if (itemId && memberId) {
+            const { error } = await supabase
+              .from('item_member_state')
+              .delete()
+              .eq('item_id', itemId)
+              .eq('member_id', memberId)
+            if (error) throw error
+          }
+        } else if (row.entity === 'list') {
+          const id = String(row.payload.id ?? '')
+          if (id) {
+            const { error } = await supabase.from('lists').delete().eq('id', id)
+            if (error) throw error
+          }
+        }
+        appendMutationDiagnostic(
+          `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
+        )
+        return
+      }
+
+      if (row.kind === 'create' && row.entity === 'item') {
+        const payload = row.payload as {
+          id?: string
+          list_id?: string
+          text?: string
+          category?: number
+          comment?: string | null
+          sort_order?: number | null
+          client_created_at?: string
+        }
+        const id = String(payload.id ?? '')
+        const listId = String(payload.list_id ?? '')
+        if (!id || !listId) throw new Error('create item missing id/list_id')
+        const t = typeof payload.client_created_at === 'string' ? payload.client_created_at : isoNow()
+        const baseItem = {
+          id,
+          list_id: listId,
+          text: payload.text ?? '',
+          category: payload.category ?? 1,
+          comment: payload.comment ?? null,
+          sort_order: payload.sort_order ?? null,
+          client_created_at: t,
+          server_created_at: t,
+          deleted_at: null,
+          version: 1,
+          last_synced_at: null,
+          updated_at: t,
+        }
+        const itemSync = normalizeServerSyncableFields(baseItem as Record<string, unknown>)
+        const { error } = await supabase.from('items').upsert({
+          ...baseItem,
+          ...itemSync,
+        })
+        if (error) throw error
+      } else if (row.kind === 'create' && row.entity === 'list') {
+        const payload = row.payload as {
+          id?: string
+          name?: string
+          label?: string
+        }
+        const { error } = await supabase.rpc('create_list', {
+          p_id: payload.id,
+          p_name: payload.name ?? '',
+          p_label: payload.label ?? '',
+        } as never)
+        if (error) throw error
+      } else if (row.kind === 'create' && row.entity === 'member') {
+        const payload = row.payload as {
+          id?: string
+          list_id?: string
+          name?: string
+          client_created_at?: string
+          created_by?: string | null
+          sort_order?: number | null
+          is_public?: boolean
+          is_target?: boolean
+        }
+        const id = String(payload.id ?? '')
+        const listId = String(payload.list_id ?? '')
+        if (!id || !listId) throw new Error('create member missing id/list_id')
+        const t = typeof payload.client_created_at === 'string' ? payload.client_created_at : isoNow()
+        const baseRow = {
+          id,
+          list_id: listId,
+          name: payload.name ?? '',
+          created_by: payload.created_by ?? null,
+          sort_order: payload.sort_order ?? null,
+          is_public: payload.is_public ?? false,
+          is_target: payload.is_target ?? false,
+          client_created_at: t,
+          server_created_at: t,
+          deleted_at: null,
+          version: 1,
+          last_synced_at: null,
+          updated_at: t,
+        }
+        const sync = normalizeServerSyncableFields(baseRow as Record<string, unknown>)
+        const { error } = await supabase.from('members').upsert({
+          ...baseRow,
+          ...sync,
+        })
+        if (error) throw error
+      } else if (row.kind === 'create' && row.entity === 'feedback') {
+        const payload = row.payload as {
+          id?: string
+          user_id?: string
+          email?: string | null
+          message?: string
+          client_created_at?: string
+        }
+        const id = String(payload.id ?? '')
+        const userForFeedback = String(payload.user_id ?? '')
+        if (!id || !userForFeedback) throw new Error('feedback create missing id/user_id')
+        const t = typeof payload.client_created_at === 'string' ? payload.client_created_at : isoNow()
+        const baseRow = {
+          id,
+          user_id: userForFeedback,
+          email: typeof payload.email === 'string' ? payload.email : '',
+          message: payload.message ?? '',
+          client_created_at: t,
+          server_created_at: t,
+          deleted_at: null,
+          version: 1,
+          last_synced_at: null,
+        }
+        const sync = normalizeServerSyncableFields(baseRow as Record<string, unknown>)
+        const { error } = await supabase.from('feedback').insert({
+          ...baseRow,
+          ...sync,
+        })
+        if (error) throw error
+      } else if (row.kind === 'patch' && row.entity === 'item_member_state') {
+        const payload = row.payload as {
+          item_id?: string
+          member_id?: string
+          quantity?: number
+          done?: boolean
+          assigned?: boolean
+        }
+        const itemId = String(payload.item_id ?? '')
+        const memberId = String(payload.member_id ?? '')
+        if (!itemId || !memberId) throw new Error('item_member_state missing item_id/member_id')
+        const u = isoNow()
+        const baseIms = {
+          item_id: itemId,
+          member_id: memberId,
+          quantity: payload.quantity ?? 1,
+          done: payload.done ?? false,
+          assigned: payload.assigned ?? false,
+          client_created_at: u,
+          server_created_at: u,
+          deleted_at: null,
+          version: 1,
+          last_synced_at: null,
+          updated_at: u,
+        }
+        const imsSync = normalizeServerSyncableFields(baseIms as Record<string, unknown>)
+        const { error } = await supabase.from('item_member_state').upsert({
+          ...baseIms,
+          ...imsSync,
+        })
+        if (error) throw error
+      } else if (row.kind === 'patch' && row.entity === 'item') {
+        const payload = row.payload as {
+          id?: string
+          [key: string]: unknown
+        }
+        const id = String(payload.id ?? '')
+        if (!id) throw new Error('patch item missing id')
+        const patch: Record<string, unknown> = { ...payload }
+        delete patch.id
+        if (Object.keys(patch).length > 0) {
+          const { error } = await supabase.from('items').update(patch).eq('id', id)
+          if (error) throw error
+        }
+      } else if (row.kind === 'patch' && row.entity === 'list') {
+        const payload = row.payload as {
+          id?: string
+          [key: string]: unknown
+        }
+        const id = String(payload.id ?? '')
+        if (!id) throw new Error('patch list missing id')
+        const patch: Record<string, unknown> = { ...payload }
+        delete patch.id
+        if (Object.keys(patch).length > 0) {
+          const { error } = await supabase.from('lists').update(patch).eq('id', id)
+          if (error) throw error
+        }
+      } else if (row.kind === 'patch' && row.entity === 'member') {
+        const payload = row.payload as {
+          memberId?: string
+          name?: string
+          is_public?: boolean
+        }
+        const memberId = String(payload.memberId ?? row.entity_id ?? '')
+        if (!memberId) throw new Error('patch member missing memberId')
+        const { error } = await supabase.rpc('update_member', {
+          p_member_id: memberId,
+          p_name: payload.name ?? null,
+          p_is_public: payload.is_public ?? null,
+        })
+        if (error) throw error
+      } else if (row.kind === 'rpc') {
+        const payload = row.payload as {
+          method?: string
+          list_id?: string
+          item_ids?: string[]
+          category?: number
+          lines?: string[]
+          items?: Array<Record<string, unknown>>
+          user_id?: string
+          list_ids?: string[]
+          updates?: Array<{ list_id: string; label: string }>
+          id?: string
+          archived?: boolean
+          sort_order?: number
+          label?: string
+          token?: string
+          source_list_id?: string
+          duplicate_id?: string
+          new_name?: string
+          imported_id?: string
+          p_name?: string
+          p_label?: string
+          p_category_names?: string
+          p_rows?: unknown
+          p_has_targets?: boolean
+          member_id?: string
+        }
+        const method = String(payload.method ?? '')
+        if (method === 'reorderListItems') {
+          const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          const itemIds = Array.isArray(payload.item_ids) ? payload.item_ids : []
+          appendMutationDiagnostic(
+            `[sync->server] reorderListItems payload listId=${rpcListId} count=${itemIds.length} head=${itemIds.slice(0, 5).join(',')} tail=${itemIds.slice(-5).join(',')}`,
+          )
+          if (rpcListId && itemIds.length > 0) {
+            const { error } = await supabase.rpc('reorder_list_items', {
+              p_list_id: rpcListId,
+              p_item_ids: itemIds,
+            } as never)
+            if (error) throw error
+          }
+        } else if (method === 'bulkAddListItems') {
+          const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          const category = Number(payload.category ?? 1)
+          const lines = Array.isArray(payload.lines) ? payload.lines : []
+          const itemRows = Array.isArray(payload.items) ? payload.items : []
+          appendMutationDiagnostic(
+            `[sync->server] bulkAddListItems payload listId=${rpcListId} lines=${lines.length} items=${itemRows.length}`,
+          )
+          if (rpcListId && itemRows.length > 0) {
+            for (const raw of itemRows) {
+              const it = raw as {
+                id?: string
+                list_id?: string
+                text?: string
+                category?: number
+                comment?: string | null
+                archived?: boolean
+                archived_at?: string | null
+                sort_order?: number | null
+                client_created_at?: string
+                server_created_at?: string | null
+                deleted_at?: string | null
+                version?: number
+                last_synced_at?: string | null
+                updated_at?: string
+              }
+              const id = String(it.id ?? '')
+              if (!id) continue
+              const t = typeof it.client_created_at === 'string' ? it.client_created_at : isoNow()
+              const baseRow = {
+                id,
+                list_id: String(it.list_id ?? rpcListId),
+                text: it.text ?? '',
+                category: it.category ?? category,
+                comment: it.comment ?? null,
+                archived: it.archived ?? false,
+                archived_at: it.archived_at ?? null,
+                sort_order: it.sort_order ?? null,
+                client_created_at: t,
+                server_created_at: typeof it.server_created_at === 'string' ? it.server_created_at : t,
+                deleted_at: it.deleted_at ?? null,
+                version: typeof it.version === 'number' ? it.version : 1,
+                last_synced_at: it.last_synced_at ?? null,
+                updated_at: typeof it.updated_at === 'string' ? it.updated_at : t,
+              }
+              const sync = normalizeServerSyncableFields(baseRow as Record<string, unknown>)
+              const { error } = await supabase.from('items').upsert({
+                ...baseRow,
+                ...sync,
+              })
+              if (error) throw error
+            }
+          } else if (rpcListId && lines.length > 0) {
+            const { error } = await supabase.rpc('bulk_add_list_items', {
+              p_list_id: rpcListId,
+              p_category: category,
+              p_lines: lines,
+            } as never)
+            if (error) throw error
+          }
+        } else if (method === 'patchListUser') {
+          const id = String(payload.id ?? '')
+          const patchUserId = String(payload.user_id ?? '')
+          if (!id || !patchUserId) throw new Error('patchListUser missing id/user_id')
+          const patch: Record<string, unknown> = {}
+          if (payload.archived !== undefined) patch.archived = payload.archived
+          if (payload.sort_order !== undefined) patch.sort_order = payload.sort_order
+          if (payload.label !== undefined) patch.label = payload.label
+          const plWide = payload as Record<string, unknown>
+          if (plWide.member_filter !== undefined) patch.member_filter = plWide.member_filter
+          if (plWide.item_text_width !== undefined) patch.item_text_width = plWide.item_text_width
+          if (plWide.sum_scope !== undefined) patch.sum_scope = plWide.sum_scope
+          if (plWide.item_name_font_step !== undefined) patch.item_name_font_step = plWide.item_name_font_step
+          if (plWide.last_viewed_members !== undefined) patch.last_viewed_members = plWide.last_viewed_members
+          if (Object.keys(patch).length > 0) {
+            const { error } = await supabase
+              .from('list_users')
+              .update(patch)
+              .eq('list_id', id)
+              .eq('user_id', patchUserId)
+            if (error) throw error
+          }
+        } else if (method === 'reorderListUsers') {
+          const listIds = Array.isArray(payload.list_ids) ? payload.list_ids : []
+          appendMutationDiagnostic(
+            `[sync->server] reorderListUsers payload count=${listIds.length} head=${listIds.slice(0, 5).join(',')} tail=${listIds.slice(-5).join(',')}`,
+          )
+          if (listIds.length > 0) {
+            const { error } = await supabase.rpc('reorder_user_lists', {
+              p_list_ids: listIds,
+            } as never)
+            if (error) throw error
+          }
+        } else if (method === 'bulkPatchListLabels') {
+          const updates = Array.isArray(payload.updates) ? payload.updates : []
+          appendMutationDiagnostic(`[sync->server] bulkPatchListLabels payload count=${updates.length}`)
+          if (updates.length > 0) {
+            const { error } = await supabase.rpc('bulk_update_list_labels', {
+              p_updates: updates,
+            } as never)
+            if (error) throw error
+          }
+        } else if (method === 'joinListByToken') {
+          const token = String(payload.token ?? '')
+          if (!token) throw new Error('joinListByToken missing token')
+          appendMutationDiagnostic('[sync->server] joinListByToken')
+          const { error } = await supabase.rpc('join_list_by_token', { p_token: token } as never)
+          if (error) throw error
+        } else if (method === 'leaveList') {
+          const lid = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          if (!lid) throw new Error('leaveList missing list_id')
+          appendMutationDiagnostic(`[sync->server] leaveList listId=${lid}`)
+          const { error } = await supabase.rpc('leave_list', { p_list_id: lid } as never)
+          if (error) throw error
+        } else if (method === 'duplicateList') {
+          const sourceListId = String(payload.source_list_id ?? '')
+          const dupId = String(payload.duplicate_id ?? '')
+          const newName = String(payload.new_name ?? '')
+          const pLabel = String(payload.label ?? '')
+          if (!sourceListId || !dupId) throw new Error('duplicateList missing source_list_id/duplicate_id')
+          appendMutationDiagnostic(`[sync->server] duplicateList source=${sourceListId} dup=${dupId}`)
+          const { data, error } = await supabase.rpc('duplicate_list', {
+            p_source_list_id: sourceListId,
+            p_id: dupId,
+            p_new_name: newName,
+            p_label: pLabel,
+          } as never)
+          if (error) throw error
+          const uid = resolveSyncUserId(payload.user_id)
+          if (!uid) throw new Error('duplicateList missing user_id')
+          if (data?.list) {
+            const rawItems = (data.items ?? []) as ItemWithState[]
+            const items = rawItems.map((item) => ({
+              ...item,
+              category: normalizeItemCategory(item.category),
+            }))
+            const members = (data.members ?? []) as MemberWithCreator[]
+            await upsertListDataPayloadFromServer(uid, dupId, {
+              list: data.list as List,
+              items,
+              members,
+            })
+          }
+        } else if (method === 'ownMember') {
+          const memberId = String(payload.member_id ?? '')
+          if (!memberId) throw new Error('ownMember missing member_id')
+          appendMutationDiagnostic(`[sync->server] ownMember memberId=${memberId}`)
+          const { error } = await supabase.rpc('own_member', { p_member_id: memberId } as never)
+          if (error) throw error
+        } else if (method === 'importList') {
+          const importedId = String(payload.imported_id ?? '')
+          const pName = String(payload.p_name ?? '')
+          const pLabel = String(payload.p_label ?? '')
+          const pCategoryNames = String(payload.p_category_names ?? '{}')
+          const pHasTargets = Boolean(payload.p_has_targets)
+          const pRows = payload.p_rows
+          if (!importedId || !pName) throw new Error('importList missing imported_id/p_name')
+          appendMutationDiagnostic(`[sync->server] importList id=${importedId}`)
+          const { data, error } = await supabase.rpc('import_list', {
+            p_id: importedId,
+            p_name: pName,
+            p_label: pLabel,
+            p_category_names: pCategoryNames,
+            p_rows: (pRows ?? []) as never,
+            p_has_targets: pHasTargets,
+          } as never)
+          if (error) throw error
+          const uid = resolveSyncUserId(payload.user_id)
+          if (!uid) throw new Error('importList missing user_id')
+          if (data) {
+            await upsertListDataPayloadFromServer(uid, importedId, {
+              list: data as List,
+              items: [],
+              members: [],
+            })
+          }
+        } else if (method === 'generateShareToken') {
+          const lid = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          const force = Boolean((payload as Record<string, unknown>).force_regenerate)
+          if (!lid) throw new Error('generateShareToken missing list_id')
+          appendMutationDiagnostic(`[sync->server] generateShareToken listId=${lid} force=${force ? 1 : 0}`)
+          const { error } = await supabase.rpc('generate_share_token', {
+            p_list_id: lid,
+            p_force_regenerate: force,
+          } as never)
+          if (error) throw error
+          const uidShare = resolveSyncUserId(payload.user_id)
+          if (uidShare) {
+            await syncListDetail(uidShare, lid)
+          }
+        } else if (method === 'revokeShareToken') {
+          const lid = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          if (!lid) throw new Error('revokeShareToken missing list_id')
+          appendMutationDiagnostic(`[sync->server] revokeShareToken listId=${lid}`)
+          const { error } = await supabase.rpc('revoke_share_token', { p_list_id: lid } as never)
+          if (error) throw error
+          const uidRev = resolveSyncUserId(payload.user_id)
+          if (uidRev) {
+            await syncListDetail(uidRev, lid)
+          }
+        } else if (method === 'removeUsersFromList') {
+          const lid = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          const pUserIds = (payload as Record<string, unknown>).p_user_ids
+          const ids = Array.isArray(pUserIds) ? (pUserIds as string[]) : []
+          if (!lid || ids.length === 0) throw new Error('removeUsersFromList missing list_id/p_user_ids')
+          appendMutationDiagnostic(`[sync->server] removeUsersFromList listId=${lid} count=${ids.length}`)
+          const { error } = await supabase.rpc('remove_users_from_list', {
+            p_list_id: lid,
+            p_user_ids: ids,
+          } as never)
+          if (error) throw error
+          const uidRm = resolveSyncUserId(payload.user_id)
+          if (uidRm) {
+            await syncListDetail(uidRm, lid)
+          }
+        } else {
+          throw new Error(`Unknown rpc method: ${method || '(empty)'}`)
+        }
+      }
+
+      const verified = await verifyMutationApplied(row)
+      if (!verified) {
+        throw new Error(`Verification failed for ${row.kind}/${row.entity}/${queueDiagKey(row)}`)
+      }
+      appendMutationDiagnostic(
+        `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
+      )
+    },
+    [verifyMutationApplied, resolveSyncUserId, syncListDetail],
+  )
+
+  const needsBackoffWake = useMemo(() => {
+    const now = Date.now()
+    return rows.some((r) => {
+      const nr = r.next_retry_at ?? null
+      return nr != null && nr > now
+    })
+  }, [rows])
+
+  useEffect(() => {
+    if (status !== 'online' || rows.length === 0 || !needsBackoffWake) return
+    const id = window.setInterval(() => {
+      setRetryPulse((p) => p + 1)
+    }, 3_000)
+    return () => window.clearInterval(id)
+  }, [needsBackoffWake, rows.length, status])
+
+  useEffect(() => {
+    const onOnline = () => {
+      void resetFailedSyncQueueRows()
     }
-    return true
-  }, [resolveSyncUserId])
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [])
 
   useEffect(() => {
     if (status !== 'online') return
-    if (queueRows.length === 0) return
+    if (rows.length === 0) return
     if (drainingRef.current) return
+
+    const now = Date.now()
+    const hasEligible = rows.some((r) => isEligibleForSync(r, now))
+    if (!hasEligible && !needsBackoffWake) return
 
     let cancelled = false
     const run = async () => {
       drainingRef.current = true
       setIsDraining(true)
       try {
-        for (const row of queueRows) {
-          if (cancelled) break
+        while (!cancelled && statusRef.current === 'online') {
+          const tick = Date.now()
+          const batch = await db.sync_queue.orderBy('updated_at').toArray()
+          const eligible = batch
+            .filter((r) => isEligibleForSync(r, tick))
+            .sort((a, b) => a.updated_at - b.updated_at)
+          const next = eligible[0]
+          if (!next) break
+
+          const claimed = await tryClaimSyncRow(next.id)
+          if (!claimed) continue
+
           try {
-            appendMutationDiagnostic(
-              `[sync->server] send kind=${row.kind} entity=${row.entity} key=${row.itemKey}`,
-            )
-            if (row.kind === 'delete') {
-              if (row.entity === 'item') {
-                const id = String(row.payload.id ?? '')
-                if (id) {
-                  const { error } = await supabase.from('items').delete().eq('id', id)
-                  if (error) throw error
-                }
-              } else if (row.entity === 'member') {
-                const id = String(row.payload.id ?? '')
-                if (id) {
-                  const { error } = await supabase.rpc('delete_member', { p_member_id: id })
-                  if (error) throw error
-                }
-              } else if (row.entity === 'item_member_state') {
-                const itemId = String(row.payload.item_id ?? '')
-                const memberId = String(row.payload.member_id ?? '')
-                if (itemId && memberId) {
-                  const { error } = await supabase
-                    .from('item_member_state')
-                    .delete()
-                    .eq('item_id', itemId)
-                    .eq('member_id', memberId)
-                  if (error) throw error
-                }
-              } else if (row.entity === 'list') {
-                const id = String(row.payload.id ?? '')
-                if (id) {
-                  const { error } = await supabase.from('lists').delete().eq('id', id)
-                  if (error) throw error
-                }
-              }
-              await db.transaction('rw', db.sync_queue, async () => {
-                await db.sync_queue.delete([row.listId, row.itemKey])
-              })
-              appendMutationDiagnostic(
-                `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${row.itemKey}`,
-              )
-              continue
-            }
-
-            if (row.kind === 'create' && row.entity === 'item') {
-              const payload = row.payload as {
-                id?: string
-                list_id?: string
-                text?: string
-                category?: number
-                comment?: string | null
-                sort_order?: number | null
-              }
-              const { error } = await supabase.from('items').upsert({
-                id: payload.id,
-                list_id: payload.list_id,
-                text: payload.text ?? '',
-                category: payload.category ?? 1,
-                comment: payload.comment ?? null,
-                sort_order: payload.sort_order ?? null,
-              })
-              if (error) throw error
-            } else if (row.kind === 'create' && row.entity === 'list') {
-              const payload = row.payload as {
-                id?: string
-                name?: string
-                label?: string
-              }
-              const { error } = await supabase.rpc('create_list', {
-                p_id: payload.id,
-                p_name: payload.name ?? '',
-                p_label: payload.label ?? '',
-              } as never)
-              if (error) throw error
-            } else if (row.kind === 'addMember' && row.entity === 'member') {
-              const payload = row.payload as {
-                id?: string
-                list_id?: string
-                name?: string
-              }
-              const { error } = await supabase.from('members').upsert({
-                id: payload.id,
-                list_id: payload.list_id,
-                name: payload.name ?? '',
-              })
-              if (error) throw error
-            } else if (row.kind === 'itemMemberState' && row.entity === 'item_member_state') {
-              const payload = row.payload as {
-                item_id?: string
-                member_id?: string
-                quantity?: number
-                done?: boolean
-                assigned?: boolean
-              }
-              const { error } = await supabase.from('item_member_state').upsert({
-                item_id: payload.item_id,
-                member_id: payload.member_id,
-                quantity: payload.quantity ?? 1,
-                done: payload.done ?? false,
-                assigned: payload.assigned ?? false,
-              })
-              if (error) throw error
-            } else if (row.kind === 'patchServerItem' && row.entity === 'item') {
-              const payload = row.payload as {
-                id?: string
-                [key: string]: unknown
-              }
-              const id = String(payload.id ?? '')
-              if (!id) throw new Error('patchServerItem missing id')
-              const patch: Record<string, unknown> = { ...payload }
-              delete patch.id
-              if (Object.keys(patch).length > 0) {
-                const { error } = await supabase.from('items').update(patch).eq('id', id)
-                if (error) throw error
-              }
-            } else if (row.kind === 'reorderListItems' && row.entity === 'item') {
-              const payload = row.payload as {
-                list_id?: string
-                item_ids?: string[]
-              }
-              const rpcListId = String(payload.list_id ?? row.listId ?? '')
-              const itemIds = Array.isArray(payload.item_ids) ? payload.item_ids : []
-              appendMutationDiagnostic(
-                `[sync->server] reorderListItems payload listId=${rpcListId} count=${itemIds.length} head=${itemIds.slice(0, 5).join(',')} tail=${itemIds.slice(-5).join(',')}`,
-              )
-              if (rpcListId && itemIds.length > 0) {
-                const { error } = await supabase.rpc('reorder_list_items', {
-                  p_list_id: rpcListId,
-                  p_item_ids: itemIds,
-                } as never)
-                if (error) throw error
-              }
-            } else if (row.kind === 'bulkAddListItems' && row.entity === 'item') {
-              const payload = row.payload as {
-                list_id?: string
-                category?: number
-                lines?: string[]
-              }
-              const rpcListId = String(payload.list_id ?? row.listId ?? '')
-              const category = Number(payload.category ?? 1)
-              const lines = Array.isArray(payload.lines) ? payload.lines : []
-              appendMutationDiagnostic(
-                `[sync->server] bulkAddListItems payload listId=${rpcListId} count=${lines.length}`,
-              )
-              if (rpcListId && lines.length > 0) {
-                const { error } = await supabase.rpc('bulk_add_list_items', {
-                  p_list_id: rpcListId,
-                  p_category: category,
-                  p_lines: lines,
-                } as never)
-                if (error) throw error
-              }
-            } else if (row.kind === 'patchMember' && row.entity === 'member') {
-              const payload = row.payload as {
-                memberId?: string
-                name?: string
-                is_public?: boolean
-              }
-              const memberId = String(payload.memberId ?? '')
-              if (!memberId) throw new Error('patchMember missing memberId')
-              const { error } = await supabase.rpc('update_member', {
-                p_member_id: memberId,
-                p_name: payload.name,
-                p_is_public: payload.is_public,
-              })
-              if (error) throw error
-            } else if (row.kind === 'patchArchived' && row.entity === 'item') {
-              const payload = row.payload as {
-                id?: string
-                archived?: boolean
-                archived_at?: string | null
-              }
-              const id = String(payload.id ?? '')
-              if (!id) throw new Error('patchArchived missing id')
-              const { error } = await supabase
-                .from('items')
-                .update({
-                  archived: payload.archived ?? false,
-                  archived_at: payload.archived_at ?? null,
-                })
-                .eq('id', id)
-              if (error) throw error
-            } else if (row.kind === 'patchList' && row.entity === 'list') {
-              const payload = row.payload as {
-                id?: string
-                [key: string]: unknown
-              }
-              const id = String(payload.id ?? '')
-              if (!id) throw new Error('patchList missing id')
-              const patch: Record<string, unknown> = { ...payload }
-              delete patch.id
-              if (Object.keys(patch).length > 0) {
-                const { error } = await supabase.from('lists').update(patch).eq('id', id)
-                if (error) throw error
-              }
-            } else if (row.kind === 'patchListUser' && row.entity === 'list') {
-              const payload = row.payload as {
-                id?: string
-                user_id?: string
-                archived?: boolean
-                sort_order?: number
-                label?: string
-              }
-              const id = String(payload.id ?? '')
-              const userId = String(payload.user_id ?? '')
-              if (!id || !userId) throw new Error('patchListUser missing id/user_id')
-              const patch: Record<string, unknown> = {}
-              if (payload.archived !== undefined) patch.archived = payload.archived
-              if (payload.sort_order !== undefined) patch.sort_order = payload.sort_order
-              if (payload.label !== undefined) patch.label = payload.label
-              if (Object.keys(patch).length > 0) {
-                const { error } = await supabase
-                  .from('list_users')
-                  .update(patch)
-                  .eq('list_id', id)
-                  .eq('user_id', userId)
-                if (error) throw error
-              }
-            } else if (row.kind === 'reorderListUsers' && row.entity === 'list') {
-              const payload = row.payload as {
-                list_ids?: string[]
-              }
-              const listIds = Array.isArray(payload.list_ids) ? payload.list_ids : []
-              appendMutationDiagnostic(
-                `[sync->server] reorderListUsers payload count=${listIds.length} head=${listIds.slice(0, 5).join(',')} tail=${listIds.slice(-5).join(',')}`,
-              )
-              if (listIds.length > 0) {
-                const { error } = await supabase.rpc('reorder_user_lists', {
-                  p_list_ids: listIds,
-                } as never)
-                if (error) throw error
-              }
-            } else if (row.kind === 'bulkPatchListLabels' && row.entity === 'list') {
-              const payload = row.payload as {
-                updates?: Array<{ list_id: string; label: string }>
-              }
-              const updates = Array.isArray(payload.updates) ? payload.updates : []
-              appendMutationDiagnostic(
-                `[sync->server] bulkPatchListLabels payload count=${updates.length}`,
-              )
-              if (updates.length > 0) {
-                const { error } = await supabase.rpc('bulk_update_list_labels', {
-                  p_updates: updates,
-                } as never)
-                if (error) throw error
-              }
-            }
-
-            const verified = await verifyMutationApplied(row)
-            if (!verified) {
-              throw new Error(`Verification failed for ${row.kind}/${row.entity}/${row.itemKey}`)
-            }
-            await db.transaction('rw', db.sync_queue, async () => {
-              await db.sync_queue.delete([row.listId, row.itemKey])
-            })
-            appendMutationDiagnostic(
-              `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${row.itemKey}`,
-            )
+            await executeOutboundRow(claimed)
+            await db.sync_queue.delete(claimed.id)
+            markOnlineRecovered('use-sync-store-drain')
           } catch (error) {
             const message = normalizeErrorMessage(error)
             appendMutationDiagnostic(
-              `[sync<-server] error kind=${row.kind} entity=${row.entity} key=${row.itemKey} msg=${message}`,
+              `[sync<-server] error kind=${claimed.kind} entity=${claimed.entity} key=${queueDiagKey(claimed)} msg=${message}`,
             )
             if (isLikelyConnectivityError(error)) {
               setLastError(message)
+              await releaseRowForConnectivityRetry(claimed.id)
               break
             }
-            await rollbackFromServer(row)
-            await db.sync_queue.delete([row.listId, row.itemKey])
-            showErrorToast(message || 'Sync failed; reverted local changes.')
+            await markRowFailedAfterError(claimed, message)
+            if (claimed.attempt_count === 0) {
+              showErrorToast(message || 'Sync failed; will retry.')
+            }
             setLastError(message)
-            continue
           }
         }
       } catch (error) {
@@ -365,6 +750,9 @@ export function useSyncStore(): SyncStoreState {
       } finally {
         drainingRef.current = false
         setIsDraining(false)
+        if (cancelled) {
+          queueMicrotask(() => setRetryPulse((p) => p + 1))
+        }
       }
     }
 
@@ -372,21 +760,30 @@ export function useSyncStore(): SyncStoreState {
     return () => {
       cancelled = true
     }
-  }, [markOnlineRecovered, queueRows, rollbackFromServer, showErrorToast, status, verifyMutationApplied])
+  }, [
+    executeOutboundRow,
+    markOnlineRecovered,
+    needsBackoffWake,
+    normalizeErrorMessage,
+    retryPulse,
+    rows,
+    showErrorToast,
+    status,
+  ])
 
   useEffect(() => {
-    if (status === 'online' && queueRows.length > 0) {
+    if (status === 'online' && rows.length > 0) {
       markOnlineRecovered('use-sync-store-online-drain')
     }
-  }, [markOnlineRecovered, queueRows.length, status])
+  }, [markOnlineRecovered, rows.length, status])
 
   return useMemo(
     () => ({
-      pendingCount: queueRows.length,
+      pendingCount: rows.length,
       isDraining,
       lastError,
-      hasSyncFailures: queueRows.some((row) => row.attemptCount > 0 && Boolean(row.lastError)),
+      hasSyncFailures: rows.some((row) => row.status === 'failed' || (row.attempt_count > 0 && Boolean(row.last_error))),
     }),
-    [isDraining, lastError, queueRows],
+    [isDraining, lastError, rows],
   )
 }

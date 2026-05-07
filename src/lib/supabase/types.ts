@@ -17,6 +17,23 @@ export function normalizeItemCategory(value: unknown): ItemCategory {
   return 1
 }
 
+/** Keep in sync with `src/lib/data/base_sync_fields.ts` `SyncableFields`. */
+export type DbSyncableFields = {
+  client_created_at: string
+  server_created_at: string | null
+  deleted_at: string | null
+  version: number
+  last_synced_at: string | null
+}
+
+export type DbSyncableFieldsPartial = {
+  client_created_at?: string
+  server_created_at?: string | null
+  deleted_at?: string | null
+  version?: number
+  last_synced_at?: string | null
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -27,24 +44,22 @@ export interface Database {
           nickname: string | null
           label_filter: string
           theme: 'light' | 'dark'
-          created_at: string
-        }
+        } & DbSyncableFields
         Insert: {
           id: string
           email?: string | null
           nickname?: string | null
           label_filter?: string
           theme?: 'light' | 'dark'
-          created_at?: string
-        }
+        } & DbSyncableFieldsPartial
         Update: {
           id?: string
           email?: string | null
           nickname?: string | null
           label_filter?: string
           theme?: 'light' | 'dark'
-          created_at?: string
-        }
+        } & DbSyncableFieldsPartial
+        Relationships: []
       }
       lists: {
         Row: {
@@ -61,9 +76,8 @@ export interface Database {
           join_expires_at: string | null
           join_revoked_at: string | null
           join_use_count: number
-          created_at: string
           updated_at: string
-        }
+        } & DbSyncableFields
         Insert: {
           id?: string
           name: string
@@ -78,9 +92,8 @@ export interface Database {
           join_expires_at?: string | null
           join_revoked_at?: string | null
           join_use_count?: number
-          created_at?: string
           updated_at?: string
-        }
+        } & DbSyncableFieldsPartial
         Update: {
           id?: string
           name?: string
@@ -95,9 +108,9 @@ export interface Database {
           join_expires_at?: string | null
           join_revoked_at?: string | null
           join_use_count?: number
-          created_at?: string
           updated_at?: string
-        }
+        } & DbSyncableFieldsPartial
+        Relationships: []
       }
       list_users: {
         Row: {
@@ -113,8 +126,7 @@ export interface Database {
           last_viewed_members: string | null
           sum_scope: 'none' | 'all' | 'active' | 'archived'
           label: string
-          created_at: string
-        }
+        } & DbSyncableFields
         Insert: {
           list_id: string
           user_id: string
@@ -128,8 +140,7 @@ export interface Database {
           last_viewed_members?: string | null
           sum_scope?: 'none' | 'all' | 'active' | 'archived'
           label?: string
-          created_at?: string
-        }
+        } & DbSyncableFieldsPartial
         Update: {
           list_id?: string
           user_id?: string
@@ -143,8 +154,8 @@ export interface Database {
           last_viewed_members?: string | null
           sum_scope?: 'none' | 'all' | 'active' | 'archived'
           label?: string
-          created_at?: string
-        }
+        } & DbSyncableFieldsPartial
+        Relationships: []
       }
       members: {
         Row: {
@@ -155,9 +166,8 @@ export interface Database {
           sort_order: number | null
           is_public: boolean
           is_target: boolean
-          created_at: string
           updated_at: string
-        }
+        } & DbSyncableFields
         Insert: {
           id?: string
           list_id: string
@@ -166,9 +176,8 @@ export interface Database {
           sort_order?: number | null
           is_public?: boolean
           is_target?: boolean
-          created_at?: string
           updated_at?: string
-        }
+        } & DbSyncableFieldsPartial
         Update: {
           id?: string
           list_id?: string
@@ -177,9 +186,9 @@ export interface Database {
           sort_order?: number | null
           is_public?: boolean
           is_target?: boolean
-          created_at?: string
           updated_at?: string
-        }
+        } & DbSyncableFieldsPartial
+        Relationships: []
       }
       items: {
         Row: {
@@ -191,9 +200,8 @@ export interface Database {
           archived_at: string | null
           sort_order: number | null
           category: number
-          created_at: string
           updated_at: string
-        }
+        } & DbSyncableFields
         Insert: {
           id?: string
           list_id: string
@@ -203,9 +211,8 @@ export interface Database {
           archived_at?: string | null
           sort_order?: number | null
           category?: number
-          created_at?: string
           updated_at?: string
-        }
+        } & DbSyncableFieldsPartial
         Update: {
           id?: string
           list_id?: string
@@ -215,9 +222,9 @@ export interface Database {
           archived_at?: string | null
           sort_order?: number | null
           category?: number
-          created_at?: string
           updated_at?: string
-        }
+        } & DbSyncableFieldsPartial
+        Relationships: []
       }
       item_member_state: {
         Row: {
@@ -227,7 +234,7 @@ export interface Database {
           done: boolean
           assigned: boolean
           updated_at: string
-        }
+        } & DbSyncableFields
         Insert: {
           item_id: string
           member_id: string
@@ -235,7 +242,7 @@ export interface Database {
           done?: boolean
           assigned?: boolean
           updated_at?: string
-        }
+        } & DbSyncableFieldsPartial
         Update: {
           item_id?: string
           member_id?: string
@@ -243,12 +250,37 @@ export interface Database {
           done?: boolean
           assigned?: boolean
           updated_at?: string
-        }
+        } & DbSyncableFieldsPartial
+        Relationships: []
+      }
+      feedback: {
+        Row: {
+          id: string
+          user_id: string
+          email: string
+          message: string
+        } & DbSyncableFields
+        Insert: {
+          id?: string
+          user_id: string
+          email?: string
+          message: string
+        } & DbSyncableFieldsPartial
+        Update: {
+          id?: string
+          user_id?: string
+          email?: string
+          message?: string
+        } & DbSyncableFieldsPartial
+        Relationships: []
       }
     }
+    Views: Record<string, never>
+    Enums: Record<string, never>
+    CompositeTypes: Record<string, never>
     Functions: {
       create_list: {
-        Args: { p_name: string; p_label?: string }
+        Args: { p_id?: string; p_name: string; p_label?: string }
         Returns: Database['public']['Tables']['lists']['Row']
       }
       join_list_by_token: {
@@ -263,8 +295,12 @@ export interface Database {
           owner_id: string
           visibility: 'private' | 'link'
           archived: boolean
-          created_at: string
           updated_at: string
+          client_created_at: string
+          server_created_at: string | null
+          deleted_at: string | null
+          version: number
+          last_synced_at: string | null
           role: 'owner' | 'editor' | 'viewer'
           userArchived: boolean
           sort_order: number | null
@@ -290,7 +326,7 @@ export interface Database {
         }
       }
       duplicate_list: {
-        Args: { p_source_list_id: string; p_new_name: string; p_label?: string }
+        Args: { p_source_list_id: string; p_new_name: string; p_label?: string; p_id?: string }
         Returns: {
           list: Database['public']['Tables']['lists']['Row'] | null
           items: (Database['public']['Tables']['items']['Row'] & {
@@ -354,7 +390,14 @@ export interface Database {
         Returns: undefined
       }
       import_list: {
-        Args: { p_name: string; p_label?: string; p_category_names?: string; p_rows?: Json; p_has_targets?: boolean }
+        Args: {
+          p_id?: string
+          p_name: string
+          p_label?: string
+          p_category_names?: string
+          p_rows?: Json
+          p_has_targets?: boolean
+        }
         Returns: Database['public']['Tables']['lists']['Row']
       }
       own_member: {
@@ -387,6 +430,7 @@ export type MemberWithCreator = Member & {
 export type ListWithRole = List & {
   role: 'owner' | 'editor' | 'viewer'
   userArchived: boolean
+  sort_order?: number | null
   memberCount?: number
   activeItemCount?: number
   archivedItemCount?: number
@@ -396,10 +440,7 @@ export type ListWithRole = List & {
   label?: string
 }
 
-export type ItemWithState = Database['public']['Functions']['get_list_data']['Returns']['items'][number] & {
-  /** Stable id for optimistic creates; used to merge temp ↔ server without relying on temp row id. */
-  clientItemKey?: string
-}
+export type ItemWithState = Database['public']['Functions']['get_list_data']['Returns']['items'][number]
 
 /** Keys "1"-"6", values are user-defined category names (empty string = unnamed). */
 export type CategoryNames = Record<string, string>

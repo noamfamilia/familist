@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createUserMutationGate } from '@/lib/userMutationGate'
-import { createClient, forceNewClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
@@ -12,14 +12,22 @@ import { APP_VERSION } from '@/lib/appVersion'
 import { perfLog } from '@/lib/startupPerfLog'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { reportServerDexieParityDiagnostics, upsertListsSummaryFromServer } from '@/lib/data/serverDexieParity'
+import { collectListIdsNeedingMirrorFromSummaries, enqueueListMirrorJobs } from '@/lib/data/listMirror'
+import {
+  clearSyncQueueForList,
+  enqueueSyncQueueRecord,
+  listQueueParent,
+  newBatchEntityId,
+  userQueueParent,
+} from '@/lib/data/syncQueue'
+import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import {
   isLikelyConnectivityError,
   resolveServerWorkOutcomeFromResult,
   resolveServerWorkOutcomeFromThrown,
   type ServerWorkOutcome,
 } from '@/lib/connectivityErrors'
-import { STILL_SAVING_TEMP_ENTITY_MSG } from '@/lib/mutationToastPolicy'
-import type { Database, ItemWithState, Json, ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
+import type { Database, Json, ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import Dexie from 'dexie'
@@ -29,10 +37,6 @@ const supabase = createClient()
 const FETCH_TIMEOUT_MS = 10_000
 const SAVE_TIMEOUT_MS = 10_000
 type UserListsRpcRow = Database['public']['Functions']['get_user_lists']['Returns'][number]
-
-function isTempEntityId(id: string | null | undefined): boolean {
-  return typeof id === 'string' && id.startsWith('temp-')
-}
 
 function coalesceListUserSumScope(raw: unknown): ListUserSumScope {
   if (raw === 'all' || raw === 'active' || raw === 'archived' || raw === 'none') return raw
@@ -62,47 +66,50 @@ function extractListRowFields(list: ListWithRole) {
   return listFields
 }
 
-async function softDeleteListInDexie(userId: string | null, listId: string) {
+async function softDeleteListInDexie(
+  userId: string | null,
+  listId: string,
+  options?: { queueServerDelete?: boolean; leaveRpc?: boolean },
+) {
   if (!userId) return
+  await clearSyncQueueForList(listId)
   const nowMs = Date.now()
+  const queueServerDelete = options?.queueServerDelete !== false
+  const leaveRpc = options?.leaveRpc === true
   await db.transaction(
     'rw',
-    db.lists,
-    db.items,
-    db.members,
-    db.item_member_state,
-    db.list_users,
-    db.listSummaries,
-    db.joinedUsers,
-    db.listShareTokens,
-    db.sync_queue,
+    [db.lists, db.items, db.members, db.item_member_state, db.list_users, db.sync_queue],
     async () => {
-    await db.lists.update([userId, listId], { deleted_at: nowMs, cachedAt: nowMs })
-    await db.list_users.delete([listId, userId])
-    await db.listSummaries.delete([userId, listId])
-    const joinedUsers = await db.joinedUsers.where('listId').equals(listId).toArray()
-    for (const row of joinedUsers) {
-      await db.joinedUsers.delete([listId, row.userId])
-    }
-    await db.listShareTokens.delete(listId)
-    const [items, members, states] = await Promise.all([
-      db.items.where('[userId+listId]').equals([userId, listId]).toArray(),
-      db.members.where('[userId+listId]').equals([userId, listId]).toArray(),
-      db.item_member_state.where('[listId+item_id]').between([listId, Dexie.minKey], [listId, Dexie.maxKey]).toArray(),
-    ])
-    for (const item of items) await db.items.update([userId, listId, item.id], { deleted_at: nowMs })
-    for (const member of members) await db.members.update([userId, listId, member.id], { deleted_at: nowMs })
-    for (const state of states) await db.item_member_state.update([listId, state.item_id, state.member_id], { deleted_at: nowMs })
-    await db.sync_queue.put({
-      listId,
-      itemKey: `list:${listId}`,
-      kind: 'delete',
-      entity: 'list',
-      payload: { id: listId },
-      updatedAt: nowMs,
-      attemptCount: 0,
-      lastError: null,
-    })
+      await db.lists.update(listId, { deleted_at: isoNow(), cached_at: nowMs })
+      const listUser = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+      if (listUser) await db.list_users.delete(listUser.id)
+      const [items, members, states] = await Promise.all([
+        db.items.where('list_id').equals(listId).toArray(),
+        db.members.where('list_id').equals(listId).toArray(),
+        db.item_member_state.where('[list_id+item_id]').between([listId, Dexie.minKey], [listId, Dexie.maxKey]).toArray(),
+      ])
+      for (const item of items) await db.items.update(item.id, { deleted_at: isoNow() })
+      for (const member of members) await db.members.update(member.id, { deleted_at: isoNow() })
+      for (const state of states) await db.item_member_state.update(state.id, { deleted_at: isoNow() })
+      if (leaveRpc) {
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: newBatchEntityId(),
+          kind: 'rpc',
+          payload: { method: 'leaveList', list_id: listId, user_id: userId },
+          ...userQueueParent(userId),
+          status: 'queued',
+        })
+      } else if (queueServerDelete) {
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: listId,
+          kind: 'delete',
+          payload: { id: listId },
+          ...listQueueParent(listId),
+          status: 'queued',
+        })
+      }
     },
   )
 }
@@ -184,7 +191,7 @@ export function useLists() {
     hasInitialDataRef.current = dexieLists.length > 0
   }, [dexieLists, hasCompletedInitialFetch, userId])
 
-  const trackSaveOperation = async (operation: PromiseLike<unknown>): Promise<unknown> => {
+  const trackSaveOperation = async <T>(operation: PromiseLike<T>): Promise<T> => {
     pendingSaveOpsRef.current++
     setSaveTimedOut(false)
 
@@ -223,20 +230,20 @@ export function useLists() {
     )
     await db.transaction('rw', db.list_users, db.sync_queue, async () => {
       for (const [index, list] of orderedLists.entries()) {
-        await db.list_users.update([list.id, user.id], { sort_order: index })
+        const row = await db.list_users.where('[list_id+user_id]').equals([list.id, user.id]).first()
+        if (row) await db.list_users.update(row.id, { sort_order: index })
       }
-      await db.sync_queue.put({
-        listId: `user:${user.id}`,
-        itemKey: `reorder-user-lists:${user.id}`,
-        kind: 'reorderListUsers',
+      await enqueueSyncQueueRecord({
         entity: 'list',
+        entity_id: newBatchEntityId(),
+        kind: 'rpc',
         payload: {
+          method: 'reorderListUsers',
           user_id: user.id,
           list_ids: orderedIds,
         },
-        updatedAt: nowMs,
-        attemptCount: 0,
-        lastError: null,
+        ...userQueueParent(user.id),
+        status: 'queued',
       })
     })
     return null
@@ -315,13 +322,27 @@ export function useLists() {
         return
       }
 
-      const listsData: ListWithRole[] = (data || []).map((item: UserListsRpcRow) => ({
+      const rawRows = (data || []) as UserListsRpcRow[]
+      const mirrorListIds = await collectListIdsNeedingMirrorFromSummaries(rawRows)
+      const listsData: ListWithRole[] = rawRows.map((item) => ({
         id: item.id,
         name: item.name,
         owner_id: item.owner_id,
         visibility: item.visibility,
         archived: item.archived,
-        created_at: item.created_at,
+        comment: item.comment ?? null,
+        category_names: null,
+        category_order: null,
+        join_token: null,
+        join_role_granted: 'editor',
+        join_expires_at: null,
+        join_revoked_at: null,
+        join_use_count: 0,
+        client_created_at: item.client_created_at,
+        server_created_at: item.server_created_at,
+        deleted_at: item.deleted_at ?? null,
+        version: item.version ?? 1,
+        last_synced_at: item.last_synced_at ?? null,
         updated_at: item.updated_at,
         role: item.role,
         userArchived: item.userArchived,
@@ -331,14 +352,16 @@ export function useLists() {
         archivedItemCount: item.archivedItemCount ?? 0,
         sumScope: coalesceListUserSumScope(item.sumScope),
         ownerNickname: item.ownerNickname,
-        comment: item.comment,
         label: item.label ?? '',
       }))
       appendMutationDiagnostic(`[fetchLists.debug] apply rows=${listsData.length}`)
 
       setLists(listsData)
       setCachedLists(userId, listsData)
-      await upsertListsSummaryFromServer(userId, listsData)
+      await upsertListsSummaryFromServer(userId, rawRows)
+      if (mirrorListIds.length > 0) {
+        void enqueueListMirrorJobs(mirrorListIds)
+      }
       appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert rows=${listsData.length}`)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
@@ -532,6 +555,7 @@ export function useLists() {
     appendMutationDiagnostic(`[mutation:list.create] local:start name="${name}"`)
     const listId = crypto.randomUUID()
     const now = new Date().toISOString()
+    const sync = syncFieldsForLocalInsert()
     const optimisticList: ListWithRole = {
       id: listId,
       name,
@@ -546,7 +570,7 @@ export function useLists() {
       join_expires_at: null,
       join_revoked_at: null,
       join_use_count: 0,
-      created_at: now,
+      ...sync,
       updated_at: now,
       role: 'owner',
       userArchived: false,
@@ -560,21 +584,20 @@ export function useLists() {
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => [optimisticList, ...prev])
-    await db.transaction('rw', db.lists, db.list_users, db.listSummaries, db.sync_queue, async () => {
+    await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
       await db.lists.put({
         ...extractListRowFields(optimisticList),
-        userId: user.id,
-        cachedAt: Date.now(),
-        deleted_at: null,
+        cached_at: Date.now(),
         app_version: APP_VERSION,
       })
       await db.list_users.put({
+        id: crypto.randomUUID(),
         list_id: listId,
         user_id: user.id,
         role: 'owner',
         archived: false,
         sort_order: null,
-        created_at: now,
+        ...syncFieldsForLocalInsert(),
         member_filter: 'all',
         item_text_width: 'auto',
         label: label || '',
@@ -583,24 +606,13 @@ export function useLists() {
         item_name_font_step: 3,
         sum_scope: 'none',
       })
-      await db.listSummaries.put({
-        userId: user.id,
-        listId,
-        memberCount: 0,
-        activeItemCount: 0,
-        archivedItemCount: 0,
-        ownerNickname: null,
-        cachedAt: Date.now(),
-      })
-      await db.sync_queue.put({
-        listId,
-        itemKey: `list:${listId}`,
-        kind: 'create',
+      await enqueueSyncQueueRecord({
         entity: 'list',
+        entity_id: listId,
+        kind: 'create',
         payload: { id: listId, name, label: label || '' },
-        updatedAt: Date.now(),
-        attemptCount: 0,
-        lastError: null,
+        ...listQueueParent(listId),
+        status: 'queued',
       })
     })
     appendMutationDiagnostic(`[mutation:list.create] local:queued listId=${listId} server:queued`)
@@ -612,9 +624,6 @@ export function useLists() {
   }
 
   const updateList = async (listId: string, updates: { name?: string; archived?: boolean; comment?: string | null; category_names?: string | null; category_order?: string | null }) => {
-    if (isTempEntityId(listId)) {
-      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
-    }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -627,16 +636,14 @@ export function useLists() {
       ))
       const nowMs = Date.now()
       await db.transaction('rw', db.lists, db.sync_queue, async () => {
-        await db.lists.update([user!.id, listId], { ...updates, cachedAt: nowMs })
-        await db.sync_queue.put({
-          listId,
-          itemKey: `list:${listId}`,
-          kind: 'patchList',
+        await db.lists.update(listId, { ...updates, cached_at: nowMs })
+        await enqueueSyncQueueRecord({
           entity: 'list',
+          entity_id: listId,
+          kind: 'patch',
           payload: { id: listId, ...updates },
-          updatedAt: nowMs,
-          attemptCount: 0,
-          lastError: null,
+          ...listQueueParent(listId),
+          status: 'queued',
         })
       })
       appendMutationDiagnostic(`[mutation:list.update] local:queued listId=${listId} server:queued`)
@@ -650,10 +657,6 @@ export function useLists() {
 
   const deleteList = async (listId: string) => {
     appendMutationDiagnostic(`[mutation:list.delete] local:start listId=${listId}`)
-    if (isTempEntityId(listId)) {
-      appendMutationDiagnostic(`[mutation:list.delete] local:blocked reason=temp-id listId=${listId}`)
-      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
-    }
     if (!tryBeginMutation()) {
       appendMutationDiagnostic(`[mutation:list.delete] local:blocked reason=gate listId=${listId}`)
       return { error: new Error(blockedMutationMessage()) }
@@ -674,9 +677,6 @@ export function useLists() {
 
   const updateUserListState = async (listId: string, updates: { archived?: boolean; sort_order?: number }) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (isTempEntityId(listId)) {
-      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
-    }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -694,24 +694,24 @@ export function useLists() {
     setLists(nextLists)
     const nowMs = Date.now()
     await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-      await db.list_users.update([listId, user.id], {
+      const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
+      if (row) await db.list_users.update(row.id, {
         ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
         ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
       })
-      await db.sync_queue.put({
-        listId,
-        itemKey: `list-user:${user.id}:${listId}`,
-        kind: 'patchListUser',
+      await enqueueSyncQueueRecord({
         entity: 'list',
+        entity_id: newBatchEntityId(),
+        kind: 'rpc',
         payload: {
+          method: 'patchListUser',
           id: listId,
           user_id: user.id,
           ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
           ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
         },
-        updatedAt: nowMs,
-        attemptCount: 0,
-        lastError: null,
+        ...listQueueParent(listId),
+        status: 'queued',
       })
     })
     appendMutationDiagnostic(`[mutation:list.user_state] local:queued listId=${listId} server:queued`)
@@ -732,25 +732,26 @@ export function useLists() {
   }
 
   const joinListByToken = async (token: string) => {
+    if (!user) return { data: null, error: new Error('Not authenticated') }
     if (!tryBeginMutation()) {
       return { data: null, error: new Error(blockedMutationMessage()) }
     }
     try {
-      const freshClient = forceNewClient()
-      const { data, error } = await trackSaveOperation(
-        freshClient.rpc('join_list_by_token', { p_token: token })
-      )
-
-      if (!error) {
-        skipRealtimeUntilRef.current = Date.now() + 2000
-        await fetchLists()
-        markOnlineRecovered()
-      } else if (isLikelyConnectivityError(error)) {
-        startTempSyncWatch()
-        return { data: null, error: new Error('Syncing with server ...') }
-      }
-
-      return { data, error }
+      mutationVersionRef.current += 1
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      await enqueueSyncQueueRecord({
+        entity: 'list',
+        entity_id: newBatchEntityId(),
+        kind: 'rpc',
+        payload: { method: 'joinListByToken', token, user_id: user.id },
+        ...userQueueParent(user.id),
+        status: 'queued',
+      })
+      markOnlineRecovered()
+      void fetchLists()
+      window.setTimeout(() => void fetchLists(), 700)
+      window.setTimeout(() => void fetchLists(), 2200)
+      return { data: null, error: null }
     } finally {
       mutationGate.end()
     }
@@ -758,34 +759,16 @@ export function useLists() {
 
   const leaveList = async (listId: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (isTempEntityId(listId)) {
-      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
-    }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-      const { error } = await trackSaveOperation(
-        supabase.rpc('leave_list', {
-          p_list_id: listId,
-        })
-      )
-
-      if (error) {
-        if (isLikelyConnectivityError(error)) {
-          startTempSyncWatch()
-          return { error: new Error('Syncing with server ...') }
-        }
-        return { error }
-      }
-
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       setLists(prev => prev.filter(list => list.id !== listId))
       removeCachedList(userId, listId)
-      void softDeleteListInDexie(userId, listId)
+      await softDeleteListInDexie(userId, listId, { queueServerDelete: false, leaveRpc: true })
       markOnlineRecovered()
-
       return { error: null }
     } finally {
       mutationGate.end()
@@ -794,9 +777,6 @@ export function useLists() {
 
   const duplicateList = async (listId: string, newName: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (isTempEntityId(listId)) {
-      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
-    }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -804,6 +784,7 @@ export function useLists() {
     const sourceList = lists.find(l => l.id === listId)
     const duplicateId = crypto.randomUUID()
     const now = new Date().toISOString()
+    const sync = syncFieldsForLocalInsert()
     const optimisticList: ListWithRole = {
       id: duplicateId,
       name: newName,
@@ -818,7 +799,7 @@ export function useLists() {
       join_expires_at: null,
       join_revoked_at: null,
       join_use_count: 0,
-      created_at: now,
+      ...sync,
       updated_at: now,
       role: 'owner',
       userArchived: false,
@@ -833,66 +814,52 @@ export function useLists() {
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => [optimisticList, ...prev])
 
-    const { data, error } = await trackSaveOperation(
-      supabase.rpc('duplicate_list', {
-        p_source_list_id: listId,
-        p_id: duplicateId,
-        p_new_name: newName,
-        p_label: label || '',
-      } as never)
-    )
-
-    if (error) {
+    try {
+      await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
+        await db.lists.put({
+          ...extractListRowFields(optimisticList),
+          cached_at: Date.now(),
+          app_version: APP_VERSION,
+        })
+        await db.list_users.put({
+          id: crypto.randomUUID(),
+          list_id: duplicateId,
+          user_id: user.id,
+          role: 'owner',
+          archived: false,
+          sort_order: null,
+          ...syncFieldsForLocalInsert(),
+          member_filter: 'all',
+          item_text_width: 'auto',
+          label: label || '',
+          last_viewed_members: null,
+          show_targets: false,
+          item_name_font_step: 3,
+          sum_scope: 'none',
+        })
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: newBatchEntityId(),
+          kind: 'rpc',
+          payload: {
+            method: 'duplicateList',
+            user_id: user.id,
+            source_list_id: listId,
+            duplicate_id: duplicateId,
+            new_name: newName,
+            label: label || '',
+          },
+          ...listQueueParent(duplicateId),
+          status: 'queued',
+        })
+      })
+    } catch (e) {
       setLists(prev => prev.filter(list => list.id !== duplicateId))
-      if (error.code === '23505') {
-        return { error: new Error('You already have a list with this name') }
-      }
-      if (isLikelyConnectivityError(error)) {
-        startTempSyncWatch()
-        return { error: new Error('Syncing with server ...') }
-      }
-      return { error }
+      return { error: e instanceof Error ? e : new Error('Failed to queue duplicate list') }
     }
 
-    if (!data?.list) {
-      setLists(prev => prev.filter(list => list.id !== duplicateId))
-      return { error: new Error('Failed to duplicate list') }
-    }
-
-    const dupMembers = (data.members ?? []) as { is_target?: boolean }[]
-    const dupItemsForCounts = data.items ?? []
-    const duplicatedList: ListWithRole = {
-      ...data.list,
-      role: 'owner',
-      userArchived: false,
-      memberCount: dupMembers.filter(m => !m.is_target).length,
-      activeItemCount: dupItemsForCounts.filter((item: { archived: boolean }) => !item.archived).length,
-      archivedItemCount: dupItemsForCounts.filter((item: { archived: boolean }) => item.archived).length,
-      sumScope: 'none',
-      label: label || '',
-    }
-
-    setLists(prev => {
-      const filtered = prev.filter(list => list.id !== duplicateId && list.id !== duplicatedList.id)
-      const nextLists = [duplicatedList, ...filtered]
-      setCachedLists(userId, nextLists)
-      return nextLists
-    })
-
-    const rawDupItems = (data.items ?? []) as ItemWithState[]
-    const dupItems: ItemWithState[] = rawDupItems.map(item => ({
-      ...item,
-      category: normalizeItemCategory(item.category),
-    }))
-
-    setCachedList(userId, duplicatedList.id, {
-      list: data.list,
-      items: dupItems,
-      members: data.members || [],
-    })
     markOnlineRecovered()
-
-    return { data: data.list, error: null }
+    return { data: optimisticList, error: null }
     } finally {
       mutationGate.end()
     }
@@ -906,6 +873,7 @@ export function useLists() {
     try {
     const importedId = crypto.randomUUID()
     const now = new Date().toISOString()
+    const sync = syncFieldsForLocalInsert()
     const itemCount = Array.isArray(rows) ? rows.length : 0
     const optimisticList: ListWithRole = {
       id: importedId,
@@ -921,7 +889,7 @@ export function useLists() {
       join_expires_at: null,
       join_revoked_at: null,
       join_use_count: 0,
-      created_at: now,
+      ...sync,
       updated_at: now,
       role: 'owner',
       userArchived: false,
@@ -936,43 +904,58 @@ export function useLists() {
     skipRealtimeUntilRef.current = Date.now() + 2000
     setLists(prev => [optimisticList, ...prev])
 
-    const { data, error } = await trackSaveOperation(
-      supabase.rpc('import_list', {
-        p_id: importedId,
-        p_name: name,
-        p_label: label || '',
-        p_category_names: categoryNames || '{}',
-        p_rows: (rows || []) as unknown as Json,
-        p_has_targets: hasTargets || false,
-      } as never)
-    )
-
-    if (error) {
+    try {
+      await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
+        await db.lists.put({
+          ...extractListRowFields(optimisticList),
+          cached_at: Date.now(),
+          app_version: APP_VERSION,
+        })
+        await db.list_users.put({
+          id: crypto.randomUUID(),
+          list_id: importedId,
+          user_id: user.id,
+          role: 'owner',
+          archived: false,
+          sort_order: null,
+          ...syncFieldsForLocalInsert(),
+          member_filter: 'all',
+          item_text_width: 'auto',
+          label: label || '',
+          last_viewed_members: null,
+          show_targets: false,
+          item_name_font_step: 3,
+          sum_scope: 'none',
+        })
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: newBatchEntityId(),
+          kind: 'rpc',
+          payload: {
+            method: 'importList',
+            user_id: user.id,
+            imported_id: importedId,
+            p_name: name,
+            p_label: label || '',
+            p_category_names: categoryNames || '{}',
+            p_rows: (rows ?? []) as unknown as Json,
+            p_has_targets: hasTargets || false,
+          },
+          ...listQueueParent(importedId),
+          status: 'queued',
+        })
+      })
+    } catch (e) {
       setLists(prev => prev.filter(list => list.id !== importedId))
-      if (error.code === '23505') {
-        return { error: new Error('You already have a list with this name') }
-      }
-      if (isLikelyConnectivityError(error)) {
-        startTempSyncWatch()
-        return { error: new Error('Syncing with server ...') }
-      }
-      return { error }
+      return { error: e instanceof Error ? e : new Error('Failed to queue import') }
     }
 
-    const newList: ListWithRole = {
-      ...data,
-      role: 'owner',
-      userArchived: false,
-      memberCount: hasTargets ? 1 : 0,
-      activeItemCount: itemCount,
-      archivedItemCount: 0,
-      sumScope: 'none',
-      label: label || '',
-    }
-    setLists(prev => [newList, ...prev.filter(list => list.id !== importedId && list.id !== newList.id)])
     markOnlineRecovered()
+    void fetchLists()
+    window.setTimeout(() => void fetchLists(), 800)
+    window.setTimeout(() => void fetchLists(), 2500)
 
-    return { data, error: null }
+    return { data: optimisticList, error: null }
     } finally {
       mutationGate.end()
     }
@@ -988,16 +971,15 @@ export function useLists() {
 
     const nowMs = Date.now()
     await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-      await db.list_users.update([listId, user!.id], { label })
-      await db.sync_queue.put({
-        listId,
-        itemKey: `list-user:${user!.id}:${listId}`,
-        kind: 'patchListUser',
+      const row = await db.list_users.where('[list_id+user_id]').equals([listId, user!.id]).first()
+      if (row) await db.list_users.update(row.id, { label })
+      await enqueueSyncQueueRecord({
         entity: 'list',
-        payload: { id: listId, user_id: user!.id, label },
-        updatedAt: nowMs,
-        attemptCount: 0,
-        lastError: null,
+        entity_id: newBatchEntityId(),
+        kind: 'rpc',
+        payload: { method: 'patchListUser', id: listId, user_id: user!.id, label },
+        ...listQueueParent(listId),
+        status: 'queued',
       })
     })
     appendMutationDiagnostic(`[mutation:list.label] local:queued listId=${listId} label="${label}" server:queued`)
@@ -1007,9 +989,6 @@ export function useLists() {
 
   const updateListLabel = async (listId: string, label: string) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (isTempEntityId(listId)) {
-      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
-    }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -1022,9 +1001,6 @@ export function useLists() {
 
   const applyListLabelsBatch = async (changes: Array<{ listId: string; label: string }>) => {
     if (!user) return { error: new Error('Not authenticated') }
-    if (changes.some(c => isTempEntityId(c.listId))) {
-      return { error: new Error(STILL_SAVING_TEMP_ENTITY_MSG) }
-    }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -1039,19 +1015,19 @@ export function useLists() {
       const nowMs = Date.now()
       await db.transaction('rw', db.list_users, db.sync_queue, async () => {
         for (const { listId, label } of changes) {
-          await db.list_users.update([listId, user.id], { label })
+          const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
+          if (row) await db.list_users.update(row.id, { label })
         }
-        await db.sync_queue.put({
-          listId: `user:${user.id}`,
-          itemKey: `bulk-labels:${user.id}`,
-          kind: 'bulkPatchListLabels',
+        await enqueueSyncQueueRecord({
           entity: 'list',
+          entity_id: newBatchEntityId(),
+          kind: 'rpc',
           payload: {
+            method: 'bulkPatchListLabels',
             updates: changes.map((c) => ({ list_id: c.listId, label: c.label })),
           },
-          updatedAt: nowMs,
-          attemptCount: 0,
-          lastError: null,
+          ...userQueueParent(user.id),
+          status: 'queued',
         })
       })
       appendMutationDiagnostic(
@@ -1076,10 +1052,6 @@ export function useLists() {
     appendMutationDiagnostic(`[mutation:list.reorder] local:start count=${reorderedLists.length}`)
     if (!user) {
       appendMutationDiagnostic('[mutation:list.reorder] local:blocked reason=no-user')
-      return
-    }
-    if (reorderedLists.some(l => isTempEntityId(l.id))) {
-      appendMutationDiagnostic('[mutation:list.reorder] local:blocked reason=temp-id')
       return
     }
     if (!tryBeginMutation()) {

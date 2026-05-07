@@ -7,13 +7,17 @@ import { RegenerateIcon, ShareActionIcon } from '@/components/ui/ShareIcons'
 import { useToast } from '@/components/ui/Toast'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 import { buildInviteUrl } from '@/lib/invite'
+import { getActiveCacheUserId } from '@/lib/cache'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
+import { useAuth } from '@/providers/AuthProvider'
 import {
-  reportServerDexieParityDiagnostics,
-  upsertJoinedUsersFromServer,
-  upsertListShareTokenFromServer,
-} from '@/lib/data/serverDexieParity'
+  enqueueSyncQueueRecord,
+  listQueueParent,
+  newBatchEntityId,
+  waitForSyncQueueRowCompletion,
+} from '@/lib/data/syncQueue'
+import { reportServerDexieParityDiagnostics } from '@/lib/data/serverDexieParity'
 import type { Database, List } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -39,6 +43,8 @@ interface JoinedUser {
 type JoinedUsersRpcResult = Database['public']['Functions']['get_list_joined_users']['Returns']
 
 export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }: ShareModalProps) {
+  const { user } = useAuth()
+  const syncActorUserId = user?.id ?? getActiveCacheUserId() ?? ''
   const { success, error: showError } = useToast()
   const [visibility, setVisibility] = useState<'private' | 'link'>(list.visibility)
   const [token, setToken] = useState<string>('')
@@ -74,17 +80,11 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
     if (error) {
       console.error('Error fetching joined users:', error)
       showError('Failed to load joined users')
-      const cachedRows = await db.joinedUsers.where('listId').equals(list.id).toArray()
-      setJoinedUsers(cachedRows.map((row) => ({
-        user_id: row.userId,
-        nickname: row.nickname,
-        member_count: row.memberCount,
-      })))
+      setJoinedUsers([])
       return []
     }
 
     const nextUsers: JoinedUsersRpcResult = data || []
-    void upsertJoinedUsersFromServer(list.id, nextUsers)
     setJoinedUsers(nextUsers)
     setSelectedUserIds(prev => {
       const validUserIds = new Set(nextUsers.map(user => user.user_id))
@@ -105,14 +105,13 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
     if (error) {
       console.error('Error fetching invite token:', error)
       showError('Failed to load invite link')
-      const cached = await db.listShareTokens.get(list.id)
-      const fallbackToken = cached?.joinToken || ''
+      const cached = await db.lists.get(list.id)
+      const fallbackToken = cached?.join_token || ''
       setToken(fallbackToken)
       return fallbackToken || null
     }
 
     const nextToken = data?.join_token || ''
-    void upsertListShareTokenFromServer(list.id, nextToken || null)
     setToken(nextToken)
     return nextToken
   }
@@ -204,15 +203,27 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   const generateInviteToken = async () => {
     setLoading(true)
     try {
-      const supabase = forceNewClient()
-      const { data, error } = await supabase.rpc('generate_share_token', {
-        p_list_id: list.id,
-        p_force_regenerate: false,
+      const rowId = crypto.randomUUID()
+      await enqueueSyncQueueRecord({
+        id: rowId,
+        entity: 'list',
+        entity_id: newBatchEntityId(),
+        kind: 'rpc',
+        payload: {
+          method: 'generateShareToken',
+          list_id: list.id,
+          user_id: syncActorUserId,
+          force_regenerate: false,
+        },
+        ...listQueueParent(list.id),
+        status: 'queued',
       })
-      if (error) throw error
-      void upsertListShareTokenFromServer(list.id, data || null)
-      setToken(data)
-      return data
+      const done = await waitForSyncQueueRowCompletion(rowId)
+      if (!done.ok) throw new Error(done.message)
+      const cached = await db.lists.get(list.id)
+      const nextToken = cached?.join_token || ''
+      setToken(nextToken)
+      return nextToken || null
     } catch (err) {
       console.error('Error generating token:', err)
       showError('Failed to generate invite link')
@@ -251,14 +262,25 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   const handleRegenerateInvite = async () => {
     setRegeneratePending(true)
     try {
-      const supabase = forceNewClient()
-      const { data, error } = await supabase.rpc('generate_share_token', {
-        p_list_id: list.id,
-        p_force_regenerate: true,
+      const rowId = crypto.randomUUID()
+      await enqueueSyncQueueRecord({
+        id: rowId,
+        entity: 'list',
+        entity_id: newBatchEntityId(),
+        kind: 'rpc',
+        payload: {
+          method: 'generateShareToken',
+          list_id: list.id,
+          user_id: syncActorUserId,
+          force_regenerate: true,
+        },
+        ...listQueueParent(list.id),
+        status: 'queued',
       })
-      if (error) throw error
-      void upsertListShareTokenFromServer(list.id, data || null)
-      setToken(data)
+      const done = await waitForSyncQueueRowCompletion(rowId)
+      if (!done.ok) throw new Error(done.message)
+      const cached = await db.lists.get(list.id)
+      setToken(cached?.join_token || '')
       setRegenAnimSeq(s => s + 1)
       setRegenAnimPlaying(true)
     } catch (err) {
@@ -318,14 +340,31 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
 
   const makePrivate = async () => {
     setLoading(true)
+    const snapshot = await db.lists.get(list.id)
     try {
-      const supabase = forceNewClient()
-      const { error } = await supabase.rpc('revoke_share_token', {
-        p_list_id: list.id,
-      })
+      await db.lists.update(list.id, {
+        visibility: 'private',
+        join_token: null,
+        cached_at: Date.now(),
+      } as never)
 
-      if (error) throw error
-      void upsertListShareTokenFromServer(list.id, null)
+      const rowId = crypto.randomUUID()
+      await enqueueSyncQueueRecord({
+        id: rowId,
+        entity: 'list',
+        entity_id: newBatchEntityId(),
+        kind: 'rpc',
+        payload: {
+          method: 'revokeShareToken',
+          list_id: list.id,
+          user_id: syncActorUserId,
+        },
+        ...listQueueParent(list.id),
+        status: 'queued',
+      })
+      const done = await waitForSyncQueueRowCompletion(rowId)
+      if (!done.ok) throw new Error(done.message)
+
       setToken('')
       setVisibility('private')
       setShowConfirm(false)
@@ -335,6 +374,13 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
     } catch (err) {
       console.error('Error updating visibility:', err)
       showError('Failed to update sharing settings')
+      if (snapshot) {
+        try {
+          await db.lists.put(snapshot)
+        } catch {
+          /* ignore rollback */
+        }
+      }
       return false
     } finally {
       setLoading(false)
@@ -352,16 +398,25 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
     
     setLoading(true)
     try {
-      const supabase = forceNewClient()
       const userIdsArray = Array.from(selectedUserIds)
-      
-      const { error } = await supabase.rpc('remove_users_from_list', {
-        p_list_id: list.id,
-        p_user_ids: userIdsArray,
+      const rowId = crypto.randomUUID()
+      await enqueueSyncQueueRecord({
+        id: rowId,
+        entity: 'list',
+        entity_id: newBatchEntityId(),
+        kind: 'rpc',
+        payload: {
+          method: 'removeUsersFromList',
+          list_id: list.id,
+          user_id: syncActorUserId,
+          p_user_ids: userIdsArray,
+        },
+        ...listQueueParent(list.id),
+        status: 'queued',
       })
+      const done = await waitForSyncQueueRowCompletion(rowId)
+      if (!done.ok) throw new Error(done.message)
 
-      if (error) throw error
-      
       setJoinedUsers(prev => prev.filter(u => !selectedUserIds.has(u.user_id)))
       setSelectedUserIds(new Set())
       setShowRemoveConfirm(false)

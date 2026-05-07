@@ -3,23 +3,17 @@
 import Dexie from 'dexie'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type DbItemMemberStateRow } from '@/lib/db'
+import { isTombstoned } from '@/lib/data/base_sync_fields'
 import type { ItemWithState, ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
 
 export function useListsQuery(userId: string | null | undefined) {
   return useLiveQuery(async () => {
     if (!userId) return []
-    const rows = await db.lists
-      .where('userId')
-      .equals(userId)
-      .filter((row) => row.deleted_at == null)
-      .toArray()
+    const memberships = await db.list_users.where('user_id').equals(userId).toArray()
     const merged: ListWithRole[] = []
-    for (const row of rows) {
-      const [listUser, summary] = await Promise.all([
-        db.list_users.get([row.id, userId]),
-        db.listSummaries.get([userId, row.id]),
-      ])
-      if (!listUser) continue
+    for (const listUser of memberships) {
+      const row = await db.lists.get(listUser.list_id)
+      if (!row || isTombstoned(row.deleted_at)) continue
       merged.push({
         ...row,
         role: listUser.role,
@@ -27,17 +21,19 @@ export function useListsQuery(userId: string | null | undefined) {
         sort_order: listUser.sort_order,
         sumScope: listUser.sum_scope ?? 'none',
         label: listUser.label ?? '',
-        memberCount: summary?.memberCount ?? 0,
-        activeItemCount: summary?.activeItemCount ?? 0,
-        archivedItemCount: summary?.archivedItemCount ?? 0,
-        ownerNickname: summary?.ownerNickname ?? null,
+        memberCount: 0,
+        activeItemCount: 0,
+        archivedItemCount: 0,
+        ownerNickname: null,
       })
     }
     return merged.sort((a, b) => {
       const aOrd = a.sort_order ?? Number.MAX_SAFE_INTEGER
       const bOrd = b.sort_order ?? Number.MAX_SAFE_INTEGER
       if (aOrd !== bOrd) return aOrd - bOrd
-      return (b.created_at ?? '').localeCompare(a.created_at ?? '')
+      const aT = a.server_created_at || a.client_created_at || ''
+      const bT = b.server_created_at || b.client_created_at || ''
+      return bT.localeCompare(aT)
     })
   }, [userId])
 }
@@ -45,23 +41,43 @@ export function useListsQuery(userId: string | null | undefined) {
 export function useListDetailQuery(userId: string | null | undefined, listId: string | null | undefined) {
   return useLiveQuery(async () => {
     if (!userId || !listId) return null
-    const [items, members, states] = await Promise.all([
+    const [rawItems, rawMembers, states] = await Promise.all([
       db.items
-        .where('[userId+listId]')
-        .equals([userId, listId])
-        .filter((row) => row.deleted_at == null)
-        .sortBy('sort_order'),
+        .where('list_id')
+        .equals(listId)
+        .filter((row) => !isTombstoned(row.deleted_at))
+        .toArray(),
       db.members
-        .where('[userId+listId]')
-        .equals([userId, listId])
-        .filter((row) => row.deleted_at == null)
-        .sortBy('sort_order'),
+        .where('list_id')
+        .equals(listId)
+        .filter((row) => !isTombstoned(row.deleted_at))
+        .toArray(),
       db.item_member_state
-        .where('[listId+item_id]')
+        .where('[list_id+item_id]')
         .between([listId, Dexie.minKey], [listId, Dexie.maxKey])
-        .filter((row) => row.deleted_at == null)
+        .filter((row) => !isTombstoned(row.deleted_at))
         .toArray(),
     ])
+
+    const createdTie = (server: string | null | undefined, client: string | undefined) =>
+      (server && server.length > 0 ? server : client) ?? ''
+
+    const items = rawItems.sort((a, b) => {
+      const ao = a.sort_order ?? 0
+      const bo = b.sort_order ?? 0
+      if (ao !== bo) return ao - bo
+      return createdTie(a.server_created_at, a.client_created_at).localeCompare(
+        createdTie(b.server_created_at, b.client_created_at),
+      )
+    })
+    const members = rawMembers.sort((a, b) => {
+      const ao = a.sort_order ?? 0
+      const bo = b.sort_order ?? 0
+      if (ao !== bo) return ao - bo
+      return createdTie(a.server_created_at, a.client_created_at).localeCompare(
+        createdTie(b.server_created_at, b.client_created_at),
+      )
+    })
 
     const byItem = new Map<string, Record<string, DbItemMemberStateRow>>()
     for (const s of states) {

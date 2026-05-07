@@ -7,6 +7,7 @@ import { ToastProvider } from '@/components/ui/Toast'
 import { StartupPerfCapture } from '@/components/dev/StartupPerfCapture'
 import { InstallBanner } from '@/components/ui/InstallBanner'
 import { ConnectivityProvider } from '@/providers/ConnectivityProvider'
+import { SyncStatusProvider } from '@/providers/SyncStatusProvider'
 import { DiagnosticsMessageBoxProvider } from '@/providers/DiagnosticsMessageBox'
 import { SyncStoreBridge } from '@/components/sync/SyncStoreBridge'
 
@@ -72,12 +73,14 @@ export default function RootLayout({
             <ToastProvider>
               <DiagnosticsMessageBoxProvider>
                 <ConnectivityProvider>
-                  <SyncStoreBridge />
-                  <StartupPerfCapture />
-                  <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
-                    {children}
-                  </main>
-                  <InstallBanner />
+                  <SyncStatusProvider>
+                    <SyncStoreBridge />
+                    <StartupPerfCapture />
+                    <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
+                      {children}
+                    </main>
+                    <InstallBanner />
+                  </SyncStatusProvider>
                 </ConnectivityProvider>
               </DiagnosticsMessageBoxProvider>
             </ToastProvider>

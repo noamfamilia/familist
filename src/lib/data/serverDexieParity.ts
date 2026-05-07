@@ -1,17 +1,26 @@
 import { APP_VERSION } from '@/lib/appVersion'
 import { db } from '@/lib/db'
+import { isoNow, isTombstoned, legacyDeletedAtToIso, withLastSyncedNow } from '@/lib/data/base_sync_fields'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
-import type { Database, ItemWithState, List, ListWithRole, MemberWithCreator, Profile } from '@/lib/supabase/types'
+import type {
+  Database,
+  DbSyncableFields,
+  ItemWithState,
+  List,
+  MemberWithCreator,
+  Profile,
+} from '@/lib/supabase/types'
+import type { SyncQueueEntity } from '@/lib/db'
+
+export type GetUserListsRow = Database['public']['Functions']['get_user_lists']['Returns'][number]
 
 export const PARITY_SCOPE = {
-  get_user_lists: ['lists', 'list_users', 'listSummaries'],
+  get_user_lists: ['lists', 'list_users'],
   get_list_data_list: ['lists'],
   get_list_data_items: ['items'],
   get_list_data_member_states: ['item_member_state'],
   get_list_data_members: ['members'],
   list_users_prefs: ['list_users'],
-  get_list_joined_users: ['joinedUsers'],
-  lists_join_token: ['listShareTokens'],
   profiles_row: ['profiles'],
 } as const
 
@@ -21,15 +30,36 @@ const PARITY_SCOPED_TABLES = [
   'item_member_state',
   'members',
   'list_users',
-  'listSummaries',
-  'joinedUsers',
-  'listShareTokens',
   'profiles',
 ] as const
 
 function normalizeListUserSumScope(raw: unknown): 'none' | 'all' | 'active' | 'archived' {
   if (raw === 'none' || raw === 'all' || raw === 'active' || raw === 'archived') return raw
   return 'none'
+}
+
+/** Align RPC rows with unified `DbSyncableFields` before Dexie put (ISO `deleted_at`, numeric `version`). */
+export function normalizeServerSyncableFields(row: Record<string, unknown>): DbSyncableFields {
+  return {
+    client_created_at: typeof row.client_created_at === 'string' ? row.client_created_at : isoNow(),
+    server_created_at: typeof row.server_created_at === 'string' ? row.server_created_at : null,
+    deleted_at: legacyDeletedAtToIso(row.deleted_at),
+    version: typeof row.version === 'number' && Number.isFinite(row.version) ? row.version : 1,
+    last_synced_at: typeof row.last_synced_at === 'string' ? row.last_synced_at : null,
+  }
+}
+
+async function outboundDeletePending(entity: SyncQueueEntity, entityId: string): Promise<boolean> {
+  const hit = await db.sync_queue
+    .where('[entity+entity_id]')
+    .equals([entity, entityId])
+    .filter(
+      (r) =>
+        r.kind === 'delete' &&
+        (r.status === 'queued' || r.status === 'processing' || r.status === 'failed'),
+    )
+    .first()
+  return !!hit
 }
 
 type ListUserPrefsServerRow = {
@@ -40,9 +70,9 @@ type ListUserPrefsServerRow = {
   sum_scope?: unknown
 }
 
-export async function upsertListsSummaryFromServer(userId: string, rows: ListWithRole[]) {
+export async function upsertListsSummaryFromServer(userId: string, rows: GetUserListsRow[]) {
   const now = Date.now()
-  await db.transaction('rw', db.lists, db.list_users, db.listSummaries, async () => {
+  await db.transaction('rw', db.lists, db.list_users, async () => {
     const incomingIds = new Set(rows.map((row) => row.id))
     for (const row of rows) {
       const {
@@ -55,50 +85,70 @@ export async function upsertListsSummaryFromServer(userId: string, rows: ListWit
         activeItemCount,
         archivedItemCount,
         ownerNickname,
-        ...listFields
       } = row
-      await db.lists.put({
-        ...listFields,
-        userId,
-        cachedAt: now,
-        deleted_at: null,
-        app_version: APP_VERSION,
-      })
-      const existingListUser = await db.list_users.get([row.id, userId])
-      await db.list_users.put({
-        list_id: row.id,
-        user_id: userId,
-        role,
-        archived: userArchived,
-        sort_order,
-        created_at: existingListUser?.created_at ?? new Date().toISOString(),
-        member_filter: existingListUser?.member_filter ?? 'all',
-        item_text_width: existingListUser?.item_text_width ?? 'auto',
-        item_name_font_step: existingListUser?.item_name_font_step ?? 3,
-        show_targets: existingListUser?.show_targets ?? false,
-        last_viewed_members: existingListUser?.last_viewed_members ?? null,
-        sum_scope: sumScope ?? 'none',
-        label: label ?? '',
-      })
-      await db.listSummaries.put({
-        userId,
-        listId: row.id,
-        memberCount: memberCount ?? 0,
-        activeItemCount: activeItemCount ?? 0,
-        archivedItemCount: archivedItemCount ?? 0,
-        ownerNickname: ownerNickname ?? null,
-        cachedAt: now,
-      })
+      void memberCount
+      void activeItemCount
+      void archivedItemCount
+      void ownerNickname
+      const existingList = await db.lists.get(row.id)
+      const listSync = normalizeServerSyncableFields(row as unknown as Record<string, unknown>)
+      await db.lists.put(
+        withLastSyncedNow({
+          id: row.id,
+          name: row.name,
+          owner_id: row.owner_id,
+          visibility: row.visibility,
+          archived: row.archived,
+          client_created_at: listSync.client_created_at,
+          server_created_at: listSync.server_created_at,
+          deleted_at: listSync.deleted_at,
+          version: listSync.version,
+          last_synced_at: listSync.last_synced_at,
+          updated_at: row.updated_at,
+          comment: row.comment ?? null,
+          category_names: existingList?.category_names ?? null,
+          category_order: existingList?.category_order ?? null,
+          join_token: existingList?.join_token ?? null,
+          join_role_granted: existingList?.join_role_granted ?? 'editor',
+          join_expires_at: existingList?.join_expires_at ?? null,
+          join_revoked_at: existingList?.join_revoked_at ?? null,
+          join_use_count: existingList?.join_use_count ?? 0,
+          cached_at: now,
+          app_version: APP_VERSION,
+        }),
+      )
+      const existingListUser = await db.list_users.where('[list_id+user_id]').equals([row.id, userId]).first()
+      await db.list_users.put(
+        withLastSyncedNow({
+          id: existingListUser?.id ?? crypto.randomUUID(),
+          list_id: row.id,
+          user_id: userId,
+          role,
+          archived: userArchived,
+          sort_order: sort_order ?? null,
+          client_created_at: existingListUser?.client_created_at ?? isoNow(),
+          server_created_at: existingListUser?.server_created_at ?? row.server_created_at,
+          deleted_at: existingListUser?.deleted_at ?? null,
+          version: existingListUser?.version ?? row.version ?? 1,
+          last_synced_at: existingListUser?.last_synced_at ?? null,
+          member_filter: existingListUser?.member_filter ?? 'all',
+          item_text_width: existingListUser?.item_text_width ?? 'auto',
+          item_name_font_step: existingListUser?.item_name_font_step ?? 3,
+          show_targets: existingListUser?.show_targets ?? false,
+          last_viewed_members: existingListUser?.last_viewed_members ?? null,
+          sum_scope: sumScope ?? 'none',
+          label: label ?? '',
+        }),
+      )
     }
-    const existing = await db.lists.where('userId').equals(userId).toArray()
-    for (const row of existing) {
-      if (!incomingIds.has(row.id)) {
-        await db.lists.update([userId, row.id], {
-          deleted_at: now,
-          cachedAt: now,
+    const memberships = await db.list_users.where('user_id').equals(userId).toArray()
+    for (const lu of memberships) {
+      if (!incomingIds.has(lu.list_id)) {
+        await db.lists.update(lu.list_id, {
+          deleted_at: isoNow(),
+          cached_at: now,
         })
-        await db.list_users.delete([row.id, userId])
-        await db.listSummaries.delete([userId, row.id])
+        await db.list_users.delete(lu.id)
       }
     }
   })
@@ -116,36 +166,118 @@ export async function upsertListDataPayloadFromServer(
   const now = Date.now()
   await db.transaction('rw', db.lists, db.items, db.members, db.item_member_state, async () => {
     if (payload.list) {
-      await db.lists.put({
-        ...payload.list,
-        userId,
-        cachedAt: now,
-        deleted_at: null,
-        app_version: APP_VERSION,
-      })
+      const listSync = normalizeServerSyncableFields(payload.list as unknown as Record<string, unknown>)
+      await db.lists.put(
+        withLastSyncedNow({
+          ...payload.list,
+          ...listSync,
+          cached_at: now,
+          app_version: APP_VERSION,
+        }),
+      )
     }
     for (const item of payload.items) {
-      await db.items.put({
-        ...item,
-        userId,
-        listId,
-        deleted_at: null,
-      })
+      const itemSync = normalizeServerSyncableFields(item as unknown as Record<string, unknown>)
+      await db.items.put(withLastSyncedNow({ ...item, ...itemSync }))
       for (const memberState of Object.values(item.memberStates ?? {})) {
-        await db.item_member_state.put({
-          ...memberState,
-          listId,
-          deleted_at: null,
-        })
+        const existingIms = await db.item_member_state
+          .where('[item_id+member_id]')
+          .equals([memberState.item_id, memberState.member_id])
+          .first()
+        const imsSync = normalizeServerSyncableFields(memberState as unknown as Record<string, unknown>)
+        await db.item_member_state.put(
+          withLastSyncedNow({
+            id: existingIms?.id ?? crypto.randomUUID(),
+            ...memberState,
+            ...imsSync,
+            list_id: listId,
+          }),
+        )
       }
     }
     for (const member of payload.members) {
-      await db.members.put({
-        ...member,
-        userId,
-        listId,
-        deleted_at: null,
-      })
+      const memSync = normalizeServerSyncableFields(member as unknown as Record<string, unknown>)
+      await db.members.put(withLastSyncedNow({ ...member, ...memSync }))
+    }
+  })
+}
+
+/**
+ * Background mirror path: same tables as `upsertListDataPayloadFromServer`, plus tombstone respect —
+ * does not overwrite a locally tombstoned row with a live server row when an outbound `delete` is still queued.
+ */
+export async function upsertListDataPayloadFromMirror(
+  userId: string,
+  listId: string,
+  payload: {
+    list: List | null
+    items: ItemWithState[]
+    members: MemberWithCreator[]
+  },
+) {
+  void userId
+  const now = Date.now()
+
+  const skipItemIds = new Set<string>()
+  for (const item of payload.items) {
+    const itemSync = normalizeServerSyncableFields(item as unknown as Record<string, unknown>)
+    const localItem = await db.items.get(item.id)
+    const serverLive = !isTombstoned(itemSync.deleted_at)
+    if (localItem && isTombstoned(localItem.deleted_at ?? null) && serverLive) {
+      if (await outboundDeletePending('item', item.id)) {
+        skipItemIds.add(item.id)
+      }
+    }
+  }
+
+  const skipMemberIds = new Set<string>()
+  for (const member of payload.members) {
+    const memSync = normalizeServerSyncableFields(member as unknown as Record<string, unknown>)
+    const localMember = await db.members.get(member.id)
+    const memServerLive = !isTombstoned(memSync.deleted_at)
+    if (localMember && isTombstoned(localMember.deleted_at ?? null) && memServerLive) {
+      if (await outboundDeletePending('member', member.id)) {
+        skipMemberIds.add(member.id)
+      }
+    }
+  }
+
+  await db.transaction('rw', db.lists, db.items, db.members, db.item_member_state, async () => {
+    if (payload.list) {
+      const listSync = normalizeServerSyncableFields(payload.list as unknown as Record<string, unknown>)
+      await db.lists.put(
+        withLastSyncedNow({
+          ...payload.list,
+          ...listSync,
+          cached_at: now,
+          app_version: APP_VERSION,
+        }),
+      )
+    }
+    for (const item of payload.items) {
+      if (skipItemIds.has(item.id)) continue
+      const itemSync = normalizeServerSyncableFields(item as unknown as Record<string, unknown>)
+      await db.items.put(withLastSyncedNow({ ...item, ...itemSync }))
+      for (const memberState of Object.values(item.memberStates ?? {})) {
+        const existingIms = await db.item_member_state
+          .where('[item_id+member_id]')
+          .equals([memberState.item_id, memberState.member_id])
+          .first()
+        const imsSync = normalizeServerSyncableFields(memberState as unknown as Record<string, unknown>)
+        await db.item_member_state.put(
+          withLastSyncedNow({
+            id: existingIms?.id ?? crypto.randomUUID(),
+            ...memberState,
+            ...imsSync,
+            list_id: listId,
+          }),
+        )
+      }
+    }
+    for (const member of payload.members) {
+      if (skipMemberIds.has(member.id)) continue
+      const memSync = normalizeServerSyncableFields(member as unknown as Record<string, unknown>)
+      await db.members.put(withLastSyncedNow({ ...member, ...memSync }))
     }
   })
 }
@@ -163,64 +295,38 @@ export async function upsertListPrefsFromServer(
       : typeof itemTextWidthRaw === 'string'
         ? itemTextWidthRaw
         : 'auto'
-  const existing = await db.list_users.get([listId, userId])
-  await db.list_users.put({
-    list_id: listId,
-    user_id: userId,
-    role: existing?.role ?? 'viewer',
-    archived: existing?.archived ?? false,
-    sort_order: existing?.sort_order ?? null,
-    created_at: existing?.created_at ?? new Date().toISOString(),
-    member_filter: row.member_filter ?? existing?.member_filter ?? 'all',
-    item_text_width: itemTextWidth,
-    label: existing?.label ?? '',
-    last_viewed_members: row.last_viewed_members ?? null,
-    show_targets: existing?.show_targets ?? false,
-    item_name_font_step: row.item_name_font_step ?? existing?.item_name_font_step ?? 3,
-    sum_scope: normalizeListUserSumScope(row.sum_scope),
-  })
+  const existingByComposite = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+  await db.list_users.put(
+    withLastSyncedNow({
+      id: existingByComposite?.id ?? crypto.randomUUID(),
+      list_id: listId,
+      user_id: userId,
+      role: existingByComposite?.role ?? 'viewer',
+      archived: existingByComposite?.archived ?? false,
+      sort_order: existingByComposite?.sort_order ?? null,
+      client_created_at: existingByComposite?.client_created_at ?? isoNow(),
+      server_created_at: existingByComposite?.server_created_at ?? null,
+      deleted_at: existingByComposite?.deleted_at ?? null,
+      version: existingByComposite?.version ?? 1,
+      last_synced_at: existingByComposite?.last_synced_at ?? null,
+      member_filter: row.member_filter ?? existingByComposite?.member_filter ?? 'all',
+      item_text_width: itemTextWidth,
+      label: existingByComposite?.label ?? '',
+      last_viewed_members: row.last_viewed_members ?? null,
+      show_targets: existingByComposite?.show_targets ?? false,
+      item_name_font_step: row.item_name_font_step ?? existingByComposite?.item_name_font_step ?? 3,
+      sum_scope: normalizeListUserSumScope(row.sum_scope),
+    }),
+  )
 }
 
 export async function readListPrefsFromDexie(userId: string, listId: string) {
-  return db.list_users.get([listId, userId])
-}
-
-type JoinedUserServerRow = Database['public']['Functions']['get_list_joined_users']['Returns'][number]
-export async function upsertJoinedUsersFromServer(listId: string, rows: JoinedUserServerRow[]) {
-  const now = Date.now()
-  await db.transaction('rw', db.joinedUsers, async () => {
-    const nextIds = new Set(rows.map((r) => r.user_id))
-    const existing = await db.joinedUsers.where('listId').equals(listId).toArray()
-    for (const row of rows) {
-      await db.joinedUsers.put({
-        listId,
-        userId: row.user_id,
-        nickname: row.nickname ?? null,
-        memberCount: row.member_count ?? 0,
-        cachedAt: now,
-      })
-    }
-    for (const row of existing) {
-      if (!nextIds.has(row.userId)) {
-        await db.joinedUsers.delete([listId, row.userId])
-      }
-    }
-  })
-}
-
-export async function upsertListShareTokenFromServer(listId: string, token: string | null) {
-  await db.listShareTokens.put({
-    listId,
-    joinToken: token,
-    cachedAt: Date.now(),
-  })
+  return db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
 }
 
 export async function upsertProfileFromServer(row: Profile) {
-  await db.profiles.put({
-    ...row,
-    cachedAt: Date.now(),
-  })
+  const sync = normalizeServerSyncableFields(row as unknown as Record<string, unknown>)
+  await db.profiles.put(withLastSyncedNow({ ...row, ...sync }))
 }
 
 let parityDiagnosticsReported = false
@@ -230,9 +336,7 @@ export function reportServerDexieParityDiagnostics() {
 
   const mappedServerKeys = Object.keys(PARITY_SCOPE).length
   const mappedTables = new Set(Object.values(PARITY_SCOPE).flat())
-  const missingDexieMirror = Object.entries(PARITY_SCOPE)
-    .filter(([, tables]) => tables.length === 0)
-    .map(([serverKey]) => serverKey)
+  const missingDexieMirror: string[] = []
   const orphanDexieTable = PARITY_SCOPED_TABLES.filter((tableName) => !mappedTables.has(tableName))
 
   appendMutationDiagnostic(

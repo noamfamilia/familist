@@ -1,8 +1,16 @@
 import { db } from '@/lib/db'
 import { getActiveCacheUserId, getCachedList, getCachedLists } from '@/lib/cache'
+import { normalizeDexieEntityRow } from '@/lib/data/base_sync_fields'
 
 const MIGRATION_KEY = 'dexie_migration_v1'
 const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+function tombstoneExpired(deleted_at: string | null): boolean {
+  if (deleted_at == null || deleted_at.length === 0) return false
+  const t = Date.parse(deleted_at)
+  if (Number.isNaN(t)) return false
+  return t < Date.now() - TOMBSTONE_TTL_MS
+}
 
 export async function runLegacyStorageMigration() {
   if (typeof window === 'undefined') return
@@ -11,21 +19,19 @@ export async function runLegacyStorageMigration() {
 
   const userId = getActiveCacheUserId()
   if (!userId) {
-    await db.meta.put({ key: MIGRATION_KEY, value: true, updatedAt: Date.now() })
+    await db.meta.put({ id: MIGRATION_KEY, value: true, updated_at: Date.now() })
     return
   }
 
   const cachedLists = getCachedLists(userId)?.lists ?? []
   await db.transaction('rw', db.lists, db.meta, async () => {
     for (const list of cachedLists) {
-      await db.lists.put({
-        ...list,
-        userId,
-        cachedAt: Date.now(),
-        deleted_at: null,
-      })
+      const raw = { ...(list as unknown as Record<string, unknown>), cached_at: Date.now() }
+      await db.lists.put(
+        normalizeDexieEntityRow(raw, { legacyCreatedKey: 'created_at' }) as never,
+      )
     }
-    await db.meta.put({ key: MIGRATION_KEY, value: true, updatedAt: Date.now() })
+    await db.meta.put({ id: MIGRATION_KEY, value: true, updated_at: Date.now() })
   })
 
   await cleanupTombstones()
@@ -36,45 +42,38 @@ export async function migrateCachedListDetail(userId: string, listId: string) {
   if (!cached) return
   await db.transaction('rw', db.lists, db.items, db.members, db.item_member_state, async () => {
     if (cached.list) {
-      await db.lists.put({
-        ...cached.list,
-        userId,
-        cachedAt: Date.now(),
-        deleted_at: null,
-      })
+      const raw = { ...(cached.list as unknown as Record<string, unknown>), cached_at: Date.now() }
+      await db.lists.put(normalizeDexieEntityRow(raw, { legacyCreatedKey: 'created_at' }) as never)
     }
 
     for (const item of cached.items) {
-      await db.items.put({
-        ...item,
-        userId,
-        listId,
-        deleted_at: null,
-      })
+      const raw = { ...(item as unknown as Record<string, unknown>) }
+      await db.items.put(normalizeDexieEntityRow(raw, { legacyCreatedKey: 'created_at' }) as never)
       for (const state of Object.values(item.memberStates ?? {})) {
-        await db.item_member_state.put({
-          ...state,
-          listId,
-          deleted_at: null,
-        })
+        const s = state as unknown as Record<string, unknown>
+        await db.item_member_state.put(
+          normalizeDexieEntityRow(
+            {
+              id: crypto.randomUUID(),
+              ...s,
+              list_id: listId,
+            },
+            { serverFallback: typeof s.updated_at === 'string' ? (s.updated_at as string) : undefined },
+          ) as never,
+        )
       }
     }
 
     for (const member of cached.members) {
-      await db.members.put({
-        ...member,
-        userId,
-        listId,
-        deleted_at: null,
-      })
+      const raw = { ...(member as unknown as Record<string, unknown>) }
+      await db.members.put(normalizeDexieEntityRow(raw, { legacyCreatedKey: 'created_at' }) as never)
     }
   })
 }
 
 export async function cleanupTombstones() {
-  const threshold = Date.now() - TOMBSTONE_TTL_MS
-  const clean = async <T extends { deleted_at: number | null }>(rows: T[]) =>
-    rows.filter((row) => (row.deleted_at ?? 0) > 0 && (row.deleted_at ?? 0) < threshold)
+  const clean = <T extends { id: string; deleted_at: string | null }>(rows: T[]) =>
+    rows.filter((row) => tombstoneExpired(row.deleted_at))
 
   await db.transaction(
     'rw',
@@ -90,11 +89,10 @@ export async function cleanupTombstones() {
         db.item_member_state.toArray(),
       ])
 
-      for (const row of await clean(lists)) await db.lists.delete([row.userId, row.id])
-      for (const row of await clean(items)) await db.items.delete([row.userId, row.listId, row.id])
-      for (const row of await clean(members)) await db.members.delete([row.userId, row.listId, row.id])
-      for (const row of await clean(states))
-        await db.item_member_state.delete([row.listId, row.item_id, row.member_id])
+      for (const row of clean(lists)) await db.lists.delete(row.id)
+      for (const row of clean(items)) await db.items.delete(row.id)
+      for (const row of clean(members)) await db.members.delete(row.id)
+      for (const row of clean(states)) await db.item_member_state.delete(row.id)
     },
   )
 }

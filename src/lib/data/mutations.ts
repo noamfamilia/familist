@@ -1,146 +1,161 @@
-import { db, type DbItemRow, type DbMemberRow, type DbSyncQueueRow } from '@/lib/db'
+import { db, type DbItemRow, type DbMemberRow } from '@/lib/db'
 import type { ItemCategory, ItemMemberState } from '@/lib/supabase/types'
-import { enqueueSyncQueueRecord, itemMemberStateOutboxKey, memberProfileOutboxKey } from '@/lib/data/syncQueue'
+import {
+  enqueueSyncQueueRecord,
+  itemMemberStateOutboxKey,
+  listQueueParent,
+} from '@/lib/data/syncQueue'
+import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 
 function now() {
   return Date.now()
 }
 
-function nextSyncBase(
-  listId: string,
-  itemKey: string,
-  kind: DbSyncQueueRow['kind'],
-  entity: DbSyncQueueRow['entity'],
-  payload: Record<string, unknown>,
-) {
-  return {
-    listId,
-    itemKey,
-    kind,
-    entity,
-    payload,
-    updatedAt: now(),
-  }
-}
-
 export async function addItemMutation(input: {
-  userId: string
-  listId: string
+  user_id: string
+  list_id: string
   text: string
   category: ItemCategory
 }) {
   const id = crypto.randomUUID()
+  const t = isoNow()
+  const sync = syncFieldsForLocalInsert({ client_created_at: t })
   const row: DbItemRow = {
     id,
-    userId: input.userId,
-    listId: input.listId,
-    list_id: input.listId,
+    list_id: input.list_id,
     text: input.text,
     category: input.category,
     comment: null,
     archived: false,
     archived_at: null,
     sort_order: now(),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    deleted_at: null,
+    ...sync,
+    updated_at: t,
   }
 
   await db.transaction('rw', db.items, db.sync_queue, async () => {
     await db.items.put(row)
-    await enqueueSyncQueueRecord(
-      nextSyncBase(input.listId, id, 'create', 'item', {
+    await enqueueSyncQueueRecord({
+      entity: 'item',
+      entity_id: id,
+      kind: 'create',
+      payload: {
         id,
-        list_id: input.listId,
+        list_id: input.list_id,
         text: input.text,
         category: input.category,
-      }),
-    )
+        client_created_at: sync.client_created_at,
+      },
+      ...listQueueParent(input.list_id),
+      status: 'queued',
+    })
   })
 
   return id
 }
 
-export async function softDeleteItemMutation(userId: string, listId: string, itemId: string) {
-  const key = [userId, listId, itemId] as const
-  const existing = await db.items.get(key)
+export async function softDeleteItemMutation(_user_id: string, list_id: string, item_id: string) {
+  const existing = await db.items.get(item_id)
   if (!existing) return
 
   await db.transaction('rw', db.items, db.sync_queue, async () => {
-    await db.items.update(key, {
-      deleted_at: now(),
-      updated_at: new Date().toISOString(),
+    await db.items.update(item_id, {
+      deleted_at: isoNow(),
+      updated_at: isoNow(),
     })
-    await enqueueSyncQueueRecord(
-      nextSyncBase(listId, `item:${itemId}`, 'delete', 'item', {
-        id: itemId,
-      }),
-    )
+    await enqueueSyncQueueRecord({
+      entity: 'item',
+      entity_id: item_id,
+      kind: 'delete',
+      payload: { id: item_id },
+      ...listQueueParent(list_id),
+      status: 'queued',
+    })
   })
 }
 
 export async function toggleItemMemberStateMutation(input: {
-  listId: string
-  itemId: string
-  memberId: string
+  list_id: string
+  item_id: string
+  member_id: string
   state: ItemMemberState
 }) {
-  const key = [input.listId, input.itemId, input.memberId] as const
+  const id = crypto.randomUUID()
+  const t = isoNow()
+  const sync = syncFieldsForLocalInsert({ client_created_at: t })
   await db.transaction('rw', db.item_member_state, db.sync_queue, async () => {
     await db.item_member_state.put({
+      id,
       ...input.state,
-      listId: input.listId,
-      deleted_at: null,
+      list_id: input.list_id,
+      ...sync,
+      updated_at: t,
     })
-    await enqueueSyncQueueRecord(
-      nextSyncBase(
-        input.listId,
-        itemMemberStateOutboxKey(input.itemId, input.memberId),
-        'itemMemberState',
-        'item_member_state',
-        {
-          item_id: input.itemId,
-          member_id: input.memberId,
-          quantity: input.state.quantity,
-          done: input.state.done,
-          assigned: input.state.assigned,
-        },
-      ),
-    )
+    await enqueueSyncQueueRecord({
+      entity: 'item_member_state',
+      entity_id: itemMemberStateOutboxKey(input.item_id, input.member_id),
+      kind: 'patch',
+      payload: {
+        item_id: input.item_id,
+        member_id: input.member_id,
+        quantity: input.state.quantity,
+        done: input.state.done,
+        assigned: input.state.assigned,
+      },
+      ...listQueueParent(input.list_id),
+      status: 'queued',
+    })
   })
-  return key
+  return id
 }
 
 export async function addMemberMutation(input: {
-  userId: string
-  listId: string
+  /** When set (e.g. target member + IMS), must match optimistic UI / Dexie id */
+  id?: string
+  user_id: string
+  list_id: string
   name: string
+  is_target?: boolean
+  /** Defaults to `Date.now()` ordering key */
+  sort_order?: number
 }) {
-  const id = crypto.randomUUID()
+  const id = input.id ?? crypto.randomUUID()
+  const t = isoNow()
+  const sync = syncFieldsForLocalInsert({ client_created_at: t })
+  const sortOrder = input.sort_order ?? now()
+  const isTarget = input.is_target ?? false
   const row: DbMemberRow = {
     id,
-    userId: input.userId,
-    listId: input.listId,
-    list_id: input.listId,
+    list_id: input.list_id,
     name: input.name,
-    created_by: input.userId,
-    sort_order: now(),
+    created_by: input.user_id,
+    sort_order: sortOrder,
     is_public: false,
-    is_target: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    deleted_at: null,
+    is_target: isTarget,
+    ...sync,
+    updated_at: t,
+    creator: null,
   }
 
   await db.transaction('rw', db.members, db.sync_queue, async () => {
     await db.members.put(row)
-    await enqueueSyncQueueRecord(
-      nextSyncBase(input.listId, memberProfileOutboxKey(id), 'addMember', 'member', {
+    await enqueueSyncQueueRecord({
+      entity: 'member',
+      entity_id: id,
+      kind: 'create',
+      payload: {
         id,
-        list_id: input.listId,
+        list_id: input.list_id,
         name: input.name,
-      }),
-    )
+        client_created_at: sync.client_created_at,
+        created_by: input.user_id,
+        sort_order: sortOrder,
+        is_public: false,
+        is_target: isTarget,
+      },
+      ...listQueueParent(input.list_id),
+      status: 'queued',
+    })
   })
 
   return id

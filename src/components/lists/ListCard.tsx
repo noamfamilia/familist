@@ -341,7 +341,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     const trimmed = draftComment.trim()
     setComment(trimmed)
     setEditingComment(false)
-    const { error } = await onUpdate(list.id, { comment: trimmed || null })
+    const { error } = await onUpdate(list.id, { comment: trimmed || undefined })
     if (error) {
       showError('Failed to save comment')
       setComment(list.comment || '')

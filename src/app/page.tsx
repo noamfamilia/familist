@@ -5,6 +5,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { ThemedImage } from '@/components/ui/ThemedImage'
 import { ConnectivityStatusIcon } from '@/components/ui/ConnectivityStatusIcon'
+import { SyncIcon } from '@/components/sync/SyncIcon'
 import { ProfileModal } from '@/components/profile/ProfileModal'
 
 
@@ -15,7 +16,10 @@ import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
 import { resetTutorial } from '@/components/ui/TutorialTour'
-import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
+import { enqueueSyncQueueRecord, userQueueParent } from '@/lib/data/syncQueue'
+import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
+import { normalizeServerSyncableFields } from '@/lib/data/serverDexieParity'
 import { useToast } from '@/components/ui/Toast'
 import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
@@ -568,8 +572,11 @@ function HomeContent() {
       </div>
 
       {/* Header */}
-      <header className="flex items-center justify-center gap-3 sm:gap-4 mb-6 sm:mb-8">
-        <ConnectivityStatusIcon />
+      <header className="flex items-center justify-center gap-2 sm:gap-3 mb-6 sm:mb-8">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+          <ConnectivityStatusIcon />
+          <SyncIcon />
+        </div>
         <ThemedImage
           src="/logo.png"
           alt="MyFamiList"
@@ -648,15 +655,42 @@ function HomeContent() {
             onClick={async () => {
               if (!feedbackText.trim() || !user) return
               setSubmittingFeedback(true)
-              const supabase = createClient()
-              const { error: err } = await supabase.from('feedback').insert({ user_id: user.id, email: user.email, message: feedbackText.trim() })
-              setSubmittingFeedback(false)
-              if (err) {
-                showError('Failed to submit feedback')
-              } else {
+              try {
+                const id = crypto.randomUUID()
+                const t = isoNow()
+                const sync = syncFieldsForLocalInsert({ client_created_at: t })
+                const base = {
+                  id,
+                  user_id: user.id,
+                  email: user.email ?? '',
+                  message: feedbackText.trim(),
+                  ...sync,
+                }
+                const normalized = normalizeServerSyncableFields(base as Record<string, unknown>)
+                await db.transaction('rw', db.feedback, db.sync_queue, async () => {
+                  await db.feedback.put({ ...base, ...normalized } as never)
+                  await enqueueSyncQueueRecord({
+                    entity: 'feedback',
+                    entity_id: id,
+                    kind: 'create',
+                    payload: {
+                      id,
+                      user_id: user.id,
+                      email: base.email,
+                      message: base.message,
+                      client_created_at: sync.client_created_at,
+                    },
+                    ...userQueueParent(user.id),
+                    status: 'queued',
+                  })
+                })
                 success('Thank you for your feedback!')
                 setFeedbackText('')
                 setShowFeedback(false)
+              } catch {
+                showError('Failed to submit feedback')
+              } finally {
+                setSubmittingFeedback(false)
               }
             }}
             className="px-4 py-1.5 text-sm font-medium text-white bg-teal rounded-lg hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"

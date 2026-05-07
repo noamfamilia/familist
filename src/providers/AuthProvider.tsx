@@ -11,6 +11,7 @@ import { notifyProfileFetchSucceeded, notifyProfileFetchTimedOut } from '@/lib/p
 import { perfLog } from '@/lib/startupPerfLog'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
+import { runLocalDexieGc } from '@/lib/data/localDexieGc'
 import { reportServerDexieParityDiagnostics, upsertProfileFromServer } from '@/lib/data/serverDexieParity'
 
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
@@ -131,6 +132,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const profileFetchGenRef = useRef(0)
   useEffect(() => {
     reportServerDexieParityDiagnostics()
+    scheduleAfterFirstPaint(() => {
+      void runLocalDexieGc()
+    })
   }, [])
 
   useEffect(() => {

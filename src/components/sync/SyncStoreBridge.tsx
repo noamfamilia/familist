@@ -1,6 +1,7 @@
 'use client'
 
 import { useSyncStore } from '@/hooks/useSyncStore'
+import { ListMirrorWorker } from '@/components/sync/ListMirrorWorker'
 import { useEffect } from 'react'
 import { runLegacyStorageMigration } from '@/lib/data/migrate'
 import { checkMajorVersionMismatchOnBoot } from '@/lib/data/versionCheck'
@@ -13,5 +14,5 @@ export function SyncStoreBridge() {
     void runLegacyStorageMigration()
   }, [])
 
-  return null
+  return <ListMirrorWorker />
 }
