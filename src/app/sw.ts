@@ -61,8 +61,28 @@ async function purgeLegacyOfflineWallCacheEntries() {
   }
 }
 
+/**
+ * Hard reset old SW cache namespaces from earlier deployments.
+ * Dexie/IndexedDB local data is unaffected.
+ */
+async function purgeLegacySerwistCaches() {
+  const cacheNames = await caches.keys()
+  const deleteJobs: Promise<boolean>[] = []
+  for (const cacheName of cacheNames) {
+    if (cacheName.startsWith('serwist-')) {
+      deleteJobs.push(caches.delete(cacheName))
+    }
+  }
+  await Promise.all(deleteJobs)
+}
+
 self.addEventListener('activate', (event: ExtendableEvent) => {
-  event.waitUntil(purgeLegacyOfflineWallCacheEntries())
+  event.waitUntil(
+    (async () => {
+      await purgeLegacyOfflineWallCacheEntries()
+      await purgeLegacySerwistCaches()
+    })(),
+  )
 })
 
 async function hasAnyCachedRequestMatching(predicate: (url: URL) => boolean) {
