@@ -80,6 +80,8 @@ export async function describeOutboundSyncRow(row: DbSyncQueueRow): Promise<stri
       generateShareToken: `Generate share link for ${lt}`,
       revokeShareToken: `Revoke share link for ${lt}`,
       removeUsersFromList: `Remove users from list ${lt}`,
+      deleteArchivedItems: `Delete archived items on list ${lt}`,
+      restoreArchivedItems: `Restore archived items on list ${lt}`,
     }
     return map[method] ?? `RPC ${method}`
   }

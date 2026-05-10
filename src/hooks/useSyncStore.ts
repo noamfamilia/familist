@@ -595,6 +595,18 @@ export function useSyncStore(): SyncStoreState {
             } as never)
             if (error) throw error
           }
+        } else if (method === 'deleteArchivedItems') {
+          const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          if (!rpcListId) throw new Error('deleteArchivedItems missing list_id')
+          appendMutationDiagnostic(`[sync->server] deleteArchivedItems listId=${rpcListId}`)
+          const { error } = await supabase.rpc('delete_archived_items', { p_list_id: rpcListId })
+          if (error) throw error
+        } else if (method === 'restoreArchivedItems') {
+          const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          if (!rpcListId) throw new Error('restoreArchivedItems missing list_id')
+          appendMutationDiagnostic(`[sync->server] restoreArchivedItems listId=${rpcListId}`)
+          const { error } = await supabase.rpc('restore_archived_items', { p_list_id: rpcListId })
+          if (error) throw error
         } else if (method === 'joinListByToken') {
           const token = String(payload.token ?? '')
           if (!token) throw new Error('joinListByToken missing token')

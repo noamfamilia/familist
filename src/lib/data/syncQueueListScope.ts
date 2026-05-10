@@ -43,6 +43,7 @@ export function listIdsTouchingOutboundRow(row: DbSyncQueueRow): string[] {
     if (method === 'leaveList') pushRealListId(ids, pl.list_id)
     if (method === 'reorderListItems') pushRealListId(ids, pl.list_id)
     if (method === 'bulkAddListItems') pushRealListId(ids, pl.list_id)
+    if (method === 'deleteArchivedItems' || method === 'restoreArchivedItems') pushRealListId(ids, pl.list_id)
     if (method === 'generateShareToken' || method === 'revokeShareToken' || method === 'removeUsersFromList') {
       pushRealListId(ids, pl.list_id)
     }

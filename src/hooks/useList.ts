@@ -42,6 +42,7 @@ import {
   enqueueSyncQueueRecord,
   listQueueParent,
   newBatchEntityId,
+  removeOutboundQueueRowsForItemIds,
 } from '@/lib/data/syncQueue'
 import {
   isoNow,
@@ -1707,7 +1708,7 @@ export function useList(listId: string) {
   }
 
   const deleteArchivedItems = async () => {
-    const archivedIds = new Set(items.filter(i => i.archived).map(i => i.id))
+    const archivedIds = new Set(items.filter((i) => i.archived).map((i) => i.id))
     if (archivedIds.size === 0) return { error: null, count: 0 }
     if (!userId) return { error: { message: 'Not authenticated' }, count: 0 }
 
@@ -1720,27 +1721,22 @@ export function useList(listId: string) {
       useListDataStore.getState().setItems((prev) => prev.filter((i) => !archivedIds.has(i.id)))
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
-      const nowMs = Date.now()
-      const nowIso = new Date(nowMs).toISOString()
-      await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
+      await db.transaction('rw', [db.items, db.item_member_state, db.sync_queue, db.list_users], async () => {
+        await removeOutboundQueueRowsForItemIds(listId, archivedIds)
         for (const itemId of archivedIds) {
-          const row = await db.items.get(itemId)
-          const renamedText = withDeletionNameSuffix(row?.text ?? '')
-          await db.items.update(itemId, {
-            text: renamedText,
-            deleted_at: isoNow(),
-            updated_at: nowIso,
-          })
-          await enqueueSyncQueueRecord({
-            entity: 'item',
-            entity_id: itemId,
-            kind: 'delete',
-            payload: { id: itemId },
-            ...listQueueParent(listId),
-            status: 'queued',
-          })
+          await db.item_member_state.where('item_id').equals(itemId).delete()
+          await db.items.delete(itemId)
         }
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: newBatchEntityId(),
+          kind: 'rpc',
+          payload: { method: 'deleteArchivedItems', list_id: listId },
+          ...listQueueParent(listId),
+          status: 'queued',
+        })
       })
+      persistListSnapshotToDetailCache(userId, listId)
       return { error: null, count: archivedIds.size }
     } catch (error) {
       useListDataStore.getState().setItems(itemsSnapshot)
@@ -1773,23 +1769,24 @@ export function useList(listId: string) {
       )
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
-      await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
+      await db.transaction('rw', [db.items, db.sync_queue, db.list_users], async () => {
         for (const itemId of archivedIds) {
           await db.items.update(itemId, {
             archived: false,
             archived_at: null,
             updated_at: nowIso,
           })
-          await enqueueSyncQueueRecord({
-            entity: 'item',
-            entity_id: itemId,
-            kind: 'patch',
-            payload: { id: itemId, archived: false, archived_at: null },
-            ...listQueueParent(listId),
-            status: 'queued',
-          })
         }
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: newBatchEntityId(),
+          kind: 'rpc',
+          payload: { method: 'restoreArchivedItems', list_id: listId },
+          ...listQueueParent(listId),
+          status: 'queued',
+        })
       })
+      persistListSnapshotToDetailCache(userId, listId)
       return { error: null, count: archivedIds.length }
     } catch (error) {
       useListDataStore.getState().setItems(itemsSnapshot)

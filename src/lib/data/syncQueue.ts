@@ -66,6 +66,32 @@ export async function clearSyncQueueForList(listId: string): Promise<void> {
   if (uid) await clearListUserSyncError(listId, uid)
 }
 
+/** Remove queued outbound rows for specific item ids (e.g. before bulk delete RPC makes them stale). */
+export async function removeOutboundQueueRowsForItemIds(
+  listId: string,
+  itemIds: ReadonlySet<string>,
+): Promise<void> {
+  if (itemIds.size === 0) return
+  const rows = await db.sync_queue.filter((r) => syncQueueRowTouchesListId(r, listId)).toArray()
+  for (const r of rows) {
+    let drop = false
+    if (r.entity === 'item' && itemIds.has(r.entity_id)) drop = true
+    if (r.entity === 'item_member_state') {
+      const p = r.payload as { item_id?: string }
+      if (typeof p.item_id === 'string' && itemIds.has(p.item_id)) drop = true
+    }
+    if ((r.kind === 'patch' || r.kind === 'create') && r.entity === 'item') {
+      const pid = String((r.payload as { id?: string }).id ?? r.entity_id)
+      if (pid && itemIds.has(pid)) drop = true
+    }
+    if (r.kind === 'delete' && r.entity === 'item') {
+      const did = String((r.payload as { id?: string }).id ?? r.entity_id)
+      if (did && itemIds.has(did)) drop = true
+    }
+    if (drop) await db.sync_queue.delete(r.id)
+  }
+}
+
 type EnqueueInput = Omit<
   DbSyncQueueRow,
   'locked_at' | 'attempt_count' | 'last_error' | 'next_retry_at' | 'id' | 'updated_at'
@@ -252,6 +278,10 @@ export function describeSyncQueueRow(row: DbSyncQueueRow): string {
         return 'Disabling invite link…'
       case 'removeUsersFromList':
         return 'Removing users from list…'
+      case 'deleteArchivedItems':
+        return 'Deleting archived items…'
+      case 'restoreArchivedItems':
+        return 'Restoring archived items…'
       default:
         return method ? `Server action (${method})` : 'Server action…'
     }

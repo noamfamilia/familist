@@ -395,6 +395,14 @@ export interface Database {
         Args: { p_list_id: string; p_item_ids: string[] }
         Returns: undefined
       }
+      delete_archived_items: {
+        Args: { p_list_id: string }
+        Returns: number
+      }
+      restore_archived_items: {
+        Args: { p_list_id: string }
+        Returns: number
+      }
       reorder_user_lists: {
         Args: { p_list_ids: string[] }
         Returns: undefined
