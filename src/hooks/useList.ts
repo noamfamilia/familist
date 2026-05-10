@@ -12,6 +12,7 @@ import { subscribeListDataL2Bridge, useListDataStore, warmListData } from '@/sto
 import {
   addItemMutation,
   addMemberMutation,
+  bulkSoftDeleteArchivedItemsMutation,
   softDeleteItemMutation,
   toggleItemMemberStateMutation,
 } from '@/lib/data/mutations'
@@ -42,7 +43,6 @@ import {
   enqueueSyncQueueRecord,
   listQueueParent,
   newBatchEntityId,
-  removeOutboundQueueRowsForItemIds,
 } from '@/lib/data/syncQueue'
 import {
   isoNow,
@@ -1721,21 +1721,7 @@ export function useList(listId: string) {
       useListDataStore.getState().setItems((prev) => prev.filter((i) => !archivedIds.has(i.id)))
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
-      await db.transaction('rw', [db.items, db.item_member_state, db.sync_queue, db.list_users], async () => {
-        await removeOutboundQueueRowsForItemIds(listId, archivedIds)
-        for (const itemId of archivedIds) {
-          await db.item_member_state.where('item_id').equals(itemId).delete()
-          await db.items.delete(itemId)
-        }
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: newBatchEntityId(),
-          kind: 'rpc',
-          payload: { method: 'deleteArchivedItems', list_id: listId },
-          ...listQueueParent(listId),
-          status: 'queued',
-        })
-      })
+      await bulkSoftDeleteArchivedItemsMutation(listId, [...archivedIds])
       persistListSnapshotToDetailCache(userId, listId)
       return { error: null, count: archivedIds.size }
     } catch (error) {

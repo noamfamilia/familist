@@ -4,6 +4,8 @@ import {
   enqueueSyncQueueRecord,
   itemMemberStateOutboxKey,
   listQueueParent,
+  newBatchEntityId,
+  removeOutboundQueueRowsForItemIds,
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
@@ -57,7 +59,12 @@ export async function addItemMutation(input: {
   return id
 }
 
-export async function softDeleteItemMutation(_user_id: string, list_id: string, item_id: string) {
+export async function softDeleteItemMutation(
+  _user_id: string,
+  list_id: string,
+  item_id: string,
+  options?: { skipEnqueue?: boolean },
+) {
   const existing = await db.items.get(item_id)
   if (!existing) return
 
@@ -70,11 +77,47 @@ export async function softDeleteItemMutation(_user_id: string, list_id: string, 
       deleted_at: t,
       updated_at: t,
     })
+    if (!options?.skipEnqueue) {
+      await enqueueSyncQueueRecord({
+        entity: 'item',
+        entity_id: item_id,
+        kind: 'delete',
+        payload: { id: item_id },
+        ...listQueueParent(list_id),
+        status: 'queued',
+      })
+    }
+  })
+}
+
+/**
+ * Shadow-delete every archived item locally (same row shape as `softDeleteItemMutation`), then enqueue
+ * one `deleteArchivedItems` RPC. After the RPC succeeds, the sync worker runs `cleanupDexieAfterItemServerDeleted`
+ * per `item_id` (hard local delete), matching the single-item delete lifecycle.
+ */
+export async function bulkSoftDeleteArchivedItemsMutation(list_id: string, itemIds: readonly string[]) {
+  const ids = [...new Set(itemIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+  if (ids.length === 0) return
+  const idSet = new Set(ids)
+  const t = isoNow()
+
+  await db.transaction('rw', [db.items, db.sync_queue, db.list_users], async () => {
+    await removeOutboundQueueRowsForItemIds(list_id, idSet)
+    for (const itemId of ids) {
+      const existing = await db.items.get(itemId)
+      if (!existing) continue
+      const renamedText = withDeletionNameSuffix(existing.text ?? '')
+      await db.items.update(itemId, {
+        text: renamedText,
+        deleted_at: t,
+        updated_at: t,
+      })
+    }
     await enqueueSyncQueueRecord({
-      entity: 'item',
-      entity_id: item_id,
-      kind: 'delete',
-      payload: { id: item_id },
+      entity: 'list',
+      entity_id: newBatchEntityId(),
+      kind: 'rpc',
+      payload: { method: 'deleteArchivedItems', list_id, item_ids: ids },
       ...listQueueParent(list_id),
       status: 'queued',
     })

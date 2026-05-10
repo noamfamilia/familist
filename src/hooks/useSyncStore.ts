@@ -598,9 +598,17 @@ export function useSyncStore(): SyncStoreState {
         } else if (method === 'deleteArchivedItems') {
           const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
           if (!rpcListId) throw new Error('deleteArchivedItems missing list_id')
-          appendMutationDiagnostic(`[sync->server] deleteArchivedItems listId=${rpcListId}`)
+          const itemIds = Array.isArray(payload.item_ids)
+            ? (payload.item_ids as unknown[]).filter((x): x is string => typeof x === 'string' && x.length > 0)
+            : []
+          appendMutationDiagnostic(
+            `[sync->server] deleteArchivedItems listId=${rpcListId} itemIds=${itemIds.length}`,
+          )
           const { error } = await supabase.rpc('delete_archived_items', { p_list_id: rpcListId })
           if (error) throw error
+          for (const id of itemIds) {
+            await cleanupDexieAfterItemServerDeleted(id, rpcListId)
+          }
         } else if (method === 'restoreArchivedItems') {
           const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
           if (!rpcListId) throw new Error('restoreArchivedItems missing list_id')
