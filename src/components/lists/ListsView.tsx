@@ -18,6 +18,7 @@ import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useAuth } from '@/providers/AuthProvider'
+import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
@@ -45,6 +46,7 @@ interface ListsViewProps {
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager, onOfflineActionsDisabledChange }: ListsViewProps) {
   const { lists, loading, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels, isOfflineActionsDisabled } = useLists()
+  const recentSuccesses = useListsCatalogStore((s) => s.recentSuccesses)
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
   const router = useRouter()
   /** `inviteToken:userId` after a successful join so we do not enqueue twice. */
@@ -266,10 +268,10 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         return
       }
 
+      onSelectLabel?.('Any')
+
       inviteJoinSucceededKeyRef.current = successKey
       onInviteHandled?.()
-
-      onSelectLabel?.('Any')
 
       appendMutationDiagnostic(
         `[invite] ListsView join ok userId=${user.id} tokenLen=${inviteToken.length} dataType=${typeof data} clearedUrl=1`,
@@ -384,6 +386,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                   <SortableListCard
                     key={list.id}
                     list={list}
+                    recentSuccessStartedAt={recentSuccesses.get(list.id) ?? 0}
                     existingListNames={ownedListNames}
                     onUpdate={updateList}
                     onDelete={deleteList}
@@ -420,6 +423,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
               <ListCard
                     key={list.id}
                     list={list}
+                    recentSuccessStartedAt={recentSuccesses.get(list.id) ?? 0}
                     existingListNames={ownedListNames}
                     onUpdate={updateList}
                     onDelete={deleteList}

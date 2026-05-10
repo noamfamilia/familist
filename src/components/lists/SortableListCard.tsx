@@ -9,6 +9,7 @@ import type { ListWithRole } from '@/lib/supabase/types'
 
 interface SortableListCardProps {
   list: ListWithRole
+  recentSuccessStartedAt?: number
   existingListNames: string[]
   onUpdate: (listId: string, updates: { name?: string; archived?: boolean }) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
@@ -27,6 +28,7 @@ interface SortableListCardProps {
 function sortableListCardPropsEqual(prev: SortableListCardProps, next: SortableListCardProps): boolean {
   return (
     listCardModelEqual(prev.list, next.list) &&
+    (prev.recentSuccessStartedAt ?? 0) === (next.recentSuccessStartedAt ?? 0) &&
     sameStringList(prev.existingListNames, next.existingListNames) &&
     sameStringList(prev.labels, next.labels) &&
     (prev.currentFilter ?? 'Any') === (next.currentFilter ?? 'Any') &&
@@ -36,6 +38,7 @@ function sortableListCardPropsEqual(prev: SortableListCardProps, next: SortableL
 
 function SortableListCardInner({
   list,
+  recentSuccessStartedAt = 0,
   existingListNames,
   onUpdate,
   onDelete,
@@ -69,6 +72,7 @@ function SortableListCardInner({
     <div ref={setNodeRef} style={style}>
       <ListCard
         list={list}
+        recentSuccessStartedAt={recentSuccessStartedAt}
         existingListNames={existingListNames}
         onUpdate={onUpdate}
         onDelete={onDelete}

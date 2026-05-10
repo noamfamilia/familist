@@ -29,12 +29,7 @@ export async function cleanupDexieAfterListServerDeleted(listId: string): Promis
   const uid = getActiveCacheUserId()
   await db.transaction(
     'rw',
-    db.item_member_state,
-    db.items,
-    db.members,
-    db.list_users,
-    db.lists,
-    db.offline_route_markers,
+    [db.item_member_state, db.items, db.members, db.list_users, db.lists, db.offline_route_markers],
     async () => {
       await db.item_member_state
         .where('[list_id+item_id]')

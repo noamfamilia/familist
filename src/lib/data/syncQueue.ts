@@ -2,6 +2,16 @@ import { getActiveCacheUserId } from '@/lib/cache'
 import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind } from '@/lib/db'
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 
+/** True when a sync_queue row is scoped to `listId` (parent, entity id, or payload.list_id). */
+export function syncQueueRowTouchesListId(row: DbSyncQueueRow, listId: string): boolean {
+  const pl = row.payload as { list_id?: string } | undefined
+  return (
+    row.parent1_id === listId ||
+    (row.entity === 'list' && row.entity_id === listId) ||
+    (typeof pl?.list_id === 'string' && pl.list_id === listId)
+  )
+}
+
 export function itemMemberStateOutboxKey(itemId: string, memberId: string) {
   return `ims:${itemId}:${memberId}`
 }
@@ -51,16 +61,7 @@ function shouldAppendOnly(entity: SyncQueueEntity, entityId: string, kind: SyncQ
 
 /** Remove all outbound work scoped to a list (prevents ghost sync after delete/leave). */
 export async function clearSyncQueueForList(listId: string): Promise<void> {
-  await db.sync_queue
-    .filter((r) => {
-      const pl = r.payload as { list_id?: string } | undefined
-      return (
-        r.parent1_id === listId ||
-        (r.entity === 'list' && r.entity_id === listId) ||
-        (typeof pl?.list_id === 'string' && pl.list_id === listId)
-      )
-    })
-    .delete()
+  await db.sync_queue.filter((r) => syncQueueRowTouchesListId(r, listId)).delete()
   const uid = getActiveCacheUserId()
   if (uid) await clearListUserSyncError(listId, uid)
 }

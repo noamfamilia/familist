@@ -1,56 +1,46 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
+import {
+  RECENT_SUCCESS_FADE_MS,
+  RECENT_SUCCESS_HOLD_MS,
+  RECENT_SUCCESS_WINDOW_MS,
+} from '@/stores/listsCatalogStore'
 
-type SyncVisualState = 'pending' | 'synced' | 'error' | 'stale'
+const shellBase =
+  'pointer-events-none absolute end-1.5 top-1.5 z-20 flex h-5 w-5 items-center justify-center'
+const shellGreen = `${shellBase} text-green-600 dark:text-green-500`
+const shellCyan = `${shellBase} text-cyan`
 
-function listSyncVisualState(pendingItems: number, syncError: boolean): SyncVisualState {
-  const pending = pendingItems > 0
-  const err = syncError
-  if (pending && !err) return 'pending'
-  if (!pending && !err) return 'synced'
-  if (pending && err) return 'error'
-  return 'stale'
-}
-
-/** Per-list outbound sync: pending / synced / error / stale (no icon). Primitives so parent list row can memo-skip when unchanged. */
+/**
+ * Catalog outbound sync: pending → filled check in cyan; recent success (green) only when the store
+ * recorded outbound pending going from strictly positive to zero (Dexie L2 bridge), then hold + fade.
+ */
 export const ListSyncStatusIcon = memo(function ListSyncStatusIcon({
   pendingItems,
   syncError,
+  recentSuccessStartedAt,
 }: {
   pendingItems: number
   syncError: boolean
+  recentSuccessStartedAt: number
 }) {
-  const state = listSyncVisualState(pendingItems, syncError)
-  if (state === 'stale') return null
+  const [tick, setTick] = useState(0)
 
-  const shell =
-    'pointer-events-none absolute end-1.5 top-1.5 z-20 flex h-5 w-5 items-center justify-center'
+  useEffect(() => {
+    if (recentSuccessStartedAt <= 0) return
+    const totalMs = Math.max(0, recentSuccessStartedAt + RECENT_SUCCESS_WINDOW_MS - Date.now()) + 100
+    const id = window.setInterval(() => setTick((n) => n + 1), 100)
+    const done = window.setTimeout(() => clearInterval(id), totalMs)
+    return () => {
+      clearInterval(id)
+      clearTimeout(done)
+    }
+  }, [recentSuccessStartedAt])
 
-  if (state === 'pending') {
+  if (syncError && pendingItems > 0) {
     return (
-      <span className={`${shell} text-cyan`} role="status" aria-label="Sync pending">
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden
-        >
-          <path
-            strokeLinecap="round"
-            d="M12 3v3m0 12v3M4.93 4.93l2.12 2.12m10 10l2.12 2.12M3 12h3m12 0h3M4.93 19.07l2.12-2.12m10-10l2.12-2.12"
-          />
-        </svg>
-      </span>
-    )
-  }
-
-  if (state === 'synced') {
-    return (
-      <span className={`${shell} text-teal`} role="status" aria-label="Synced">
+      <span className={`${shellBase} text-red-500 dark:text-red-400`} role="status" aria-label="Sync error">
         <svg
           width="18"
           height="18"
@@ -60,26 +50,47 @@ export const ListSyncStatusIcon = memo(function ListSyncStatusIcon({
           strokeWidth="2.2"
           aria-hidden
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          <circle cx="12" cy="12" r="9" />
+          <path strokeLinecap="round" d="M12 8v5M12 16h.01" />
         </svg>
       </span>
     )
   }
 
-  return (
-    <span className={`${shell} text-red-500`} role="status" aria-label="Sync error">
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        aria-hidden
+  if (pendingItems > 0) {
+    return (
+      <span className={shellCyan} role="status" aria-label="Sync pending">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+        </svg>
+      </span>
+    )
+  }
+
+  if (recentSuccessStartedAt > 0) {
+    void tick
+    const elapsed = Date.now() - recentSuccessStartedAt
+    if (elapsed >= RECENT_SUCCESS_WINDOW_MS) {
+      return null
+    }
+    const opacity =
+      elapsed <= RECENT_SUCCESS_HOLD_MS
+        ? 1
+        : Math.max(0, 1 - (elapsed - RECENT_SUCCESS_HOLD_MS) / RECENT_SUCCESS_FADE_MS)
+
+    return (
+      <span
+        className={shellGreen}
+        style={{ opacity }}
+        role="status"
+        aria-label="Synced"
       >
-        <circle cx="12" cy="12" r="9" />
-        <path strokeLinecap="round" d="M12 8v5M12 16h.01" />
-      </svg>
-    </span>
-  )
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+        </svg>
+      </span>
+    )
+  }
+
+  return null
 })

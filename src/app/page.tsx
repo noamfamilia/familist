@@ -328,7 +328,8 @@ function HomeContent() {
     }
   }, [availableLabels, localLabels, selectedLabel])
 
-  const clearInviteState = () => {
+  const clearInviteState = useCallback(() => {
+    handleSelectLabel('Any')
     clearPendingInviteToken()
 
     if (typeof window === 'undefined') return
@@ -337,7 +338,7 @@ function HomeContent() {
     url.searchParams.delete('invite')
     const search = url.searchParams.toString()
     router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
-  }
+  }, [handleSelectLabel, router])
 
   const effectiveUserId = user?.id ?? bootstrapUserId
   const showListsShell = !!effectiveUserId

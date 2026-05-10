@@ -74,6 +74,8 @@ const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Moda
 })
 interface ListCardProps {
   list: ListWithRole
+  /** Epoch ms when catalog success pulse started; from `listsCatalogStore.recentSuccesses`. */
+  recentSuccessStartedAt?: number
   existingListNames: string[]
   onUpdate: (listId: string, updates: { name?: string; archived?: boolean; comment?: string }) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
@@ -94,6 +96,7 @@ interface ListCardProps {
 function listCardPropsEqual(prev: ListCardProps, next: ListCardProps): boolean {
   return (
     listCardModelEqual(prev.list, next.list) &&
+    (prev.recentSuccessStartedAt ?? 0) === (next.recentSuccessStartedAt ?? 0) &&
     sameStringList(prev.existingListNames, next.existingListNames) &&
     sameStringList(prev.labels, next.labels) &&
     (prev.currentFilter ?? 'Any') === (next.currentFilter ?? 'Any') &&
@@ -103,6 +106,7 @@ function listCardPropsEqual(prev: ListCardProps, next: ListCardProps): boolean {
 
 function ListCardInner({
   list,
+  recentSuccessStartedAt = 0,
   existingListNames,
   onUpdate,
   onDelete,
@@ -602,7 +606,11 @@ function ListCardInner({
     <>
     {/* Main card content */}
     <div className="group relative rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700">
-      <ListSyncStatusIcon pendingItems={list.pending_items ?? 0} syncError={list.sync_error === true} />
+      <ListSyncStatusIcon
+        pendingItems={list.pending_items ?? 0}
+        syncError={list.sync_error === true}
+        recentSuccessStartedAt={recentSuccessStartedAt}
+      />
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle - only for active lists */}

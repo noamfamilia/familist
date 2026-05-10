@@ -196,7 +196,11 @@ export function useSyncStore(): SyncStoreState {
       await syncLists(userId, 'Post-mutation verification: list catalog')
       const listId = rowListIdForSync(row)
       if (listId && !isVirtualUserListKey(listId)) {
-        await syncListDetail(userId, listId, 'Post-mutation verification: list detail')
+        const pl = row.payload as { method?: unknown }
+        const skipListDetail = row.kind === 'rpc' && String(pl?.method ?? '') === 'leaveList'
+        if (!skipListDetail) {
+          await syncListDetail(userId, listId, 'Post-mutation verification: list detail')
+        }
       }
       return true
     },
@@ -603,6 +607,7 @@ export function useSyncStore(): SyncStoreState {
           appendMutationDiagnostic(`[sync->server] leaveList listId=${lid}`)
           const { error } = await supabase.rpc('leave_list', { p_list_id: lid } as never)
           if (error) throw error
+          await cleanupDexieAfterListServerDeleted(lid)
         } else if (method === 'duplicateList') {
           const sourceListId = String(payload.source_list_id ?? '')
           const dupId = String(payload.duplicate_id ?? '')
