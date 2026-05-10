@@ -15,6 +15,7 @@ import {
   softDeleteItemMutation,
   toggleItemMemberStateMutation,
 } from '@/lib/data/mutations'
+import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 import { db, type DbItemRow } from '@/lib/db'
 import {
   normalizeServerSyncableFields,
@@ -1465,7 +1466,10 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       await db.transaction('rw', db.members, db.item_member_state, db.sync_queue, db.list_users, async () => {
+        const memberRow = await db.members.get(memberId)
+        const renamedName = withDeletionNameSuffix(memberRow?.name ?? '')
         await db.members.update(memberId, {
+          name: renamedName,
           deleted_at: nowIso,
           updated_at: nowIso,
         })
@@ -1706,7 +1710,10 @@ export function useList(listId: string) {
       const nowIso = new Date(nowMs).toISOString()
       await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
         for (const itemId of archivedIds) {
+          const row = await db.items.get(itemId)
+          const renamedText = withDeletionNameSuffix(row?.text ?? '')
           await db.items.update(itemId, {
+            text: renamedText,
             deleted_at: isoNow(),
             updated_at: nowIso,
           })

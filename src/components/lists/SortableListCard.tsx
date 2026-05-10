@@ -1,8 +1,10 @@
 'use client'
 
+import { memo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ListCard } from './ListCard'
+import { listCardModelEqual, sameStringList } from './listCardEquality'
 import type { ListWithRole } from '@/lib/supabase/types'
 
 interface SortableListCardProps {
@@ -22,7 +24,32 @@ interface SortableListCardProps {
   isOfflineActionsDisabled?: boolean
 }
 
-export function SortableListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, labels, onUpdateLabel, onSelectLabel, currentFilter, onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false }: SortableListCardProps) {
+function sortableListCardPropsEqual(prev: SortableListCardProps, next: SortableListCardProps): boolean {
+  return (
+    listCardModelEqual(prev.list, next.list) &&
+    sameStringList(prev.existingListNames, next.existingListNames) &&
+    sameStringList(prev.labels, next.labels) &&
+    (prev.currentFilter ?? 'Any') === (next.currentFilter ?? 'Any') &&
+    prev.isOfflineActionsDisabled === next.isOfflineActionsDisabled
+  )
+}
+
+function SortableListCardInner({
+  list,
+  existingListNames,
+  onUpdate,
+  onDelete,
+  onArchive,
+  onDuplicate,
+  onLeave,
+  labels,
+  onUpdateLabel,
+  onSelectLabel,
+  currentFilter,
+  onClearCreateInput,
+  onClearCreateInputIfTyped,
+  isOfflineActionsDisabled = false,
+}: SortableListCardProps) {
   const {
     attributes,
     listeners,
@@ -60,3 +87,5 @@ export function SortableListCard({ list, existingListNames, onUpdate, onDelete, 
     </div>
   )
 }
+
+export const SortableListCard = memo(SortableListCardInner, sortableListCardPropsEqual)

@@ -6,6 +6,7 @@ import {
   listQueueParent,
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
+import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 
 export async function addItemMutation(input: {
   user_id: string
@@ -60,10 +61,14 @@ export async function softDeleteItemMutation(_user_id: string, list_id: string, 
   const existing = await db.items.get(item_id)
   if (!existing) return
 
+  const t = isoNow()
+  const renamedText = withDeletionNameSuffix(existing.text ?? '')
+
   await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
     await db.items.update(item_id, {
-      deleted_at: isoNow(),
-      updated_at: isoNow(),
+      text: renamedText,
+      deleted_at: t,
+      updated_at: t,
     })
     await enqueueSyncQueueRecord({
       entity: 'item',

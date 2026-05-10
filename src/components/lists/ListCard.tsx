@@ -16,6 +16,7 @@ import {
 } from '@/lib/offlineRouteReadiness'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import type { ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
+import { listCardModelEqual, sameStringList } from './listCardEquality'
 
 function listCardShowsSumRowMetadata(list: ListWithRole): boolean {
   const s: ListUserSumScope | undefined = list.sumScope
@@ -90,7 +91,33 @@ interface ListCardProps {
   isOfflineActionsDisabled?: boolean
 }
 
-export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchive, onDuplicate, onLeave, dragHandleProps, labels = [], onUpdateLabel, onSelectLabel, currentFilter = 'Any', onClearCreateInput, onClearCreateInputIfTyped, isOfflineActionsDisabled = false }: ListCardProps) {
+function listCardPropsEqual(prev: ListCardProps, next: ListCardProps): boolean {
+  return (
+    listCardModelEqual(prev.list, next.list) &&
+    sameStringList(prev.existingListNames, next.existingListNames) &&
+    sameStringList(prev.labels, next.labels) &&
+    (prev.currentFilter ?? 'Any') === (next.currentFilter ?? 'Any') &&
+    prev.isOfflineActionsDisabled === next.isOfflineActionsDisabled
+  )
+}
+
+function ListCardInner({
+  list,
+  existingListNames,
+  onUpdate,
+  onDelete,
+  onArchive,
+  onDuplicate,
+  onLeave,
+  dragHandleProps,
+  labels = [],
+  onUpdateLabel,
+  onSelectLabel,
+  currentFilter = 'Any',
+  onClearCreateInput,
+  onClearCreateInputIfTyped,
+  isOfflineActionsDisabled = false,
+}: ListCardProps) {
   const { error: showError } = useToast()
   const router = useRouter()
   const navigatorOnLine = useSyncExternalStore(
@@ -1115,3 +1142,5 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   </>
   )
 }
+
+export const ListCard = memo(ListCardInner, listCardPropsEqual)

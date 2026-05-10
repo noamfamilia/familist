@@ -13,6 +13,12 @@ import { getActiveCacheUserId } from '@/lib/cache'
 import { listIdsTouchingOutboundRow } from '@/lib/data/syncQueueListScope'
 import { applyListUserSyncErrorForListIds } from '@/lib/data/listUserSyncStatus'
 import { isoNow } from '@/lib/data/base_sync_fields'
+import {
+  cleanupDexieAfterItemMemberStateServerDeleted,
+  cleanupDexieAfterItemServerDeleted,
+  cleanupDexieAfterListServerDeleted,
+  cleanupDexieAfterMemberServerDeleted,
+} from '@/lib/data/shadowDeleteDexieCleanup'
 import { resetFailedSyncQueueRows } from '@/lib/data/syncQueue'
 import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
@@ -43,6 +49,25 @@ function rowListIdForSync(row: DbSyncQueueRow): string | null {
 
 function queueDiagKey(row: DbSyncQueueRow): string {
   return row.entity_id
+}
+
+/** Best-effort names from Dexie for sync diagnostics (e.g. bulk label RPC failures). */
+async function localListNamesForIds(ids: string[]): Promise<string> {
+  if (ids.length === 0) return ''
+  try {
+    await db.open()
+    const rows = await Promise.all(ids.map((id) => db.lists.get(id)))
+    return ids
+      .map((id, i) => {
+        const raw = rows[i]?.name
+        if (raw == null || raw === '') return `${id}:—`
+        const n = String(raw).replace(/\s+/g, ' ').trim().slice(0, 80)
+        return `${id}:${n || '—'}`
+      })
+      .join('; ')
+  } catch {
+    return '(local names unavailable)'
+  }
 }
 
 function isEligibleForSync(row: DbSyncQueueRow, now: number): boolean {
@@ -193,12 +218,15 @@ export function useSyncStore(): SyncStoreState {
           if (id) {
             const { error } = await supabase.from('items').delete().eq('id', id)
             if (error) throw error
+            const listHint = row.parent1_type === 'list' ? row.parent1_id : null
+            await cleanupDexieAfterItemServerDeleted(id, listHint)
           }
         } else if (row.entity === 'member') {
           const id = String(row.payload.id ?? '')
           if (id) {
             const { error } = await supabase.rpc('delete_member', { p_member_id: id })
             if (error) throw error
+            await cleanupDexieAfterMemberServerDeleted(id)
           }
         } else if (row.entity === 'item_member_state') {
           const itemId = String(row.payload.item_id ?? '')
@@ -210,12 +238,14 @@ export function useSyncStore(): SyncStoreState {
               .eq('item_id', itemId)
               .eq('member_id', memberId)
             if (error) throw error
+            await cleanupDexieAfterItemMemberStateServerDeleted(itemId, memberId)
           }
         } else if (row.entity === 'list') {
           const id = String(row.payload.id ?? '')
           if (id) {
             const { error } = await supabase.from('lists').delete().eq('id', id)
             if (error) throw error
+            await cleanupDexieAfterListServerDeleted(id)
           }
         }
         appendMutationDiagnostic(
@@ -701,6 +731,16 @@ export function useSyncStore(): SyncStoreState {
         respondsTo,
       })
       } catch (err) {
+        if (row.kind === 'rpc') {
+          const p = row.payload as { method?: string; updates?: Array<{ list_id?: string }> }
+          if (p.method === 'bulkPatchListLabels' && Array.isArray(p.updates)) {
+            const ids = p.updates.map((u) => String(u.list_id ?? '')).filter(Boolean)
+            const localNames = await localListNamesForIds(ids)
+            appendMutationDiagnostic(
+              `[sync] bulkPatchListLabels batch list_ids=${ids.join(',')} local=${localNames} err=${normalizeErrorMessage(err)}`,
+            )
+          }
+        }
         logServerRoundTrip({
           description,
           ok: false,
@@ -711,7 +751,7 @@ export function useSyncStore(): SyncStoreState {
         throw err
       }
     },
-    [verifyMutationApplied, resolveSyncUserId, syncListDetail],
+    [normalizeErrorMessage, verifyMutationApplied, resolveSyncUserId, syncListDetail],
   )
 
   const needsBackoffWake = useMemo(() => {

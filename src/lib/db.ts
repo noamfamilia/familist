@@ -53,7 +53,7 @@ export type SyncQueueKind = 'create' | 'patch' | 'delete' | 'rpc'
  * - **failed** — Non-connectivity error or verification failure; `last_error` set, `attempt_count` bumped, exponential
  *   `next_retry_at`. Window `online` may reset all failed → queued (`resetFailedSyncQueueRows`).
  *
- * **Consumers:** `useSyncStore` (drain), `useListsQuery` / `countPendingOutboundForList` (per-list `pending_items`),
+ * **Consumers:** `useSyncStore` (drain), `buildListsCatalogFromDexie` / `useListsQuery` / `countPendingOutboundForList` (per-list `pending_items`),
  * `outboundDeletePending` in serverDexieParity, `waitForSyncQueueRowCompletion`, `versionCheck` prune, dev Diagnostics.
  */
 export type SyncQueueStatus = 'queued' | 'processing' | 'failed'

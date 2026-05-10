@@ -17,6 +17,7 @@ import { LabelManagerModal } from './LabelManagerModal'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { useAuth } from '@/providers/AuthProvider'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
@@ -44,8 +45,10 @@ interface ListsViewProps {
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager, onOfflineActionsDisabledChange }: ListsViewProps) {
   const { lists, loading, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels, isOfflineActionsDisabled } = useLists()
+  const { user, loading: authLoading, bootstrapUserId } = useAuth()
   const router = useRouter()
-  const inviteJoinRef = useRef<string | null>(null)
+  /** `inviteToken:userId` after a successful join so we do not enqueue twice. */
+  const inviteJoinSucceededKeyRef = useRef<string | null>(null)
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -216,29 +219,61 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
   useEffect(() => {
     if (!inviteToken) {
-      inviteJoinRef.current = null
+      inviteJoinSucceededKeyRef.current = null
       return
     }
 
-    if (inviteJoinRef.current === inviteToken) return
-    inviteJoinRef.current = inviteToken
+    if (authLoading) {
+      appendMutationDiagnostic(
+        `[invite] ListsView defer join reason=authLoading tokenLen=${inviteToken.length} bootstrapUserId=${bootstrapUserId ? 'set' : 'absent'}`,
+      )
+      return
+    }
+
+    if (!user?.id) {
+      appendMutationDiagnostic(
+        `[invite] ListsView defer join reason=no_user_session tokenLen=${inviteToken.length} bootstrapUserId=${bootstrapUserId ? 'set' : 'absent'}`,
+      )
+      return
+    }
+
+    const successKey = `${inviteToken}:${user.id}`
+    if (inviteJoinSucceededKeyRef.current === successKey) {
+      return
+    }
 
     let cancelled = false
 
     const handleInviteJoin = async () => {
       setError('')
+      appendMutationDiagnostic(`[invite] ListsView join start userId=${user.id} tokenLen=${inviteToken.length}`)
       const { data, error } = await joinListByToken(inviteToken)
-      if (cancelled) return
-
-      onInviteHandled?.()
+      if (cancelled) {
+        appendMutationDiagnostic('[invite] ListsView join cancelled (unmount)')
+        return
+      }
 
       if (error) {
+        if (error.message === 'Session still loading') {
+          appendMutationDiagnostic('[invite] ListsView join returned session_loading (unexpected)')
+          return
+        }
+        appendMutationDiagnostic(
+          `[invite] ListsView join failed userId=${user.id} tokenLen=${inviteToken.length} err=${error.message}`,
+        )
         setError(error.message)
         showError(error.message || 'Failed to join list')
         return
       }
 
+      inviteJoinSucceededKeyRef.current = successKey
+      onInviteHandled?.()
+
       onSelectLabel?.('Any')
+
+      appendMutationDiagnostic(
+        `[invite] ListsView join ok userId=${user.id} tokenLen=${inviteToken.length} dataType=${typeof data} clearedUrl=1`,
+      )
 
       if (typeof data === 'string' && data) {
         const joined = lists.find(l => l.id === data)
@@ -259,7 +294,19 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     return () => {
       cancelled = true
     }
-  }, [inviteToken, joinListByToken, onInviteHandled, router, showError, success])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- omit `lists` so catalog updates do not cancel/re-run join; toast reads snapshot
+  }, [
+    inviteToken,
+    user?.id,
+    authLoading,
+    bootstrapUserId,
+    joinListByToken,
+    onInviteHandled,
+    router,
+    showError,
+    success,
+    onSelectLabel,
+  ])
 
   if (loading) {
     return (

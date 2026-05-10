@@ -33,83 +33,88 @@ function buildListCardStatsByListId(
   return stats
 }
 
+/** Dexie-only home list catalog (same shape as former `useListsQuery` live read). */
+export async function buildListsCatalogFromDexie(userId: string): Promise<ListWithRole[]> {
+  const memberships = await db.list_users.where('user_id').equals(userId).toArray()
+  type ListUserRow = (typeof memberships)[number]
+  const listRows: { listUser: ListUserRow; row: DbListRow }[] = []
+  for (const listUser of memberships) {
+    const row = await db.lists.get(listUser.list_id)
+    if (!row || isTombstoned(row.deleted_at)) continue
+    listRows.push({ listUser, row })
+  }
+
+  const listIds = listRows.map((e) => e.row.id)
+  let items: { list_id: string; archived: boolean }[] = []
+  let members: { list_id: string; is_target?: boolean | null }[] = []
+  if (listIds.length > 0) {
+    ;[items, members] = await Promise.all([
+      db.items
+        .where('list_id')
+        .anyOf(listIds)
+        .filter((r) => !isTombstoned(r.deleted_at))
+        .toArray(),
+      db.members
+        .where('list_id')
+        .anyOf(listIds)
+        .filter((r) => !isTombstoned(r.deleted_at))
+        .toArray(),
+    ])
+  }
+
+  const cardStats = buildListCardStatsByListId(listIds, items, members)
+  const queueRows = await db.sync_queue.toArray()
+
+  const ownerIds = new Set<string>()
+  for (const { listUser, row } of listRows) {
+    if (listUser.role !== 'owner' && row.owner_id) ownerIds.add(row.owner_id)
+  }
+  const ownerNickById = new Map<string, string | null>()
+  await Promise.all(
+    [...ownerIds].map(async (oid) => {
+      const p = await db.profiles.get(oid)
+      ownerNickById.set(oid, p?.nickname ?? null)
+    }),
+  )
+
+  const merged: ListWithRole[] = listRows.map(({ listUser, row }) => {
+    const counts = cardStats.get(row.id) ?? {
+      memberCount: 0,
+      activeItemCount: 0,
+      archivedItemCount: 0,
+    }
+    return {
+      ...row,
+      role: listUser.role,
+      userArchived: listUser.archived,
+      sort_order: listUser.sort_order,
+      sumScope: listUser.sum_scope ?? 'none',
+      label: listUser.label ?? '',
+      memberCount: counts.memberCount,
+      activeItemCount: counts.activeItemCount,
+      archivedItemCount: counts.archivedItemCount,
+      ownerNickname:
+        listUser.role !== 'owner' ? (ownerNickById.get(row.owner_id) ?? null) : null,
+      pending_items: countPendingOutboundForList(queueRows, row.id),
+      sync_error: listUser.sync_error === true,
+    }
+  })
+
+  return merged.sort((a, b) => {
+    const aOrd = a.sort_order ?? Number.MAX_SAFE_INTEGER
+    const bOrd = b.sort_order ?? Number.MAX_SAFE_INTEGER
+    if (aOrd !== bOrd) return aOrd - bOrd
+    const aT = a.server_created_at || a.client_created_at || ''
+    const bT = b.server_created_at || b.client_created_at || ''
+    return bT.localeCompare(aT)
+  })
+}
+
 export function useListsQuery(userId: string | null | undefined) {
-  return useLiveQuery(async () => {
-    if (!userId) return []
-    const memberships = await db.list_users.where('user_id').equals(userId).toArray()
-    type ListUserRow = (typeof memberships)[number]
-    const listRows: { listUser: ListUserRow; row: DbListRow }[] = []
-    for (const listUser of memberships) {
-      const row = await db.lists.get(listUser.list_id)
-      if (!row || isTombstoned(row.deleted_at)) continue
-      listRows.push({ listUser, row })
-    }
-
-    const listIds = listRows.map((e) => e.row.id)
-    let items: { list_id: string; archived: boolean }[] = []
-    let members: { list_id: string; is_target?: boolean | null }[] = []
-    if (listIds.length > 0) {
-      ;[items, members] = await Promise.all([
-        db.items
-          .where('list_id')
-          .anyOf(listIds)
-          .filter((r) => !isTombstoned(r.deleted_at))
-          .toArray(),
-        db.members
-          .where('list_id')
-          .anyOf(listIds)
-          .filter((r) => !isTombstoned(r.deleted_at))
-          .toArray(),
-      ])
-    }
-
-    const cardStats = buildListCardStatsByListId(listIds, items, members)
-    const queueRows = await db.sync_queue.toArray()
-
-    const ownerIds = new Set<string>()
-    for (const { listUser, row } of listRows) {
-      if (listUser.role !== 'owner' && row.owner_id) ownerIds.add(row.owner_id)
-    }
-    const ownerNickById = new Map<string, string | null>()
-    await Promise.all(
-      [...ownerIds].map(async (oid) => {
-        const p = await db.profiles.get(oid)
-        ownerNickById.set(oid, p?.nickname ?? null)
-      }),
-    )
-
-    const merged: ListWithRole[] = listRows.map(({ listUser, row }) => {
-      const counts = cardStats.get(row.id) ?? {
-        memberCount: 0,
-        activeItemCount: 0,
-        archivedItemCount: 0,
-      }
-      return {
-        ...row,
-        role: listUser.role,
-        userArchived: listUser.archived,
-        sort_order: listUser.sort_order,
-        sumScope: listUser.sum_scope ?? 'none',
-        label: listUser.label ?? '',
-        memberCount: counts.memberCount,
-        activeItemCount: counts.activeItemCount,
-        archivedItemCount: counts.archivedItemCount,
-        ownerNickname:
-          listUser.role !== 'owner' ? (ownerNickById.get(row.owner_id) ?? null) : null,
-        pending_items: countPendingOutboundForList(queueRows, row.id),
-        sync_error: listUser.sync_error === true,
-      }
-    })
-
-    return merged.sort((a, b) => {
-      const aOrd = a.sort_order ?? Number.MAX_SAFE_INTEGER
-      const bOrd = b.sort_order ?? Number.MAX_SAFE_INTEGER
-      if (aOrd !== bOrd) return aOrd - bOrd
-      const aT = a.server_created_at || a.client_created_at || ''
-      const bT = b.server_created_at || b.client_created_at || ''
-      return bT.localeCompare(aT)
-    })
-  }, [userId])
+  return useLiveQuery(
+    () => (userId ? buildListsCatalogFromDexie(userId) : Promise.resolve([] as ListWithRole[])),
+    [userId],
+  )
 }
 
 export type ListDetailDexieSnapshot = {

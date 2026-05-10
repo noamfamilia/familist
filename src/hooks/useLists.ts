@@ -1,13 +1,18 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { createUserMutationGate } from '@/lib/userMutationGate'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
-import { useListsQuery } from '@/lib/data/queries'
 import { db } from '@/lib/db'
+import {
+  subscribeListsCatalogL2Bridge,
+  useListsCatalogStore,
+  warmListsCatalog,
+} from '@/stores/listsCatalogStore'
 import { APP_VERSION } from '@/lib/appVersion'
 import { perfLog } from '@/lib/startupPerfLog'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
@@ -23,6 +28,7 @@ import {
   userQueueParent,
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
+import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 import {
   isLikelyConnectivityError,
   resolveServerWorkOutcomeFromResult,
@@ -72,6 +78,20 @@ function extractListRowFields(list: ListWithRole) {
   return listFields
 }
 
+/**
+ * Matches `create_list` / `duplicate_list` / `import_list` on Postgres: new list membership is
+ * `sort_order = 0` (top); every other `list_users` row for this user gets `coalesce(sort_order,0)+1`.
+ * Call inside the same Dexie `rw` transaction as inserting the new list, before the new `list_users` row exists.
+ */
+async function bumpListUserSortOrdersForUserExceptList(userId: string, excludeListId: string): Promise<void> {
+  const rows = await db.list_users.where('user_id').equals(userId).toArray()
+  for (const lu of rows) {
+    if (lu.list_id === excludeListId) continue
+    const cur = typeof lu.sort_order === 'number' && Number.isFinite(lu.sort_order) ? lu.sort_order : 0
+    await db.list_users.update(lu.id, { sort_order: cur + 1 })
+  }
+}
+
 async function softDeleteListInDexie(
   userId: string | null,
   listId: string,
@@ -86,7 +106,10 @@ async function softDeleteListInDexie(
     'rw',
     [db.lists, db.items, db.members, db.item_member_state, db.list_users, db.sync_queue],
     async () => {
-      await db.lists.update(listId, { deleted_at: isoNow(), cached_at: nowMs })
+      const t = isoNow()
+      const listRow = await db.lists.get(listId)
+      const renamedListName = withDeletionNameSuffix(listRow?.name ?? '')
+      await db.lists.update(listId, { name: renamedListName, deleted_at: t, cached_at: nowMs })
       const listUser = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
       if (listUser) await db.list_users.delete(listUser.id)
       const [items, members, states] = await Promise.all([
@@ -94,9 +117,21 @@ async function softDeleteListInDexie(
         db.members.where('list_id').equals(listId).toArray(),
         db.item_member_state.where('[list_id+item_id]').between([listId, Dexie.minKey], [listId, Dexie.maxKey]).toArray(),
       ])
-      for (const item of items) await db.items.update(item.id, { deleted_at: isoNow() })
-      for (const member of members) await db.members.update(member.id, { deleted_at: isoNow() })
-      for (const state of states) await db.item_member_state.update(state.id, { deleted_at: isoNow() })
+      for (const item of items) {
+        await db.items.update(item.id, {
+          text: withDeletionNameSuffix(item.text ?? ''),
+          deleted_at: t,
+          updated_at: t,
+        })
+      }
+      for (const member of members) {
+        await db.members.update(member.id, {
+          name: withDeletionNameSuffix(member.name ?? ''),
+          deleted_at: t,
+          updated_at: t,
+        })
+      }
+      for (const state of states) await db.item_member_state.update(state.id, { deleted_at: t })
       if (leaveRpc) {
         await enqueueSyncQueueRecord({
           entity: 'list',
@@ -122,9 +157,8 @@ async function softDeleteListInDexie(
 
 export function useLists() {
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
-  // Initialize from cache for instant load
-  const [lists, setLists] = useState<ListWithRole[]>(() => getCachedLists()?.lists || [])
-  const [loading, setLoading] = useState(() => !getCachedLists()?.lists?.length)
+  const lists = useListsCatalogStore(useShallow((s) => s.lists))
+  const listsCatalogStatus = useListsCatalogStore((s) => s.listsCatalogStatus)
   const [isFetching, setIsFetching] = useState(true)
   const [hasCompletedInitialFetch, setHasCompletedInitialFetch] = useState(false)
   const [fetchTimedOut, setFetchTimedOut] = useState(false)
@@ -143,7 +177,6 @@ export function useLists() {
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number, consumePending?: boolean) => void>(() => {})
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
-  const dexieLists = useListsQuery(userId)
   useEffect(() => {
     reportServerDexieParityDiagnostics()
   }, [])
@@ -177,25 +210,31 @@ export function useLists() {
     } catch {
       // ignore
     }
+
+    if (!userId) {
+      useListsCatalogStore.getState().clearListsCatalog()
+      setHasCompletedInitialFetch(false)
+      hasInitialDataRef.current = false
+      perfLog('localStorage read end', { durationMs: Math.round(performance.now() - lsT0), note: 'no user' })
+      return
+    }
+
     const cachedLists = getCachedLists(userId)?.lists || []
     perfLog('localStorage read end', {
       durationMs: Math.round(performance.now() - lsT0),
       bytesOrItemCount: cachedLists.length,
       approxStorageChars,
     })
-    setLists(cachedLists)
-    setLoading(!!userId && cachedLists.length === 0)
+    useListsCatalogStore.getState().beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = cachedLists.length > 0
   }, [userId])
 
   useEffect(() => {
     if (!userId) return
-    if (dexieLists === undefined) return
-    setLists(dexieLists)
-    setLoading(dexieLists.length === 0 && !hasCompletedInitialFetch)
-    hasInitialDataRef.current = dexieLists.length > 0
-  }, [dexieLists, hasCompletedInitialFetch, userId])
+    void warmListsCatalog(userId)
+    return subscribeListsCatalogL2Bridge(userId)
+  }, [userId])
 
   const trackSaveOperation = async <T>(operation: PromiseLike<T>): Promise<T> => {
     pendingSaveOpsRef.current++
@@ -279,8 +318,7 @@ export function useLists() {
 
     if (!userId) {
       perfLog('fetchLists start', { note: 'no user' })
-      setLists([])
-      setLoading(false)
+      useListsCatalogStore.getState().clearListsCatalog()
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
       perfLog('fetchLists end', { durationMs: 0, listCount: 0 })
@@ -304,10 +342,6 @@ export function useLists() {
       }
     }, FETCH_TIMEOUT_MS)
 
-    // Only show loading spinner on initial load if no cached data
-    if (!hasInitialDataRef.current && !getCachedLists(userId)?.lists?.length) {
-      setLoading(true)
-    }
     setError(null)
 
     beginServerWork()
@@ -370,7 +404,6 @@ export function useLists() {
       }))
       appendMutationDiagnostic(`[fetchLists.debug] apply rows=${listsData.length}`)
 
-      setLists(listsData)
       setCachedLists(userId, listsData)
       await upsertListsSummaryFromServer(userId, rawRows)
       void enqueueListMirrorJobs(mirrorListIds)
@@ -411,7 +444,6 @@ export function useLists() {
         staleDiscarded,
       })
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
-      setLoading(false)
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
       fetchingRef.current = false
@@ -607,48 +639,59 @@ export function useLists() {
       archivedItemCount: 0,
       sumScope: 'none',
       label: label || '',
+      sort_order: 0,
     }
 
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => [optimisticList, ...prev])
-    await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-      await db.lists.put({
-        ...extractListRowFields(optimisticList),
-        cached_at: Date.now(),
-        app_version: APP_VERSION,
-      })
-      await db.list_users.put({
-        id: crypto.randomUUID(),
-        list_id: listId,
-        user_id: user.id,
-        role: 'owner',
-        archived: false,
-        sort_order: null,
-        ...syncFieldsForLocalInsert(),
-        member_filter: 'all',
-        item_text_width: 'auto',
-        label: label || '',
-        last_viewed_members: null,
-        show_targets: false,
-        item_name_font_step: 3,
-        sum_scope: 'none',
-        sync_error: false,
-      })
-      await enqueueSyncQueueRecord({
-        entity: 'list',
-        entity_id: listId,
-        kind: 'create',
-        payload: {
-          id: listId,
-          name,
+    const cat = useListsCatalogStore.getState()
+    cat.beginLocalCatalogPersistence()
+    try {
+      cat.setCatalogLists((prev) => [
+        optimisticList,
+        ...prev.map((l) => ({ ...l, sort_order: (l.sort_order ?? 0) + 1 })),
+      ])
+      await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
+        await bumpListUserSortOrdersForUserExceptList(user.id, listId)
+        await db.lists.put({
+          ...extractListRowFields(optimisticList),
+          cached_at: Date.now(),
+          app_version: APP_VERSION,
+        })
+        await db.list_users.put({
+          id: crypto.randomUUID(),
+          list_id: listId,
+          user_id: user.id,
+          role: 'owner',
+          archived: false,
+          sort_order: 0,
+          ...syncFieldsForLocalInsert(),
+          member_filter: 'all',
+          item_text_width: 'auto',
           label: label || '',
-          client_created_at: sync.client_created_at,
-        },
-        ...listQueueParent(listId),
-        status: 'queued',
+          last_viewed_members: null,
+          show_targets: false,
+          item_name_font_step: 3,
+          sum_scope: 'none',
+          sync_error: false,
+        })
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: listId,
+          kind: 'create',
+          payload: {
+            id: listId,
+            name,
+            label: label || '',
+            client_created_at: sync.client_created_at,
+          },
+          ...listQueueParent(listId),
+          status: 'queued',
+        })
       })
-    })
+    } finally {
+      cat.endLocalCatalogPersistence()
+    }
     appendMutationDiagnostic(`[mutation:list.create] local:queued listId=${listId} server:queued`)
     markOnlineRecovered()
     return { data: { id: listId }, error: null }
@@ -665,21 +708,25 @@ export function useLists() {
       appendMutationDiagnostic(`[mutation:list.update] local:start listId=${listId}`)
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      setLists(prev => prev.map(list =>
-        list.id === listId ? { ...list, ...updates } : list
-      ))
-      const nowMs = Date.now()
-      await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-        await db.lists.update(listId, { ...updates, cached_at: nowMs })
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: listId,
-          kind: 'patch',
-          payload: { id: listId, ...updates },
-          ...listQueueParent(listId),
-          status: 'queued',
+      const cat = useListsCatalogStore.getState()
+      cat.beginLocalCatalogPersistence()
+      try {
+        cat.setCatalogLists((prev) => prev.map((list) => (list.id === listId ? { ...list, ...updates } : list)))
+        const nowMs = Date.now()
+        await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
+          await db.lists.update(listId, { ...updates, cached_at: nowMs })
+          await enqueueSyncQueueRecord({
+            entity: 'list',
+            entity_id: listId,
+            kind: 'patch',
+            payload: { id: listId, ...updates },
+            ...listQueueParent(listId),
+            status: 'queued',
+          })
         })
-      })
+      } finally {
+        cat.endLocalCatalogPersistence()
+      }
       appendMutationDiagnostic(`[mutation:list.update] local:queued listId=${listId} server:queued`)
 
       markOnlineRecovered()
@@ -698,8 +745,14 @@ export function useLists() {
     try {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      await softDeleteListInDexie(userId, listId)
-      setLists(prev => prev.filter(list => list.id !== listId))
+      const cat = useListsCatalogStore.getState()
+      cat.beginLocalCatalogPersistence()
+      try {
+        await softDeleteListInDexie(userId, listId)
+        cat.setCatalogLists((prev) => prev.filter((list) => list.id !== listId))
+      } finally {
+        cat.endLocalCatalogPersistence()
+      }
       removeCachedList(userId, listId)
       markOnlineRecovered()
       appendMutationDiagnostic(`[mutation:list.delete] local:queued-soft-delete listId=${listId} server:queued`)
@@ -716,46 +769,54 @@ export function useLists() {
     }
     try {
     appendMutationDiagnostic(`[mutation:list.user_state] local:start listId=${listId}`)
-    const previousLists = lists
-    const nextLists = updates.archived !== undefined
-      ? moveListBetweenSections(lists, listId, updates.archived)
-      : lists.map(list =>
-          list.id === listId ? { ...list, userArchived: updates.archived ?? list.userArchived } : list
-        )
+    const cat = useListsCatalogStore.getState()
+    const previousLists = cat.lists
+    const nextLists =
+      updates.archived !== undefined
+        ? moveListBetweenSections(cat.lists, listId, updates.archived)
+        : cat.lists.map((list) =>
+            list.id === listId ? { ...list, userArchived: updates.archived ?? list.userArchived } : list,
+          )
 
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(nextLists)
-    const nowMs = Date.now()
-    await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-      const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
-      if (row) await db.list_users.update(row.id, {
-        ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
-        ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
+    cat.beginLocalCatalogPersistence()
+    try {
+      cat.setCatalogLists(nextLists)
+      const nowMs = Date.now()
+      await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+        const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
+        if (row)
+          await db.list_users.update(row.id, {
+            ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
+            ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
+          })
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: newBatchEntityId(),
+          kind: 'rpc',
+          payload: {
+            method: 'patchListUser',
+            id: listId,
+            user_id: user.id,
+            ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
+            ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
+          },
+          ...listQueueParent(listId),
+          status: 'queued',
+        })
       })
-      await enqueueSyncQueueRecord({
-        entity: 'list',
-        entity_id: newBatchEntityId(),
-        kind: 'rpc',
-        payload: {
-          method: 'patchListUser',
-          id: listId,
-          user_id: user.id,
-          ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
-          ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
-        },
-        ...listQueueParent(listId),
-        status: 'queued',
-      })
-    })
-    appendMutationDiagnostic(`[mutation:list.user_state] local:queued listId=${listId} server:queued`)
+      appendMutationDiagnostic(`[mutation:list.user_state] local:queued listId=${listId} server:queued`)
 
-    if (updates.archived !== undefined) {
-      const orderError = await persistListOrder(nextLists)
-      if (orderError) {
-        setLists(previousLists)
-        return { error: orderError }
+      if (updates.archived !== undefined) {
+        const orderError = await persistListOrder(nextLists)
+        if (orderError) {
+          cat.setCatalogLists(previousLists)
+          return { error: orderError }
+        }
       }
+    } finally {
+      cat.endLocalCatalogPersistence()
     }
 
     markOnlineRecovered()
@@ -765,31 +826,71 @@ export function useLists() {
     }
   }
 
-  const joinListByToken = async (token: string) => {
-    if (!user) return { data: null, error: new Error('Not authenticated') }
-    if (!tryBeginMutation()) {
-      return { data: null, error: new Error(blockedMutationMessage()) }
-    }
-    try {
-      mutationVersionRef.current += 1
-      skipRealtimeUntilRef.current = Date.now() + 2000
-      await enqueueSyncQueueRecord({
-        entity: 'list',
-        entity_id: newBatchEntityId(),
-        kind: 'rpc',
-        payload: { method: 'joinListByToken', token, user_id: user.id },
-        ...userQueueParent(user.id),
-        status: 'queued',
-      })
-      markOnlineRecovered()
-      void fetchLists()
-      window.setTimeout(() => void fetchLists(), 700)
-      window.setTimeout(() => void fetchLists(), 2200)
-      return { data: null, error: null }
-    } finally {
-      mutationGate.end()
-    }
-  }
+  const joinListByToken = useCallback(
+    async (token: string) => {
+      const tokenLen = token?.length ?? 0
+      if (authLoading) {
+        appendMutationDiagnostic(
+          `[invite] joinListByToken deferred reason=authLoading catalogUserId=${userId ?? 'null'} tokenLen=${tokenLen}`,
+        )
+        return { data: null, error: new Error('Session still loading') }
+      }
+      if (!user?.id) {
+        appendMutationDiagnostic(
+          `[invite] joinListByToken blocked reason=no_user_session authLoading=0 catalogUserId=${userId ?? 'null'} bootstrapUserId=${bootstrapUserId ?? 'null'} tokenLen=${tokenLen}`,
+        )
+        return { data: null, error: new Error('Not authenticated') }
+      }
+      if (!tryBeginMutation()) {
+        const msg = blockedMutationMessage()
+        appendMutationDiagnostic(
+          `[invite] joinListByToken blocked reason=mutation_gate userId=${user.id} tokenLen=${tokenLen} msg=${msg}`,
+        )
+        return { data: null, error: new Error(msg) }
+      }
+      try {
+        appendMutationDiagnostic(
+          `[invite] joinListByToken queue userId=${user.id} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
+        )
+        mutationVersionRef.current += 1
+        skipRealtimeUntilRef.current = Date.now() + 2000
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: newBatchEntityId(),
+          kind: 'rpc',
+          payload: { method: 'joinListByToken', token, user_id: user.id },
+          ...userQueueParent(user.id),
+          status: 'queued',
+        })
+        appendMutationDiagnostic(
+          `[invite] joinListByToken queued_ok userId=${user.id} tokenLen=${tokenLen} fetchLists_scheduled=1`,
+        )
+        markOnlineRecovered()
+        void fetchLists()
+        window.setTimeout(() => void fetchLists(), 700)
+        window.setTimeout(() => void fetchLists(), 2200)
+        return { data: null, error: null }
+      } catch (e) {
+        appendMutationDiagnostic(
+          `[invite] joinListByToken enqueue_throw userId=${user.id} tokenLen=${tokenLen} err=${e instanceof Error ? e.message : String(e)}`,
+        )
+        return { data: null, error: e instanceof Error ? e : new Error(String(e)) }
+      } finally {
+        mutationGate.end()
+      }
+    },
+    [
+      authLoading,
+      user,
+      userId,
+      bootstrapUserId,
+      tryBeginMutation,
+      mutationGate,
+      blockedMutationMessage,
+      markOnlineRecovered,
+      fetchLists,
+    ],
+  )
 
   const leaveList = async (listId: string) => {
     if (!user) return { error: new Error('Not authenticated') }
@@ -799,9 +900,15 @@ export function useLists() {
     try {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      setLists(prev => prev.filter(list => list.id !== listId))
-      removeCachedList(userId, listId)
-      await softDeleteListInDexie(userId, listId, { queueServerDelete: false, leaveRpc: true })
+      const cat = useListsCatalogStore.getState()
+      cat.beginLocalCatalogPersistence()
+      try {
+        cat.setCatalogLists((prev) => prev.filter((list) => list.id !== listId))
+        removeCachedList(userId, listId)
+        await softDeleteListInDexie(userId, listId, { queueServerDelete: false, leaveRpc: true })
+      } finally {
+        cat.endLocalCatalogPersistence()
+      }
       markOnlineRecovered()
       return { error: null }
     } finally {
@@ -815,7 +922,7 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-    const sourceList = lists.find(l => l.id === listId)
+    const sourceList = useListsCatalogStore.getState().lists.find((l) => l.id === listId)
     const duplicateId = crypto.randomUUID()
     const now = new Date().toISOString()
     const sync = syncFieldsForLocalInsert()
@@ -842,56 +949,66 @@ export function useLists() {
       archivedItemCount: sourceList?.archivedItemCount ?? 0,
       sumScope: 'none',
       label: label || '',
+      sort_order: 0,
     }
 
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => [optimisticList, ...prev])
-
+    const catDup = useListsCatalogStore.getState()
+    catDup.beginLocalCatalogPersistence()
     try {
-      await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-        await db.lists.put({
-          ...extractListRowFields(optimisticList),
-          cached_at: Date.now(),
-          app_version: APP_VERSION,
-        })
-        await db.list_users.put({
-          id: crypto.randomUUID(),
-          list_id: duplicateId,
-          user_id: user.id,
-          role: 'owner',
-          archived: false,
-          sort_order: null,
-          ...syncFieldsForLocalInsert(),
-          member_filter: 'all',
-          item_text_width: 'auto',
-          label: label || '',
-          last_viewed_members: null,
-          show_targets: false,
-          item_name_font_step: 3,
-          sum_scope: 'none',
-          sync_error: false,
-        })
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: newBatchEntityId(),
-          kind: 'rpc',
-          payload: {
-            method: 'duplicateList',
+      catDup.setCatalogLists((prev) => [
+        optimisticList,
+        ...prev.map((l) => ({ ...l, sort_order: (l.sort_order ?? 0) + 1 })),
+      ])
+      try {
+        await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
+          await bumpListUserSortOrdersForUserExceptList(user.id, duplicateId)
+          await db.lists.put({
+            ...extractListRowFields(optimisticList),
+            cached_at: Date.now(),
+            app_version: APP_VERSION,
+          })
+          await db.list_users.put({
+            id: crypto.randomUUID(),
+            list_id: duplicateId,
             user_id: user.id,
-            source_list_id: listId,
-            duplicate_id: duplicateId,
-            new_name: newName,
+            role: 'owner',
+            archived: false,
+            sort_order: 0,
+            ...syncFieldsForLocalInsert(),
+            member_filter: 'all',
+            item_text_width: 'auto',
             label: label || '',
-            client_created_at: sync.client_created_at,
-          },
-          ...listQueueParent(duplicateId),
-          status: 'queued',
+            last_viewed_members: null,
+            show_targets: false,
+            item_name_font_step: 3,
+            sum_scope: 'none',
+            sync_error: false,
+          })
+          await enqueueSyncQueueRecord({
+            entity: 'list',
+            entity_id: newBatchEntityId(),
+            kind: 'rpc',
+            payload: {
+              method: 'duplicateList',
+              user_id: user.id,
+              source_list_id: listId,
+              duplicate_id: duplicateId,
+              new_name: newName,
+              label: label || '',
+              client_created_at: sync.client_created_at,
+            },
+            ...listQueueParent(duplicateId),
+            status: 'queued',
+          })
         })
-      })
-    } catch (e) {
-      setLists(prev => prev.filter(list => list.id !== duplicateId))
-      return { error: e instanceof Error ? e : new Error('Failed to queue duplicate list') }
+      } catch (e) {
+        catDup.setCatalogLists((prev) => prev.filter((list) => list.id !== duplicateId))
+        return { error: e instanceof Error ? e : new Error('Failed to queue duplicate list') }
+      }
+    } finally {
+      catDup.endLocalCatalogPersistence()
     }
 
     markOnlineRecovered()
@@ -934,58 +1051,68 @@ export function useLists() {
       archivedItemCount: 0,
       sumScope: 'none',
       label: label || '',
+      sort_order: 0,
     }
 
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => [optimisticList, ...prev])
-
+    const catImp = useListsCatalogStore.getState()
+    catImp.beginLocalCatalogPersistence()
     try {
-      await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-        await db.lists.put({
-          ...extractListRowFields(optimisticList),
-          cached_at: Date.now(),
-          app_version: APP_VERSION,
-        })
-        await db.list_users.put({
-          id: crypto.randomUUID(),
-          list_id: importedId,
-          user_id: user.id,
-          role: 'owner',
-          archived: false,
-          sort_order: null,
-          ...syncFieldsForLocalInsert(),
-          member_filter: 'all',
-          item_text_width: 'auto',
-          label: label || '',
-          last_viewed_members: null,
-          show_targets: false,
-          item_name_font_step: 3,
-          sum_scope: 'none',
-          sync_error: false,
-        })
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: newBatchEntityId(),
-          kind: 'rpc',
-          payload: {
-            method: 'importList',
+      catImp.setCatalogLists((prev) => [
+        optimisticList,
+        ...prev.map((l) => ({ ...l, sort_order: (l.sort_order ?? 0) + 1 })),
+      ])
+      try {
+        await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
+          await bumpListUserSortOrdersForUserExceptList(user.id, importedId)
+          await db.lists.put({
+            ...extractListRowFields(optimisticList),
+            cached_at: Date.now(),
+            app_version: APP_VERSION,
+          })
+          await db.list_users.put({
+            id: crypto.randomUUID(),
+            list_id: importedId,
             user_id: user.id,
-            imported_id: importedId,
-            p_name: name,
-            p_label: label || '',
-            p_category_names: categoryNames || '{}',
-            p_rows: (rows ?? []) as unknown as Json,
-            p_has_targets: hasTargets || false,
-            p_client_created_at: sync.client_created_at,
-          },
-          ...listQueueParent(importedId),
-          status: 'queued',
+            role: 'owner',
+            archived: false,
+            sort_order: 0,
+            ...syncFieldsForLocalInsert(),
+            member_filter: 'all',
+            item_text_width: 'auto',
+            label: label || '',
+            last_viewed_members: null,
+            show_targets: false,
+            item_name_font_step: 3,
+            sum_scope: 'none',
+            sync_error: false,
+          })
+          await enqueueSyncQueueRecord({
+            entity: 'list',
+            entity_id: newBatchEntityId(),
+            kind: 'rpc',
+            payload: {
+              method: 'importList',
+              user_id: user.id,
+              imported_id: importedId,
+              p_name: name,
+              p_label: label || '',
+              p_category_names: categoryNames || '{}',
+              p_rows: (rows ?? []) as unknown as Json,
+              p_has_targets: hasTargets || false,
+              p_client_created_at: sync.client_created_at,
+            },
+            ...listQueueParent(importedId),
+            status: 'queued',
+          })
         })
-      })
-    } catch (e) {
-      setLists(prev => prev.filter(list => list.id !== importedId))
-      return { error: e instanceof Error ? e : new Error('Failed to queue import') }
+      } catch (e) {
+        catImp.setCatalogLists((prev) => prev.filter((list) => list.id !== importedId))
+        return { error: e instanceof Error ? e : new Error('Failed to queue import') }
+      }
+    } finally {
+      catImp.endLocalCatalogPersistence()
     }
 
     markOnlineRecovered()
@@ -1000,26 +1127,28 @@ export function useLists() {
   }
 
   const persistListLabelOnly = async (listId: string, label: string) => {
-    const previousLists = lists
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(prev => prev.map(list =>
-      list.id === listId ? { ...list, label } : list
-    ))
+    const catLbl = useListsCatalogStore.getState()
+    catLbl.beginLocalCatalogPersistence()
+    try {
+      catLbl.setCatalogLists((prev) => prev.map((list) => (list.id === listId ? { ...list, label } : list)))
 
-    const nowMs = Date.now()
-    await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-      const row = await db.list_users.where('[list_id+user_id]').equals([listId, user!.id]).first()
-      if (row) await db.list_users.update(row.id, { label })
-      await enqueueSyncQueueRecord({
-        entity: 'list',
-        entity_id: newBatchEntityId(),
-        kind: 'rpc',
-        payload: { method: 'patchListUser', id: listId, user_id: user!.id, label },
-        ...listQueueParent(listId),
-        status: 'queued',
+      await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+        const row = await db.list_users.where('[list_id+user_id]').equals([listId, user!.id]).first()
+        if (row) await db.list_users.update(row.id, { label })
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: newBatchEntityId(),
+          kind: 'rpc',
+          payload: { method: 'patchListUser', id: listId, user_id: user!.id, label },
+          ...listQueueParent(listId),
+          status: 'queued',
+        })
       })
-    })
+    } finally {
+      catLbl.endLocalCatalogPersistence()
+    }
     appendMutationDiagnostic(`[mutation:list.label] local:queued listId=${listId} label="${label}" server:queued`)
     markOnlineRecovered()
     return { error: null }
@@ -1046,28 +1175,35 @@ export function useLists() {
       const nextLabelById = new Map(changes.map((c) => [c.listId, c.label]))
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      setLists((prev) => prev.map((list) => (
-        nextLabelById.has(list.id) ? { ...list, label: nextLabelById.get(list.id) ?? '' } : list
-      )))
+      const catBatch = useListsCatalogStore.getState()
+      catBatch.beginLocalCatalogPersistence()
+      try {
+        catBatch.setCatalogLists((prev) =>
+          prev.map((list) =>
+            nextLabelById.has(list.id) ? { ...list, label: nextLabelById.get(list.id) ?? '' } : list,
+          ),
+        )
 
-      const nowMs = Date.now()
-      await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-        for (const { listId, label } of changes) {
-          const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
-          if (row) await db.list_users.update(row.id, { label })
-        }
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: newBatchEntityId(),
-          kind: 'rpc',
-          payload: {
-            method: 'bulkPatchListLabels',
-            updates: changes.map((c) => ({ list_id: c.listId, label: c.label })),
-          },
-          ...userQueueParent(user.id),
-          status: 'queued',
+        await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+          for (const { listId, label } of changes) {
+            const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
+            if (row) await db.list_users.update(row.id, { label })
+          }
+          await enqueueSyncQueueRecord({
+            entity: 'list',
+            entity_id: newBatchEntityId(),
+            kind: 'rpc',
+            payload: {
+              method: 'bulkPatchListLabels',
+              updates: changes.map((c) => ({ list_id: c.listId, label: c.label })),
+            },
+            ...userQueueParent(user.id),
+            status: 'queued',
+          })
         })
-      })
+      } finally {
+        catBatch.endLocalCatalogPersistence()
+      }
       appendMutationDiagnostic(
         `[mutation:list.label.batch] local:queued count=${changes.length} server:queued`,
       )
@@ -1099,14 +1235,25 @@ export function useLists() {
     try {
     mutationVersionRef.current += 1
     skipRealtimeUntilRef.current = Date.now() + 2000
-    setLists(reorderedLists)
-    await persistListOrder(reorderedLists)
+    const catOrd = useListsCatalogStore.getState()
+    catOrd.beginLocalCatalogPersistence()
+    try {
+      catOrd.setCatalogLists(reorderedLists)
+      await persistListOrder(reorderedLists)
+    } finally {
+      catOrd.endLocalCatalogPersistence()
+    }
     appendMutationDiagnostic('[mutation:list.reorder] local:queued server:queued')
     markOnlineRecovered()
     } finally {
       mutationGate.end()
     }
   }
+
+  const loading = useMemo(
+    () => Boolean(userId && lists.length === 0 && listsCatalogStatus !== 'ready' && !error),
+    [userId, lists.length, listsCatalogStatus, error],
+  )
 
   return {
     lists,
