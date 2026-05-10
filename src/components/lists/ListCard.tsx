@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, useSyncExternalStore, memo } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
@@ -15,6 +14,8 @@ import {
   normalOfflineRouteReady,
 } from '@/lib/offlineRouteReadiness'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
+import { useAuth } from '@/providers/AuthProvider'
+import { prefetchListPageCacheFromDexie } from '@/lib/data/listPageCachePrefetch'
 import type { ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { listCardModelEqual, sameStringList } from './listCardEquality'
 
@@ -76,6 +77,10 @@ interface ListCardProps {
   list: ListWithRole
   /** Epoch ms when catalog success pulse started; from `listsCatalogStore.recentSuccesses`. */
   recentSuccessStartedAt?: number
+  /** Background `get_list_data` prefetch (realtime) — cyan while in flight. */
+  remoteDetailInflight?: boolean
+  /** Epoch ms when remote-detail teal pulse started; from `listsCatalogStore.remoteDetailPulseAt`. */
+  remotePulseStartedAt?: number
   existingListNames: string[]
   onUpdate: (listId: string, updates: { name?: string; archived?: boolean; comment?: string }) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
@@ -97,6 +102,8 @@ function listCardPropsEqual(prev: ListCardProps, next: ListCardProps): boolean {
   return (
     listCardModelEqual(prev.list, next.list) &&
     (prev.recentSuccessStartedAt ?? 0) === (next.recentSuccessStartedAt ?? 0) &&
+    (prev.remoteDetailInflight ?? false) === (next.remoteDetailInflight ?? false) &&
+    (prev.remotePulseStartedAt ?? 0) === (next.remotePulseStartedAt ?? 0) &&
     sameStringList(prev.existingListNames, next.existingListNames) &&
     sameStringList(prev.labels, next.labels) &&
     (prev.currentFilter ?? 'Any') === (next.currentFilter ?? 'Any') &&
@@ -107,6 +114,8 @@ function listCardPropsEqual(prev: ListCardProps, next: ListCardProps): boolean {
 function ListCardInner({
   list,
   recentSuccessStartedAt = 0,
+  remoteDetailInflight = false,
+  remotePulseStartedAt = 0,
   existingListNames,
   onUpdate,
   onDelete,
@@ -124,6 +133,8 @@ function ListCardInner({
 }: ListCardProps) {
   const { error: showError } = useToast()
   const router = useRouter()
+  const { user, loading: authLoading, bootstrapUserId } = useAuth()
+  const navigateUserId = user?.id ?? (authLoading ? bootstrapUserId : null)
   const navigatorOnLine = useSyncExternalStore(
     subscribeNavigatorOnline,
     getNavigatorOnlineSnapshot,
@@ -222,7 +233,7 @@ function ListCardInner({
     setNewLabelText('')
   }
 
-  const handleOfflineListTitleNav = useCallback(
+  const handleListTitlePrimaryNav = useCallback(
     async (e: React.MouseEvent<HTMLAnchorElement>) => {
       const native = e.nativeEvent
       const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
@@ -291,6 +302,18 @@ function ListCardInner({
         return
       }
 
+      if (navigateUserId) {
+        appendOfflineNavDiagnostic(`[list-click] dexie L1 prefetch start listId=${list.id}`)
+        try {
+          await prefetchListPageCacheFromDexie(navigateUserId, list.id)
+        } catch (err) {
+          appendOfflineNavDiagnostic(
+            `[list-click] dexie L1 prefetch threw: ${err instanceof Error ? err.message : String(err)}`,
+          )
+        }
+        appendOfflineNavDiagnostic(`[list-click] dexie L1 prefetch done listId=${list.id}`)
+      }
+
       try {
         appendOfflineNavDiagnostic(
           `[list-click] navAction=router_push reason=${reason} targetHref=${targetHref}`,
@@ -304,7 +327,7 @@ function ListCardInner({
         )
       }
     },
-    [list.id, offlineAssetsReady, router, swControlled],
+    [list.id, navigateUserId, offlineAssetsReady, router, swControlled],
   )
 
   // Duplicate modal: outside-click for label dropdown
@@ -610,6 +633,8 @@ function ListCardInner({
         pendingItems={list.pending_items ?? 0}
         syncError={list.sync_error === true}
         recentSuccessStartedAt={recentSuccessStartedAt}
+        remoteDetailInflight={remoteDetailInflight}
+        remotePulseStartedAt={remotePulseStartedAt}
       />
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
@@ -682,7 +707,7 @@ function ListCardInner({
           <a
             href={`/list/${list.id}`}
             onClick={(e) => {
-              void handleOfflineListTitleNav(e)
+              void handleListTitlePrimaryNav(e)
             }}
             className="flex min-w-0 w-full items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal"
             data-tour="list-card"
@@ -700,8 +725,11 @@ function ListCardInner({
             </span>
           </a>
         ) : (
-          <Link
+          <a
             href={`/list/${list.id}`}
+            onClick={(e) => {
+              void handleListTitlePrimaryNav(e)
+            }}
             className="flex min-w-0 w-full items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 hover:text-teal"
             data-tour="list-card"
           >
@@ -716,7 +744,7 @@ function ListCardInner({
                 />
               )}
             </span>
-          </Link>
+          </a>
         )}
         {isRenaming && (
           <div

@@ -18,6 +18,12 @@ import { perfLog } from '@/lib/startupPerfLog'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { reportServerDexieParityDiagnostics, upsertListsSummaryFromServer } from '@/lib/data/serverDexieParity'
+import {
+  extractListIdsFromCatalogRealtimePayload,
+  prefetchListDetailsFromServer,
+} from '@/lib/data/listDetailRemotePrefetch'
+
+type CatalogRealtimePayload = Parameters<typeof extractListIdsFromCatalogRealtimePayload>[0]
 import { enqueueListMirrorJobs } from '@/lib/data/listMirror'
 import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 import {
@@ -173,6 +179,8 @@ export function useLists() {
   const hasInitialDataRef = useRef(false)
   const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const pendingRealtimeRef = useRef(false)
+  /** List IDs touched by catalog realtime since last debounced flush — prefetched with `get_list_data`. */
+  const realtimeDirtyListIdsRef = useRef<Set<string>>(new Set())
   const mutationVersionRef = useRef(0)
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number, consumePending?: boolean) => void>(() => {})
@@ -516,17 +524,27 @@ export function useLists() {
 
         if (consumePending) pendingRealtimeRef.current = false
         const cap = realtimeScheduleCaptureVersionRef.current
-        if (cap == null) {
-          void fetchLists()
-        } else {
-          void fetchLists({ staleCheckVersion: cap })
-        }
+        const dirtyIds = [...realtimeDirtyListIdsRef.current]
+        realtimeDirtyListIdsRef.current.clear()
+        const uid = userId
+        void (async () => {
+          const pCatalog =
+            cap == null ? Promise.resolve(fetchLists()) : Promise.resolve(fetchLists({ staleCheckVersion: cap }))
+          const pDetail =
+            dirtyIds.length > 0 && uid ? prefetchListDetailsFromServer(uid, dirtyIds) : Promise.resolve()
+          await Promise.all([pCatalog, pDetail])
+        })()
       }, Math.max(delayMs, 0))
     }
 
     scheduleRealtimeFetchRef.current = scheduleRealtimeFetch
 
-    const handleRealtimeChange = () => {
+    const handleRealtimeChange = (payload?: CatalogRealtimePayload) => {
+      if (payload) {
+        for (const id of extractListIdsFromCatalogRealtimePayload(payload)) {
+          realtimeDirtyListIdsRef.current.add(id)
+        }
+      }
       // Skip fetch if we recently did a local optimistic update (within 2 seconds)
       if (Date.now() < skipRealtimeUntilRef.current) {
         return
@@ -561,26 +579,22 @@ export function useLists() {
 
     const channel = supabase
       .channel(`lists-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'lists' },
-        handleRealtimeChange
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lists' }, (payload) => {
+        handleRealtimeChange(payload as CatalogRealtimePayload)
+      })
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'list_users', filter: `user_id=eq.${userId}` },
-        handleRealtimeChange
+        (payload) => {
+          handleRealtimeChange(payload as CatalogRealtimePayload)
+        },
       )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'members' },
-        handleRealtimeChange
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'items' },
-        handleRealtimeChange
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, (payload) => {
+        handleRealtimeChange(payload as CatalogRealtimePayload)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, (payload) => {
+        handleRealtimeChange(payload as CatalogRealtimePayload)
+      })
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           markOnlineRecovered('realtime-subscribed-lists')
@@ -600,6 +614,7 @@ export function useLists() {
         realtimeDebounceRef.current = null
       }
       pendingRealtimeRef.current = false
+      realtimeDirtyListIdsRef.current.clear()
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
       }

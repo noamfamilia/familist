@@ -50,6 +50,22 @@ function scheduleRecentSuccessRemoval(listId: string, startedAt: number) {
   }, delay)
 }
 
+function pruneCompletedRemotePulses(m: Map<string, number>, now: number): Map<string, number> {
+  const out = new Map(m)
+  for (const [id, startedAt] of out) {
+    if (now >= startedAt + RECENT_SUCCESS_WINDOW_MS) out.delete(id)
+  }
+  return out
+}
+
+function scheduleRemoteDetailPulseRemoval(listId: string, startedAt: number) {
+  if (typeof window === 'undefined') return
+  const delay = Math.max(0, startedAt + RECENT_SUCCESS_WINDOW_MS - Date.now()) + 20
+  window.setTimeout(() => {
+    useListsCatalogStore.getState().expireRemoteDetailPulseIfMatches(listId, startedAt)
+  }, delay)
+}
+
 type ListsCatalogState = {
   activeUserId: string | null
   listsCatalogStatus: ListsCatalogStatus
@@ -57,6 +73,10 @@ type ListsCatalogState = {
   localCatalogMutationDepth: number
   /** listId → epoch ms when the success pulse started (hold + fade window). */
   recentSuccesses: Map<string, number>
+  /** Background `get_list_data` in flight (realtime prefetch) — drives cyan check on list cards. */
+  remoteDetailInflightIds: Set<string>
+  /** listId → epoch ms when teal “remote sync done” pulse started (same hold+fade window as outbound success). */
+  remoteDetailPulseAt: Map<string, number>
 }
 
 type ListsCatalogActions = {
@@ -68,6 +88,9 @@ type ListsCatalogActions = {
   beginLocalCatalogPersistence: () => void
   endLocalCatalogPersistence: () => void
   expireRecentSuccessIfMatches: (listId: string, expectedStartedAt: number) => void
+  beginRemoteDetailPrefetchForLists: (listIds: readonly string[]) => void
+  finishRemoteDetailPrefetchOne: (listId: string, ok: boolean) => void
+  expireRemoteDetailPulseIfMatches: (listId: string, expectedStartedAt: number) => void
 }
 
 export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActions>((set, get) => ({
@@ -76,6 +99,8 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
   lists: [],
   localCatalogMutationDepth: 0,
   recentSuccesses: new Map(),
+  remoteDetailInflightIds: new Set(),
+  remoteDetailPulseAt: new Map(),
 
   clearListsCatalog: () =>
     set({
@@ -83,6 +108,8 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
       listsCatalogStatus: 'idle',
       lists: [],
       recentSuccesses: new Map(),
+      remoteDetailInflightIds: new Set(),
+      remoteDetailPulseAt: new Map(),
     }),
 
   beginHomeSession: (userId, cachedLists) =>
@@ -91,13 +118,17 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
       listsCatalogStatus: 'loading',
       lists: cachedLists ? [...cachedLists] : [],
       recentSuccesses: new Map(),
+      remoteDetailInflightIds: new Set(),
+      remoteDetailPulseAt: new Map(),
     }),
 
   applyWarmResult: (userId, lists) => {
     const st = get()
     if (st.activeUserId !== userId) return
-    const pruned = pruneCompletedRecentSuccesses(st.recentSuccesses, Date.now())
-    set({ lists, listsCatalogStatus: 'ready', recentSuccesses: pruned })
+    const now = Date.now()
+    const pruned = pruneCompletedRecentSuccesses(st.recentSuccesses, now)
+    const prunedRemote = pruneCompletedRemotePulses(st.remoteDetailPulseAt, now)
+    set({ lists, listsCatalogStatus: 'ready', recentSuccesses: pruned, remoteDetailPulseAt: prunedRemote })
   },
 
   applyL2BridgePayload: (userId, lists) => {
@@ -109,7 +140,8 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
     for (const { listId, startedAt } of newEntries) {
       scheduleRecentSuccessRemoval(listId, startedAt)
     }
-    set({ lists, recentSuccesses: next })
+    const prunedRemote = pruneCompletedRemotePulses(st.remoteDetailPulseAt, now)
+    set({ lists, recentSuccesses: next, remoteDetailPulseAt: prunedRemote })
   },
 
   setCatalogLists: (updater) =>
@@ -128,6 +160,40 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
       const next = new Map(s.recentSuccesses)
       next.delete(listId)
       return { recentSuccesses: next }
+    }),
+
+  beginRemoteDetailPrefetchForLists: (listIds) =>
+    set((s) => {
+      const inf = new Set(s.remoteDetailInflightIds)
+      const pulse = new Map(s.remoteDetailPulseAt)
+      for (const id of listIds) {
+        if (!id) continue
+        inf.add(id)
+        pulse.delete(id)
+      }
+      return { remoteDetailInflightIds: inf, remoteDetailPulseAt: pulse }
+    }),
+
+  finishRemoteDetailPrefetchOne: (listId, ok) =>
+    set((s) => {
+      const inf = new Set(s.remoteDetailInflightIds)
+      inf.delete(listId)
+      if (!ok) {
+        return { remoteDetailInflightIds: inf }
+      }
+      const startedAt = Date.now()
+      const pulse = new Map(s.remoteDetailPulseAt)
+      pulse.set(listId, startedAt)
+      scheduleRemoteDetailPulseRemoval(listId, startedAt)
+      return { remoteDetailInflightIds: inf, remoteDetailPulseAt: pulse }
+    }),
+
+  expireRemoteDetailPulseIfMatches: (listId, expectedStartedAt) =>
+    set((s) => {
+      if (s.remoteDetailPulseAt.get(listId) !== expectedStartedAt) return s
+      const next = new Map(s.remoteDetailPulseAt)
+      next.delete(listId)
+      return { remoteDetailPulseAt: next }
     }),
 }))
 
