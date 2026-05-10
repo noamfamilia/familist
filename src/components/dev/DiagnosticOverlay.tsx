@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type DbSyncQueueRow } from '@/lib/db'
 import { APP_VERSION } from '@/lib/appVersion'
@@ -8,13 +8,28 @@ import {
   LIST_MIRROR_LAST_SUCCESS_LIST_ID_META_ID,
   LIST_MIRROR_RUNNING_META_ID,
 } from '@/lib/data/listMirror'
-import { PENDING_SCHEMA_10_MIRROR_RECONCILE_META_ID } from '@/lib/data/versionCheck'
+import {
+  markDexieClearedForCurrentAppMajorInLocalStorage,
+  PENDING_SCHEMA_10_MIRROR_RECONCILE_META_ID,
+} from '@/lib/data/versionCheck'
+import { registerOfflineNavDiagnosticSink } from '@/lib/offlineNavDiagnostics'
 import { registerPerfLogSink } from '@/lib/startupPerfLog'
 import { useToast } from '@/components/ui/Toast'
 import { isDebugVerboseEnabled, setDebugVerboseEnabled } from '@/lib/diagnosticsFlags'
 
 type LogLine = { ts: string; message: string }
 const LOG_CAP = 20
+
+/** When true, only lines that look like failures are kept in the live log buffer. */
+function isDiagnosticErrorLine(message: string): boolean {
+  if (/🔴/.test(message)) return true
+  if (/\[ERROR\]/i.test(message)) return true
+  if (/\[server\] fail\b/i.test(message)) return true
+  if (/\[sync<-server\] error\b/i.test(message)) return true
+  if (/\[console\.error\]/i.test(message)) return true
+  if (/\bbulkPatchListLabels batch list_ids=/i.test(message)) return true
+  return false
+}
 
 function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return 'n/a'
@@ -25,18 +40,18 @@ function formatDuration(ms: number): string {
   return `${m}m ${s % 60}s`
 }
 
-function useInMemoryLogBuffer(): [LogLine[], () => void] {
+function useInMemoryLogBuffer(errorsOnlyRef: MutableRefObject<boolean>): [LogLine[], () => void] {
   const [lines, setLines] = useState<LogLine[]>([])
 
   useEffect(() => {
     const push = (message: string) => {
+      if (errorsOnlyRef.current && !isDiagnosticErrorLine(message)) return
       const next: LogLine = { ts: new Date().toISOString(), message }
       setLines((prev) => [...prev.slice(Math.max(0, prev.length - (LOG_CAP - 1))), next])
     }
 
-    registerPerfLogSink((line) => {
-      push(line)
-    })
+    registerPerfLogSink(push)
+    registerOfflineNavDiagnosticSink(push)
 
     const originalConsoleError = console.error
     console.error = (...args: unknown[]) => {
@@ -60,9 +75,10 @@ function useInMemoryLogBuffer(): [LogLine[], () => void] {
 
     return () => {
       registerPerfLogSink(null)
+      registerOfflineNavDiagnosticSink(null)
       console.error = originalConsoleError
     }
-  }, [])
+  }, [errorsOnlyRef])
 
   return [lines, () => setLines([])]
 }
@@ -70,7 +86,10 @@ function useInMemoryLogBuffer(): [LogLine[], () => void] {
 export function DiagnosticOverlay() {
   const { success: showSuccess, error: showError } = useToast()
   const [isOnline, setIsOnline] = useState(true)
-  const [logs, clearLogs] = useInMemoryLogBuffer()
+  const [errorsOnlyLog, setErrorsOnlyLog] = useState(false)
+  const errorsOnlyRef = useRef(false)
+  errorsOnlyRef.current = errorsOnlyLog
+  const [logs, clearLogs] = useInMemoryLogBuffer(errorsOnlyRef)
   const [verboseLogging, setVerboseLogging] = useState(false)
 
   useEffect(() => {
@@ -121,6 +140,7 @@ export function DiagnosticOverlay() {
   const emergencyReset = async () => {
     try {
       await db.delete()
+      markDexieClearedForCurrentAppMajorInLocalStorage()
       window.location.reload()
     } catch {
       showError('Reset failed')
@@ -148,6 +168,10 @@ export function DiagnosticOverlay() {
     }
   }
 
+  const toggleErrorsOnlyLog = () => {
+    setErrorsOnlyLog((v) => !v)
+  }
+
   return (
     <section className="w-full shrink-0 border-t-4 border-teal-600 bg-neutral-950 text-emerald-50 dark:border-teal-500">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-700 px-3 py-2">
@@ -168,6 +192,17 @@ export function DiagnosticOverlay() {
             }`}
           >
             Verbose logging: {verboseLogging ? 'ON' : 'OFF'}
+          </button>
+          <button
+            type="button"
+            onClick={toggleErrorsOnlyLog}
+            className={`rounded border px-2 py-1 text-xs ${
+              errorsOnlyLog
+                ? 'border-emerald-500/60 bg-emerald-900/30 text-emerald-100 hover:bg-emerald-900/50'
+                : 'border-neutral-600 bg-neutral-800 text-neutral-200 hover:bg-neutral-700'
+            }`}
+          >
+            Live log: {errorsOnlyLog ? 'errors only' : 'all'}
           </button>
           <button
             type="button"
@@ -254,7 +289,9 @@ export function DiagnosticOverlay() {
       </div>
 
       <div className="border-t border-neutral-800 bg-neutral-900/30 p-3">
-        <div className="mb-1 text-xs font-semibold text-teal-200">Live logs (last 20)</div>
+        <div className="mb-1 text-xs font-semibold text-teal-200">
+          Live logs (last 20){errorsOnlyLog ? ' · showing errors/failures only' : ''}
+        </div>
         <pre className="m-0 max-h-[28vh] w-full overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-amber-50/95 sm:text-xs">
           {logs.length > 0
             ? logs.map((l) => `[${l.ts}] ${l.message}`).join('\n')
