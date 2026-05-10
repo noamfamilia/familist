@@ -32,8 +32,6 @@ import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
-import { ConnectivityStatusIconCompact } from '@/components/ui/ConnectivityStatusIcon'
-import { SyncIcon } from '@/components/sync/SyncIcon'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
@@ -271,13 +269,14 @@ export default function ListPage() {
 
   const { error: showError } = useToast()
   const hasMounted = useHasMounted()
-  const { showOfflineBanner, offlineAssetsReady, swControlled, internetReachable, online } = useConnectivity()
+  const { offlineAssetsReady, swControlled, internetReachable, online } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
     list,
     items,
     members,
+    listDataStatus,
     loading,
     error,
     accessDenied,
@@ -657,11 +656,10 @@ export default function ListPage() {
     setNewItemText('')
   }, [])
 
-  if (!hasMounted) {
-    return null
-  }
+  const blockOnListData =
+    listDataStatus !== 'ready' && !list && !error
 
-  if ((authLoading && !bootstrapUserId) || loading) {
+  if (!hasMounted || (authLoading && !bootstrapUserId) || loading || blockOnListData) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />
@@ -928,16 +926,7 @@ export default function ListPage() {
       </div>
 
       {/* Header */}
-      {showOfflineBanner ? (
-        <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
-          Offline Mode - Changes will sync later
-        </div>
-      ) : null}
-      <header className="flex items-center justify-center gap-1.5 sm:gap-2 mb-4 sm:mb-6 min-w-0 px-1">
-        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-          <ConnectivityStatusIconCompact />
-          <SyncIcon compact />
-        </div>
+      <header className="flex items-center justify-center mb-4 sm:mb-6 min-w-0 px-1">
         <h1 className="text-xl sm:text-2xl font-semibold text-teal truncate min-w-0 text-center">
           {list.name}
         </h1>

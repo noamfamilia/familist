@@ -7,19 +7,20 @@ import {
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 
-function now() {
-  return Date.now()
-}
-
 export async function addItemMutation(input: {
   user_id: string
   list_id: string
   text: string
   category: ItemCategory
+  /** When set, must match optimistic L1 / UI so Dexie and Zustand stay aligned */
+  id?: string
+  /** List position; should be max(existing)+1 so the row sorts at the bottom */
+  sort_order?: number
 }) {
-  const id = crypto.randomUUID()
+  const id = input.id ?? crypto.randomUUID()
   const t = isoNow()
   const sync = syncFieldsForLocalInsert({ client_created_at: t })
+  const sortOrder = input.sort_order ?? 0
   const row: DbItemRow = {
     id,
     list_id: input.list_id,
@@ -28,12 +29,12 @@ export async function addItemMutation(input: {
     comment: null,
     archived: false,
     archived_at: null,
-    sort_order: now(),
+    sort_order: sortOrder,
     ...sync,
     updated_at: t,
   }
 
-  await db.transaction('rw', db.items, db.sync_queue, async () => {
+  await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
     await db.items.put(row)
     await enqueueSyncQueueRecord({
       entity: 'item',
@@ -45,6 +46,7 @@ export async function addItemMutation(input: {
         text: input.text,
         category: input.category,
         client_created_at: sync.client_created_at,
+        sort_order: sortOrder,
       },
       ...listQueueParent(input.list_id),
       status: 'queued',
@@ -58,7 +60,7 @@ export async function softDeleteItemMutation(_user_id: string, list_id: string, 
   const existing = await db.items.get(item_id)
   if (!existing) return
 
-  await db.transaction('rw', db.items, db.sync_queue, async () => {
+  await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
     await db.items.update(item_id, {
       deleted_at: isoNow(),
       updated_at: isoNow(),
@@ -83,7 +85,7 @@ export async function toggleItemMemberStateMutation(input: {
   const id = crypto.randomUUID()
   const t = isoNow()
   const sync = syncFieldsForLocalInsert({ client_created_at: t })
-  await db.transaction('rw', db.item_member_state, db.sync_queue, async () => {
+  await db.transaction('rw', db.item_member_state, db.sync_queue, db.list_users, async () => {
     await db.item_member_state.put({
       id,
       ...input.state,
@@ -116,13 +118,13 @@ export async function addMemberMutation(input: {
   list_id: string
   name: string
   is_target?: boolean
-  /** Defaults to `Date.now()` ordering key */
+  /** Defaults to 0; callers should pass max+1 for append order (see useList addMember). */
   sort_order?: number
 }) {
   const id = input.id ?? crypto.randomUUID()
   const t = isoNow()
   const sync = syncFieldsForLocalInsert({ client_created_at: t })
-  const sortOrder = input.sort_order ?? now()
+  const sortOrder = input.sort_order ?? 0
   const isTarget = input.is_target ?? false
   const row: DbMemberRow = {
     id,
@@ -137,7 +139,7 @@ export async function addMemberMutation(input: {
     creator: null,
   }
 
-  await db.transaction('rw', db.members, db.sync_queue, async () => {
+  await db.transaction('rw', db.members, db.sync_queue, db.list_users, async () => {
     await db.members.put(row)
     await enqueueSyncQueueRecord({
       entity: 'member',

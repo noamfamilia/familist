@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from 'react'
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore, memo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
+import { ListSyncStatusIcon } from '@/components/lists/ListSyncStatusIcon'
 import { cachedListDataExists } from '@/lib/cache'
 import {
   getClientBuildId,
@@ -20,6 +21,31 @@ function listCardShowsSumRowMetadata(list: ListWithRole): boolean {
   const s: ListUserSumScope | undefined = list.sumScope
   return s === 'all' || s === 'active' || s === 'archived'
 }
+
+/** Memoized so home list cards do not re-render this fragment when Dexie/liveQuery replaces `list` but counts are unchanged. */
+const ListCardSumCountsInline = memo(function ListCardSumCountsInline({
+  show,
+  activeItemCount,
+  archivedItemCount,
+}: {
+  show: boolean
+  activeItemCount: number
+  archivedItemCount: number
+}) {
+  if (!show) return null
+  const total = activeItemCount + archivedItemCount
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 align-middle whitespace-nowrap text-xs text-gray-400 dark:text-gray-500"
+      aria-label={`${activeItemCount} active of ${total} items`}
+    >
+      <span aria-hidden="true">·</span>
+      <span className="tabular-nums font-normal">
+        ({activeItemCount}/{total})
+      </span>
+    </span>
+  )
+})
 
 function subscribeNavigatorOnline(cb: () => void) {
   if (typeof window === 'undefined') return () => {}
@@ -73,7 +99,7 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     getNavigatorOnlineServerSnapshot,
   )
   const browserOffline = !navigatorOnLine
-  const { offlineAssetsReady, swControlled, status: connectivityStatus } = useConnectivity()
+  const { offlineAssetsReady, swControlled } = useConnectivity()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [newName, setNewName] = useState(list.name)
@@ -105,12 +131,6 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
   const labelDropdownRef = useRef<HTMLDivElement>(null)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
-  const offlineListAccessible =
-    swControlled &&
-    offlineAssetsReady &&
-    cachedListDataExists(list.id) &&
-    normalOfflineRouteReady(list.id)
-
   // Sync comment state when list updates from realtime
   useEffect(() => {
     setComment(list.comment || '')
@@ -547,33 +567,15 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
     </span>
   ) : null
 
-  const listItemTotalForCard =
-    (list.activeItemCount ?? 0) + (list.archivedItemCount ?? 0)
-  const sumCountsInline = listCardShowsSumRowMetadata(list) ? (
-    <span
-      className="inline-flex shrink-0 items-center gap-1 align-middle whitespace-nowrap text-xs text-gray-400 dark:text-gray-500"
-      aria-label={`${list.activeItemCount ?? 0} active of ${listItemTotalForCard} items`}
-    >
-      <span aria-hidden="true">·</span>
-      <span className="tabular-nums font-normal">
-        ({list.activeItemCount ?? 0}/{listItemTotalForCard})
-      </span>
-    </span>
-  ) : null
+  const showSumCounts = listCardShowsSumRowMetadata(list)
+  const activeCount = list.activeItemCount ?? 0
+  const archivedCount = list.archivedItemCount ?? 0
 
   return (
     <>
     {/* Main card content */}
     <div className="group relative rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700">
-      {connectivityStatus !== 'online' ? (
-        <span
-          className={`pointer-events-none absolute end-1.5 top-1.5 z-20 h-[5.6px] w-[5.6px] rounded-full ring-1 ring-black/10 dark:ring-white/15 ${
-            offlineListAccessible ? 'bg-green-500' : 'bg-red-500'
-          }`}
-          role="status"
-          aria-label={offlineListAccessible ? 'Openable offline' : 'Not openable offline'}
-        />
-      ) : null}
+      <ListSyncStatusIcon pendingItems={list.pending_items ?? 0} syncError={list.sync_error === true} />
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle - only for active lists */}
@@ -608,7 +610,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             <span className="flex min-w-0 max-w-full items-center gap-1 overflow-hidden">
               <span className="min-w-0 shrink truncate line-through">{list.name}</span>
               {!menuOpen && ownerBadge}
-              {!menuOpen && sumCountsInline}
+              {!menuOpen && (
+                <ListCardSumCountsInline
+                  show={showSumCounts}
+                  activeItemCount={activeCount}
+                  archivedItemCount={archivedCount}
+                />
+              )}
             </span>
           </span>
         ) : menuOpen && isOwner ? (
@@ -647,7 +655,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             <span className="flex min-w-0 max-w-full items-center gap-1 overflow-hidden">
               <span className="min-w-0 shrink truncate">{list.name}</span>
               {!menuOpen && ownerBadge}
-              {!menuOpen && sumCountsInline}
+              {!menuOpen && (
+                <ListCardSumCountsInline
+                  show={showSumCounts}
+                  activeItemCount={activeCount}
+                  archivedItemCount={archivedCount}
+                />
+              )}
             </span>
           </a>
         ) : (
@@ -659,7 +673,13 @@ export function ListCard({ list, existingListNames, onUpdate, onDelete, onArchiv
             <span className="flex min-w-0 max-w-full items-center gap-1 overflow-hidden">
               <span className="min-w-0 shrink truncate">{list.name}</span>
               {!menuOpen && ownerBadge}
-              {!menuOpen && sumCountsInline}
+              {!menuOpen && (
+                <ListCardSumCountsInline
+                  show={showSumCounts}
+                  activeItemCount={activeCount}
+                  archivedItemCount={archivedCount}
+                />
+              )}
             </span>
           </Link>
         )}

@@ -7,11 +7,9 @@ import { ToastProvider } from '@/components/ui/Toast'
 import { StartupPerfCapture } from '@/components/dev/StartupPerfCapture'
 import { InstallBanner } from '@/components/ui/InstallBanner'
 import { ConnectivityProvider } from '@/providers/ConnectivityProvider'
-import { SyncStatusProvider } from '@/providers/SyncStatusProvider'
 import { DiagnosticsMessageBoxProvider } from '@/providers/DiagnosticsMessageBox'
 import { SyncStoreBridge } from '@/components/sync/SyncStoreBridge'
 import { AppLayoutGateLogger } from '@/components/dev/AppLayoutGateLogger'
-import { ClientHydrationGate } from '@/components/app/ClientHydrationGate'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -69,25 +67,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning className={inter.className}>
+      <body className={inter.className}>
         <ThemeProvider>
           <AuthProvider>
             <ToastProvider>
               <DiagnosticsMessageBoxProvider>
                 <ConnectivityProvider>
-                  <SyncStatusProvider>
-                    <ClientHydrationGate>
-                      <SyncStoreBridge />
-                      <AppLayoutGateLogger />
-                      <StartupPerfCapture />
-                    </ClientHydrationGate>
-                    <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
-                      {children}
-                    </main>
-                    <ClientHydrationGate>
-                      <InstallBanner />
-                    </ClientHydrationGate>
-                  </SyncStatusProvider>
+                  <SyncStoreBridge />
+                  <AppLayoutGateLogger />
+                  <StartupPerfCapture />
+                  <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
+                    {children}
+                  </main>
+                  <InstallBanner />
                 </ConnectivityProvider>
               </DiagnosticsMessageBoxProvider>
             </ToastProvider>

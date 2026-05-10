@@ -9,6 +9,7 @@ import { clearActiveCacheUserId, getActiveCacheUserId, setActiveCacheUserId } fr
 import { db } from '@/lib/db'
 import { notifyNetworkOpSucceeded, notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
 import { log, perfLog } from '@/lib/startupPerfLog'
+import { logServerRoundTrip } from '@/lib/serverActionLog'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
 import { runLocalDexieGc } from '@/lib/data/localDexieGc'
@@ -158,7 +159,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const t0 = performance.now()
     perfLog('auth/fetchProfile start', { userId })
     try {
-      perfLog('auth/fetchProfile profiles query start', { userId })
       const q0 = performance.now()
       const freshClient = forceNewClient()
       const { data, error } = await freshClient
@@ -166,11 +166,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .eq('id', userId)
         .maybeSingle()
-      perfLog('auth/fetchProfile profiles query end', {
-        userId,
+      logServerRoundTrip({
+        description: error
+          ? 'Fetched user profile (failed)'
+          : data
+            ? 'Fetched user profile'
+            : 'Fetched user profile (no row)',
+        ok: !error,
         durationMs: Math.round(performance.now() - q0),
-        hasRow: !!data,
-        rpcError: error?.message,
+        respondsTo: 'After sign-in / session',
+        failure: error ?? undefined,
       })
 
       if (!mountedRef.current || userRef.current?.id !== userId) return
@@ -335,6 +340,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         perfLog('auth/getSession start')
         const gs0 = performance.now()
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+        logServerRoundTrip({
+          description: sessionError
+            ? 'Auth getSession failed'
+            : sessionData?.session
+              ? 'Restored auth session'
+              : 'Auth session (signed out)',
+          ok: !sessionError,
+          durationMs: Math.round(performance.now() - gs0),
+          respondsTo: 'App bootstrap',
+          failure: sessionError ?? undefined,
+        })
         perfLog('auth/getSession end', {
           durationMs: Math.round(performance.now() - gs0),
           hasSession: !!sessionData?.session,

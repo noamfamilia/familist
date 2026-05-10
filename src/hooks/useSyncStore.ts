@@ -10,9 +10,13 @@ import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useToast } from '@/components/ui/Toast'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
 import { getActiveCacheUserId } from '@/lib/cache'
+import { listIdsTouchingOutboundRow } from '@/lib/data/syncQueueListScope'
+import { applyListUserSyncErrorForListIds } from '@/lib/data/listUserSyncStatus'
 import { isoNow } from '@/lib/data/base_sync_fields'
 import { resetFailedSyncQueueRows } from '@/lib/data/syncQueue'
 import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
+import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
+import { logServerRoundTrip } from '@/lib/serverActionLog'
 import {
   normalizeItemCategory,
   type ItemWithState,
@@ -31,13 +35,10 @@ function backoffMsAfterFailure(attemptCount: number): number {
   return Math.min(300_000, 1000 * 2 ** exp)
 }
 
+/** First list id for verification (`syncListDetail`); multi-list RPCs use the primary id only here. */
 function rowListIdForSync(row: DbSyncQueueRow): string | null {
-  if (row.parent1_type === 'list' && row.parent1_id) return row.parent1_id
-  const pl = row.payload as { list_id?: string }
-  if (typeof pl.list_id === 'string' && pl.list_id.length > 0 && !pl.list_id.startsWith('user:')) {
-    return pl.list_id
-  }
-  return null
+  const ids = listIdsTouchingOutboundRow(row)
+  return ids[0] ?? null
 }
 
 function queueDiagKey(row: DbSyncQueueRow): string {
@@ -167,10 +168,10 @@ export function useSyncStore(): SyncStoreState {
     async (row: DbSyncQueueRow): Promise<boolean> => {
       const userId = resolveSyncUserId((row.payload as { user_id?: unknown })?.user_id)
       if (!userId) return true
-      await syncLists(userId)
+      await syncLists(userId, 'Post-mutation verification: list catalog')
       const listId = rowListIdForSync(row)
       if (listId && !isVirtualUserListKey(listId)) {
-        await syncListDetail(userId, listId)
+        await syncListDetail(userId, listId, 'Post-mutation verification: list detail')
       }
       return true
     },
@@ -179,9 +180,13 @@ export function useSyncStore(): SyncStoreState {
 
   const executeOutboundRow = useCallback(
     async (row: DbSyncQueueRow): Promise<void> => {
+      const t0 = performance.now()
+      const description = await describeOutboundSyncRow(row)
+      const respondsTo = `Sync queue · ${row.kind}/${row.entity}`
       appendMutationDiagnostic(
         `[sync->server] send kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
       )
+      try {
       if (row.kind === 'delete') {
         if (row.entity === 'item') {
           const id = String(row.payload.id ?? '')
@@ -216,6 +221,12 @@ export function useSyncStore(): SyncStoreState {
         appendMutationDiagnostic(
           `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
         )
+        logServerRoundTrip({
+          description,
+          ok: true,
+          durationMs: performance.now() - t0,
+          respondsTo,
+        })
         return
       }
 
@@ -258,12 +269,16 @@ export function useSyncStore(): SyncStoreState {
           id?: string
           name?: string
           label?: string
+          client_created_at?: string
         }
+        const t =
+          typeof payload.client_created_at === 'string' ? payload.client_created_at : isoNow()
         const { error } = await supabase.rpc('create_list', {
           p_id: payload.id,
           p_name: payload.name ?? '',
           p_label: payload.label ?? '',
-        } as never)
+          p_client_created_at: t,
+        })
         if (error) throw error
       } else if (row.kind === 'create' && row.entity === 'member') {
         const payload = row.payload as {
@@ -563,6 +578,9 @@ export function useSyncStore(): SyncStoreState {
           const dupId = String(payload.duplicate_id ?? '')
           const newName = String(payload.new_name ?? '')
           const pLabel = String(payload.label ?? '')
+          const plDup = payload as Record<string, unknown>
+          const dupClientCreated =
+            typeof plDup.client_created_at === 'string' ? plDup.client_created_at : isoNow()
           if (!sourceListId || !dupId) throw new Error('duplicateList missing source_list_id/duplicate_id')
           appendMutationDiagnostic(`[sync->server] duplicateList source=${sourceListId} dup=${dupId}`)
           const { data, error } = await supabase.rpc('duplicate_list', {
@@ -570,7 +588,8 @@ export function useSyncStore(): SyncStoreState {
             p_id: dupId,
             p_new_name: newName,
             p_label: pLabel,
-          } as never)
+            p_client_created_at: dupClientCreated,
+          })
           if (error) throw error
           const uid = resolveSyncUserId(payload.user_id)
           if (!uid) throw new Error('duplicateList missing user_id')
@@ -600,6 +619,9 @@ export function useSyncStore(): SyncStoreState {
           const pCategoryNames = String(payload.p_category_names ?? '{}')
           const pHasTargets = Boolean(payload.p_has_targets)
           const pRows = payload.p_rows
+          const plImp = payload as Record<string, unknown>
+          const importClientCreated =
+            typeof plImp.p_client_created_at === 'string' ? plImp.p_client_created_at : isoNow()
           if (!importedId || !pName) throw new Error('importList missing imported_id/p_name')
           appendMutationDiagnostic(`[sync->server] importList id=${importedId}`)
           const { data, error } = await supabase.rpc('import_list', {
@@ -609,7 +631,8 @@ export function useSyncStore(): SyncStoreState {
             p_category_names: pCategoryNames,
             p_rows: (pRows ?? []) as never,
             p_has_targets: pHasTargets,
-          } as never)
+            p_client_created_at: importClientCreated,
+          })
           if (error) throw error
           const uid = resolveSyncUserId(payload.user_id)
           if (!uid) throw new Error('importList missing user_id')
@@ -632,7 +655,7 @@ export function useSyncStore(): SyncStoreState {
           if (error) throw error
           const uidShare = resolveSyncUserId(payload.user_id)
           if (uidShare) {
-            await syncListDetail(uidShare, lid)
+            await syncListDetail(uidShare, lid, 'After saving: refresh list (share token)')
           }
         } else if (method === 'revokeShareToken') {
           const lid = String(payload.list_id ?? rowListIdForSync(row) ?? '')
@@ -642,7 +665,7 @@ export function useSyncStore(): SyncStoreState {
           if (error) throw error
           const uidRev = resolveSyncUserId(payload.user_id)
           if (uidRev) {
-            await syncListDetail(uidRev, lid)
+            await syncListDetail(uidRev, lid, 'After saving: refresh list (revoke share)')
           }
         } else if (method === 'removeUsersFromList') {
           const lid = String(payload.list_id ?? rowListIdForSync(row) ?? '')
@@ -657,7 +680,7 @@ export function useSyncStore(): SyncStoreState {
           if (error) throw error
           const uidRm = resolveSyncUserId(payload.user_id)
           if (uidRm) {
-            await syncListDetail(uidRm, lid)
+            await syncListDetail(uidRm, lid, 'After saving: refresh list (remove users)')
           }
         } else {
           throw new Error(`Unknown rpc method: ${method || '(empty)'}`)
@@ -671,6 +694,22 @@ export function useSyncStore(): SyncStoreState {
       appendMutationDiagnostic(
         `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
       )
+      logServerRoundTrip({
+        description,
+        ok: true,
+        durationMs: performance.now() - t0,
+        respondsTo,
+      })
+      } catch (err) {
+        logServerRoundTrip({
+          description,
+          ok: false,
+          durationMs: performance.now() - t0,
+          respondsTo,
+          failure: err,
+        })
+        throw err
+      }
     },
     [verifyMutationApplied, resolveSyncUserId, syncListDetail],
   )
@@ -725,6 +764,11 @@ export function useSyncStore(): SyncStoreState {
           const claimed = await tryClaimSyncRow(next.id)
           if (!claimed) continue
 
+          const syncUserId = getActiveCacheUserId()
+          if (syncUserId) {
+            await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, false)
+          }
+
           try {
             await executeOutboundRow(claimed)
             await db.sync_queue.delete(claimed.id)
@@ -736,8 +780,14 @@ export function useSyncStore(): SyncStoreState {
             )
             if (isLikelyConnectivityError(error)) {
               setLastError(message)
+              if (syncUserId) {
+                await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, true)
+              }
               await releaseRowForConnectivityRetry(claimed.id)
               break
+            }
+            if (syncUserId) {
+              await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, true)
             }
             await markRowFailedAfterError(claimed, message)
             if (claimed.attempt_count === 0) {

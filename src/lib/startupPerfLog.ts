@@ -91,7 +91,9 @@ function emojiFor(level: LogLevel, namespace: string, message: string): string {
 function shouldEmit(level: LogLevel, namespace: string, message: string): boolean {
   if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return false
   if (level === 'ERROR') return true
-  if (/SYNC/i.test(namespace) || /sync|mirror|queue/i.test(message)) return true
+  if (level === 'WARN') return true
+  /** INFO perf/UI traces only in verbose mode; use `emitServerRoundTripLine` / `logServerRoundTrip` for server I/O. */
+  if (level === 'INFO' && !isDebugVerboseEnabled()) return false
   if (!isDebugVerboseEnabled() && hasGateKeyword(`${namespace} ${message}`)) return false
   return true
 }
@@ -102,6 +104,15 @@ function emitLine(line: string): void {
   } else {
     pendingLines.push(line)
     while (pendingLines.length > PENDING_CAP) pendingLines.shift()
+  }
+}
+
+/** Compact `[server] …` lines: always mirrored to the perf sink and `console.info` when diagnostics are on. */
+export function emitServerRoundTripLine(line: string): void {
+  if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
+  emitLine(line)
+  if (typeof console !== 'undefined' && typeof console.info === 'function') {
+    console.info(line)
   }
 }
 

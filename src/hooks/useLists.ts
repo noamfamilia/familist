@@ -10,9 +10,10 @@ import { useListsQuery } from '@/lib/data/queries'
 import { db } from '@/lib/db'
 import { APP_VERSION } from '@/lib/appVersion'
 import { perfLog } from '@/lib/startupPerfLog'
+import { logServerRoundTrip } from '@/lib/serverActionLog'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { reportServerDexieParityDiagnostics, upsertListsSummaryFromServer } from '@/lib/data/serverDexieParity'
-import { collectListIdsNeedingMirrorFromSummaries, enqueueListMirrorJobs } from '@/lib/data/listMirror'
+import { enqueueListMirrorJobs } from '@/lib/data/listMirror'
 import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 import {
   clearSyncQueueForList,
@@ -54,6 +55,8 @@ function extractListRowFields(list: ListWithRole) {
     sumScope,
     ownerNickname,
     label,
+    pending_items,
+    sync_error,
     ...listFields
   } = list
   void role
@@ -64,6 +67,8 @@ function extractListRowFields(list: ListWithRole) {
   void sumScope
   void ownerNickname
   void label
+  void pending_items
+  void sync_error
   return listFields
 }
 
@@ -307,8 +312,9 @@ export function useLists() {
 
     beginServerWork()
     let serverOutcome: ServerWorkOutcome = 'success'
+    const listsRpcT0 = performance.now()
     try {
-      // Fetch all lists with counts in a single RPC call
+      // Catalog: lists + list_users (counts come from Dexie liveQuery after mirror fills items/members)
       const { data, error: rpcError } = await supabase.rpc('get_user_lists')
       appendMutationDiagnostic(`[fetchLists.debug] rpc rows=${Array.isArray(data) ? data.length : 0}`)
 
@@ -319,12 +325,19 @@ export function useLists() {
         appendMutationDiagnostic(
           `[fetchLists.debug] stale-discard captured=${staleCheck} current=${mutationVersionRef.current}`,
         )
+        const n = Array.isArray(data) ? data.length : 0
+        logServerRoundTrip({
+          description: `Fetched list catalog (${n} lists)`,
+          ok: true,
+          durationMs: performance.now() - listsRpcT0,
+          respondsTo: 'Home lists refresh (superseded by newer local edits)',
+        })
         serverOutcome = 'success'
         return
       }
 
       const rawRows = (data || []) as UserListsRpcRow[]
-      const mirrorListIds = await collectListIdsNeedingMirrorFromSummaries(rawRows)
+      const mirrorListIds = rawRows.map((r) => r.id).filter((id): id is string => Boolean(id && id.length > 0))
       const listsData: ListWithRole[] = rawRows.map((item) => ({
         id: item.id,
         name: item.name,
@@ -348,9 +361,9 @@ export function useLists() {
         role: item.role,
         userArchived: item.userArchived,
         sort_order: item.sort_order ?? null,
-        memberCount: item.memberCount,
-        activeItemCount: item.activeItemCount,
-        archivedItemCount: item.archivedItemCount ?? 0,
+        memberCount: 0,
+        activeItemCount: 0,
+        archivedItemCount: 0,
         sumScope: coalesceListUserSumScope(item.sumScope),
         ownerNickname: item.ownerNickname,
         label: item.label ?? '',
@@ -360,9 +373,7 @@ export function useLists() {
       setLists(listsData)
       setCachedLists(userId, listsData)
       await upsertListsSummaryFromServer(userId, rawRows)
-      if (mirrorListIds.length > 0) {
-        void enqueueListMirrorJobs(mirrorListIds)
-      }
+      void enqueueListMirrorJobs(mirrorListIds)
       appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert rows=${listsData.length}`)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
@@ -370,6 +381,12 @@ export function useLists() {
       notifyNetworkOpSucceeded('fetchLists')
       markOnlineRecovered('fetchLists-success')
       serverOutcome = 'success'
+      logServerRoundTrip({
+        description: `Fetched list catalog (${listsData.length} lists)`,
+        ok: true,
+        durationMs: performance.now() - listsRpcT0,
+        respondsTo: 'Home lists refresh',
+      })
     } catch (err) {
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
       if (serverOutcome === 'connectivity_failure') {
@@ -377,6 +394,13 @@ export function useLists() {
       }
       fetchErr = (err as Error).message
       setError((err as Error).message)
+      logServerRoundTrip({
+        description: 'Fetched list catalog',
+        ok: false,
+        durationMs: performance.now() - listsRpcT0,
+        respondsTo: 'Home lists refresh',
+        failure: err,
+      })
     } finally {
       endServerWork(serverOutcome)
       perfLog('fetchLists end', {
@@ -609,12 +633,18 @@ export function useLists() {
         show_targets: false,
         item_name_font_step: 3,
         sum_scope: 'none',
+        sync_error: false,
       })
       await enqueueSyncQueueRecord({
         entity: 'list',
         entity_id: listId,
         kind: 'create',
-        payload: { id: listId, name, label: label || '' },
+        payload: {
+          id: listId,
+          name,
+          label: label || '',
+          client_created_at: sync.client_created_at,
+        },
         ...listQueueParent(listId),
         status: 'queued',
       })
@@ -639,7 +669,7 @@ export function useLists() {
         list.id === listId ? { ...list, ...updates } : list
       ))
       const nowMs = Date.now()
-      await db.transaction('rw', db.lists, db.sync_queue, async () => {
+      await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
         await db.lists.update(listId, { ...updates, cached_at: nowMs })
         await enqueueSyncQueueRecord({
           entity: 'list',
@@ -840,6 +870,7 @@ export function useLists() {
           show_targets: false,
           item_name_font_step: 3,
           sum_scope: 'none',
+          sync_error: false,
         })
         await enqueueSyncQueueRecord({
           entity: 'list',
@@ -852,6 +883,7 @@ export function useLists() {
             duplicate_id: duplicateId,
             new_name: newName,
             label: label || '',
+            client_created_at: sync.client_created_at,
           },
           ...listQueueParent(duplicateId),
           status: 'queued',
@@ -930,6 +962,7 @@ export function useLists() {
           show_targets: false,
           item_name_font_step: 3,
           sum_scope: 'none',
+          sync_error: false,
         })
         await enqueueSyncQueueRecord({
           entity: 'list',
@@ -944,6 +977,7 @@ export function useLists() {
             p_category_names: categoryNames || '{}',
             p_rows: (rows ?? []) as unknown as Json,
             p_has_targets: hasTargets || false,
+            p_client_created_at: sync.client_created_at,
           },
           ...listQueueParent(importedId),
           status: 'queued',

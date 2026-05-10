@@ -46,6 +46,7 @@ const OFFLINE_BANNER_DEBOUNCE_MS = 3_000
 const REACHABILITY_PROBE_TIMEOUT_MS = 5_000
 const OFFLINE_FAILURE_THRESHOLD = 2
 const RECENT_NETWORK_SUCCESS_OVERRIDE_MS = 60_000
+const PWA_ENABLED = process.env.NEXT_PUBLIC_PWA_ENABLED === 'true'
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -598,6 +599,11 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [status])
 
   const requestOfflineAssetsReady = useCallback(() => {
+    if (!PWA_ENABLED) {
+      setOfflineAssetsReady(false)
+      setSwControlled(false)
+      return
+    }
     if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
       setOfflineAssetsReady(false)
       setSwControlled(false)
@@ -613,6 +619,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
+    if (!PWA_ENABLED) return
     if (typeof navigator === 'undefined') return
     perfLog('SW controller check', { swControlled: !!navigator.serviceWorker?.controller })
     if (!('serviceWorker' in navigator) || !navigator.serviceWorker) {
@@ -833,6 +840,11 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [bumpRecoveryFetchGeneration, clearProbeSchedule])
 
   useEffect(() => {
+    if (!PWA_ENABLED) {
+      setOfflineAssetsReady(false)
+      setSwControlled(false)
+      return
+    }
     if (typeof navigator === 'undefined' || !navigator.serviceWorker) return
 
     const onMessage = (event: MessageEvent) => {
@@ -861,6 +873,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
    * Precache URL probes: manual via PWA debug toolbar / window.__familistRunPrecacheVerify(); AUTO only with ?debugPwaDeep=1.
    */
   useEffect(() => {
+    if (!PWA_ENABLED) return
     let cancelled = false
     let disposeSwListeners: (() => void) | undefined
 

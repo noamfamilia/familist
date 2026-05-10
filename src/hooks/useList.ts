@@ -6,8 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useListDetailQuery } from '@/lib/data/queries'
+import { useShallow } from 'zustand/react/shallow'
+import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
+import { subscribeListDataL2Bridge, useListDataStore, warmListData } from '@/stores/listDataStore'
 import {
   addItemMutation,
   addMemberMutation,
@@ -25,6 +26,7 @@ import {
 import { LIST_MIRROR_SESSION_OWNER, setLastMirroredListDetailVersion } from '@/lib/data/listMirror'
 import { releaseListMirrorLock, waitForListMirrorLock } from '@/lib/data/listMirrorLock'
 import { perfLog } from '@/lib/startupPerfLog'
+import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import {
   isLikelyConnectivityError,
@@ -250,29 +252,6 @@ function mergePendingMembersIntoServerMembers(
   return merged
 }
 
-const LEGACY_CARD_COLOR_TO_CATEGORY: Record<string, number> = {
-  default: 1,
-  mint: 2,
-  coral: 3,
-  sand: 4,
-  lilac: 5,
-  slate: 6,
-}
-
-function normalizeItemsCategory(items: ItemWithState[]): ItemWithState[] {
-  return items.map(item => {
-    const legacy = item as ItemWithState & { card_color?: string }
-    const fromLegacy =
-      item.category == null && legacy.card_color != null
-        ? LEGACY_CARD_COLOR_TO_CATEGORY[legacy.card_color.trim()] ?? 1
-        : item.category
-    return {
-      ...item,
-      category: normalizeItemCategory(fromLegacy),
-    }
-  })
-}
-
 function rpcFailureMessage(err: unknown): string {
   if (err instanceof Error) return err.message
   if (typeof err === 'object' && err !== null && 'message' in err) {
@@ -282,14 +261,48 @@ function rpcFailureMessage(err: unknown): string {
   return 'Unknown error'
 }
 
+/** `sort_order` for new rows so they sort after every existing item (L1, Dexie, cache, RPC). */
+function nextItemSortOrdersAfterExisting(items: ItemWithState[], count: number): number[] {
+  let max = 0
+  for (const it of items) {
+    const raw = it.sort_order
+    const so = typeof raw === 'number' && !Number.isNaN(raw) ? raw : 0
+    if (so > max) max = so
+  }
+  return Array.from({ length: count }, (_, i) => max + 1 + i)
+}
+
+/** `sort_order` for new members; must fit Postgres `integer` (not `Date.now()` ms). */
+function nextMemberSortOrdersAfterExisting(members: MemberWithCreator[], count: number): number[] {
+  let max = 0
+  for (const m of members) {
+    const raw = m.sort_order
+    const so = typeof raw === 'number' && !Number.isNaN(raw) ? raw : 0
+    if (so > max) max = so
+  }
+  return Array.from({ length: count }, (_, i) => max + 1 + i)
+}
+
+function persistListSnapshotToDetailCache(userId: string, listId: string) {
+  const st = useListDataStore.getState()
+  if (!st.list) return
+  setCachedList(userId, listId, { list: st.list, items: st.items, members: st.members })
+}
+
 export function useList(listId: string) {
   const { user, profile, loading: authLoading, bootstrapUserId } = useAuth()
   const cached = getCachedList(undefined, listId)
-  
-  // Initialize from cache for instant load
-  const [list, setList] = useState<List | null>(cached?.list || null)
-  const [items, setItems] = useState<ItemWithState[]>(() => normalizeItemsCategory(cached?.items || []))
-  const [members, setMembers] = useState<MemberWithCreator[]>(cached?.members || [])
+  const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
+
+  const list = useListDataStore((s) => s.list)
+  const listDataStatus = useListDataStore((s) => s.listDataStatus)
+  const { items, members } = useListDataStore(
+    useShallow((s) => ({
+      items: s.items,
+      members: s.members,
+    })),
+  )
+
   const [loading, setLoading] = useState(!cached?.list)
   const [isFetching, setIsFetching] = useState(true)
   const [hasCompletedInitialFetch, setHasCompletedInitialFetch] = useState(false)
@@ -325,25 +338,17 @@ export function useList(listId: string) {
   /** First mutation version captured when a debounced realtime fetch is scheduled; preserved across reschedules until that fetch completes. */
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
-  const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
-  const dexieDetail = useListDetailQuery(userId, listId)
-  const dexieListRow = useLiveQuery(async () => {
-    if (!userId || !listId) return null
-    const row = await db.lists.get(listId)
-    return row ?? null
-  }, [userId, listId])
   useEffect(() => {
     reportServerDexieParityDiagnostics()
   }, [])
 
   useEffect(() => {
-    if (!dexieListRow || isTombstoned(dexieListRow.deleted_at)) return
-    setList(dexieListRow as List)
-    setCategoryNames(parseCategoryNames(dexieListRow.category_names))
-    setCategoryOrder(parseCategoryOrder(dexieListRow.category_order))
+    if (!list || isTombstoned(list.deleted_at ?? null)) return
+    setCategoryNames(parseCategoryNames(list.category_names))
+    setCategoryOrder(parseCategoryOrder(list.category_order))
     setLoading(false)
     hasInitialDataRef.current = true
-  }, [dexieListRow])
+  }, [list])
 
   const { showToast, dismissToast, error: showErrorToast } = useToast()
   const {
@@ -404,16 +409,6 @@ export function useList(listId: string) {
   }, [connectivityStatus])
 
   useEffect(() => {
-    if (!dexieDetail) return
-    setItems(normalizeItemsCategory(dexieDetail.items))
-    setMembers(dexieDetail.members)
-    if (dexieDetail.items.length > 0 || dexieDetail.members.length > 0) {
-      setLoading(false)
-      hasInitialDataRef.current = true
-    }
-  }, [dexieDetail])
-
-  useEffect(() => {
     perfLog('localStorage read start')
     const lsT0 = performance.now()
     let approxStorageChars = 0
@@ -434,9 +429,11 @@ export function useList(listId: string) {
       approxStorageChars,
     })
 
-    setList(cachedData?.list || null)
-    setItems(normalizeItemsCategory(cachedData?.items || []))
-    setMembers(cachedData?.members || [])
+    if (userId && listId) {
+      useListDataStore.getState().beginListSession(userId, listId, cachedData)
+    } else {
+      useListDataStore.getState().clearActiveListData()
+    }
     setMemberFilter(cachedPrefs.memberFilter)
     setItemNameFontStep(cachedPrefs.itemNameFontStep)
     const parsed = parseWidthValue(cachedPrefs.itemTextWidth)
@@ -450,6 +447,15 @@ export function useList(listId: string) {
     hasInitialDataRef.current = !!cachedData?.list
     prefsFetchedRef.current = false
   }, [listId, userId])
+
+  useEffect(() => {
+    if (!userId || !listId) return
+    void warmListData(userId, listId)
+    const unsub = subscribeListDataL2Bridge(userId, listId)
+    return () => {
+      unsub()
+    }
+  }, [userId, listId])
 
   useEffect(() => {
     if (!userId || !listId) return
@@ -508,7 +514,7 @@ export function useList(listId: string) {
   }, [beginServerWork, endServerWork])
 
   const setLocalMemberState = (itemId: string, memberId: string, nextState: ItemMemberState | null) => {
-    setItems(prev => prev.map(item => {
+    useListDataStore.getState().setItems((prev) => prev.map((item) => {
       if (item.id !== itemId) return item
 
       const memberStates = { ...item.memberStates }
@@ -532,9 +538,9 @@ export function useList(listId: string) {
 
     if (!userId || !listId) {
       perfLog('fetchList start', { note: 'no user or list' })
-      setList(null)
-      setItems([])
-      setMembers([])
+      useListDataStore.getState().setList(null)
+      useListDataStore.getState().setItems([])
+      useListDataStore.getState().setMembers([])
       setLoading(false)
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
@@ -555,6 +561,7 @@ export function useList(listId: string) {
     }
     listMirrorLockHeld = true
     const fetchT0 = performance.now()
+    let serverDetailLogged = false
     let parallelT0 = 0
     let rpcDurationMs = 0
     let prefsDurationMs: number | null = null
@@ -657,6 +664,29 @@ export function useList(listId: string) {
         prefsDurationMs,
       })
 
+      const staleNow = staleCheck != null && staleCheck !== mutationVersionRef.current
+      const listTitleForLog = formatQuotedListName(data?.list?.name, listId)
+      logServerRoundTrip({
+        description: `Fetched list ${listTitleForLog} (${data?.items?.length ?? 0} items, ${data?.members?.length ?? 0} members)`,
+        ok: !rpcError && !!(data?.list),
+        durationMs: rpcDurationMs,
+        respondsTo: staleNow
+          ? 'Open list · get_list_data (discarded: newer local edits)'
+          : 'Open list · get_list_data',
+        failure: rpcError?.message ?? (!data?.list && !rpcError ? 'Missing list payload' : undefined),
+      })
+      if (willFetchPrefs && !rpcError) {
+        logServerRoundTrip({
+          description: `Fetched list preferences for ${listTitleForLog}`,
+          ok: true,
+          durationMs: prefsDurationMs ?? 0,
+          respondsTo: staleNow
+            ? 'Open list · list_users (page may discard)'
+            : 'Open list · list_users',
+        })
+      }
+      serverDetailLogged = true
+
       if (rpcError) {
         // If we previously had access but now get an error, access was revoked
         if (hadAccessRef.current && (rpcError.code === 'P0001' || rpcError.message?.includes('Access denied'))) {
@@ -685,7 +715,7 @@ export function useList(listId: string) {
         throw new Error('List not found')
       }
 
-      if (staleCheck != null && staleCheck !== mutationVersionRef.current) {
+      if (staleNow) {
         staleDiscarded = true
         perfLog('fetchList stale_discard', {
           listId,
@@ -698,7 +728,7 @@ export function useList(listId: string) {
 
       // Mark that we have access
       hadAccessRef.current = true
-      setList(data.list)
+      useListDataStore.getState().setList(data.list)
       const serverMembers = (data.members || []).filter((m) => !isTombstoned(m.deleted_at ?? null))
       const nextItems = normalizeItemsCategory(
         (data.items || []).filter((i) => !isTombstoned(i.deleted_at ?? null)),
@@ -741,11 +771,11 @@ export function useList(listId: string) {
       let mergedItemsForCache = nextItems
       let mergedMembersForCache = serverMembers
 
-      setItems((prev) => {
+      useListDataStore.getState().setItems((prev) => {
         mergedItemsForCache = mergePendingItemCreatesIntoServerItems(nextItems, prev, pendingCreates)
         return mergedItemsForCache
       })
-      setMembers((prev) => {
+      useListDataStore.getState().setMembers((prev) => {
         mergedMembersForCache = mergePendingMembersIntoServerMembers(serverMembers, prev, pendingMemberIds)
         return mergedMembersForCache
       })
@@ -808,6 +838,15 @@ export function useList(listId: string) {
       appendOfflineNavDiagnostic(
         `[fetchList] catch listId=${listId} connectivity-ish=${isLikelyConnectivityError(err) ? 1 : 0} msg=${fetchErr}`,
       )
+      if (!serverDetailLogged) {
+        logServerRoundTrip({
+          description: `Fetched list ${formatQuotedListName(null, listId)}`,
+          ok: false,
+          durationMs: Math.round(performance.now() - fetchT0),
+          respondsTo: 'Open list page',
+          failure: err,
+        })
+      }
     } finally {
       if (listMirrorLockHeld) {
         await releaseListMirrorLock(listId, LIST_MIRROR_SESSION_OWNER)
@@ -1059,19 +1098,47 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { data: null, error: { message: blockedMutationMessage() } }
     }
+    const id = crypto.randomUUID()
+    const t = isoNow()
+    const cat = normalizeItemCategory(category ?? 1)
+    const sortOrder = nextItemSortOrdersAfterExisting(useListDataStore.getState().items, 1)[0]!
+    const base = {
+      id,
+      list_id: listId,
+      text,
+      category: cat,
+      comment: comment ?? null,
+      archived: false,
+      archived_at: null,
+      sort_order: sortOrder,
+      ...syncFieldsForLocalInsert({ client_created_at: t }),
+      updated_at: t,
+    }
+    const sync = normalizeServerSyncableFields(base as unknown as Record<string, unknown>)
+    const optimistic: ItemWithState = {
+      ...(normalizeItemsCategory([{ ...base, ...sync } as ItemWithState])[0]),
+      memberStates: {},
+    }
+    useListDataStore.getState().beginLocalListPersistence()
     try {
-      const id = await addItemMutation({
+      useListDataStore.getState().setItems((prev) => [...prev, optimistic])
+      await addItemMutation({
         user_id: userId,
         list_id: listId,
         text,
-        category: normalizeItemCategory(category ?? 1),
+        category: cat,
+        id,
+        sort_order: sortOrder,
       })
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
+      persistListSnapshotToDetailCache(userId, listId)
       return { data: { id } as Item, error: null }
     } catch (error) {
+      useListDataStore.getState().setItems((prev) => prev.filter((i) => i.id !== id))
       return { data: null, error: { message: rpcFailureMessage(error) } }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1099,9 +1166,8 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
       const cat = normalizeItemCategory(category)
-      const nowMs = Date.now()
       const t = isoNow()
-      const baseOrder = nowMs
+      const sortOrders = nextItemSortOrdersAfterExisting(useListDataStore.getState().items, trimmed.length)
       const rows: DbItemRow[] = trimmed.map((text, i) => {
         const base = {
           id: crypto.randomUUID(),
@@ -1111,33 +1177,45 @@ export function useList(listId: string) {
           comment: null,
           archived: false,
           archived_at: null,
-          sort_order: baseOrder + i,
+          sort_order: sortOrders[i]!,
           ...syncFieldsForLocalInsert({ client_created_at: t }),
           updated_at: t,
         }
         const sync = normalizeServerSyncableFields(base as unknown as Record<string, unknown>)
         return { ...base, ...sync }
       })
-      await db.transaction('rw', db.items, db.sync_queue, async () => {
-        await db.items.bulkAdd(rows)
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: newBatchEntityId(),
-          kind: 'rpc',
-          payload: {
-            method: 'bulkAddListItems',
-            list_id: listId,
-            category: cat,
-            lines: trimmed,
-            items: rows.map((r) => ({ ...r })),
-          },
-          ...listQueueParent(listId),
-          status: 'queued',
+      const optimisticRows: ItemWithState[] = normalizeItemsCategory(
+        rows.map((r) => ({ ...r, memberStates: {} } as ItemWithState)),
+      )
+      const rollbackIds = new Set(rows.map((r) => r.id))
+      useListDataStore.getState().beginLocalListPersistence()
+      try {
+        useListDataStore.getState().setItems((prev) => [...prev, ...optimisticRows])
+        await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
+          await db.items.bulkAdd(rows)
+          await enqueueSyncQueueRecord({
+            entity: 'list',
+            entity_id: newBatchEntityId(),
+            kind: 'rpc',
+            payload: {
+              method: 'bulkAddListItems',
+              list_id: listId,
+              category: cat,
+              lines: trimmed,
+              items: rows.map((r) => ({ ...r })),
+            },
+            ...listQueueParent(listId),
+            status: 'queued',
+          })
         })
-      })
-      return { error: null, inserted: trimmed.length }
-    } catch (error) {
-      return { error: { message: rpcFailureMessage(error) }, inserted: 0 }
+        persistListSnapshotToDetailCache(userId, listId)
+        return { error: null, inserted: trimmed.length }
+      } catch (error) {
+        useListDataStore.getState().setItems((prev) => prev.filter((i) => !rollbackIds.has(i.id)))
+        return { error: { message: rpcFailureMessage(error) }, inserted: 0 }
+      } finally {
+        useListDataStore.getState().endLocalListPersistence()
+      }
     } finally {
       mutationGate.end()
     }
@@ -1151,19 +1229,39 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
-    try {
-      const persistedUpdates = { ...updates }
-      const nowMs = Date.now()
-      const nowIso = new Date(nowMs).toISOString()
-      const dbPatch: Partial<Item> & { updated_at: string } = { updated_at: nowIso }
-      if (persistedUpdates.text !== undefined) dbPatch.text = persistedUpdates.text
-      if (persistedUpdates.comment !== undefined) dbPatch.comment = persistedUpdates.comment
-      if (persistedUpdates.category !== undefined) dbPatch.category = persistedUpdates.category
-      if (persistedUpdates.archived !== undefined) dbPatch.archived = persistedUpdates.archived
-      if (persistedUpdates.archived_at !== undefined) dbPatch.archived_at = persistedUpdates.archived_at
-      if (persistedUpdates.sort_order !== undefined) dbPatch.sort_order = persistedUpdates.sort_order
+    const persistedUpdates = { ...updates }
+    const nowMs = Date.now()
+    const nowIso = new Date(nowMs).toISOString()
+    const dbPatch: Partial<Item> & { updated_at: string } = { updated_at: nowIso }
+    if (persistedUpdates.text !== undefined) dbPatch.text = persistedUpdates.text
+    if (persistedUpdates.comment !== undefined) dbPatch.comment = persistedUpdates.comment
+    if (persistedUpdates.category !== undefined) dbPatch.category = persistedUpdates.category
+    if (persistedUpdates.archived !== undefined) dbPatch.archived = persistedUpdates.archived
+    if (persistedUpdates.archived_at !== undefined) dbPatch.archived_at = persistedUpdates.archived_at
+    if (persistedUpdates.sort_order !== undefined) dbPatch.sort_order = persistedUpdates.sort_order
 
-      await db.transaction('rw', db.items, db.sync_queue, async () => {
+    const rollbackItem =
+      previousItem != null
+        ? {
+            ...previousItem,
+            memberStates: { ...previousItem.memberStates },
+          }
+        : null
+
+    useListDataStore.getState().beginLocalListPersistence()
+    try {
+      useListDataStore.getState().setItems((prev) =>
+        prev.map((item) =>
+          item.id !== itemId
+            ? item
+            : {
+                ...item,
+                ...dbPatch,
+              },
+        ),
+      )
+
+      await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
         await db.items.update(itemId, dbPatch)
         const payload: Record<string, unknown> = { id: itemId }
         if (persistedUpdates.text !== undefined) payload.text = persistedUpdates.text
@@ -1208,8 +1306,14 @@ export function useList(listId: string) {
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + skipMs)
       return { error: null }
     } catch (error) {
+      if (rollbackItem) {
+        useListDataStore.getState().setItems((prev) =>
+          prev.map((it) => (it.id === itemId ? { ...rollbackItem, memberStates: { ...rollbackItem.memberStates } } : it)),
+        )
+      }
       return { error: { message: rpcFailureMessage(error) } }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1223,15 +1327,20 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
+    const itemsSnapshot = [...useListDataStore.getState().items]
+    useListDataStore.getState().beginLocalListPersistence()
     try {
+      useListDataStore.getState().setItems((prev) => prev.filter((i) => i.id !== itemId))
       await softDeleteItemMutation(userId, listId, itemId)
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       delete desiredArchivedByItemRef.current[itemId]
       return { error: null }
     } catch (error) {
+      useListDataStore.getState().setItems(itemsSnapshot)
       return { error: new Error(rpcFailureMessage(error)) }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1244,18 +1353,40 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
+    const memberId = crypto.randomUUID()
+    const t = isoNow()
+    const sortOrder = nextMemberSortOrdersAfterExisting(useListDataStore.getState().members, 1)[0]!
+    const sync = syncFieldsForLocalInsert({ client_created_at: t })
+    const optimistic: MemberWithCreator = {
+      id: memberId,
+      list_id: listId,
+      name,
+      created_by: userId,
+      sort_order: sortOrder,
+      is_public: false,
+      is_target: false,
+      ...sync,
+      updated_at: t,
+      creator: creatorNickname ? { nickname: creatorNickname } : null,
+    }
+    useListDataStore.getState().beginLocalListPersistence()
     try {
-      const memberId = await addMemberMutation({
+      useListDataStore.getState().setMembers((prev) => [...prev, optimistic])
+      await addMemberMutation({
+        id: memberId,
         user_id: userId,
         list_id: listId,
         name,
+        sort_order: sortOrder,
       })
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       return { data: { id: memberId, creator: creatorNickname ? { nickname: creatorNickname } : null }, error: null }
     } catch (error) {
+      useListDataStore.getState().setMembers((prev) => prev.filter((m) => m.id !== memberId))
       return { data: null, error: { message: rpcFailureMessage(error) } }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1265,12 +1396,25 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
+    const membersSnapshot = [...useListDataStore.getState().members]
+    const nowMs = Date.now()
+    const nowIso = new Date(nowMs).toISOString()
+    useListDataStore.getState().beginLocalListPersistence()
     try {
-      const nowMs = Date.now()
-      const nowIso = new Date(nowMs).toISOString()
+      useListDataStore.getState().setMembers((prev) =>
+        prev.map((m) =>
+          m.id !== memberId
+            ? m
+            : {
+                ...m,
+                ...updates,
+                updated_at: nowIso,
+              },
+        ),
+      )
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      await db.transaction('rw', db.members, db.sync_queue, async () => {
+      await db.transaction('rw', db.members, db.sync_queue, db.list_users, async () => {
         const memberPatch: Record<string, unknown> = { updated_at: nowIso }
         if (updates.name !== undefined) memberPatch.name = updates.name
         if (updates.is_public !== undefined) memberPatch.is_public = updates.is_public
@@ -1292,8 +1436,10 @@ export function useList(listId: string) {
       })
       return { error: null }
     } catch (error) {
+      useListDataStore.getState().setMembers(membersSnapshot)
       return { error: { message: rpcFailureMessage(error) } }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1303,11 +1449,22 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
+    const itemsSnapshot = [...useListDataStore.getState().items]
+    const membersSnapshot = [...useListDataStore.getState().members]
+    const nowIso = isoNow()
+    useListDataStore.getState().beginLocalListPersistence()
     try {
-      const nowIso = isoNow()
+      useListDataStore.getState().setMembers((prev) => prev.filter((m) => m.id !== memberId))
+      useListDataStore.getState().setItems((prev) =>
+        prev.map((item) => {
+          if (!item.memberStates[memberId]) return item
+          const { [memberId]: _, ...rest } = item.memberStates
+          return { ...item, memberStates: rest }
+        }),
+      )
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      await db.transaction('rw', db.members, db.item_member_state, db.sync_queue, async () => {
+      await db.transaction('rw', db.members, db.item_member_state, db.sync_queue, db.list_users, async () => {
         await db.members.update(memberId, {
           deleted_at: nowIso,
           updated_at: nowIso,
@@ -1332,8 +1489,11 @@ export function useList(listId: string) {
       })
       return { error: null }
     } catch (error) {
+      useListDataStore.getState().setItems(itemsSnapshot)
+      useListDataStore.getState().setMembers(membersSnapshot)
       return { error: { message: rpcFailureMessage(error) } }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1343,46 +1503,57 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
+    let membersSnapshot: MemberWithCreator[] | undefined
     try {
       const existing = members.find((m) => m.id === memberId)
       if (existing && existing.created_by === userId) {
         return { error: null, newMemberId: memberId }
       }
+      membersSnapshot = [...useListDataStore.getState().members]
       const nowIso = isoNow()
-      await db.transaction('rw', db.members, db.sync_queue, async () => {
-        await db.members.update(memberId, {
-          created_by: userId,
-          updated_at: nowIso,
+      useListDataStore.getState().beginLocalListPersistence()
+      try {
+        useListDataStore.getState().setMembers((prev) =>
+          prev.map((m) =>
+            m.id === memberId
+              ? {
+                  ...m,
+                  created_by: userId,
+                  creator: creatorNickname ? { nickname: creatorNickname } : m.creator,
+                  updated_at: nowIso,
+                }
+              : m,
+          ),
+        )
+        await db.transaction('rw', db.members, db.sync_queue, db.list_users, async () => {
+          await db.members.update(memberId, {
+            created_by: userId,
+            updated_at: nowIso,
+          })
+          await enqueueSyncQueueRecord({
+            entity: 'list',
+            entity_id: newBatchEntityId(),
+            kind: 'rpc',
+            payload: {
+              method: 'ownMember',
+              member_id: memberId,
+              user_id: userId,
+            },
+            ...listQueueParent(listId),
+            status: 'queued',
+          })
         })
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: newBatchEntityId(),
-          kind: 'rpc',
-          payload: {
-            method: 'ownMember',
-            member_id: memberId,
-            user_id: userId,
-          },
-          ...listQueueParent(listId),
-          status: 'queued',
-        })
-      })
-      mutationVersionRef.current += 1
-      skipRealtimeUntilRef.current = Date.now() + 2000
-      setMembers((prev) =>
-        prev.map((m) =>
-          m.id === memberId
-            ? {
-                ...m,
-                created_by: userId,
-                creator: creatorNickname ? { nickname: creatorNickname } : m.creator,
-              }
-            : m,
-        ),
-      )
-      markOnlineRecovered()
-      return { error: null, newMemberId: memberId }
+        mutationVersionRef.current += 1
+        skipRealtimeUntilRef.current = Date.now() + 2000
+        markOnlineRecovered()
+        return { error: null, newMemberId: memberId }
+      } finally {
+        useListDataStore.getState().endLocalListPersistence()
+      }
     } catch (error) {
+      if (membersSnapshot) {
+        useListDataStore.getState().setMembers(membersSnapshot)
+      }
       return { error: { message: rpcFailureMessage(error) || 'Failed to take ownership' } }
     } finally {
       mutationGate.end()
@@ -1400,28 +1571,43 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
+    const existingState = items.find((i) => i.id === itemId)?.memberStates[memberId]
+    const t = isoNow()
+    const syncBase =
+      existingState != null
+        ? {
+            client_created_at: existingState.client_created_at,
+            server_created_at: existingState.server_created_at,
+            deleted_at: existingState.deleted_at ?? null,
+            version: existingState.version ?? 1,
+            last_synced_at: existingState.last_synced_at ?? null,
+          }
+        : syncFieldsForLocalInsert({ client_created_at: t })
+    const optimisticState: ItemMemberState = {
+      item_id: itemId,
+      member_id: memberId,
+      ...syncBase,
+      quantity: updates.quantity ?? existingState?.quantity ?? 1,
+      done: updates.done ?? existingState?.done ?? false,
+      assigned: updates.assigned ?? existingState?.assigned ?? false,
+      updated_at: t,
+    }
+    const itemsSnapshot = [...useListDataStore.getState().items]
+    useListDataStore.getState().beginLocalListPersistence()
     try {
-      const existingState = items.find(i => i.id === itemId)?.memberStates[memberId]
-      const t = isoNow()
-      const syncBase =
-        existingState != null
-          ? {
-              client_created_at: existingState.client_created_at,
-              server_created_at: existingState.server_created_at,
-              deleted_at: existingState.deleted_at ?? null,
-              version: existingState.version ?? 1,
-              last_synced_at: existingState.last_synced_at ?? null,
-            }
-          : syncFieldsForLocalInsert({ client_created_at: t })
-      const optimisticState: ItemMemberState = {
-        item_id: itemId,
-        member_id: memberId,
-        ...syncBase,
-        quantity: updates.quantity ?? existingState?.quantity ?? 1,
-        done: updates.done ?? existingState?.done ?? false,
-        assigned: updates.assigned ?? existingState?.assigned ?? false,
-        updated_at: t,
-      }
+      useListDataStore.getState().setItems((prev) =>
+        prev.map((item) =>
+          item.id !== itemId
+            ? item
+            : {
+                ...item,
+                memberStates: {
+                  ...item.memberStates,
+                  [memberId]: optimisticState,
+                },
+              },
+        ),
+      )
       await toggleItemMemberStateMutation({
         list_id: listId,
         item_id: itemId,
@@ -1432,8 +1618,10 @@ export function useList(listId: string) {
       skipRealtimeUntilRef.current = Date.now() + 2000
       return { error: null }
     } catch (error) {
+      useListDataStore.getState().setItems(itemsSnapshot)
       return { error: { message: rpcFailureMessage(error) } }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1445,28 +1633,43 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { data: null, error: { message: blockedMutationMessage() } }
     }
+    const previousState = items.find((item) => item.id === itemId)?.memberStates[memberId]
+    const t = isoNow()
+    const syncBase =
+      previousState != null
+        ? {
+            client_created_at: previousState.client_created_at,
+            server_created_at: previousState.server_created_at,
+            deleted_at: previousState.deleted_at ?? null,
+            version: previousState.version ?? 1,
+            last_synced_at: previousState.last_synced_at ?? null,
+          }
+        : syncFieldsForLocalInsert({ client_created_at: t })
+    const optimisticState: ItemMemberState = {
+      item_id: itemId,
+      member_id: memberId,
+      ...syncBase,
+      quantity: Math.max(1, (previousState?.quantity || 1) + delta),
+      done: previousState?.done || false,
+      assigned: previousState?.assigned ?? true,
+      updated_at: t,
+    }
+    const itemsSnapshot = [...useListDataStore.getState().items]
+    useListDataStore.getState().beginLocalListPersistence()
     try {
-      const previousState = items.find(item => item.id === itemId)?.memberStates[memberId]
-      const t = isoNow()
-      const syncBase =
-        previousState != null
-          ? {
-              client_created_at: previousState.client_created_at,
-              server_created_at: previousState.server_created_at,
-              deleted_at: previousState.deleted_at ?? null,
-              version: previousState.version ?? 1,
-              last_synced_at: previousState.last_synced_at ?? null,
-            }
-          : syncFieldsForLocalInsert({ client_created_at: t })
-      const optimisticState: ItemMemberState = {
-        item_id: itemId,
-        member_id: memberId,
-        ...syncBase,
-        quantity: Math.max(1, (previousState?.quantity || 1) + delta),
-        done: previousState?.done || false,
-        assigned: previousState?.assigned ?? true,
-        updated_at: t,
-      }
+      useListDataStore.getState().setItems((prev) =>
+        prev.map((item) =>
+          item.id !== itemId
+            ? item
+            : {
+                ...item,
+                memberStates: {
+                  ...item.memberStates,
+                  [memberId]: optimisticState,
+                },
+              },
+        ),
+      )
       await toggleItemMemberStateMutation({
         list_id: listId,
         item_id: itemId,
@@ -1477,8 +1680,10 @@ export function useList(listId: string) {
       skipRealtimeUntilRef.current = Date.now() + 2000
       return { data: optimisticState.quantity, error: null }
     } catch (error) {
+      useListDataStore.getState().setItems(itemsSnapshot)
       return { data: null, error: { message: rpcFailureMessage(error) } }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1491,12 +1696,15 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() }, count: 0 }
     }
+    const itemsSnapshot = [...useListDataStore.getState().items]
+    useListDataStore.getState().beginLocalListPersistence()
     try {
+      useListDataStore.getState().setItems((prev) => prev.filter((i) => !archivedIds.has(i.id)))
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
       const nowMs = Date.now()
       const nowIso = new Date(nowMs).toISOString()
-      await db.transaction('rw', db.items, db.sync_queue, async () => {
+      await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
         for (const itemId of archivedIds) {
           await db.items.update(itemId, {
             deleted_at: isoNow(),
@@ -1514,8 +1722,10 @@ export function useList(listId: string) {
       })
       return { error: null, count: archivedIds.size }
     } catch (error) {
+      useListDataStore.getState().setItems(itemsSnapshot)
       return { error: { message: rpcFailureMessage(error) }, count: 0 }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1528,12 +1738,21 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() }, count: 0 }
     }
+    const archivedIdSet = new Set(archivedIds)
+    const itemsSnapshot = [...useListDataStore.getState().items]
+    const nowIso = new Date(Date.now()).toISOString()
+    useListDataStore.getState().beginLocalListPersistence()
     try {
+      useListDataStore.getState().setItems((prev) =>
+        prev.map((i) =>
+          archivedIdSet.has(i.id)
+            ? { ...i, archived: false, archived_at: null, updated_at: nowIso }
+            : i,
+        ),
+      )
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
-      const nowMs = Date.now()
-      const nowIso = new Date(nowMs).toISOString()
-      await db.transaction('rw', db.items, db.sync_queue, async () => {
+      await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
         for (const itemId of archivedIds) {
           await db.items.update(itemId, {
             archived: false,
@@ -1552,8 +1771,10 @@ export function useList(listId: string) {
       })
       return { error: null, count: archivedIds.length }
     } catch (error) {
+      useListDataStore.getState().setItems(itemsSnapshot)
       return { error: { message: rpcFailureMessage(error) }, count: 0 }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1563,13 +1784,22 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
+    const itemsSnapshot = [...useListDataStore.getState().items]
+    const nowIso = new Date(Date.now()).toISOString()
+    const reorderedWithTs = normalizeItemsCategory(
+      reorderedItems.map((item, index) => ({
+        ...item,
+        sort_order: index,
+        updated_at: nowIso,
+      })),
+    )
+    useListDataStore.getState().beginLocalListPersistence()
     try {
+      useListDataStore.getState().setItems(reorderedWithTs)
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
-      const nowMs = Date.now()
-      const nowIso = new Date(nowMs).toISOString()
       const itemIds = reorderedItems.map((item) => item.id)
-      await db.transaction('rw', db.items, db.sync_queue, async () => {
+      await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
         for (const [index, item] of reorderedItems.entries()) {
           await db.items.update(item.id, {
             sort_order: index,
@@ -1587,8 +1817,10 @@ export function useList(listId: string) {
       })
       return { error: null }
     } catch (error) {
+      useListDataStore.getState().setItems(itemsSnapshot)
       return { error: { message: rpcFailureMessage(error) } }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -1833,7 +2065,7 @@ export function useList(listId: string) {
     const serialized = Object.keys(nonEmpty).length > 0 ? JSON.stringify(nonEmpty) : '{}'
     mutationVersionRef.current += 1
     setCategoryNames({ ...EMPTY_CATEGORY_NAMES, ...names })
-    setList(l => (l ? { ...l, category_names: serialized } : l))
+    useListDataStore.getState().setList((l) => (l ? { ...l, category_names: serialized } : l))
 
     try {
       const existing = await db.lists.get(listId)
@@ -1847,7 +2079,7 @@ export function useList(listId: string) {
         app_version: APP_VERSION,
       }
       const sync = normalizeServerSyncableFields(merged as unknown as Record<string, unknown>)
-      await db.transaction('rw', db.lists, db.sync_queue, async () => {
+      await db.transaction('rw', db.lists, db.sync_queue, db.list_users, async () => {
         await db.lists.put(withLastSyncedNow({ ...merged, ...sync }))
         await enqueueSyncQueueRecord({
           entity: 'list',
@@ -1862,7 +2094,7 @@ export function useList(listId: string) {
       return { error: null }
     } catch {
       setCategoryNames(prev)
-      setList(prevList)
+      useListDataStore.getState().setList(prevList)
       return { error: new Error('Failed to save categories') }
     }
   }
@@ -1873,7 +2105,7 @@ export function useList(listId: string) {
     const serialized = JSON.stringify(order)
     mutationVersionRef.current += 1
     setCategoryOrder(order)
-    setList(l => (l ? { ...l, category_order: serialized } : l))
+    useListDataStore.getState().setList((l) => (l ? { ...l, category_order: serialized } : l))
 
     try {
       const existing = await db.lists.get(listId)
@@ -1887,7 +2119,7 @@ export function useList(listId: string) {
         app_version: APP_VERSION,
       }
       const sync = normalizeServerSyncableFields(merged as unknown as Record<string, unknown>)
-      await db.transaction('rw', db.lists, db.sync_queue, async () => {
+      await db.transaction('rw', db.lists, db.sync_queue, db.list_users, async () => {
         await db.lists.put(withLastSyncedNow({ ...merged, ...sync }))
         await enqueueSyncQueueRecord({
           entity: 'list',
@@ -1902,7 +2134,7 @@ export function useList(listId: string) {
       return { error: null }
     } catch {
       setCategoryOrder(prev)
-      setList(prevList)
+      useListDataStore.getState().setList(prevList)
       return { error: new Error('Failed to save category order') }
     }
   }
@@ -1950,55 +2182,75 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return
     }
+    useListDataStore.getState().beginLocalListPersistence()
     try {
-    if (memberFilter !== 'all') {
-      await updateMemberFilter('all')
-    }
+      if (memberFilter !== 'all') {
+        await updateMemberFilter('all')
+      }
 
-    const memberId = crypto.randomUUID()
-    const now = isoNow()
-    const sync = syncFieldsForLocalInsert({ client_created_at: now })
-    const creatorFromProfile = profile?.nickname ? { nickname: profile.nickname } : null
-    const optimisticTarget: MemberWithCreator = {
-      id: memberId,
-      list_id: listId,
-      name: 'Qty',
-      created_by: userId,
-      sort_order: 0,
-      is_public: false,
-      is_target: true,
-      ...sync,
-      updated_at: now,
-      creator: creatorFromProfile,
-    }
-    mutationVersionRef.current += 1
-    skipRealtimeUntilRef.current = Date.now() + 2000
-    setMembers(prev => [optimisticTarget, ...prev])
-
-    try {
-      await addMemberMutation({
+      const memberId = crypto.randomUUID()
+      const now = isoNow()
+      const sync = syncFieldsForLocalInsert({ client_created_at: now })
+      const creatorFromProfile = profile?.nickname ? { nickname: profile.nickname } : null
+      const optimisticTarget: MemberWithCreator = {
         id: memberId,
-        user_id: userId,
         list_id: listId,
         name: 'Qty',
-        is_target: true,
+        created_by: userId,
         sort_order: 0,
-      })
-    } catch {
-      setMembers(prev => prev.filter(m => m.id !== memberId))
-      return
-    }
-    markOnlineRecovered()
+        is_public: false,
+        is_target: true,
+        ...sync,
+        updated_at: now,
+        creator: creatorFromProfile,
+      }
+      mutationVersionRef.current += 1
+      skipRealtimeUntilRef.current = Date.now() + 2000
+      useListDataStore.getState().setMembers((prev) => [optimisticTarget, ...prev])
 
-    if (items.length > 0) {
-      const syncRow = syncFieldsForLocalInsert({ client_created_at: now })
+      try {
+        await addMemberMutation({
+          id: memberId,
+          user_id: userId,
+          list_id: listId,
+          name: 'Qty',
+          is_target: true,
+          sort_order: 0,
+        })
+      } catch {
+        useListDataStore.getState().setMembers((prev) => prev.filter((m) => m.id !== memberId))
+        return
+      }
+      markOnlineRecovered()
 
-      setItems((prev) =>
-        prev.map((i) => ({
-          ...i,
-          memberStates: {
-            ...i.memberStates,
-            [memberId]: {
+      const itemsForIms = useListDataStore.getState().items
+      if (itemsForIms.length > 0) {
+        const syncRow = syncFieldsForLocalInsert({ client_created_at: now })
+
+        useListDataStore.getState().setItems((prev) =>
+          prev.map((i) => ({
+            ...i,
+            memberStates: {
+              ...i.memberStates,
+              [memberId]: {
+                item_id: i.id,
+                member_id: memberId,
+                quantity: 1,
+                done: false,
+                assigned: true,
+                ...syncRow,
+                updated_at: now,
+              },
+            },
+          })),
+        )
+
+        for (const i of itemsForIms) {
+          await toggleItemMemberStateMutation({
+            list_id: listId,
+            item_id: i.id,
+            member_id: memberId,
+            state: {
               item_id: i.id,
               member_id: memberId,
               quantity: 1,
@@ -2007,29 +2259,12 @@ export function useList(listId: string) {
               ...syncRow,
               updated_at: now,
             },
-          },
-        })),
-      )
-
-      for (const i of items) {
-        await toggleItemMemberStateMutation({
-          list_id: listId,
-          item_id: i.id,
-          member_id: memberId,
-          state: {
-            item_id: i.id,
-            member_id: memberId,
-            quantity: 1,
-            done: false,
-            assigned: true,
-            ...syncRow,
-            updated_at: now,
-          },
-        })
+          })
+        }
+        markOnlineRecovered()
       }
-      markOnlineRecovered()
-    }
     } finally {
+      useListDataStore.getState().endLocalListPersistence()
       mutationGate.end()
     }
   }
@@ -2051,6 +2286,7 @@ export function useList(listId: string) {
     list,
     items: itemsForUi,
     members,
+    listDataStatus,
     loading,
     isFetching,
     isInitialSyncing,

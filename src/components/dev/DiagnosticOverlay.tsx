@@ -69,11 +69,14 @@ function useInMemoryLogBuffer(): [LogLine[], () => void] {
 
 export function DiagnosticOverlay() {
   const { success: showSuccess, error: showError } = useToast()
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator !== 'undefined' ? navigator.onLine : true,
-  )
+  const [isOnline, setIsOnline] = useState(true)
   const [logs, clearLogs] = useInMemoryLogBuffer()
-  const [verboseLogging, setVerboseLogging] = useState<boolean>(() => isDebugVerboseEnabled())
+  const [verboseLogging, setVerboseLogging] = useState(false)
+
+  useEffect(() => {
+    setIsOnline(typeof navigator !== 'undefined' ? navigator.onLine : true)
+    setVerboseLogging(isDebugVerboseEnabled())
+  }, [])
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true)

@@ -75,21 +75,7 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
   await db.transaction('rw', db.lists, db.list_users, async () => {
     const incomingIds = new Set(rows.map((row) => row.id))
     for (const row of rows) {
-      const {
-        role,
-        userArchived,
-        sort_order,
-        sumScope,
-        label,
-        memberCount,
-        activeItemCount,
-        archivedItemCount,
-        ownerNickname,
-      } = row
-      void memberCount
-      void activeItemCount
-      void archivedItemCount
-      void ownerNickname
+      const { role, userArchived, sort_order, sumScope, label } = row
       const existingList = await db.lists.get(row.id)
       const listSync = normalizeServerSyncableFields(row as unknown as Record<string, unknown>)
       await db.lists.put(
@@ -138,6 +124,7 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
           last_viewed_members: existingListUser?.last_viewed_members ?? null,
           sum_scope: sumScope ?? 'none',
           label: label ?? '',
+          sync_error: existingListUser?.sync_error ?? false,
         }),
       )
     }
@@ -316,6 +303,7 @@ export async function upsertListPrefsFromServer(
       show_targets: existingByComposite?.show_targets ?? false,
       item_name_font_step: row.item_name_font_step ?? existingByComposite?.item_name_font_step ?? 3,
       sum_scope: normalizeListUserSumScope(row.sum_scope),
+      sync_error: existingByComposite?.sync_error ?? false,
     }),
   )
 }

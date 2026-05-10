@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
-import { upsertListDataPayloadFromMirror, type GetUserListsRow } from '@/lib/data/serverDexieParity'
+import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
+import { upsertListDataPayloadFromMirror } from '@/lib/data/serverDexieParity'
 import { releaseListMirrorLock, waitForListMirrorLock } from '@/lib/data/listMirrorLock'
 
 const supabase = createClient()
@@ -108,6 +109,7 @@ export async function runListMirrorJob(
     appendMutationDiagnostic(`[list-mirror] skip lock timeout listId=${listId}`)
     return false
   }
+  let rpcT0 = 0
   try {
     await db.meta.put({
       id: LIST_MIRROR_RUNNING_META_ID,
@@ -135,10 +137,18 @@ export async function runListMirrorJob(
     appendMutationDiagnostic(
       `[list-mirror] fetch get_list_data listId=${listId} list.version=${list.version} lastMirrored=${lastMirrored} bypass=${bypass ? 1 : 0}`,
     )
+    rpcT0 = performance.now()
     const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
     if (error) throw error
     if (!data?.list) {
       appendMutationDiagnostic(`[list-mirror] skip empty payload listId=${listId}`)
+      logServerRoundTrip({
+        description: `Fetched list ${formatQuotedListName(list.name, listId)} (background cache)`,
+        ok: false,
+        durationMs: performance.now() - rpcT0,
+        respondsTo: 'Background list mirror',
+        failure: 'Empty payload',
+      })
       return false
     }
 
@@ -156,9 +166,22 @@ export async function runListMirrorJob(
       updated_at: Date.now(),
     })
     appendMutationDiagnostic(`[list-mirror] ok listId=${listId} items=${items.length} members=${members.length}`)
+    logServerRoundTrip({
+      description: `Fetched list ${formatQuotedListName(data.list.name, listId)} (${items.length} items, ${members.length} members, background cache)`,
+      ok: true,
+      durationMs: performance.now() - rpcT0,
+      respondsTo: 'Background list mirror',
+    })
     return true
   } catch (e) {
     appendMutationDiagnostic(`[list-mirror] error listId=${listId} msg=${e instanceof Error ? e.message : String(e)}`)
+    logServerRoundTrip({
+      description: `Fetched list ${formatQuotedListName(null, listId)} (background cache)`,
+      ok: false,
+      durationMs: rpcT0 > 0 ? performance.now() - rpcT0 : 0,
+      respondsTo: 'Background list mirror',
+      failure: e,
+    })
     return false
   } finally {
     await db.meta.put({
@@ -182,14 +205,3 @@ export async function drainListMirrorQueueOnce(userId: string): Promise<{ proces
   return { processed: 1, succeeded }
 }
 
-export async function collectListIdsNeedingMirrorFromSummaries(rows: GetUserListsRow[]): Promise<string[]> {
-  const ids: string[] = []
-  for (const row of rows) {
-    if (row.archived || row.userArchived) continue
-    const local = await db.lists.get(row.id)
-    const localV = local?.version ?? 0
-    const serverV = row.version ?? 1
-    if (serverV > localV) ids.push(row.id)
-  }
-  return ids
-}

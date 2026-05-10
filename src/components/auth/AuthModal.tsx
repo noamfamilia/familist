@@ -5,7 +5,6 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/providers/AuthProvider'
-import { ClientHydrationGate } from '@/components/app/ClientHydrationGate'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -94,12 +93,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   // Sign in / Sign up / Forgot password form
   return (
-    <ClientHydrationGate>
-      <Modal 
-        isOpen={isOpen} 
-        onClose={handleClose} 
-        title={getTitle()}
-      >
+    <Modal 
+      isOpen={isOpen} 
+      onClose={handleClose} 
+      title={getTitle()}
+    >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Email"
@@ -208,6 +206,5 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </Button>
         </div>
       </Modal>
-    </ClientHydrationGate>
   )
 }

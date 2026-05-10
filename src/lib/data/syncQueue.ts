@@ -1,4 +1,6 @@
+import { getActiveCacheUserId } from '@/lib/cache'
 import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind } from '@/lib/db'
+import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 
 export function itemMemberStateOutboxKey(itemId: string, memberId: string) {
   return `ims:${itemId}:${memberId}`
@@ -59,6 +61,8 @@ export async function clearSyncQueueForList(listId: string): Promise<void> {
       )
     })
     .delete()
+  const uid = getActiveCacheUserId()
+  if (uid) await clearListUserSyncError(listId, uid)
 }
 
 type EnqueueInput = Omit<
@@ -101,6 +105,15 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
       next_retry_at,
       updated_at: ts,
     })
+    await clearListUserSyncErrorsForEnqueueRow({
+      parent1_type: input.parent1_type,
+      parent1_id: input.parent1_id,
+      kind: 'delete',
+      entity: input.entity,
+      entity_id: input.entity_id,
+      payload: input.payload,
+      status,
+    })
     return
   }
 
@@ -126,6 +139,15 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
         parent2_type: input.parent2_type ?? existing.parent2_type,
         parent2_id: input.parent2_id ?? existing.parent2_id,
       })
+      await clearListUserSyncErrorsForEnqueueRow({
+        parent1_type: input.parent1_type ?? existing.parent1_type,
+        parent1_id: input.parent1_id ?? existing.parent1_id,
+        kind: 'patch',
+        entity: input.entity,
+        entity_id: input.entity_id,
+        payload: mergedPayload,
+        status: 'queued',
+      })
       return
     }
   }
@@ -146,6 +168,15 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
     last_error,
     next_retry_at,
     updated_at: ts,
+  })
+  await clearListUserSyncErrorsForEnqueueRow({
+    parent1_type: input.parent1_type,
+    parent1_id: input.parent1_id,
+    kind: input.kind,
+    entity: input.entity,
+    entity_id: input.entity_id,
+    payload: input.payload,
+    status,
   })
 }
 

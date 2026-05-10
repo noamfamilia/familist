@@ -11,6 +11,12 @@ export type DbListRow = List & {
 
 export type DbListUserRow = ListUser & {
   id: Uuid
+  /**
+   * Dexie-only. When true, last outbound attempt for this membership’s lists failed (see `useSyncStore` /
+   * `listUserSyncStatus`). Cleared on new worker attempt, successful send, enqueue of new work, or
+   * `clearSyncQueueForList`. Drives **error** vs **stale** on `ListSyncStatusIcon` with `pending_items`.
+   */
+  sync_error?: boolean
 }
 
 export type DbItemRow = Item
@@ -37,6 +43,19 @@ export type SyncQueueEntity =
 
 export type SyncQueueKind = 'create' | 'patch' | 'delete' | 'rpc'
 
+/**
+ * Outbound Dexie `sync_queue` row state — driven by `useSyncStore` (see `tryClaimSyncRow`, drain loop).
+ *
+ * - **queued** — Not being executed yet. Worker picks it when `isEligibleForSync` passes (`next_retry_at`,
+ *   lock freshness). New rows default here.
+ * - **processing** — Worker claimed the row (`tryClaimSyncRow`), is running `executeOutboundRow` (Supabase RPC/table writes).
+ *   On success the row is **deleted**. On failure → **failed** or connectivity retry → back to **queued** with delay.
+ * - **failed** — Non-connectivity error or verification failure; `last_error` set, `attempt_count` bumped, exponential
+ *   `next_retry_at`. Window `online` may reset all failed → queued (`resetFailedSyncQueueRows`).
+ *
+ * **Consumers:** `useSyncStore` (drain), `useListsQuery` / `countPendingOutboundForList` (per-list `pending_items`),
+ * `outboundDeletePending` in serverDexieParity, `waitForSyncQueueRowCompletion`, `versionCheck` prune, dev Diagnostics.
+ */
 export type SyncQueueStatus = 'queued' | 'processing' | 'failed'
 
 export type DbSyncQueueRow = {
@@ -192,6 +211,29 @@ export class FamilistDexie extends Dexie {
           value: true,
           updated_at: Date.now(),
         } as never)
+      })
+    this.version(11)
+      .stores({
+        lists: '&id, owner_id',
+        list_users: '&id, [list_id+user_id], user_id',
+        items: '&id, list_id, text',
+        members: '&id, [list_id+name], list_id',
+        item_member_state: '&id, [item_id+member_id], member_id, [list_id+item_id]',
+        profiles: '&id',
+        feedback: '&id, user_id',
+        sync_queue:
+          '&id, status, [entity+entity_id], [status+updated_at], parent1_type, parent1_id, parent2_id, updated_at, next_retry_at',
+        offline_route_markers: '&id',
+        meta: '&id',
+      })
+      .upgrade(async (trans) => {
+        const lu = trans.table('list_users')
+        const rows = await lu.toArray()
+        for (const r of rows as Array<Record<string, unknown> & { id: string }>) {
+          if (r.sync_error === undefined) {
+            await lu.update(r.id, { sync_error: false } as never)
+          }
+        }
       })
   }
 }

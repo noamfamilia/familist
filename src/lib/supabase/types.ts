@@ -280,7 +280,12 @@ export interface Database {
     CompositeTypes: Record<string, never>
     Functions: {
       create_list: {
-        Args: { p_id?: string; p_name: string; p_label?: string }
+        Args: {
+          p_id?: string
+          p_name: string
+          p_label?: string
+          p_client_created_at?: string
+        }
         Returns: Database['public']['Tables']['lists']['Row']
       }
       join_list_by_token: {
@@ -304,9 +309,6 @@ export interface Database {
           role: 'owner' | 'editor' | 'viewer'
           userArchived: boolean
           sort_order: number | null
-          memberCount: number
-          activeItemCount: number
-          archivedItemCount?: number
           sumScope?: 'none' | 'all' | 'active' | 'archived'
           ownerNickname: string | null
           comment: string | null
@@ -326,7 +328,15 @@ export interface Database {
         }
       }
       duplicate_list: {
-        Args: { p_source_list_id: string; p_new_name: string; p_label?: string; p_id?: string }
+        Args: {
+          p_source_list_id: string
+          p_new_name: string
+          p_label?: string
+          p_id?: string
+          p_item_ids?: string[]
+          p_target_member_id?: string
+          p_client_created_at?: string
+        }
         Returns: {
           list: Database['public']['Tables']['lists']['Row'] | null
           items: (Database['public']['Tables']['items']['Row'] & {
@@ -397,6 +407,8 @@ export interface Database {
           p_category_names?: string
           p_rows?: Json
           p_has_targets?: boolean
+          p_item_ids?: string[]
+          p_client_created_at?: string
         }
         Returns: Database['public']['Tables']['lists']['Row']
       }
@@ -438,6 +450,10 @@ export type ListWithRole = List & {
   ownerNickname?: string | null
   comment?: string | null
   label?: string
+  /** Outbound sync queue rows touching this list (Dexie liveQuery). */
+  pending_items?: number
+  /** Dexie `list_users.sync_error`: last push failed until retry / success / manual edit */
+  sync_error?: boolean
 }
 
 export type ItemWithState = Database['public']['Functions']['get_list_data']['Returns']['items'][number]

@@ -4,8 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { ThemedImage } from '@/components/ui/ThemedImage'
-import { ConnectivityStatusIcon } from '@/components/ui/ConnectivityStatusIcon'
-import { SyncIcon } from '@/components/sync/SyncIcon'
 import { ProfileModal } from '@/components/profile/ProfileModal'
 
 
@@ -25,7 +23,6 @@ import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
-import { ClientHydrationGate } from '@/components/app/ClientHydrationGate'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -76,7 +73,6 @@ function HomeContent() {
   const searchParams = useSearchParams()
   const { user, profile, loading, bootstrapUserId, profileFetchPhase, updateProfile } = useAuth()
   const {
-    showOfflineBanner,
     offlineAssetsReady,
     online,
     internetReachable,
@@ -359,11 +355,7 @@ function HomeContent() {
     log.info('GATE', 'HomeContent', payload)
   }, [internetReachable, loading, online, showListsShell])
 
-  if (!hasMounted) {
-    return null
-  }
-
-  if (loading && !effectiveUserId) {
+  if (!hasMounted || (loading && !effectiveUserId)) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>
@@ -608,16 +600,7 @@ function HomeContent() {
       </div>
 
       {/* Header */}
-      {showOfflineBanner ? (
-        <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
-          Offline Mode - Changes will sync later
-        </div>
-      ) : null}
-      <header className="flex items-center justify-center gap-2 sm:gap-3 mb-6 sm:mb-8">
-        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-          <ConnectivityStatusIcon />
-          <SyncIcon />
-        </div>
+      <header className="flex items-center justify-center mb-6 sm:mb-8">
         <ThemedImage
           src="/logo.png"
           alt="MyFamiList"
@@ -710,7 +693,7 @@ function HomeContent() {
                   ...sync,
                 }
                 const normalized = normalizeServerSyncableFields(base as Record<string, unknown>)
-                await db.transaction('rw', db.feedback, db.sync_queue, async () => {
+                await db.transaction('rw', db.feedback, db.sync_queue, db.list_users, async () => {
                   await db.feedback.put({ ...base, ...normalized } as never)
                   await enqueueSyncQueueRecord({
                     entity: 'feedback',
@@ -757,9 +740,7 @@ function HomeFallback() {
 export default function Home() {
   return (
     <Suspense fallback={<HomeFallback />}>
-      <ClientHydrationGate>
-        <HomeContent />
-      </ClientHydrationGate>
+      <HomeContent />
     </Suspense>
   )
 }

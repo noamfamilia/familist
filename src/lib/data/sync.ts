@@ -4,24 +4,63 @@ import {
   upsertListsSummaryFromServer,
 } from '@/lib/data/serverDexieParity'
 import { setLastMirroredListDetailVersion } from '@/lib/data/listMirror'
+import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
 
 const supabase = createClient()
 
-export async function syncLists(userId: string) {
-  const { data, error } = await supabase.rpc('get_user_lists')
-  if (error) throw error
-  await upsertListsSummaryFromServer(userId, data ?? [])
+export async function syncLists(userId: string, respondsTo: string) {
+  const t0 = performance.now()
+  try {
+    const { data, error } = await supabase.rpc('get_user_lists')
+    if (error) throw error
+    await upsertListsSummaryFromServer(userId, data ?? [])
+    const n = Array.isArray(data) ? data.length : 0
+    logServerRoundTrip({
+      description: `Fetched list catalog (${n} lists)`,
+      ok: true,
+      durationMs: performance.now() - t0,
+      respondsTo,
+    })
+  } catch (e) {
+    logServerRoundTrip({
+      description: 'Fetched list catalog',
+      ok: false,
+      durationMs: performance.now() - t0,
+      respondsTo,
+      failure: e,
+    })
+    throw e
+  }
 }
 
-export async function syncListDetail(userId: string, listId: string) {
-  const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
-  if (error) throw error
-  const list = data?.list ?? null
-  const items = data?.items ?? []
-  const members = data?.members ?? []
+export async function syncListDetail(userId: string, listId: string, respondsTo: string) {
+  const t0 = performance.now()
+  try {
+    const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
+    if (error) throw error
+    const list = data?.list ?? null
+    const items = data?.items ?? []
+    const members = data?.members ?? []
 
-  await upsertListDataPayloadFromServer(userId, listId, { list, items, members })
-  if (list) {
-    await setLastMirroredListDetailVersion(listId, list.version ?? 1)
+    await upsertListDataPayloadFromServer(userId, listId, { list, items, members })
+    if (list) {
+      await setLastMirroredListDetailVersion(listId, list.version ?? 1)
+    }
+    const title = formatQuotedListName(list?.name, listId)
+    logServerRoundTrip({
+      description: `Fetched list ${title} (${items.length} items, ${members.length} members)`,
+      ok: true,
+      durationMs: performance.now() - t0,
+      respondsTo,
+    })
+  } catch (e) {
+    logServerRoundTrip({
+      description: `Fetched list ${formatQuotedListName(null, listId)}`,
+      ok: false,
+      durationMs: performance.now() - t0,
+      respondsTo,
+      failure: e,
+    })
+    throw e
   }
 }
