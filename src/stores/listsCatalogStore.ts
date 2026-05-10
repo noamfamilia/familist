@@ -91,6 +91,8 @@ type ListsCatalogActions = {
   beginRemoteDetailPrefetchForLists: (listIds: readonly string[]) => void
   finishRemoteDetailPrefetchOne: (listId: string, ok: boolean) => void
   expireRemoteDetailPulseIfMatches: (listId: string, expectedStartedAt: number) => void
+  /** Green hold+fade on list cards (same window as outbound pending→0) after server pull changed Dexie vs RPC snapshot. */
+  recordCatalogListPullSuccessPulse: (listId: string) => void
 }
 
 export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActions>((set, get) => ({
@@ -195,6 +197,17 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
       next.delete(listId)
       return { remoteDetailPulseAt: next }
     }),
+
+  recordCatalogListPullSuccessPulse: (listId) => {
+    const startedAt = Date.now()
+    set((s) => {
+      const pruned = pruneCompletedRecentSuccesses(s.recentSuccesses, startedAt)
+      const next = new Map(pruned)
+      next.set(listId, startedAt)
+      return { recentSuccesses: next }
+    })
+    scheduleRecentSuccessRemoval(listId, startedAt)
+  },
 }))
 
 export async function warmListsCatalog(userId: string): Promise<void> {

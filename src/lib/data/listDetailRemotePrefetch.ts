@@ -1,7 +1,9 @@
 import { setCachedList } from '@/lib/cache'
 import { createClient } from '@/lib/supabase/client'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
+import { serverListDetailDiffersFromDexie } from '@/lib/data/listDetailServerDexieDiff'
 import { upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
+import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
 import type { ItemWithState, List, MemberWithCreator } from '@/lib/supabase/types'
 import { useListsCatalogStore } from '@/stores/listsCatalogStore'
@@ -46,8 +48,12 @@ export async function prefetchListDetailsFromServer(
 
   for (const listId of listIds) {
     try {
+      appendMutationDiagnostic(`[get_list_data] prefetch start listId=${listId}`)
       const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
       if (error || !data?.list) {
+        appendMutationDiagnostic(
+          `[get_list_data] prefetch rpc_fail listId=${listId} err=${error?.message ?? 'no_list'}`,
+        )
         cat.finishRemoteDetailPrefetchOne(listId, false)
         continue
       }
@@ -57,18 +63,26 @@ export async function prefetchListDetailsFromServer(
       const nextItems = normalizeItemsCategory(
         ((data.items ?? []) as ItemWithState[]).filter((i) => !isTombstoned(i.deleted_at ?? null)),
       )
-      await upsertListDataPayloadFromServer(userId, listId, {
+      const payload = {
         list: data.list as List,
         items: nextItems,
         members: serverMembers,
-      })
-      setCachedList(userId, listId, {
-        list: data.list as List,
-        items: nextItems,
-        members: serverMembers,
-      })
-      cat.finishRemoteDetailPrefetchOne(listId, true)
-    } catch {
+      }
+      const differs = await serverListDetailDiffersFromDexie(userId, listId, payload)
+      appendMutationDiagnostic(
+        `[get_list_data] prefetch pre_apply listId=${listId} diff=${differs ? 1 : 0} items=${nextItems.length} members=${serverMembers.length}`,
+      )
+      await upsertListDataPayloadFromServer(userId, listId, payload)
+      setCachedList(userId, listId, payload)
+      cat.finishRemoteDetailPrefetchOne(listId, false)
+      if (differs) {
+        cat.recordCatalogListPullSuccessPulse(listId)
+      }
+      appendMutationDiagnostic(`[get_list_data] prefetch applied listId=${listId}`)
+    } catch (e) {
+      appendMutationDiagnostic(
+        `[get_list_data] prefetch catch listId=${listId} msg=${e instanceof Error ? e.message : String(e)}`,
+      )
       cat.finishRemoteDetailPrefetchOne(listId, false)
     }
   }

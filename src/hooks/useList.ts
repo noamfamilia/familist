@@ -28,7 +28,9 @@ import { LIST_MIRROR_SESSION_OWNER, setLastMirroredListDetailVersion } from '@/l
 import { releaseListMirrorLock, waitForListMirrorLock } from '@/lib/data/listMirrorLock'
 import { perfLog } from '@/lib/startupPerfLog'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
-import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { appendMutationDiagnostic, appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { serverListDetailDiffersFromDexie } from '@/lib/data/listDetailServerDexieDiff'
+import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 import {
   isLikelyConnectivityError,
   resolveServerWorkOutcomeFromResult,
@@ -727,13 +729,22 @@ export function useList(listId: string) {
         return
       }
 
-      // Mark that we have access
-      hadAccessRef.current = true
-      useListDataStore.getState().setList(data.list)
       const serverMembers = (data.members || []).filter((m) => !isTombstoned(m.deleted_at ?? null))
       const nextItems = normalizeItemsCategory(
         (data.items || []).filter((i) => !isTombstoned(i.deleted_at ?? null)),
       )
+      const differsFromDexie = await serverListDetailDiffersFromDexie(userId, listId, {
+        list: data.list,
+        items: nextItems,
+        members: serverMembers,
+      })
+      appendMutationDiagnostic(
+        `[fetchList] get_list_data vs_dexie listId=${listId} diff=${differsFromDexie ? 1 : 0} items=${nextItems.length} members=${serverMembers.length}`,
+      )
+
+      // Mark that we have access
+      hadAccessRef.current = true
+      useListDataStore.getState().setList(data.list)
       const pendingMutations = await db.sync_queue
         .filter(
           (m) =>
@@ -795,6 +806,9 @@ export function useList(listId: string) {
         items: mergedItemsForCache,
         members: mergedMembersForCache,
       })
+      if (differsFromDexie) {
+        useListsCatalogStore.getState().recordCatalogListPullSuccessPulse(listId)
+      }
       await setLastMirroredListDetailVersion(listId, data.list.version ?? 1)
       listCount = 1
       itemCountResult = mergedItemsForCache.length
