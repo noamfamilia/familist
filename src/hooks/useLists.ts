@@ -19,11 +19,12 @@ import { logServerRoundTrip } from '@/lib/serverActionLog'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { reportServerDexieParityDiagnostics, upsertListsSummaryFromServer } from '@/lib/data/serverDexieParity'
 import {
-  extractListIdsFromCatalogRealtimePayload,
-  prefetchListDetailsFromServer,
-} from '@/lib/data/listDetailRemotePrefetch'
-
-type CatalogRealtimePayload = Parameters<typeof extractListIdsFromCatalogRealtimePayload>[0]
+  catalogMutationVersionRef,
+  catalogRealtimeScheduleCaptureVersionRef,
+  catalogSkipRealtimeUntilRef,
+  registerListsCatalogFetchHandler,
+  requestListsCatalogRealtimeFlush,
+} from '@/lib/data/listsCatalogRealtimeBridge'
 import { enqueueListMirrorJobs } from '@/lib/data/listMirror'
 import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 import {
@@ -43,7 +44,6 @@ import {
 } from '@/lib/connectivityErrors'
 import type { Database, Json, ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import Dexie from 'dexie'
 
 const supabase = createClient()
@@ -174,16 +174,7 @@ export function useLists() {
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const channelRef = useRef<RealtimeChannel | null>(null)
-  const skipRealtimeUntilRef = useRef<number>(0)
   const hasInitialDataRef = useRef(false)
-  const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
-  const pendingRealtimeRef = useRef(false)
-  /** List IDs touched by catalog realtime since last debounced flush — prefetched with `get_list_data`. */
-  const realtimeDirtyListIdsRef = useRef<Set<string>>(new Set())
-  const mutationVersionRef = useRef(0)
-  const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
-  const scheduleRealtimeFetchRef = useRef<(delayMs: number, consumePending?: boolean) => void>(() => {})
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
   useEffect(() => {
     reportServerDexieParityDiagnostics()
@@ -321,7 +312,7 @@ export function useLists() {
     const staleCheck = options?.staleCheckVersion
     let staleDiscarded = false
     appendMutationDiagnostic(
-      `[fetchLists.debug] start userId=${userId ?? 'null'} staleCheck=${staleCheck == null ? 'null' : String(staleCheck)} mutationVersion=${mutationVersionRef.current}`,
+      `[fetchLists.debug] start userId=${userId ?? 'null'} staleCheck=${staleCheck == null ? 'null' : String(staleCheck)} mutationVersion=${catalogMutationVersionRef.current}`,
     )
 
     if (!userId) {
@@ -362,10 +353,10 @@ export function useLists() {
 
       if (rpcError) throw rpcError
 
-      if (staleCheck != null && staleCheck !== mutationVersionRef.current) {
+      if (staleCheck != null && staleCheck !== catalogMutationVersionRef.current) {
         staleDiscarded = true
         appendMutationDiagnostic(
-          `[fetchLists.debug] stale-discard captured=${staleCheck} current=${mutationVersionRef.current}`,
+          `[fetchLists.debug] stale-discard captured=${staleCheck} current=${catalogMutationVersionRef.current}`,
         )
         const n = Array.isArray(data) ? data.length : 0
         logServerRoundTrip({
@@ -456,11 +447,11 @@ export function useLists() {
       setHasCompletedInitialFetch(true)
       fetchingRef.current = false
       if (staleCheck != null) {
-        realtimeScheduleCaptureVersionRef.current = null
+        catalogRealtimeScheduleCaptureVersionRef.current = null
       }
       if (staleDiscarded) {
         queueMicrotask(() => {
-          scheduleRealtimeFetchRef.current(0)
+          requestListsCatalogRealtimeFlush(0)
         })
       }
     }
@@ -492,134 +483,18 @@ export function useLists() {
     // a feedback loop (especially with cachedAt updates) and can spam diagnostics.
   }, [userId, lists])
 
-  // Real-time subscriptions
   useEffect(() => {
-    if (!userId) return
-
-    const scheduleRealtimeFetch = (delayMs: number, consumePending = false) => {
-      if (realtimeScheduleCaptureVersionRef.current === null) {
-        realtimeScheduleCaptureVersionRef.current = mutationVersionRef.current
-      }
-
-      if (realtimeDebounceRef.current) {
-        clearTimeout(realtimeDebounceRef.current)
-      }
-
-      realtimeDebounceRef.current = setTimeout(() => {
-        realtimeDebounceRef.current = null
-
-        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
-          if (consumePending) pendingRealtimeRef.current = true
-          realtimeScheduleCaptureVersionRef.current = null
-          return
-        }
-
-        const remainingSkipMs = skipRealtimeUntilRef.current - Date.now()
-        if (remainingSkipMs > 0) {
-          if (consumePending || pendingRealtimeRef.current) {
-            scheduleRealtimeFetch(remainingSkipMs, true)
-          }
-          return
-        }
-
-        if (consumePending) pendingRealtimeRef.current = false
-        const cap = realtimeScheduleCaptureVersionRef.current
-        const dirtyIds = [...realtimeDirtyListIdsRef.current]
-        realtimeDirtyListIdsRef.current.clear()
-        const uid = userId
-        void (async () => {
-          const pCatalog =
-            cap == null ? Promise.resolve(fetchLists()) : Promise.resolve(fetchLists({ staleCheckVersion: cap }))
-          const pDetail =
-            dirtyIds.length > 0 && uid ? prefetchListDetailsFromServer(uid, dirtyIds) : Promise.resolve()
-          await Promise.all([pCatalog, pDetail])
-        })()
-      }, Math.max(delayMs, 0))
+    if (!userId) {
+      registerListsCatalogFetchHandler(null)
+      return
     }
-
-    scheduleRealtimeFetchRef.current = scheduleRealtimeFetch
-
-    const handleRealtimeChange = (payload?: CatalogRealtimePayload) => {
-      if (payload) {
-        for (const id of extractListIdsFromCatalogRealtimePayload(payload)) {
-          realtimeDirtyListIdsRef.current.add(id)
-        }
-      }
-      // Skip fetch if we recently did a local optimistic update (within 2 seconds)
-      if (Date.now() < skipRealtimeUntilRef.current) {
-        return
-      }
-
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
-        pendingRealtimeRef.current = true
-        return
-      }
-
-      scheduleRealtimeFetch(250)
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible' || !pendingRealtimeRef.current) return
-      scheduleRealtimeFetch(0, true)
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    const subscribeT0 = performance.now()
-    perfLog('realtime subscribe start')
-    let subscribeEndLogged = false
-    const logRealtimeSubscribeEnd = (extra: Record<string, unknown> = {}) => {
-      if (subscribeEndLogged) return
-      subscribeEndLogged = true
-      perfLog('realtime subscribe end', {
-        durationMs: Math.round(performance.now() - subscribeT0),
-        ...extra,
-      })
-    }
-
-    const channel = supabase
-      .channel(`lists-${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'lists' }, (payload) => {
-        handleRealtimeChange(payload as CatalogRealtimePayload)
-      })
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'list_users', filter: `user_id=eq.${userId}` },
-        (payload) => {
-          handleRealtimeChange(payload as CatalogRealtimePayload)
-        },
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, (payload) => {
-        handleRealtimeChange(payload as CatalogRealtimePayload)
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, (payload) => {
-        handleRealtimeChange(payload as CatalogRealtimePayload)
-      })
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          markOnlineRecovered('realtime-subscribed-lists')
-          logRealtimeSubscribeEnd({})
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          logRealtimeSubscribeEnd({ error: err?.message ?? status })
-        }
-      })
-
-    channelRef.current = channel
-
+    registerListsCatalogFetchHandler((opts) => {
+      void fetchLists(opts)
+    })
     return () => {
-      scheduleRealtimeFetchRef.current = () => {}
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (realtimeDebounceRef.current) {
-        clearTimeout(realtimeDebounceRef.current)
-        realtimeDebounceRef.current = null
-      }
-      pendingRealtimeRef.current = false
-      realtimeDirtyListIdsRef.current.clear()
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current)
-      }
+      registerListsCatalogFetchHandler(null)
     }
-  }, [fetchLists, markOnlineRecovered, userId])
+  }, [fetchLists, userId])
 
   const createList = async (name: string, label?: string) => {
     if (!user) return { error: new Error('Not authenticated') }
@@ -657,8 +532,8 @@ export function useLists() {
       sort_order: 0,
     }
 
-    mutationVersionRef.current += 1
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    catalogMutationVersionRef.current += 1
+    catalogSkipRealtimeUntilRef.current = Date.now() + 2000
     const cat = useListsCatalogStore.getState()
     cat.beginLocalCatalogPersistence()
     try {
@@ -721,8 +596,8 @@ export function useLists() {
     }
     try {
       appendMutationDiagnostic(`[mutation:list.update] local:start listId=${listId}`)
-      mutationVersionRef.current += 1
-      skipRealtimeUntilRef.current = Date.now() + 2000
+      catalogMutationVersionRef.current += 1
+      catalogSkipRealtimeUntilRef.current = Date.now() + 2000
       const cat = useListsCatalogStore.getState()
       cat.beginLocalCatalogPersistence()
       try {
@@ -758,8 +633,8 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-      mutationVersionRef.current += 1
-      skipRealtimeUntilRef.current = Date.now() + 2000
+      catalogMutationVersionRef.current += 1
+      catalogSkipRealtimeUntilRef.current = Date.now() + 2000
       const cat = useListsCatalogStore.getState()
       cat.beginLocalCatalogPersistence()
       try {
@@ -793,8 +668,8 @@ export function useLists() {
             list.id === listId ? { ...list, userArchived: updates.archived ?? list.userArchived } : list,
           )
 
-    mutationVersionRef.current += 1
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    catalogMutationVersionRef.current += 1
+    catalogSkipRealtimeUntilRef.current = Date.now() + 2000
     cat.beginLocalCatalogPersistence()
     try {
       cat.setCatalogLists(nextLists)
@@ -867,8 +742,8 @@ export function useLists() {
         appendMutationDiagnostic(
           `[invite] joinListByToken queue userId=${user.id} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
         )
-        mutationVersionRef.current += 1
-        skipRealtimeUntilRef.current = Date.now() + 2000
+        catalogMutationVersionRef.current += 1
+        catalogSkipRealtimeUntilRef.current = Date.now() + 2000
         await enqueueSyncQueueRecord({
           entity: 'list',
           entity_id: newBatchEntityId(),
@@ -913,8 +788,8 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-      mutationVersionRef.current += 1
-      skipRealtimeUntilRef.current = Date.now() + 2000
+      catalogMutationVersionRef.current += 1
+      catalogSkipRealtimeUntilRef.current = Date.now() + 2000
       const cat = useListsCatalogStore.getState()
       cat.beginLocalCatalogPersistence()
       try {
@@ -967,8 +842,8 @@ export function useLists() {
       sort_order: 0,
     }
 
-    mutationVersionRef.current += 1
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    catalogMutationVersionRef.current += 1
+    catalogSkipRealtimeUntilRef.current = Date.now() + 2000
     const catDup = useListsCatalogStore.getState()
     catDup.beginLocalCatalogPersistence()
     try {
@@ -1069,8 +944,8 @@ export function useLists() {
       sort_order: 0,
     }
 
-    mutationVersionRef.current += 1
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    catalogMutationVersionRef.current += 1
+    catalogSkipRealtimeUntilRef.current = Date.now() + 2000
     const catImp = useListsCatalogStore.getState()
     catImp.beginLocalCatalogPersistence()
     try {
@@ -1142,8 +1017,8 @@ export function useLists() {
   }
 
   const persistListLabelOnly = async (listId: string, label: string) => {
-    mutationVersionRef.current += 1
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    catalogMutationVersionRef.current += 1
+    catalogSkipRealtimeUntilRef.current = Date.now() + 2000
     const catLbl = useListsCatalogStore.getState()
     catLbl.beginLocalCatalogPersistence()
     try {
@@ -1188,8 +1063,8 @@ export function useLists() {
     }
     try {
       const nextLabelById = new Map(changes.map((c) => [c.listId, c.label]))
-      mutationVersionRef.current += 1
-      skipRealtimeUntilRef.current = Date.now() + 2000
+      catalogMutationVersionRef.current += 1
+      catalogSkipRealtimeUntilRef.current = Date.now() + 2000
       const catBatch = useListsCatalogStore.getState()
       catBatch.beginLocalCatalogPersistence()
       try {
@@ -1248,8 +1123,8 @@ export function useLists() {
       return
     }
     try {
-    mutationVersionRef.current += 1
-    skipRealtimeUntilRef.current = Date.now() + 2000
+    catalogMutationVersionRef.current += 1
+    catalogSkipRealtimeUntilRef.current = Date.now() + 2000
     const catOrd = useListsCatalogStore.getState()
     catOrd.beginLocalCatalogPersistence()
     try {

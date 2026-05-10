@@ -7,6 +7,7 @@ import { ToastProvider } from '@/components/ui/Toast'
 import { StartupPerfCapture } from '@/components/dev/StartupPerfCapture'
 import { InstallBanner } from '@/components/ui/InstallBanner'
 import { ConnectivityProvider } from '@/providers/ConnectivityProvider'
+import { ListsCatalogRealtimeProvider } from '@/providers/ListsCatalogRealtimeProvider'
 import { DiagnosticsMessageBoxProvider } from '@/providers/DiagnosticsMessageBox'
 import { SyncStoreBridge } from '@/components/sync/SyncStoreBridge'
 import { AppLayoutGateLogger } from '@/components/dev/AppLayoutGateLogger'
@@ -73,13 +74,15 @@ export default function RootLayout({
             <ToastProvider>
               <DiagnosticsMessageBoxProvider>
                 <ConnectivityProvider>
-                  <SyncStoreBridge />
-                  <AppLayoutGateLogger />
-                  <StartupPerfCapture />
-                  <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
-                    {children}
-                  </main>
-                  <InstallBanner />
+                  <ListsCatalogRealtimeProvider>
+                    <SyncStoreBridge />
+                    <AppLayoutGateLogger />
+                    <StartupPerfCapture />
+                    <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
+                      {children}
+                    </main>
+                    <InstallBanner />
+                  </ListsCatalogRealtimeProvider>
                 </ConnectivityProvider>
               </DiagnosticsMessageBoxProvider>
             </ToastProvider>

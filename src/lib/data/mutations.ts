@@ -6,6 +6,7 @@ import {
   listQueueParent,
   newBatchEntityId,
   removeOutboundQueueRowsForItemIds,
+  stableItemMemberStateDexieId,
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
@@ -130,12 +131,19 @@ export async function toggleItemMemberStateMutation(input: {
   member_id: string
   state: ItemMemberState
 }) {
-  const id = crypto.randomUUID()
   const t = isoNow()
   const sync = syncFieldsForLocalInsert({ client_created_at: t })
+  const rowId = await stableItemMemberStateDexieId(input.item_id, input.member_id)
   await db.transaction('rw', db.item_member_state, db.sync_queue, db.list_users, async () => {
+    const dupes = await db.item_member_state
+      .where('[item_id+member_id]')
+      .equals([input.item_id, input.member_id])
+      .toArray()
+    for (const row of dupes) {
+      if (row.id !== rowId) await db.item_member_state.delete(row.id)
+    }
     await db.item_member_state.put({
-      id,
+      id: rowId,
       ...input.state,
       list_id: input.list_id,
       ...sync,
@@ -156,7 +164,7 @@ export async function toggleItemMemberStateMutation(input: {
       status: 'queued',
     })
   })
-  return id
+  return rowId
 }
 
 export async function addMemberMutation(input: {

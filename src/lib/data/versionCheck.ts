@@ -71,8 +71,8 @@ export async function runOneTimeReconcileAfterDexieSchemaBelow10Upgrade(userId: 
 
 /**
  * When the app’s semver **major** (MSB) increases vs the last boot where Dexie was cleared for that
- * major (e.g. 1.x → 2.0.0), wipe IndexedDB the same way as Diagnostic “Emergency reset”, unregister
- * service workers, and hard-reload.
+ * major (e.g. 1.x → 2.0.0, 2.x → 3.0.0), wipe IndexedDB the same way as Diagnostic “Emergency reset”, unregister
+ * service workers, and hard-reload. `NEXT_PUBLIC_APP_VERSION` comes from `package.json` via `next.config.mjs`.
  */
 export async function checkMajorVersionMismatchOnBoot(): Promise<void> {
   if (typeof window === 'undefined') return

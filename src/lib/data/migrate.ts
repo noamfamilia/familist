@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { getActiveCacheUserId, getCachedList, getCachedLists } from '@/lib/cache'
 import { normalizeDexieEntityRow } from '@/lib/data/base_sync_fields'
+import { stableItemMemberStateDexieId } from '@/lib/data/syncQueue'
 
 const MIGRATION_KEY = 'dexie_migration_v1'
 const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -51,10 +52,14 @@ export async function migrateCachedListDetail(userId: string, listId: string) {
       await db.items.put(normalizeDexieEntityRow(raw, { legacyCreatedKey: 'created_at' }) as never)
       for (const state of Object.values(item.memberStates ?? {})) {
         const s = state as unknown as Record<string, unknown>
+        const itemId = String(s.item_id ?? item.id)
+        const memberId = String(s.member_id ?? '')
+        const rowId =
+          itemId && memberId ? await stableItemMemberStateDexieId(itemId, memberId) : crypto.randomUUID()
         await db.item_member_state.put(
           normalizeDexieEntityRow(
             {
-              id: crypto.randomUUID(),
+              id: rowId,
               ...s,
               list_id: listId,
             },

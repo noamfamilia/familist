@@ -11,7 +11,7 @@ import {
   pendingCreateForItemMemberStateComposite,
   pendingRpcTouchesList,
 } from '@/lib/data/syncPruneGuards'
-import { syncQueueRowTouchesListId } from '@/lib/data/syncQueue'
+import { stableItemMemberStateDexieId, syncQueueRowTouchesListId } from '@/lib/data/syncQueue'
 import type {
   Database,
   DbSyncableFields,
@@ -263,14 +263,18 @@ export async function upsertListDataPayloadFromServer(
       const itemSync = normalizeServerSyncableFields(item as unknown as Record<string, unknown>)
       await db.items.put(withLastSyncedNow({ ...item, ...itemSync }))
       for (const memberState of Object.values(item.memberStates ?? {})) {
-        const existingIms = await db.item_member_state
+        const rowId = await stableItemMemberStateDexieId(memberState.item_id, memberState.member_id)
+        const imsDupes = await db.item_member_state
           .where('[item_id+member_id]')
           .equals([memberState.item_id, memberState.member_id])
-          .first()
+          .toArray()
+        for (const r of imsDupes) {
+          if (r.id !== rowId) await db.item_member_state.delete(r.id)
+        }
         const imsSync = normalizeServerSyncableFields(memberState as unknown as Record<string, unknown>)
         await db.item_member_state.put(
           withLastSyncedNow({
-            id: existingIms?.id ?? crypto.randomUUID(),
+            id: rowId,
             ...memberState,
             ...imsSync,
             list_id: listId,
@@ -344,14 +348,18 @@ export async function upsertListDataPayloadFromMirror(
       const itemSync = normalizeServerSyncableFields(item as unknown as Record<string, unknown>)
       await db.items.put(withLastSyncedNow({ ...item, ...itemSync }))
       for (const memberState of Object.values(item.memberStates ?? {})) {
-        const existingIms = await db.item_member_state
+        const rowId = await stableItemMemberStateDexieId(memberState.item_id, memberState.member_id)
+        const imsDupes = await db.item_member_state
           .where('[item_id+member_id]')
           .equals([memberState.item_id, memberState.member_id])
-          .first()
+          .toArray()
+        for (const r of imsDupes) {
+          if (r.id !== rowId) await db.item_member_state.delete(r.id)
+        }
         const imsSync = normalizeServerSyncableFields(memberState as unknown as Record<string, unknown>)
         await db.item_member_state.put(
           withLastSyncedNow({
-            id: existingIms?.id ?? crypto.randomUUID(),
+            id: rowId,
             ...memberState,
             ...imsSync,
             list_id: listId,

@@ -16,6 +16,23 @@ export function itemMemberStateOutboxKey(itemId: string, memberId: string) {
   return `ims:${itemId}:${memberId}`
 }
 
+/**
+ * Deterministic Dexie primary key for `item_member_state` so each (item_id, member_id) maps to one row.
+ * RFC 4122 UUID shape (version 5–style) from SHA-256 of the pair — stable across toggles and matches server upserts.
+ */
+export async function stableItemMemberStateDexieId(itemId: string, memberId: string): Promise<string> {
+  const input = new TextEncoder().encode(`item_member_state:v1\0${itemId}\0${memberId}`)
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input))
+  const bytes = digest.subarray(0, 16)
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80
+  let hex = ''
+  for (let i = 0; i < 16; i++) {
+    hex += bytes[i]!.toString(16).padStart(2, '0')
+  }
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+}
+
 export function memberProfileOutboxKey(memberId: string) {
   return `mbr:${memberId}`
 }
