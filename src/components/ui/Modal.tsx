@@ -125,6 +125,12 @@ export function Modal({
     </>
   )
 
+  /** Full-screen mobile chrome: title/close need top offset; chromeless (no title, hideClose) stays flush. */
+  const fullScreenMobileScrollClass =
+    fullScreenMobile && hideClose && !title
+      ? 'min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:px-0 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-[max(0.25rem,env(safe-area-inset-top))] sm:contents'
+      : 'min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:px-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-14 sm:contents'
+
   return (
     <div
       className={`fixed inset-0 z-50 ${fullScreenMobile ? 'max-sm:overflow-hidden max-sm:p-0' : 'overflow-y-auto p-4'}`}
@@ -142,7 +148,7 @@ export function Modal({
         {closeBtn}
         {fullScreenMobile ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden max-sm:min-h-0 sm:contents">
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:px-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-14 sm:contents">
+            <div className={fullScreenMobileScrollClass}>
               {inner}
             </div>
           </div>

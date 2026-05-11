@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { useHasMounted } from '@/hooks/useHasMounted'
-import { popBodyScrollLock, pushBodyScrollLock } from '@/lib/bodyScrollLock'
+import { Modal } from '@/components/ui/Modal'
 
 function pathSearchHash(): string {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`
@@ -21,9 +21,9 @@ export type ListDetailHomeOverlayProps = {
 }
 
 /**
- * Full-viewport overlay on `/` when a list is open from the home shell (no App Router transition).
- * Renders via `createPortal` to `document.body` so parent layout/transform cannot clip it.
- * Uses `z-40` so shared `Modal` instances (z-50) can stack above.
+ * List detail on `/` when opened from the home shell (no App Router transition).
+ * Uses the same `Modal` sizing as label manager: full-screen on small viewports, centered
+ * `max-w-lg` card on `sm+`. Portaled to `document.body` so layout cannot clip it.
  *
  * URL bar is synced with `history.pushState` to `/list/[id]` while open and back to the prior
  * path (usually `/`) on close, so the address looks like a list route without a Next transition.
@@ -31,11 +31,6 @@ export type ListDetailHomeOverlayProps = {
  */
 export function ListDetailHomeOverlay({ listId, onClose }: ListDetailHomeOverlayProps) {
   const mounted = useHasMounted()
-
-  useEffect(() => {
-    pushBodyScrollLock()
-    return () => popBodyScrollLock()
-  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -51,25 +46,20 @@ export function ListDetailHomeOverlay({ listId, onClose }: ListDetailHomeOverlay
     }
   }, [listId])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   if (!mounted) return null
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-40 flex min-h-0 flex-col overflow-hidden bg-white dark:bg-neutral-800"
-      role="dialog"
-      aria-modal="true"
-      aria-label="List"
+    <Modal
+      isOpen
+      onClose={onClose}
+      manageHistory={false}
+      fullScreenMobile
+      hideClose
+      size="lg"
+      contentClassName="!max-w-lg max-sm:!max-w-none !p-0 sm:!p-0"
     >
       <ListDetailView key={listId} listId={listId} surface="home_modal" onRequestClose={onClose} />
-    </div>,
+    </Modal>,
     document.body,
   )
 }

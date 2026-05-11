@@ -176,7 +176,6 @@ function ListCardInner({
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
   /** Prevents overlapping prefetch+nav from rapid double-clicks on the list link. */
   const navWarmInFlightRef = useRef(false)
-  const [navPrefetchOverlayVisible, setNavPrefetchOverlayVisible] = useState(false)
   // Sync comment state when list updates from realtime
   useEffect(() => {
     setComment(list.comment || '')
@@ -312,7 +311,6 @@ function ListCardInner({
       }
 
       navWarmInFlightRef.current = true
-      setNavPrefetchOverlayVisible(true)
       try {
         if (navigateUserId) {
           appendOfflineNavDiagnostic(`[list-click] prefetch nav start listId=${list.id}`)
@@ -340,7 +338,6 @@ function ListCardInner({
         }
       } finally {
         navWarmInFlightRef.current = false
-        setNavPrefetchOverlayVisible(false)
       }
     },
     [list.id, listDetailHref, navigateUserId, offlineAssetsReady, setActiveListId, swControlled],
@@ -646,7 +643,6 @@ function ListCardInner({
     {/* Main card content */}
     <div
       className="group relative rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700"
-      aria-busy={navPrefetchOverlayVisible}
     >
       <ListSyncStatusIcon
         pendingItems={list.pending_items ?? 0}
@@ -1038,15 +1034,6 @@ function ListCardInner({
           </div>
         </div>
       )}
-      {navPrefetchOverlayVisible ? (
-        <div
-          className="absolute inset-0 z-[35] flex items-center justify-center rounded-lg bg-white/75 dark:bg-neutral-950/60 backdrop-blur-[1px]"
-          aria-live="polite"
-          aria-label="Opening list"
-        >
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal border-t-transparent" />
-        </div>
-      ) : null}
     </div>
 
     <ConfirmModal
