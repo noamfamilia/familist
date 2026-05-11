@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useSyncExternalStore, memo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore, memo, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
@@ -16,6 +15,7 @@ import {
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { prefetchListPageForNavigation } from '@/lib/data/listPageCachePrefetch'
+import { useActiveListUiStore } from '@/stores/activeListUiStore'
 import type { ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { listCardModelEqual, sameStringList } from './listCardEquality'
 
@@ -132,7 +132,8 @@ function ListCardInner({
   isOfflineActionsDisabled = false,
 }: ListCardProps) {
   const { error: showError } = useToast()
-  const router = useRouter()
+  const setActiveListId = useActiveListUiStore((s) => s.setActiveListId)
+  const listDetailHref = useMemo(() => `/list/${list.id}`, [list.id])
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
   const navigateUserId = user?.id ?? (authLoading ? bootstrapUserId : null)
   const navigatorOnLine = useSyncExternalStore(
@@ -265,7 +266,7 @@ function ListCardInner({
       } else {
         reason = 'allowed_offline_normal_route_ready'
       }
-      const targetHref = `/list/${list.id}`
+      const targetHref = listDetailHref
       const currentPath =
         typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : ''
       const ctrl = typeof navigator !== 'undefined' ? navigator.serviceWorker?.controller : undefined
@@ -306,7 +307,7 @@ function ListCardInner({
       }
 
       if (!allowed) {
-        appendOfflineNavDiagnostic(`[list-click] blocked — no router.push reason=${reason}`)
+        appendOfflineNavDiagnostic(`[list-click] blocked — no setActiveListId reason=${reason}`)
         return
       }
 
@@ -327,14 +328,14 @@ function ListCardInner({
 
         try {
           appendOfflineNavDiagnostic(
-            `[list-click] navAction=router_push reason=${reason} targetHref=${targetHref}`,
+            `[list-click] navAction=setActiveListId reason=${reason} listId=${list.id}`,
           )
-          appendOfflineNavDiagnostic(`[list-click] router.push calling ${targetHref}`)
-          await router.push(targetHref)
-          appendOfflineNavDiagnostic('[list-click] router.push promise resolved')
+          appendOfflineNavDiagnostic(`[list-click] setActiveListId(${list.id})`)
+          setActiveListId(list.id)
+          appendOfflineNavDiagnostic('[list-click] setActiveListId done')
         } catch (err) {
           appendOfflineNavDiagnostic(
-            `[list-click] router.push threw: ${err instanceof Error ? err.stack || err.message : String(err)}`,
+            `[list-click] setActiveListId threw: ${err instanceof Error ? err.stack || err.message : String(err)}`,
           )
         }
       } finally {
@@ -342,7 +343,7 @@ function ListCardInner({
         setNavPrefetchOverlayVisible(false)
       }
     },
-    [list.id, navigateUserId, offlineAssetsReady, router, swControlled],
+    [list.id, listDetailHref, navigateUserId, offlineAssetsReady, setActiveListId, swControlled],
   )
 
   // Duplicate modal: outside-click for label dropdown
@@ -723,7 +724,7 @@ function ListCardInner({
           )
         ) : browserOffline ? (
           <a
-            href={`/list/${list.id}`}
+            href={listDetailHref}
             onClick={(e) => {
               void handleListTitlePrimaryNav(e)
             }}
@@ -744,7 +745,7 @@ function ListCardInner({
           </a>
         ) : (
           <a
-            href={`/list/${list.id}`}
+            href={listDetailHref}
             onClick={(e) => {
               void handleListTitlePrimaryNav(e)
             }}

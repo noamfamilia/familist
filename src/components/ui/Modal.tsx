@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { popBodyScrollLock, pushBodyScrollLock } from '@/lib/bodyScrollLock'
 
 interface ModalProps {
   isOpen: boolean
@@ -50,7 +51,7 @@ export function Modal({
       previousFocusRef.current = document.activeElement as HTMLElement
 
       document.addEventListener('keydown', handleEscape)
-      document.body.style.overflow = 'hidden'
+      pushBodyScrollLock()
 
       if (manageHistory && !historyPushedRef.current) {
         window.history.pushState({ modal: true }, '')
@@ -68,7 +69,7 @@ export function Modal({
       if (manageHistory) {
         window.removeEventListener('popstate', handlePopState)
       }
-      document.body.style.overflow = ''
+      popBodyScrollLock()
 
       if (manageHistory && historyPushedRef.current) {
         historyPushedRef.current = false

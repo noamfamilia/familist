@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -21,6 +20,7 @@ import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { prefetchListPageForNavigation } from '@/lib/data/listPageCachePrefetch'
 import { useAuth } from '@/providers/AuthProvider'
 import { useListsCatalogStore } from '@/stores/listsCatalogStore'
+import { useActiveListUiStore } from '@/stores/activeListUiStore'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
@@ -56,7 +56,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     })),
   )
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
-  const router = useRouter()
   /** `inviteToken:userId` after a successful join so we do not enqueue twice. */
   const inviteJoinSucceededKeyRef = useRef<string | null>(null)
   
@@ -300,7 +299,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         } catch {
           /* list page will warm if prefetch fails */
         }
-        router.replace(`/list/${data}`)
+        useActiveListUiStore.getState().setActiveListId(data)
       } else {
         success('Joined successfully to list')
       }
@@ -319,7 +318,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     bootstrapUserId,
     joinListByToken,
     onInviteHandled,
-    router,
     showError,
     success,
     onSelectLabel,

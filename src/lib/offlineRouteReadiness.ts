@@ -28,7 +28,7 @@ function lastKey(userId: string, listId: string): string {
 export type LastOfflineRouteMarker = { buildId: string; verifiedAt: number }
 
 /**
- * Persist proof that this user opened `/list/[id]` on this build with full ListPage + data + SW shell.
+ * Persist proof that this user opened list detail (`/list/[id]` or home `?list=`) on this build with full UI + data + SW shell.
  * Scoped by userId, listId, and current NEXT_PUBLIC_BUILD_ID.
  */
 export function setNormalOfflineRouteReadyMarker(userId: string, listId: string): void {

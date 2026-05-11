@@ -1,11 +1,13 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { isLikelyListId, LIST_QUERY_PARAM, stripListQueryFromHref } from '@/lib/navigation/listQuery'
+import { useActiveListUiStore } from '@/stores/activeListUiStore'
 import { useAuth } from '@/providers/AuthProvider'
 import { ListsView } from '@/components/lists/ListsView'
 import { ThemedImage } from '@/components/ui/ThemedImage'
 import { ProfileModal } from '@/components/profile/ProfileModal'
-
+import { ListDetailHomeOverlay } from '@/components/lists/ListDetailHomeOverlay'
 
 import { Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { log, perfLog } from '@/lib/startupPerfLog'
@@ -23,6 +25,7 @@ import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
+import { useShallow } from 'zustand/react/shallow'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -68,6 +71,11 @@ const homeTourSteps: Step[] = [
   },
 ]
 
+function browserPathSearchHash(): string {
+  if (typeof window === 'undefined') return ''
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`
+}
+
 function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -80,6 +88,9 @@ function HomeContent() {
   } = useConnectivity()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
+  const { activeListId, setActiveListId } = useActiveListUiStore(
+    useShallow((s) => ({ activeListId: s.activeListId, setActiveListId: s.setActiveListId })),
+  )
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -350,6 +361,35 @@ function HomeContent() {
     const search = url.searchParams.toString()
     router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
   }, [handleSelectLabel, router])
+
+  /** Legacy `/?list=<uuid>` opens the modal then strips the param so the shell stays on `/`. */
+  useEffect(() => {
+    const raw = searchParams.get(LIST_QUERY_PARAM)
+    if (!isLikelyListId(raw)) return
+    setActiveListId(raw)
+    router.replace(stripListQueryFromHref(searchParams))
+  }, [router, searchParams, setActiveListId])
+
+  const closeListModal = useCallback(() => {
+    setActiveListId(null)
+  }, [setActiveListId])
+
+  /** System / browser Back after `pushState` to `/list/[id]`: clear modal so the user stays in-app on `/`. */
+  useEffect(() => {
+    if (!activeListId) return
+
+    const onPopState = () => {
+      const openId = useActiveListUiStore.getState().activeListId
+      if (!openId) return
+      const listPath = `/list/${openId}`
+      if (browserPathSearchHash() !== listPath) {
+        useActiveListUiStore.getState().setActiveListId(null)
+      }
+    }
+
+    window.addEventListener('popstate', onPopState, true)
+    return () => window.removeEventListener('popstate', onPopState, true)
+  }, [activeListId])
 
   const effectiveUserId = user?.id ?? bootstrapUserId
   const showListsShell = !!effectiveUserId
@@ -664,6 +704,10 @@ function HomeContent() {
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
       />
+
+      {activeListId ? (
+        <ListDetailHomeOverlay key={activeListId} listId={activeListId} onClose={closeListModal} />
+      ) : null}
 
       <Modal
         isOpen={showFeedback}
