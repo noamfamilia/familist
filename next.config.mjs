@@ -13,7 +13,15 @@ const withSerwist = withSerwistInit({
   swSrc: 'src/app/sw.ts',
   swDest: 'public/sw.js',
   disable: !isPwaEnabled,
+  /** Root HTML shell revision bumps when deploy changes; merged with webpack precache manifest. */
   additionalPrecacheEntries: [{ url: '/', revision: buildId }],
+  /**
+   * Serwist default is 2 MiB (`maximumFileSizeToCacheInBytes` in @serwist/build). Assets over the
+   * limit are omitted from **precache** (install-time) and only appear after a visit via runtime
+   * caches. Keep this high enough that heavy App Router chunks (e.g. `app/list/[id]/page-*.js`)
+   * stay in the precache manifest.
+   */
+  maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
 })
 
 /** @type {import('next').NextConfig} */
