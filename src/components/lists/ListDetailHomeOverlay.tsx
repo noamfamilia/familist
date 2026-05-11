@@ -22,8 +22,9 @@ export type ListDetailHomeOverlayProps = {
 
 /**
  * Full-viewport overlay on `/` when a list is open from the home shell (no App Router transition).
- * Portaled to `document.body`. Mobile: edge-to-edge. `sm+`: dimmed backdrop and centered panel
- * (`max-w-lg`, max height) like a floating sheet — not the shared `Modal` component.
+ * Portaled to `document.body`. Mobile: edge-to-edge. `sm+`: dimmed backdrop; panel matches the
+ * pre–home-modal list route shell — `w-fit` / `sm:min-h-0` so height grows with content and the
+ * overlay backdrop scrolls (same idea as the full page before `2b7e918`).
  *
  * URL bar is synced with `history.pushState` to `/list/[id]` while open and back to the prior
  * path on close. Home `popstate` clears `activeListId` when the user leaves that URL via Back.
@@ -62,14 +63,14 @@ export function ListDetailHomeOverlay({ listId, onClose }: ListDetailHomeOverlay
 
   return createPortal(
     <div
-      className="fixed inset-0 z-40 flex min-h-0 flex-col overflow-y-auto overflow-x-hidden bg-white dark:bg-neutral-800 sm:items-center sm:justify-center sm:bg-black/50 sm:dark:bg-black/70 sm:p-4"
+      className="fixed inset-0 z-40 flex min-h-0 flex-col overflow-y-auto overflow-x-hidden bg-white dark:bg-neutral-800 sm:items-start sm:justify-center sm:bg-black/50 sm:dark:bg-black/70 sm:p-4"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
-        className="flex min-h-0 w-full min-h-[100dvh] max-h-[100dvh] flex-1 flex-col overflow-y-auto overflow-x-hidden bg-white dark:bg-neutral-800 sm:min-h-0 sm:max-h-[min(100dvh,calc(100vh-2rem))] sm:max-w-lg sm:flex-none sm:rounded-xl sm:shadow-lg dark:sm:shadow-black/40"
+        className="flex w-full flex-col bg-white dark:bg-neutral-800 max-sm:min-h-[100dvh] max-sm:max-h-[100dvh] max-sm:flex-1 max-sm:overflow-y-auto max-sm:overflow-x-hidden sm:min-h-0 sm:w-fit sm:max-w-[calc(100vw-2rem)] sm:flex-none sm:overflow-visible sm:rounded-xl sm:shadow-lg dark:sm:shadow-black/40"
         role="dialog"
         aria-modal="true"
         aria-label="List"
