@@ -173,6 +173,9 @@ function ListCardInner({
   const labelDropdownRef = useRef<HTMLDivElement>(null)
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
+  /** Prevents overlapping prefetch+nav from rapid double-clicks on the list link. */
+  const navWarmInFlightRef = useRef(false)
+  const [navPrefetchOverlayVisible, setNavPrefetchOverlayVisible] = useState(false)
   // Sync comment state when list updates from realtime
   useEffect(() => {
     setComment(list.comment || '')
@@ -297,34 +300,46 @@ function ListCardInner({
       e.preventDefault()
       appendOfflineNavDiagnostic('[list-click] preventDefault called')
 
+      if (navWarmInFlightRef.current) {
+        appendOfflineNavDiagnostic('[list-click] skip duplicate click while prefetch/nav in flight')
+        return
+      }
+
       if (!allowed) {
         appendOfflineNavDiagnostic(`[list-click] blocked — no router.push reason=${reason}`)
         return
       }
 
-      if (navigateUserId) {
-        appendOfflineNavDiagnostic(`[list-click] prefetch nav start listId=${list.id}`)
+      navWarmInFlightRef.current = true
+      setNavPrefetchOverlayVisible(true)
+      try {
+        if (navigateUserId) {
+          appendOfflineNavDiagnostic(`[list-click] prefetch nav start listId=${list.id}`)
+          try {
+            await prefetchListPageForNavigation(navigateUserId, list.id)
+          } catch (err) {
+            appendOfflineNavDiagnostic(
+              `[list-click] prefetch nav threw: ${err instanceof Error ? err.message : String(err)}`,
+            )
+          }
+          appendOfflineNavDiagnostic(`[list-click] prefetch nav done listId=${list.id}`)
+        }
+
         try {
-          await prefetchListPageForNavigation(navigateUserId, list.id)
+          appendOfflineNavDiagnostic(
+            `[list-click] navAction=router_push reason=${reason} targetHref=${targetHref}`,
+          )
+          appendOfflineNavDiagnostic(`[list-click] router.push calling ${targetHref}`)
+          await router.push(targetHref)
+          appendOfflineNavDiagnostic('[list-click] router.push promise resolved')
         } catch (err) {
           appendOfflineNavDiagnostic(
-            `[list-click] prefetch nav threw: ${err instanceof Error ? err.message : String(err)}`,
+            `[list-click] router.push threw: ${err instanceof Error ? err.stack || err.message : String(err)}`,
           )
         }
-        appendOfflineNavDiagnostic(`[list-click] prefetch nav done listId=${list.id}`)
-      }
-
-      try {
-        appendOfflineNavDiagnostic(
-          `[list-click] navAction=router_push reason=${reason} targetHref=${targetHref}`,
-        )
-        appendOfflineNavDiagnostic(`[list-click] router.push calling ${targetHref}`)
-        await router.push(targetHref)
-        appendOfflineNavDiagnostic('[list-click] router.push promise resolved')
-      } catch (err) {
-        appendOfflineNavDiagnostic(
-          `[list-click] router.push threw: ${err instanceof Error ? err.stack || err.message : String(err)}`,
-        )
+      } finally {
+        navWarmInFlightRef.current = false
+        setNavPrefetchOverlayVisible(false)
       }
     },
     [list.id, navigateUserId, offlineAssetsReady, router, swControlled],
@@ -628,7 +643,10 @@ function ListCardInner({
   return (
     <>
     {/* Main card content */}
-    <div className="group relative rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700">
+    <div
+      className="group relative rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700"
+      aria-busy={navPrefetchOverlayVisible}
+    >
       <ListSyncStatusIcon
         pendingItems={list.pending_items ?? 0}
         syncError={list.sync_error === true}
@@ -1019,6 +1037,15 @@ function ListCardInner({
           </div>
         </div>
       )}
+      {navPrefetchOverlayVisible ? (
+        <div
+          className="absolute inset-0 z-[35] flex items-center justify-center rounded-lg bg-white/75 dark:bg-neutral-950/60 backdrop-blur-[1px]"
+          aria-live="polite"
+          aria-label="Opening list"
+        >
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal border-t-transparent" />
+        </div>
+      ) : null}
     </div>
 
     <ConfirmModal
