@@ -700,38 +700,60 @@ export function useLists() {
     cat.beginLocalCatalogPersistence()
     try {
       cat.setCatalogLists(nextLists)
-      const nowMs = Date.now()
-      await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-        const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
-        if (row)
-          await db.list_users.update(row.id, {
-            ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
-            ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
+      try {
+        await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+          const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
+          if (row) {
+            await db.list_users.update(row.id, {
+              ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
+              ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
+            })
+          }
+          await enqueueSyncQueueRecord({
+            entity: 'list',
+            entity_id: newBatchEntityId(),
+            kind: 'rpc',
+            payload: {
+              method: 'patchListUser',
+              id: listId,
+              user_id: user.id,
+              ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
+              ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
+            },
+            ...listQueueParent(listId),
+            status: 'queued',
           })
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: newBatchEntityId(),
-          kind: 'rpc',
-          payload: {
-            method: 'patchListUser',
-            id: listId,
-            user_id: user.id,
-            ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
-            ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
-          },
-          ...listQueueParent(listId),
-          status: 'queued',
-        })
-      })
-      appendMutationDiagnostic(`[mutation:list.user_state] local:queued listId=${listId} server:queued`)
 
-      if (updates.archived !== undefined) {
-        const orderError = await persistListOrder(nextLists)
-        if (orderError) {
-          cat.setCatalogLists(previousLists)
-          return { error: orderError }
-        }
+          // Archive/unarchive reorders the catalog; apply every membership `sort_order` in the same txn
+          // so Dexie liveQuery never emits with stale sort_order (was jumping restored list to the end).
+          if (updates.archived !== undefined) {
+            const orderedIds = nextLists.map((l) => l.id)
+            appendMutationDiagnostic(
+              `[mutation:list.user_state.reorder] userId=${user.id} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')}`,
+            )
+            for (const [index, list] of nextLists.entries()) {
+              const lu = await db.list_users.where('[list_id+user_id]').equals([list.id, user.id]).first()
+              if (lu) await db.list_users.update(lu.id, { sort_order: index })
+            }
+            await enqueueSyncQueueRecord({
+              entity: 'list',
+              entity_id: newBatchEntityId(),
+              kind: 'rpc',
+              payload: {
+                method: 'reorderListUsers',
+                user_id: user.id,
+                list_ids: orderedIds,
+              },
+              ...userQueueParent(user.id),
+              status: 'queued',
+            })
+          }
+        })
+      } catch (e) {
+        cat.setCatalogLists(previousLists)
+        return { error: e instanceof Error ? e : new Error('Failed to update list state') }
       }
+      appendMutationDiagnostic(`[mutation:list.user_state] local:queued listId=${listId} server:queued`)
     } finally {
       cat.endLocalCatalogPersistence()
     }
