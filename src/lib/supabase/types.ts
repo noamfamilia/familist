@@ -373,7 +373,23 @@ export interface Database {
       }
       update_member: {
         Args: { p_member_id: string; p_name: string | null; p_is_public: boolean | null }
-        Returns: void
+        /** `{ member, display_name_changed, requested_name }` */
+        Returns: Json
+      }
+      apply_item_patch_sync: {
+        Args: { p_item_id: string; p_patch: Json }
+        /** `{ item, display_name_changed, requested_text }` */
+        Returns: Json
+      }
+      apply_list_patch_sync: {
+        Args: { p_list_id: string; p_patch: Json }
+        /** `{ list, display_name_changed, requested_name }` */
+        Returns: Json
+      }
+      upsert_member_sync: {
+        Args: { p_member: Json }
+        /** `{ member, display_name_changed, requested_name }` */
+        Returns: Json
       }
       delete_member: {
         Args: { p_member_id: string }

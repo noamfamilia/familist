@@ -37,7 +37,7 @@ import {
   setNormalOfflineRouteReadyMarker,
 } from '@/lib/offlineRouteReadiness'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
-import { isLocalItemTextUniquenessFailure } from '@/lib/data/localItemTextUniqueness'
+import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNameUniqueness'
 import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
@@ -761,7 +761,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       const result = await addItem(itemText, cat)
       err = result.error as { message?: string } | null | undefined
       if (err) {
-        if (isLocalItemTextUniquenessFailure(err.message)) {
+        if (isLocalDexieNameUniquenessFailure(err.message)) {
           setNewItemText(itemText)
         }
         if (
@@ -800,7 +800,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       const result = await addItemsBulk(lines, newItemCategory)
       err = result.error
       if (err) {
-        if (isLocalItemTextUniquenessFailure(err.message)) {
+        if (isLocalDexieNameUniquenessFailure(err.message)) {
           setNewItemText(lines.join('\n'))
         }
         if (shouldShowConnectivityRelatedMutationToast(err.message)) {

@@ -36,6 +36,7 @@ import {
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { validateImportSheetRowTextsUnique } from '@/lib/data/localItemTextUniqueness'
+import { validateListNameForOwner } from '@/lib/data/localListMemberNameUniqueness'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 import {
   isLikelyConnectivityError,
@@ -191,12 +192,16 @@ export function useLists() {
     startTempSyncWatch,
     canMutateNow,
     blockedMutationMessage,
+    swControlled,
+    offlineAssetsReady,
   } = useConnectivity()
   const mutationGate = useMemo(() => createUserMutationGate(), [])
   const tryBeginMutation = useCallback((): boolean => {
-    if (!canMutateNow()) return false
+    const browserOffline = typeof navigator !== 'undefined' && !navigator.onLine
+    const offlineCatalogOk = browserOffline && swControlled && offlineAssetsReady
+    if (!canMutateNow() && !offlineCatalogOk) return false
     return mutationGate.tryBegin()
-  }, [canMutateNow, mutationGate])
+  }, [canMutateNow, mutationGate, offlineAssetsReady, swControlled])
 
   useEffect(() => {
     perfLog('localStorage read start')
@@ -503,13 +508,21 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-    appendMutationDiagnostic(`[mutation:list.create] local:start name="${name}"`)
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      return { error: new Error('List name is required') }
+    }
+    const nameDup = await validateListNameForOwner(user.id, trimmedName)
+    if (!nameDup.ok) {
+      return { error: new Error(nameDup.message) }
+    }
+    appendMutationDiagnostic(`[mutation:list.create] local:start name="${trimmedName}"`)
     const listId = crypto.randomUUID()
     const now = new Date().toISOString()
     const sync = syncFieldsForLocalInsert()
     const optimisticList: ListWithRole = {
       id: listId,
-      name,
+      name: trimmedName,
       owner_id: user.id,
       visibility: 'private',
       archived: false,
@@ -572,7 +585,7 @@ export function useLists() {
           kind: 'create',
           payload: {
             id: listId,
-            name,
+            name: trimmedName,
             label: label || '',
             client_created_at: sync.client_created_at,
           },
@@ -597,20 +610,36 @@ export function useLists() {
     }
     try {
       appendMutationDiagnostic(`[mutation:list.update] local:start listId=${listId}`)
+      let effectiveUpdates = updates
+      if (updates.name !== undefined) {
+        const listRow = await db.lists.get(listId)
+        if (!listRow) {
+          return { error: new Error('List not found locally') }
+        }
+        const trimmedListName = updates.name.trim()
+        if (!trimmedListName) {
+          return { error: new Error('List name cannot be empty') }
+        }
+        const nameDup = await validateListNameForOwner(listRow.owner_id, trimmedListName, listId)
+        if (!nameDup.ok) {
+          return { error: new Error(nameDup.message) }
+        }
+        effectiveUpdates = { ...updates, name: trimmedListName }
+      }
       catalogMutationVersionRef.current += 1
       catalogSkipRealtimeUntilRef.current = Date.now() + 2000
       const cat = useListsCatalogStore.getState()
       cat.beginLocalCatalogPersistence()
       try {
-        cat.setCatalogLists((prev) => prev.map((list) => (list.id === listId ? { ...list, ...updates } : list)))
+        cat.setCatalogLists((prev) => prev.map((list) => (list.id === listId ? { ...list, ...effectiveUpdates } : list)))
         const nowMs = Date.now()
         await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-          await db.lists.update(listId, { ...updates, cached_at: nowMs })
+          await db.lists.update(listId, { ...effectiveUpdates, cached_at: nowMs })
           await enqueueSyncQueueRecord({
             entity: 'list',
             entity_id: listId,
             kind: 'patch',
-            payload: { id: listId, ...updates },
+            payload: { id: listId, ...effectiveUpdates },
             ...listQueueParent(listId),
             status: 'queued',
           })

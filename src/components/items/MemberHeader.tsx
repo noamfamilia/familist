@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
+import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNameUniqueness'
 import type { CategoryNames, Member, MemberWithCreator } from '@/lib/supabase/types'
 import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
@@ -198,19 +199,15 @@ export function MemberHeader({
       return
     }
     
-    const nameExists = members.some(m => !m.is_target && m.name.toLowerCase() === nameToAdd.toLowerCase())
-    if (nameExists) {
-      showError(`Member "${nameToAdd}" already exists`)
-      return
-    }
-    
     setNewMemberName('')
     setIsAdding(false)
     const { error } = await onAddMember(nameToAdd, profile?.nickname || undefined)
     if (error) {
       setNewMemberName(nameToAdd)
       setIsAdding(true)
-      if (shouldShowConnectivityRelatedMutationToast(error.message)) {
+      if (isLocalDexieNameUniquenessFailure(error.message)) {
+        showError(error.message || 'That name is already in use.')
+      } else if (shouldShowConnectivityRelatedMutationToast(error.message)) {
         showError(error.message || 'Failed to add member', { serverError: error })
       }
       return
@@ -283,20 +280,17 @@ export function MemberHeader({
     const memberId = editingMemberId
     const trimmedName = editName.trim()
 
-    const nameExists = members.some(
-      m => !m.is_target && m.id !== memberId && m.name.toLowerCase() === trimmedName.toLowerCase(),
-    )
-    if (nameExists) {
-      showError(`Member "${trimmedName}" already exists`)
-      const originalMember = members.find(m => m.id === memberId)
-      setEditName(originalMember?.name || '')
-      return
-    }
-
-    handleCancelEdit()
     void onUpdateMember(memberId, { name: trimmedName }).then(({ error }) => {
-      if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-        showError(error.message || 'Failed to update member', { serverError: error })
+      if (error) {
+        if (isLocalDexieNameUniquenessFailure(error.message)) {
+          showError(error.message || 'That name is already in use.')
+          setEditingMemberId(memberId)
+          setEditName(trimmedName)
+        } else if (shouldShowConnectivityRelatedMutationToast(error.message)) {
+          showError(error.message || 'Failed to update member', { serverError: error })
+        }
+      } else {
+        handleCancelEdit()
       }
     })
   }

@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
+import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNameUniqueness'
 import { useAuth } from '@/providers/AuthProvider'
 import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
@@ -351,10 +352,17 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const handleSaveText = () => {
     if (editText.trim() && editText !== item.text) {
       const trimmed = editText.trim()
-      setIsEditing(false)
       void onUpdateItem(item.id, { text: trimmed }).then(({ error }) => {
-        if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-          showError(error.message || 'Failed to rename item', { serverError: error })
+        if (error) {
+          if (isLocalDexieNameUniquenessFailure(error.message)) {
+            showError(error.message)
+            setIsEditing(true)
+            setEditText(trimmed)
+          } else if (shouldShowConnectivityRelatedMutationToast(error.message)) {
+            showError(error.message || 'Failed to rename item', { serverError: error })
+          }
+        } else {
+          setIsEditing(false)
         }
       })
       return

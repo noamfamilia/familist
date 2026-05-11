@@ -10,6 +10,7 @@ import {
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { validateSingleNewItemTextUniqueness } from '@/lib/data/localItemTextUniqueness'
+import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 
 export async function addItemMutation(input: {
@@ -188,6 +189,10 @@ export async function addMemberMutation(input: {
   const sync = syncFieldsForLocalInsert({ client_created_at: t })
   const sortOrder = input.sort_order ?? 0
   const isTarget = input.is_target ?? false
+  const memberDup = await validateMemberNameForList(input.list_id, input.name)
+  if (!memberDup.ok) {
+    throw new Error(memberDup.message)
+  }
   const row: DbMemberRow = {
     id,
     list_id: input.list_id,

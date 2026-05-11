@@ -6,18 +6,13 @@ import { useToast } from '@/components/ui/Toast'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
 import { ListSyncStatusIcon } from '@/components/lists/ListSyncStatusIcon'
-import { cachedListDataExists } from '@/lib/cache'
-import {
-  getClientBuildId,
-  getLastOfflineRouteMarkerRecord,
-  normalOfflineRouteReady,
-} from '@/lib/offlineRouteReadiness'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { prefetchListPageForNavigation } from '@/lib/data/listPageCachePrefetch'
 import { useActiveListUiStore } from '@/stores/activeListUiStore'
 import type { ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { listCardModelEqual, sameStringList } from './listCardEquality'
+import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNameUniqueness'
 
 function listCardShowsSumRowMetadata(list: ListWithRole): boolean {
   const s: ListUserSumScope | undefined = list.sumScope
@@ -142,6 +137,8 @@ function ListCardInner({
     getNavigatorOnlineServerSnapshot,
   )
   const browserOffline = !navigatorOnLine
+  /** Catalog row actions (archive/restore/rename/comment/label) ignore connectivity recovery gating while the browser reports offline. */
+  const catalogActionsBlockedByConnectivity = browserOffline ? false : isOfflineActionsDisabled
   const { offlineAssetsReady, swControlled } = useConnectivity()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -219,7 +216,7 @@ function ListCardInner({
   })
 
   const handleAddLabelDone = () => {
-    if (isOfflineActionsDisabled) {
+    if (catalogActionsBlockedByConnectivity) {
       handleCancelAddLabel()
       return
     }
@@ -240,16 +237,8 @@ function ListCardInner({
     async (e: React.MouseEvent<HTMLAnchorElement>) => {
       const native = e.nativeEvent
       const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
-      const hasCachedListData = cachedListDataExists(list.id)
-      const routeReady = normalOfflineRouteReady(list.id)
-      const lastMarker = getLastOfflineRouteMarkerRecord(list.id)
-      const currentBuildId = getClientBuildId()
-      const offlineNavAllowed =
-        offline &&
-        swControlled &&
-        offlineAssetsReady &&
-        hasCachedListData &&
-        routeReady
+      /** Offline list open: SW shell only (catalog row implies Dexie already has the list). */
+      const offlineNavAllowed = offline && swControlled && offlineAssetsReady
       const allowed = !offline || offlineNavAllowed
       let reason: string
       if (!offline) {
@@ -258,12 +247,8 @@ function ListCardInner({
         reason = 'blocked_sw_not_controlled'
       } else if (!offlineAssetsReady) {
         reason = 'blocked_offline_assets_not_ready'
-      } else if (!hasCachedListData) {
-        reason = 'blocked_list_data_not_cached'
-      } else if (!routeReady) {
-        reason = 'blocked_route_not_verified_offline'
       } else {
-        reason = 'allowed_offline_normal_route_ready'
+        reason = 'allowed_offline_sw_assets'
       }
       const targetHref = listDetailHref
       const currentPath =
@@ -280,8 +265,6 @@ function ListCardInner({
           `currentPath=${currentPath}`,
           `targetHref=${targetHref}`,
           `offline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
-          `cachedListDataExists=${hasCachedListData ? 1 : 0} normalOfflineRouteReady=${routeReady ? 1 : 0}`,
-          `lastMarkerBuildId=${lastMarker?.buildId ?? 'none'} currentBuildId=${currentBuildId}`,
           `offlineNavAllowed=${offlineNavAllowed ? 1 : 0} reason=${reason} allowed=${allowed ? 1 : 0}`,
           `sw.controller.state=${ctrl?.state ?? 'no-controller'}`,
           ctrl?.scriptURL ? `sw.controller.scriptURL=${ctrl.scriptURL}` : '',
@@ -419,7 +402,7 @@ function ListCardInner({
   }
 
   const handleStartEditComment = () => {
-    if (isOfflineActionsDisabled) return
+    if (catalogActionsBlockedByConnectivity) return
     setDraftComment(comment)
     setEditingComment(true)
   }
@@ -448,20 +431,20 @@ function ListCardInner({
   }
 
   useEffect(() => {
-    if (!isOfflineActionsDisabled || !editingComment) return
+    if (!catalogActionsBlockedByConnectivity || !editingComment) return
     setDraftComment(comment)
     setEditingComment(false)
-  }, [isOfflineActionsDisabled, editingComment, comment])
+  }, [catalogActionsBlockedByConnectivity, editingComment, comment])
 
   useEffect(() => {
-    if (!isOfflineActionsDisabled || !isRenaming) return
+    if (!catalogActionsBlockedByConnectivity || !isRenaming) return
     setNewName(list.name)
     setIsRenaming(false)
     inputRef.current?.blur()
-  }, [isOfflineActionsDisabled, isRenaming, list.name])
+  }, [catalogActionsBlockedByConnectivity, isRenaming, list.name])
 
   useEffect(() => {
-    if (!isOfflineActionsDisabled) return
+    if (!catalogActionsBlockedByConnectivity) return
     setLabelDropdownOpen(false)
     setAddingLabel(false)
     setNewLabelText('')
@@ -469,7 +452,7 @@ function ListCardInner({
     setDupLabelDropdownOpen(false)
     setDupAddingLabel(false)
     setDupNewLabelText('')
-  }, [isOfflineActionsDisabled])
+  }, [catalogActionsBlockedByConnectivity])
 
   // Focus input when renaming
   useEffect(() => {
@@ -519,7 +502,7 @@ function ListCardInner({
 
   const handleArchiveClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (isOfflineActionsDisabled) return
+    if (catalogActionsBlockedByConnectivity) return
     onClearCreateInputIfTyped?.()
 
     // Toggle archive state
@@ -527,18 +510,25 @@ function ListCardInner({
   }
 
   const handleRename = () => {
-    if (isOfflineActionsDisabled) {
+    if (catalogActionsBlockedByConnectivity) {
       setNewName(list.name)
       setIsRenaming(false)
       return
     }
     if (newName.trim() && newName !== list.name) {
       const trimmed = newName.trim()
-      setIsRenaming(false)
       void onUpdate(list.id, { name: trimmed }).then(({ error }) => {
         if (error) {
-          showError('Failed to rename list', { serverError: error })
-          setNewName(list.name)
+          if (isLocalDexieNameUniquenessFailure(error.message)) {
+            showError(error.message)
+            setIsRenaming(true)
+            setNewName(trimmed)
+          } else {
+            showError('Failed to rename list', { serverError: error })
+            setNewName(list.name)
+          }
+        } else {
+          setIsRenaming(false)
         }
       })
       return
@@ -667,9 +657,9 @@ function ListCardInner({
       {/* Archive/Restore icon */}
       <button
         type="button"
-        disabled={isOfflineActionsDisabled}
+        disabled={catalogActionsBlockedByConnectivity}
         onClick={handleArchiveClick}
-        className={`text-xl flex-shrink-0 text-coral ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
+        className={`text-xl flex-shrink-0 text-coral ${catalogActionsBlockedByConnectivity ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
         data-tour="list-archive"
       >
         {list.userArchived ? '▲' : '▼'}
@@ -695,7 +685,7 @@ function ListCardInner({
             </span>
           </span>
         ) : menuOpen && isOwner ? (
-          isOfflineActionsDisabled ? (
+          catalogActionsBlockedByConnectivity ? (
             <span
               className="flex min-w-0 w-full items-center gap-1 font-medium text-lg text-primary dark:text-gray-100 cursor-default"
               data-tour="list-card"
@@ -834,11 +824,11 @@ function ListCardInner({
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             {comment ? (
               <p
-                className={`text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
+                className={`text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words ${catalogActionsBlockedByConnectivity ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
                 onClick={() => handleStartEditComment()}
               >
                 {comment}
-                {!isOfflineActionsDisabled ? (
+                {!catalogActionsBlockedByConnectivity ? (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="inline-block ml-1 opacity-40 align-text-bottom" aria-hidden>
                     <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
                   </svg>
@@ -846,9 +836,9 @@ function ListCardInner({
               </p>
             ) : (
               <p
-                className={`text-sm text-gray-400 dark:text-gray-500 ${isOfflineActionsDisabled ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
+                className={`text-sm text-gray-400 dark:text-gray-500 ${catalogActionsBlockedByConnectivity ? 'cursor-default' : 'cursor-pointer hover:text-teal'}`}
                 onClick={() => {
-                  if (!isOfflineActionsDisabled) handleStartEditComment()
+                  if (!catalogActionsBlockedByConnectivity) handleStartEditComment()
                 }}
               >
                 Add a comment...
@@ -906,9 +896,9 @@ function ListCardInner({
               <div className="relative" ref={labelDropdownRef}>
                 <button
                   type="button"
-                  disabled={isOfflineActionsDisabled}
+                  disabled={catalogActionsBlockedByConnectivity}
                   onClick={() => {
-                    if (isOfflineActionsDisabled) return
+                    if (catalogActionsBlockedByConnectivity) return
                     setLabelDropdownOpen(o => !o)
                     setAddingLabel(false)
                     setNewLabelText('')

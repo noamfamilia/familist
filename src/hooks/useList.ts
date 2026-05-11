@@ -44,7 +44,8 @@ import {
   syncFieldsForLocalInsert,
   withLastSyncedNow,
 } from '@/lib/data/base_sync_fields'
-import { validateBulkItemLinesUniqueness } from '@/lib/data/localItemTextUniqueness'
+import { validateBulkItemLinesUniqueness, validateSingleNewItemTextUniqueness } from '@/lib/data/localItemTextUniqueness'
+import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
 import { APP_VERSION } from '@/lib/appVersion'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
@@ -1320,6 +1321,17 @@ export function useList(listId: string) {
       return { error: { message: blockedMutationMessage() } }
     }
     const persistedUpdates = { ...updates }
+    if (persistedUpdates.text !== undefined) {
+      const textTrimmed = String(persistedUpdates.text).trim()
+      if (textTrimmed) {
+        const textDup = await validateSingleNewItemTextUniqueness(listId, textTrimmed, itemId)
+        if (!textDup.ok) {
+          mutationGate.end()
+          return { error: { message: textDup.message } }
+        }
+      }
+      persistedUpdates.text = textTrimmed
+    }
     const nowMs = Date.now()
     const nowIso = new Date(nowMs).toISOString()
     const dbPatch: Partial<Item> & { updated_at: string } = { updated_at: nowIso }
@@ -1486,6 +1498,20 @@ export function useList(listId: string) {
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
+    const normalizedMemberUpdates: Partial<Member> = { ...updates }
+    if (normalizedMemberUpdates.name !== undefined) {
+      const nameTrimmed = String(normalizedMemberUpdates.name).trim()
+      if (!nameTrimmed) {
+        mutationGate.end()
+        return { error: { message: 'Member name cannot be empty.' } }
+      }
+      const memberDup = await validateMemberNameForList(listId, nameTrimmed, memberId)
+      if (!memberDup.ok) {
+        mutationGate.end()
+        return { error: { message: memberDup.message } }
+      }
+      normalizedMemberUpdates.name = nameTrimmed
+    }
     const membersSnapshot = [...useListDataStore.getState().members]
     const nowMs = Date.now()
     const nowIso = new Date(nowMs).toISOString()
@@ -1497,7 +1523,7 @@ export function useList(listId: string) {
             ? m
             : {
                 ...m,
-                ...updates,
+                ...normalizedMemberUpdates,
                 updated_at: nowIso,
               },
         ),
@@ -1506,10 +1532,10 @@ export function useList(listId: string) {
       skipRealtimeUntilRef.current = Date.now() + 2000
       await db.transaction('rw', db.members, db.sync_queue, db.list_users, async () => {
         const memberPatch: Record<string, unknown> = { updated_at: nowIso }
-        if (updates.name !== undefined) memberPatch.name = updates.name
-        if (updates.is_public !== undefined) memberPatch.is_public = updates.is_public
-        if (updates.is_target !== undefined) memberPatch.is_target = updates.is_target
-        if (updates.sort_order !== undefined) memberPatch.sort_order = updates.sort_order
+        if (normalizedMemberUpdates.name !== undefined) memberPatch.name = normalizedMemberUpdates.name
+        if (normalizedMemberUpdates.is_public !== undefined) memberPatch.is_public = normalizedMemberUpdates.is_public
+        if (normalizedMemberUpdates.is_target !== undefined) memberPatch.is_target = normalizedMemberUpdates.is_target
+        if (normalizedMemberUpdates.sort_order !== undefined) memberPatch.sort_order = normalizedMemberUpdates.sort_order
         await db.members.update(memberId, memberPatch)
         await enqueueSyncQueueRecord({
           entity: 'member',
@@ -1517,8 +1543,8 @@ export function useList(listId: string) {
           kind: 'patch',
           payload: {
             memberId,
-            ...(updates.name !== undefined ? { name: updates.name } : {}),
-            ...(updates.is_public !== undefined ? { is_public: updates.is_public } : {}),
+            ...(normalizedMemberUpdates.name !== undefined ? { name: normalizedMemberUpdates.name } : {}),
+            ...(normalizedMemberUpdates.is_public !== undefined ? { is_public: normalizedMemberUpdates.is_public } : {}),
           },
           ...listQueueParent(listId),
           status: 'queued',

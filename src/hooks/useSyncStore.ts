@@ -65,6 +65,97 @@ type UpsertItemRpcEnvelope = {
   requested_text?: string
 }
 
+type UpsertMemberRpcEnvelope = {
+  member?: Record<string, unknown>
+  display_name_changed?: boolean
+  requested_name?: string | null
+}
+
+type ApplyItemPatchRpcEnvelope = {
+  item?: Record<string, unknown>
+  display_name_changed?: boolean
+  requested_text?: string | null
+}
+
+type ApplyListPatchRpcEnvelope = {
+  list?: Record<string, unknown>
+  display_name_changed?: boolean
+  requested_name?: string | null
+}
+
+async function mergeDedupedMemberNameFromRpc(
+  memberId: string,
+  listId: string,
+  env: UpsertMemberRpcEnvelope,
+  showInfoToast: (message: string) => void,
+): Promise<void> {
+  if (!env?.display_name_changed || !env.member) return
+  const newName = typeof env.member.name === 'string' ? env.member.name : String(env.member.name ?? '')
+  const serverUpdatedAt =
+    typeof env.member.updated_at === 'string' ? env.member.updated_at : isoNow()
+  if (!newName) return
+  await db.members.update(memberId, {
+    name: newName,
+    updated_at: serverUpdatedAt,
+  })
+  const { activeListId, setMembers } = useListDataStore.getState()
+  if (activeListId === listId) {
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.id === memberId ? { ...m, name: newName, updated_at: serverUpdatedAt } : m,
+      ),
+    )
+  }
+  const label = newName.length > 40 ? `${newName.slice(0, 37)}…` : newName
+  showInfoToast(`Member renamed to avoid a name collision (“${label}”).`)
+}
+
+async function mergeDedupedItemTextFromPatchRpc(
+  itemId: string,
+  listId: string,
+  env: ApplyItemPatchRpcEnvelope,
+  showInfoToast: (message: string) => void,
+): Promise<void> {
+  if (!env?.display_name_changed || !env.item) return
+  const newText = typeof env.item.text === 'string' ? env.item.text : String(env.item.text ?? '')
+  const serverUpdatedAt =
+    typeof env.item.updated_at === 'string' ? env.item.updated_at : isoNow()
+  if (!newText) return
+  await db.items.update(itemId, { text: newText, updated_at: serverUpdatedAt })
+  const { activeListId, setItems } = useListDataStore.getState()
+  if (activeListId === listId) {
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === itemId ? { ...i, text: newText, updated_at: serverUpdatedAt } : i,
+      ),
+    )
+  }
+  const label = newText.length > 40 ? `${newText.slice(0, 37)}…` : newText
+  showInfoToast(`Item renamed to avoid a name collision (“${label}”).`)
+}
+
+async function mergeDedupedListNameFromPatchRpc(
+  listId: string,
+  env: ApplyListPatchRpcEnvelope,
+  showInfoToast: (message: string) => void,
+): Promise<void> {
+  if (!env?.display_name_changed || !env.list) return
+  const name = typeof env.list.name === 'string' ? env.list.name : String(env.list.name ?? '')
+  const updatedAt =
+    typeof env.list.updated_at === 'string' ? env.list.updated_at : isoNow()
+  if (!name) return
+  await db.lists.update(listId, {
+    name,
+    updated_at: updatedAt,
+    cached_at: Date.now(),
+  })
+  useListsCatalogStore.getState().setCatalogLists((prev) =>
+    prev.map((l) => (l.id === listId ? { ...l, name } : l)),
+  )
+  const label = name.length > 40 ? `${name.slice(0, 37)}…` : name
+  showInfoToast(`List renamed to avoid a name collision (“${label}”).`)
+}
+
 function readBulkLineTextChanges(
   data: unknown,
 ): Array<{ item_id: string; requested_text: string; text: string }> {
@@ -420,11 +511,13 @@ export function useSyncStore(): SyncStoreState {
           updated_at: t,
         }
         const sync = normalizeServerSyncableFields(baseRow as Record<string, unknown>)
-        const { error } = await supabase.from('members').upsert({
-          ...baseRow,
-          ...sync,
+        const pMember = { ...baseRow, ...sync } as Record<string, unknown>
+        const { data: memberRpcData, error } = await supabase.rpc('upsert_member_sync', {
+          p_member: pMember as never,
         })
         if (error) throw error
+        const mEnv = memberRpcData as UpsertMemberRpcEnvelope | null
+        await mergeDedupedMemberNameFromRpc(id, listId, mEnv ?? {}, showInfoToast)
       } else if (row.kind === 'create' && row.entity === 'feedback') {
         const payload = row.payload as {
           id?: string
@@ -495,9 +588,24 @@ export function useSyncStore(): SyncStoreState {
         if (!id) throw new Error('patch item missing id')
         const patch: Record<string, unknown> = { ...payload }
         delete patch.id
-        if (Object.keys(patch).length > 0) {
-          const { error } = await supabase.from('items').update(patch).eq('id', id)
+        const patchJson: Record<string, unknown> = {}
+        for (const key of ['text', 'comment', 'category', 'archived', 'archived_at', 'sort_order'] as const) {
+          if (key in patch && patch[key] !== undefined) patchJson[key] = patch[key]
+        }
+        if (Object.keys(patchJson).length > 0) {
+          const { data: itemPatchRpcData, error } = await supabase.rpc('apply_item_patch_sync', {
+            p_item_id: id,
+            p_patch: patchJson as never,
+          })
           if (error) throw error
+          const itemRow = await db.items.get(id)
+          const itemListId = itemRow?.list_id ?? rowListIdForSync(row) ?? ''
+          await mergeDedupedItemTextFromPatchRpc(
+            id,
+            itemListId,
+            (itemPatchRpcData ?? {}) as ApplyItemPatchRpcEnvelope,
+            showInfoToast,
+          )
         }
       } else if (row.kind === 'patch' && row.entity === 'list') {
         const payload = row.payload as {
@@ -508,9 +616,17 @@ export function useSyncStore(): SyncStoreState {
         if (!id) throw new Error('patch list missing id')
         const patch: Record<string, unknown> = { ...payload }
         delete patch.id
-        if (Object.keys(patch).length > 0) {
-          const { error } = await supabase.from('lists').update(patch).eq('id', id)
+        const patchJson: Record<string, unknown> = {}
+        for (const key of ['name', 'archived', 'comment', 'category_names', 'category_order'] as const) {
+          if (key in patch && patch[key] !== undefined) patchJson[key] = patch[key]
+        }
+        if (Object.keys(patchJson).length > 0) {
+          const { data: listPatchRpcData, error } = await supabase.rpc('apply_list_patch_sync', {
+            p_list_id: id,
+            p_patch: patchJson as never,
+          })
           if (error) throw error
+          await mergeDedupedListNameFromPatchRpc(id, (listPatchRpcData ?? {}) as ApplyListPatchRpcEnvelope, showInfoToast)
         }
       } else if (row.kind === 'patch' && row.entity === 'member') {
         const payload = row.payload as {
@@ -520,12 +636,20 @@ export function useSyncStore(): SyncStoreState {
         }
         const memberId = String(payload.memberId ?? row.entity_id ?? '')
         if (!memberId) throw new Error('patch member missing memberId')
-        const { error } = await supabase.rpc('update_member', {
+        const { data: updateMemberRpcData, error } = await supabase.rpc('update_member', {
           p_member_id: memberId,
           p_name: payload.name ?? null,
           p_is_public: payload.is_public ?? null,
         })
         if (error) throw error
+        const memberRow = await db.members.get(memberId)
+        const memberListId = memberRow?.list_id ?? rowListIdForSync(row) ?? ''
+        await mergeDedupedMemberNameFromRpc(
+          memberId,
+          memberListId,
+          (updateMemberRpcData ?? {}) as UpsertMemberRpcEnvelope,
+          showInfoToast,
+        )
       } else if (row.kind === 'rpc') {
         const payload = row.payload as {
           method?: string

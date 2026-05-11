@@ -35,10 +35,11 @@ export async function listHasActiveItemWithNormalizedText(
 export async function validateSingleNewItemTextUniqueness(
   listId: string,
   displayText: string,
+  excludeItemId?: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const trimmed = displayText.trim()
   if (!trimmed) return { ok: true }
-  if (await listHasActiveItemWithNormalizedText(listId, trimmed)) {
+  if (await listHasActiveItemWithNormalizedText(listId, trimmed, excludeItemId)) {
     return {
       ok: false,
       message: `An item named “${shortenForMessage(trimmed)}” already exists in this list.`,
