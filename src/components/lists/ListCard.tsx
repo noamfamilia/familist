@@ -15,7 +15,7 @@ import {
 } from '@/lib/offlineRouteReadiness'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useAuth } from '@/providers/AuthProvider'
-import { prefetchListPageCacheFromDexie } from '@/lib/data/listPageCachePrefetch'
+import { prefetchListPageForNavigation } from '@/lib/data/listPageCachePrefetch'
 import type { ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { listCardModelEqual, sameStringList } from './listCardEquality'
 
@@ -303,15 +303,15 @@ function ListCardInner({
       }
 
       if (navigateUserId) {
-        appendOfflineNavDiagnostic(`[list-click] dexie L1 prefetch start listId=${list.id}`)
+        appendOfflineNavDiagnostic(`[list-click] prefetch nav start listId=${list.id}`)
         try {
-          await prefetchListPageCacheFromDexie(navigateUserId, list.id)
+          await prefetchListPageForNavigation(navigateUserId, list.id)
         } catch (err) {
           appendOfflineNavDiagnostic(
-            `[list-click] dexie L1 prefetch threw: ${err instanceof Error ? err.message : String(err)}`,
+            `[list-click] prefetch nav threw: ${err instanceof Error ? err.message : String(err)}`,
           )
         }
-        appendOfflineNavDiagnostic(`[list-click] dexie L1 prefetch done listId=${list.id}`)
+        appendOfflineNavDiagnostic(`[list-click] prefetch nav done listId=${list.id}`)
       }
 
       try {

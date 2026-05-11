@@ -1,7 +1,8 @@
-import { setCachedList } from '@/lib/cache'
+import { getCachedList, setCachedList } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { loadListDetailFromDexie } from '@/lib/data/queries'
+import { useListDataStore, warmListData } from '@/stores/listDataStore'
 import type { List } from '@/lib/supabase/types'
 
 /**
@@ -19,4 +20,15 @@ export async function prefetchListPageCacheFromDexie(userId: string, listId: str
     members: detail.members,
   })
   return true
+}
+
+/**
+ * L1 localStorage + Zustand session warm before `router.push` so the list route can render without a loading gate.
+ */
+export async function prefetchListPageForNavigation(userId: string, listId: string): Promise<boolean> {
+  const ok = await prefetchListPageCacheFromDexie(userId, listId)
+  const cached = getCachedList(userId, listId)
+  useListDataStore.getState().beginListSession(userId, listId, cached)
+  await warmListData(userId, listId)
+  return ok
 }

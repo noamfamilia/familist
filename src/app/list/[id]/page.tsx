@@ -33,7 +33,6 @@ import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
 import { Button } from '@/components/ui/Button'
-import { Spinner } from '@/components/ui/Spinner'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { ListSumRowCard } from '@/components/items/ListSumRowCard'
@@ -667,17 +666,22 @@ export default function ListPage() {
     !!effectiveUserIdForMirror &&
     !sessionMirrorReady
 
-  if (
-    !hasMounted ||
+  /** Prefetch leaves the store warm so we should not block first paint on `hasMounted` alone. */
+  const mirrorPrimedForPaint = !!list && sessionMirrorReady
+
+  const blockListShell =
+    (!hasMounted && !mirrorPrimedForPaint) ||
     (authLoading && !bootstrapUserId) ||
     loading ||
     blockOnListData ||
     blockUntilSessionMirrorReady
-  ) {
+
+  if (blockListShell) {
     return (
-      <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
-        <Spinner />
-      </div>
+      <div
+        className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center"
+        aria-busy="true"
+      />
     )
   }
 

@@ -145,6 +145,15 @@ export const useListDataStore = create<ListDataState & ListDataActions>((set, ge
     }),
 
   beginListSession: (userId, listId, cached) => {
+    const st = get()
+    if (
+      st.activeUserId === userId &&
+      st.activeListId === listId &&
+      st.listDataStatus === 'ready' &&
+      st.prefsMirrorReady
+    ) {
+      return
+    }
     const seed =
       cached?.list != null
         ? {

@@ -18,6 +18,7 @@ import { LabelManagerModal } from './LabelManagerModal'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { prefetchListPageForNavigation } from '@/lib/data/listPageCachePrefetch'
 import { useAuth } from '@/providers/AuthProvider'
 import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 
@@ -294,6 +295,11 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
             ? `Joined successfully to list ${nameFromCatalog}`
             : 'Joined successfully to list',
         )
+        try {
+          await prefetchListPageForNavigation(user.id, data)
+        } catch {
+          /* list page will warm if prefetch fails */
+        }
         router.replace(`/list/${data}`)
       } else {
         success('Joined successfully to list')
