@@ -554,7 +554,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const prev = profile
-    setProfile((p) => (p ? { ...p, ...updates } : null))
+    const merged = prev ? ({ ...prev, ...updates } as Profile) : null
+    setProfile(merged)
 
     const { error } = await supabase
       .from('profiles')
@@ -563,6 +564,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error) {
       setProfile(prev)
+    } else if (merged) {
+      void upsertProfileFromServer(merged)
     }
 
     return { error: error as Error | null }

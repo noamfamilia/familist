@@ -179,10 +179,18 @@ function HomeContent() {
     if (profile && !labelSyncedRef.current) {
       labelSyncedRef.current = true
       const serverLabel = profile.label_filter ?? 'Any'
-      setSelectedLabel(serverLabel)
-      setCachedLabelFilter(serverLabel)
+      const cacheUserId = user?.id ?? bootstrapUserId ?? undefined
+      const cachedRaw = getCachedLabelFilter(cacheUserId)
+      const cached =
+        cachedRaw !== null && cachedRaw !== undefined && cachedRaw !== '' ? cachedRaw : null
+      const effective = cached ?? serverLabel
+      setSelectedLabel(effective)
+      setCachedLabelFilter(effective, cacheUserId)
+      if (user && effective !== serverLabel && !isOfflineActionsDisabled) {
+        void updateProfile({ label_filter: effective })
+      }
     }
-  }, [profile])
+  }, [profile, user, bootstrapUserId, isOfflineActionsDisabled, updateProfile])
 
   useEffect(() => {
     if (isCreating) {
@@ -289,14 +297,17 @@ function HomeContent() {
 
   
 
-  const handleSelectLabel = useCallback((label: string) => {
-    setSelectedLabel(label)
-    setCachedLabelFilter(label)
-    // Keep label filter usable offline: persist locally now, sync only when online.
-    if (labelSyncedRef.current && !isOfflineActionsDisabled) {
-      void updateProfile({ label_filter: label })
-    }
-  }, [isOfflineActionsDisabled, updateProfile])
+  const handleSelectLabel = useCallback(
+    (label: string) => {
+      const cacheUserId = user?.id ?? bootstrapUserId ?? undefined
+      setSelectedLabel(label)
+      setCachedLabelFilter(label, cacheUserId)
+      if (user && !isOfflineActionsDisabled) {
+        void updateProfile({ label_filter: label })
+      }
+    },
+    [bootstrapUserId, isOfflineActionsDisabled, updateProfile, user],
+  )
 
   const handleLabelsChange = useCallback((labels: string[]) => {
     setAvailableLabels(labels)
