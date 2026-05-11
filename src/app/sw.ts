@@ -1,14 +1,6 @@
 /// <reference lib="webworker" />
 
-import {
-  ExpirationPlugin,
-  NetworkFirst,
-  NetworkOnly,
-  Serwist,
-  type PrecacheEntry,
-  type SerwistGlobalConfig,
-  type SerwistPlugin,
-} from 'serwist'
+import { NetworkOnly, Serwist, type PrecacheEntry, type SerwistGlobalConfig } from 'serwist'
 import { defaultCache } from '@serwist/next/worker'
 
 declare global {
@@ -22,22 +14,32 @@ declare const self: ServiceWorkerGlobalScope
 const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
 const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
 
-/** Set immediately after `new Serwist` so strategy plugins can call `matchPrecache`. */
-const serwistRef: { current: Serwist | null } = { current: null }
+/**
+ * Same-origin navigations that may use `navigateFallback` (precached app shell at `/`).
+ * Regexes run against `pathname + search` (Serwist `NavigationRoute`).
+ * Dynamic list URLs are not precached individually; uncached `/list/*` navigations
+ * receive the main `/` document so the client can boot and hydrate from the URL.
+ */
+const navigateFallbackAllowlist = [
+  /^\/(\?.*)?$/, // `/`, `/?…`
+  /^\/list(?:\/|\?|$)/, // `/list`, `/list/…`, `/list?…`
+  /^\/import(?:\/|\?|$)/,
+  /^\/profile(?:\/|\?|$)/,
+  /^\/auth\//,
+  /^\/reset(?:\/|\?|$)/,
+  /^\/~offline(?:\/|\?|$)/,
+]
 
-const precachedAppShellOnNavigateError: SerwistPlugin = {
-  handlerDidError: async () => {
-    const instance = serwistRef.current
-    if (!instance) return undefined
-    return (await instance.matchPrecache('/')) ?? undefined
-  },
-}
+/** Denylist wins over allowlist; keep API and Next internals off the HTML shell. */
+const navigateFallbackDenylist = [/^\/api\//, /^\/_next\//]
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
-  // Full-document navigations use the runtime rule below (`NetworkFirst` + precached `/`
-  // on total failure) so `/`, `/list/[id]`, and other app paths share one offline shell
-  // when the network and the per-URL runtime cache miss.
+  precacheOptions: {
+    navigateFallback: '/',
+    navigateFallbackAllowlist,
+    navigateFallbackDenylist,
+  },
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
@@ -49,30 +51,9 @@ const serwist = new Serwist({
         url.pathname === '/api/reachability',
       handler: new NetworkOnly(),
     },
-    {
-      matcher: ({ request, url, sameOrigin }) =>
-        sameOrigin &&
-        request.method === 'GET' &&
-        request.mode === 'navigate' &&
-        !url.pathname.startsWith('/api/'),
-      handler: new NetworkFirst({
-        cacheName: 'pages-document-navigate',
-        networkTimeoutSeconds: 5,
-        plugins: [
-          new ExpirationPlugin({
-            maxEntries: 48,
-            maxAgeSeconds: 24 * 60 * 60,
-            maxAgeFrom: 'last-used',
-          }),
-          precachedAppShellOnNavigateError,
-        ],
-      }),
-    },
     ...defaultCache,
   ],
 })
-
-serwistRef.current = serwist
 
 serwist.addEventListeners()
 
