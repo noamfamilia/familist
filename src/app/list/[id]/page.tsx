@@ -1,5 +1,13 @@
 'use client'
 
+/**
+ * List **application data** (items, members, prefs) is loaded client-side via `useList` → Dexie
+ * + localStorage when the app reports `offline`; no Supabase `get_list_data` runs in that mode.
+ *
+ * Next.js App Router may still issue **RSC / `_next` flight** requests on client navigations; that
+ * is framework-level (served from the service worker when precached). It is not used as the source
+ * of list rows — see `fetchList` in `useList.ts` and `prefetchListPageForNavigation`.
+ */
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'

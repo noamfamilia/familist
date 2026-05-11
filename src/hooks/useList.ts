@@ -596,6 +596,61 @@ export function useList(listId: string) {
 
     setError(null)
 
+    // Offline: never hit Supabase for list detail — hydrate from Dexie + L1 cache only so route
+    // transitions do not require a network round-trip for application data (Next may still fetch
+    // RSC flight for the segment; that is separate from this hook).
+    if (connectivityStatus === 'offline') {
+      appendOfflineNavDiagnostic(`[fetchList] dexie-only (offline) listId=${listId}`)
+      let hadList = false
+      try {
+        await warmListData(userId, listId)
+        const st = useListDataStore.getState()
+        if (st.activeUserId === userId && st.activeListId === listId && st.list) {
+          hadList = true
+          hadAccessRef.current = true
+          hasInitialDataRef.current = true
+          setCategoryNames(parseCategoryNames(st.list.category_names))
+          setCategoryOrder(parseCategoryOrder(st.list.category_order))
+          setCachedList(userId, listId, { list: st.list, items: st.items, members: st.members })
+        } else {
+          const fromLs = getCachedList(userId, listId)
+          if (fromLs?.list) {
+            useListDataStore.getState().setList(fromLs.list)
+            useListDataStore.getState().setItems(fromLs.items)
+            useListDataStore.getState().setMembers(fromLs.members)
+            hadList = true
+            hadAccessRef.current = true
+            hasInitialDataRef.current = true
+            setCategoryNames(parseCategoryNames(fromLs.list.category_names))
+            setCategoryOrder(parseCategoryOrder(fromLs.list.category_order))
+          } else {
+            setError(
+              'This list is not on this device yet. Open it online once to use it offline.',
+            )
+          }
+        }
+      } finally {
+        if (listMirrorLockHeld) {
+          await releaseListMirrorLock(listId, LIST_MIRROR_SESSION_OWNER)
+          listMirrorLockHeld = false
+        }
+        if (fetchTimeoutRef.current) {
+          clearTimeout(fetchTimeoutRef.current)
+          fetchTimeoutRef.current = null
+        }
+        setFetchTimedOut(false)
+        setLoading(false)
+        setIsFetching(false)
+        setHasCompletedInitialFetch(true)
+        fetchingRef.current = false
+        setItemsUntilReconnectReconciled(null)
+        appendOfflineNavDiagnostic(
+          `[fetchList] dexie-only finished listId=${listId} hadList=${hadList ? 1 : 0}`,
+        )
+      }
+      return
+    }
+
     beginServerWork()
     let serverOutcome: ServerWorkOutcome = 'success'
     try {
@@ -906,7 +961,16 @@ export function useList(listId: string) {
       )
       setItemsUntilReconnectReconciled(null)
     }
-  }, [beginServerWork, endServerWork, enterOffline, listId, markOnlineRecovered, pulseServerWorkProgress, userId])
+  }, [
+    beginServerWork,
+    connectivityStatus,
+    endServerWork,
+    enterOffline,
+    listId,
+    markOnlineRecovered,
+    pulseServerWorkProgress,
+    userId,
+  ])
 
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && !!list
 
