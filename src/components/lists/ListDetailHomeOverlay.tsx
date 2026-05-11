@@ -22,7 +22,8 @@ export type ListDetailHomeOverlayProps = {
 
 /**
  * Full-viewport overlay on `/` when a list is open from the home shell (no App Router transition).
- * Portaled to `document.body`. Mobile: edge-to-edge. `sm+`: dimmed backdrop; panel matches the
+ * Portaled to `document.body`. Mobile: edge-to-edge. `sm+`: dimmed backdrop; list shell centered
+ * on the x-axis and aligned to the top (`items-center` + `justify-start`); panel matches the
  * pre–home-modal list route shell — `w-fit` / `sm:min-h-0` so height grows with content and the
  * overlay backdrop scrolls (same idea as the full page before `2b7e918`).
  *
@@ -63,7 +64,7 @@ export function ListDetailHomeOverlay({ listId, onClose }: ListDetailHomeOverlay
 
   return createPortal(
     <div
-      className="fixed inset-0 z-40 flex min-h-0 flex-col overflow-y-auto overflow-x-hidden bg-white dark:bg-neutral-800 sm:items-start sm:justify-center sm:bg-black/50 sm:dark:bg-black/70 sm:p-4"
+      className="fixed inset-0 z-40 flex min-h-0 flex-col overflow-y-auto overflow-x-hidden bg-white dark:bg-neutral-800 sm:items-center sm:justify-start sm:bg-black/50 sm:dark:bg-black/70 sm:p-4"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
