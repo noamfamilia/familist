@@ -256,7 +256,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     const handleInviteJoin = async () => {
       setError('')
       appendMutationDiagnostic(`[invite] ListsView join start userId=${user.id} tokenLen=${inviteToken.length}`)
-      const { data, error } = await joinListByToken(inviteToken)
+      const { data, error, joinedListName } = await joinListByToken(inviteToken)
       if (cancelled) {
         appendMutationDiagnostic('[invite] ListsView join cancelled (unmount)')
         return
@@ -285,16 +285,18 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       )
 
       if (typeof data === 'string' && data) {
-        const joined = lists.find(l => l.id === data)
-        if (joined) {
-          const by = joined.ownerNickname ? ` (by ${joined.ownerNickname})` : ''
-          success(`Joined list "${joined.name}"${by}`)
-        } else {
-          success('Joined list!')
-        }
+        const nameFromCatalog =
+          joinedListName ??
+          lists.find((l) => l.id === data)?.name ??
+          useListsCatalogStore.getState().lists.find((l) => l.id === data)?.name
+        success(
+          nameFromCatalog
+            ? `Joined successfully to list ${nameFromCatalog}`
+            : 'Joined successfully to list',
+        )
         router.replace(`/list/${data}`)
       } else {
-        success('Invite saved — the list will show up after sync.')
+        success('Joined successfully to list')
       }
     }
 

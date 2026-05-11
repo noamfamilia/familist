@@ -723,22 +723,59 @@ export function useLists() {
         appendMutationDiagnostic(
           `[invite] joinListByToken deferred reason=authLoading catalogUserId=${userId ?? 'null'} tokenLen=${tokenLen}`,
         )
-        return { data: null, error: new Error('Session still loading') }
+        return { data: null, error: new Error('Session still loading'), joinedListName: null as string | null }
       }
       if (!user?.id) {
         appendMutationDiagnostic(
           `[invite] joinListByToken blocked reason=no_user_session authLoading=0 catalogUserId=${userId ?? 'null'} bootstrapUserId=${bootstrapUserId ?? 'null'} tokenLen=${tokenLen}`,
         )
-        return { data: null, error: new Error('Not authenticated') }
+        return { data: null, error: new Error('Not authenticated'), joinedListName: null as string | null }
       }
       if (!tryBeginMutation()) {
         const msg = blockedMutationMessage()
         appendMutationDiagnostic(
           `[invite] joinListByToken blocked reason=mutation_gate userId=${user.id} tokenLen=${tokenLen} msg=${msg}`,
         )
-        return { data: null, error: new Error(msg) }
+        return { data: null, error: new Error(msg), joinedListName: null as string | null }
       }
       try {
+        if (canMutateNow()) {
+          appendMutationDiagnostic(
+            `[invite] joinListByToken rpc userId=${user.id} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
+          )
+          catalogMutationVersionRef.current += 1
+          catalogSkipRealtimeUntilRef.current = Date.now() + 2000
+          const { data: listIdRaw, error: rpcError } = await supabase.rpc('join_list_by_token', {
+            p_token: token,
+          } as never)
+          if (rpcError) {
+            appendMutationDiagnostic(
+              `[invite] joinListByToken rpc_err userId=${user.id} tokenLen=${tokenLen} err=${rpcError.message}`,
+            )
+            return { data: null, error: new Error(rpcError.message), joinedListName: null as string | null }
+          }
+          const listId =
+            typeof listIdRaw === 'string'
+              ? listIdRaw
+              : listIdRaw != null
+                ? String(listIdRaw)
+                : null
+          if (!listId) {
+            return {
+              data: null,
+              error: new Error('Join did not return a list id'),
+              joinedListName: null as string | null,
+            }
+          }
+          markOnlineRecovered()
+          await fetchLists()
+          const joined = useListsCatalogStore.getState().lists.find((l) => l.id === listId)
+          appendMutationDiagnostic(
+            `[invite] joinListByToken rpc_ok userId=${user.id} listId=${listId} name=${joined?.name ? '1' : '0'}`,
+          )
+          return { data: listId, error: null, joinedListName: joined?.name ?? null }
+        }
+
         appendMutationDiagnostic(
           `[invite] joinListByToken queue userId=${user.id} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
         )
@@ -759,12 +796,12 @@ export function useLists() {
         void fetchLists()
         window.setTimeout(() => void fetchLists(), 700)
         window.setTimeout(() => void fetchLists(), 2200)
-        return { data: null, error: null }
+        return { data: null, error: null, joinedListName: null as string | null }
       } catch (e) {
         appendMutationDiagnostic(
-          `[invite] joinListByToken enqueue_throw userId=${user.id} tokenLen=${tokenLen} err=${e instanceof Error ? e.message : String(e)}`,
+          `[invite] joinListByToken throw userId=${user.id} tokenLen=${tokenLen} err=${e instanceof Error ? e.message : String(e)}`,
         )
-        return { data: null, error: e instanceof Error ? e : new Error(String(e)) }
+        return { data: null, error: e instanceof Error ? e : new Error(String(e)), joinedListName: null as string | null }
       } finally {
         mutationGate.end()
       }
@@ -779,6 +816,7 @@ export function useLists() {
       blockedMutationMessage,
       markOnlineRecovered,
       fetchLists,
+      canMutateNow,
     ],
   )
 
