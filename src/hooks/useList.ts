@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react'
 import Dexie from 'dexie'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
@@ -457,8 +457,8 @@ export function useList(listId: string) {
     }
   }, [userId, listId])
 
-  /** Apply `list_users` prefs from the Dexie-backed Zustand mirror (liveQuery + warm). */
-  useEffect(() => {
+  /** Apply `list_users` prefs from the Dexie-backed Zustand mirror before paint (avoids font/prefs flash after gate). */
+  useLayoutEffect(() => {
     if (!userId || !listId || !prefsMirrorReady) return
     const dexiePrefs = mirroredListUserRow
     if (!dexiePrefs) {
