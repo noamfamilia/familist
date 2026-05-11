@@ -286,7 +286,8 @@ export interface Database {
           p_label?: string
           p_client_created_at?: string
         }
-        Returns: Database['public']['Tables']['lists']['Row']
+        /** `{ list, display_name_changed, requested_name }` — `list` is the persisted row. */
+        Returns: Json
       }
       join_list_by_token: {
         Args: { p_token: string }
@@ -352,8 +353,19 @@ export interface Database {
         Returns: number
       }
       bulk_add_list_items: {
-        Args: { p_list_id: string; p_category: number; p_lines: string[] }
-        Returns: number
+        Args: {
+          p_list_id: string
+          p_category: number
+          p_lines: string[]
+          p_item_ids?: string[]
+        }
+        /** `{ inserted_count, line_text_changes }` — `line_text_changes` is an array of `{ item_id, requested_text, text }`. */
+        Returns: Json
+      }
+      upsert_item_sync: {
+        Args: { p_item: Json }
+        /** `{ item, display_name_changed, requested_text }` */
+        Returns: Json
       }
       bulk_update_list_labels: {
         Args: { p_updates: Json }

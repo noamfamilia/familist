@@ -29,6 +29,8 @@ import {
   type List,
   type MemberWithCreator,
 } from '@/lib/supabase/types'
+import { useListsCatalogStore } from '@/stores/listsCatalogStore'
+import { useListDataStore } from '@/stores/listDataStore'
 
 const supabase = createClient()
 
@@ -49,6 +51,40 @@ function rowListIdForSync(row: DbSyncQueueRow): string | null {
 
 function queueDiagKey(row: DbSyncQueueRow): string {
   return row.entity_id
+}
+
+type CreateListRpcEnvelope = {
+  list?: Record<string, unknown>
+  display_name_changed?: boolean
+  requested_name?: string
+}
+
+type UpsertItemRpcEnvelope = {
+  item?: Record<string, unknown>
+  display_name_changed?: boolean
+  requested_text?: string
+}
+
+function readBulkLineTextChanges(
+  data: unknown,
+): Array<{ item_id: string; requested_text: string; text: string }> {
+  if (!data || typeof data !== 'object') return []
+  const rec = data as Record<string, unknown>
+  const raw = rec.line_text_changes
+  if (!Array.isArray(raw)) return []
+  const out: Array<{ item_id: string; requested_text: string; text: string }> = []
+  for (const el of raw) {
+    if (!el || typeof el !== 'object') continue
+    const o = el as Record<string, unknown>
+    const itemId = typeof o.item_id === 'string' ? o.item_id : String(o.item_id ?? '')
+    if (!itemId) continue
+    out.push({
+      item_id: itemId,
+      requested_text: typeof o.requested_text === 'string' ? o.requested_text : String(o.requested_text ?? ''),
+      text: typeof o.text === 'string' ? o.text : String(o.text ?? ''),
+    })
+  }
+  return out
 }
 
 /** Best-effort names from Dexie for sync diagnostics (e.g. bulk label RPC failures). */
@@ -163,7 +199,7 @@ export function useSyncStore(): SyncStoreState {
     statusRef.current = status
   }, [status])
 
-  const { error: showErrorToast } = useToast()
+  const { error: showErrorToast, info: showInfoToast } = useToast()
   const drainingRef = useRef(false)
   const [isDraining, setIsDraining] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
@@ -294,11 +330,30 @@ export function useSyncStore(): SyncStoreState {
           updated_at: t,
         }
         const itemSync = normalizeServerSyncableFields(baseItem as Record<string, unknown>)
-        const { error } = await supabase.from('items').upsert({
-          ...baseItem,
-          ...itemSync,
+        const pItem = { ...baseItem, ...itemSync } as Record<string, unknown>
+        const { data: itemRpcData, error } = await supabase.rpc('upsert_item_sync', {
+          p_item: pItem as never,
         })
         if (error) throw error
+        const env = itemRpcData as UpsertItemRpcEnvelope | null
+        if (env?.display_name_changed && env.item) {
+          const newText = typeof env.item.text === 'string' ? env.item.text : String(env.item.text ?? '')
+          const serverUpdatedAt =
+            typeof env.item.updated_at === 'string' ? env.item.updated_at : isoNow()
+          if (newText) {
+            await db.items.update(id, { text: newText, updated_at: serverUpdatedAt })
+            const { activeListId, setItems } = useListDataStore.getState()
+            if (activeListId === listId) {
+              setItems((prev) =>
+                prev.map((i) =>
+                  i.id === id ? { ...i, text: newText, updated_at: serverUpdatedAt } : i,
+                ),
+              )
+            }
+            const label = newText.length > 40 ? `${newText.slice(0, 37)}…` : newText
+            showInfoToast(`Item renamed to avoid a name collision (“${label}”).`)
+          }
+        }
       } else if (row.kind === 'create' && row.entity === 'list') {
         const payload = row.payload as {
           id?: string
@@ -308,13 +363,32 @@ export function useSyncStore(): SyncStoreState {
         }
         const t =
           typeof payload.client_created_at === 'string' ? payload.client_created_at : isoNow()
-        const { error } = await supabase.rpc('create_list', {
+        const listIdForCreate = String(payload.id ?? '')
+        const { data: createListData, error } = await supabase.rpc('create_list', {
           p_id: payload.id,
           p_name: payload.name ?? '',
           p_label: payload.label ?? '',
           p_client_created_at: t,
         })
         if (error) throw error
+        const env = createListData as CreateListRpcEnvelope | null
+        if (env?.display_name_changed && env.list && listIdForCreate) {
+          const name = typeof env.list.name === 'string' ? env.list.name : String(env.list.name ?? '')
+          const updatedAt =
+            typeof env.list.updated_at === 'string' ? env.list.updated_at : isoNow()
+          if (name) {
+            await db.lists.update(listIdForCreate, {
+              name,
+              updated_at: updatedAt,
+              cached_at: Date.now(),
+            })
+            useListsCatalogStore.getState().setCatalogLists((prev) =>
+              prev.map((l) => (l.id === listIdForCreate ? { ...l, name } : l)),
+            )
+            const label = name.length > 40 ? `${name.slice(0, 37)}…` : name
+            showInfoToast(`List renamed to avoid a name collision (“${label}”).`)
+          }
+        }
       } else if (row.kind === 'create' && row.entity === 'member') {
         const payload = row.payload as {
           id?: string
@@ -504,6 +578,7 @@ export function useSyncStore(): SyncStoreState {
             `[sync->server] bulkAddListItems payload listId=${rpcListId} lines=${lines.length} items=${itemRows.length}`,
           )
           if (rpcListId && itemRows.length > 0) {
+            let bulkItemRenameCount = 0
             for (const raw of itemRows) {
               const it = raw as {
                 id?: string
@@ -541,19 +616,65 @@ export function useSyncStore(): SyncStoreState {
                 updated_at: typeof it.updated_at === 'string' ? it.updated_at : t,
               }
               const sync = normalizeServerSyncableFields(baseRow as Record<string, unknown>)
-              const { error } = await supabase.from('items').upsert({
-                ...baseRow,
-                ...sync,
+              const pItem = { ...baseRow, ...sync } as Record<string, unknown>
+              const { data: rowRpcData, error } = await supabase.rpc('upsert_item_sync', {
+                p_item: pItem as never,
               })
               if (error) throw error
+              const env = rowRpcData as UpsertItemRpcEnvelope | null
+              if (env?.display_name_changed && env.item) {
+                const newText = typeof env.item.text === 'string' ? env.item.text : String(env.item.text ?? '')
+                const serverUpdatedAt =
+                  typeof env.item.updated_at === 'string' ? env.item.updated_at : isoNow()
+                if (newText) {
+                  await db.items.update(id, { text: newText, updated_at: serverUpdatedAt })
+                  const { activeListId, setItems } = useListDataStore.getState()
+                  if (activeListId === rpcListId) {
+                    setItems((prev) =>
+                      prev.map((i) =>
+                        i.id === id ? { ...i, text: newText, updated_at: serverUpdatedAt } : i,
+                      ),
+                    )
+                  }
+                  bulkItemRenameCount += 1
+                }
+              }
+            }
+            if (bulkItemRenameCount > 0) {
+              showInfoToast(
+                bulkItemRenameCount === 1
+                  ? 'Item renamed to avoid a name collision.'
+                  : `${bulkItemRenameCount} items renamed to avoid name collisions.`,
+              )
             }
           } else if (rpcListId && lines.length > 0) {
-            const { error } = await supabase.rpc('bulk_add_list_items', {
+            const { data: bulkData, error } = await supabase.rpc('bulk_add_list_items', {
               p_list_id: rpcListId,
               p_category: category,
               p_lines: lines,
             } as never)
             if (error) throw error
+            const changes = readBulkLineTextChanges(bulkData)
+            if (changes.length > 0) {
+              const nowIso = isoNow()
+              for (const ch of changes) {
+                await db.items.update(ch.item_id, { text: ch.text, updated_at: nowIso })
+              }
+              const { activeListId, setItems } = useListDataStore.getState()
+              if (activeListId === rpcListId) {
+                setItems((prev) =>
+                  prev.map((i) => {
+                    const ch = changes.find((c) => c.item_id === i.id)
+                    return ch ? { ...i, text: ch.text, updated_at: nowIso } : i
+                  }),
+                )
+              }
+              showInfoToast(
+                changes.length === 1
+                  ? `Item renamed to avoid a name collision (“${changes[0]!.text.length > 40 ? `${changes[0]!.text.slice(0, 37)}…` : changes[0]!.text}”).`
+                  : `${changes.length} items renamed to avoid name collisions.`,
+              )
+            }
           }
         } else if (method === 'patchListUser') {
           const id = String(payload.id ?? '')
@@ -778,7 +899,7 @@ export function useSyncStore(): SyncStoreState {
         throw err
       }
     },
-    [normalizeErrorMessage, verifyMutationApplied, resolveSyncUserId, syncListDetail],
+    [normalizeErrorMessage, verifyMutationApplied, resolveSyncUserId, syncListDetail, showInfoToast],
   )
 
   const needsBackoffWake = useMemo(() => {
