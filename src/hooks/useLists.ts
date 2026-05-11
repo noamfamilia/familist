@@ -691,6 +691,7 @@ export function useLists() {
       cat.setCatalogLists(nextLists)
       try {
         await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+          const queueTs = Date.now()
           const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
           if (row) {
             await db.list_users.update(row.id, {
@@ -711,6 +712,7 @@ export function useLists() {
             },
             ...listQueueParent(listId),
             status: 'queued',
+            updated_at: queueTs,
           })
 
           // Archive/unarchive reorders the catalog; apply every membership `sort_order` in the same txn
@@ -736,6 +738,7 @@ export function useLists() {
               },
               ...userQueueParent(user.id),
               status: 'queued',
+              updated_at: queueTs + 1,
             })
           }
         })

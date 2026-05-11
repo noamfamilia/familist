@@ -18,7 +18,7 @@ import type {
   ListWithRole,
   MemberWithCreator,
 } from '@/lib/supabase/types'
-import { compareListsCatalogSortOrder } from '@/lib/data/listCatalogSort'
+import { compareListsCatalogSortOrder, listCatalogSortOrderForVisualIndex } from '@/lib/data/listCatalogSort'
 
 const PATCH_OVERLAY_STATUSES: readonly SyncQueueStatus[] = ['queued', 'processing', 'failed']
 
@@ -154,6 +154,64 @@ export function reconcileUserListsSummaryRowsWithPendingPatches(
     }
     return next as GetUserListsSummaryRow
   })
+}
+
+/**
+ * Overlay pending outbound `patchListUser` + `reorderListUsers` RPCs so `get_user_lists` mirrors do not
+ * regress behind in-flight archive/restore or home reorder (fetch/realtime can arrive before sync drains).
+ */
+export function reconcileUserListsSummaryRowsWithPendingCatalogQueue(
+  rows: GetUserListsSummaryRow[],
+  queueRows: readonly DbSyncQueueRow[],
+  catalogUserId: string,
+): GetUserListsSummaryRow[] {
+  let next = reconcileUserListsSummaryRowsWithPendingPatches(rows, queueRows)
+
+  const sorted = [...queueRows]
+    .filter((r) => r.kind === 'rpc' && PATCH_OVERLAY_STATUSES.includes(r.status))
+    .sort((a, b) => {
+      const d = a.updated_at - b.updated_at
+      if (d !== 0) return d
+      return a.id.localeCompare(b.id)
+    })
+
+  const applyReorder = (ids: string[], rowsIn: GetUserListsSummaryRow[]) => {
+    if (ids.length !== rowsIn.length) return rowsIn
+    if (new Set(ids).size !== ids.length) return rowsIn
+    if (!rowsIn.every((r) => ids.includes(r.id))) return rowsIn
+    const n = ids.length
+    const sortById = new Map(ids.map((id, idx) => [id, listCatalogSortOrderForVisualIndex(idx, n)]))
+    return rowsIn.map((row) => {
+      const so = sortById.get(row.id)
+      if (so === undefined) return row
+      return { ...row, sort_order: so }
+    })
+  }
+
+  for (const r of sorted) {
+    const pl = r.payload as Record<string, unknown>
+    const method = String(pl.method ?? '')
+    if (String(pl.user_id ?? '') !== catalogUserId) continue
+
+    if (method === 'patchListUser') {
+      const lid = String(pl.id ?? '')
+      if (!lid) continue
+      next = next.map((row) => {
+        if (row.id !== lid) return row
+        const out: Record<string, unknown> = { ...row }
+        if (pl.archived !== undefined) out.userArchived = Boolean(pl.archived)
+        if (pl.sort_order !== undefined) out.sort_order = pl.sort_order
+        return out as GetUserListsSummaryRow
+      })
+    } else if (method === 'reorderListUsers') {
+      const list_ids = (Array.isArray(pl.list_ids) ? pl.list_ids : []).filter(
+        (x): x is string => typeof x === 'string' && x.length > 0,
+      )
+      if (list_ids.length > 0) next = applyReorder(list_ids, next)
+    }
+  }
+
+  return next
 }
 
 type CardStats = { memberCount: number; activeItemCount: number; archivedItemCount: number }

@@ -13,7 +13,7 @@ import {
 } from '@/lib/data/syncPruneGuards'
 import {
   reconcileListDetailPayloadWithPendingSyncPatches,
-  reconcileUserListsSummaryRowsWithPendingPatches,
+  reconcileUserListsSummaryRowsWithPendingCatalogQueue,
 } from '@/lib/data/queries'
 import { stableItemMemberStateDexieId, syncQueueRowTouchesListId } from '@/lib/data/syncQueue'
 import type {
@@ -160,7 +160,7 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
     ],
     async () => {
       const queue = await loadPendingOutboundQueueSnapshot()
-      const rowsReconciled = reconcileUserListsSummaryRowsWithPendingPatches(rows, queue)
+      const rowsReconciled = reconcileUserListsSummaryRowsWithPendingCatalogQueue(rows, queue, userId)
       const incomingIds = new Set(rowsReconciled.map((row) => row.id))
       for (const row of rowsReconciled) {
         const { role, userArchived, sort_order, sumScope, label } = row
