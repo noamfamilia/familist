@@ -599,6 +599,12 @@ export function useLists() {
     try {
       appendMutationDiagnostic(`[mutation:list.update] local:start listId=${listId}`)
       let effectiveUpdates = updates
+      if (updates.comment !== undefined) {
+        effectiveUpdates = {
+          ...effectiveUpdates,
+          comment: updates.comment === '' || updates.comment == null ? null : updates.comment,
+        }
+      }
       if (updates.name !== undefined) {
         const listRow = await db.lists.get(listId)
         if (!listRow) {

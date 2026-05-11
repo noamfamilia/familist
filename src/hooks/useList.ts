@@ -30,7 +30,6 @@ import { perfLog } from '@/lib/startupPerfLog'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
 import { appendMutationDiagnostic, appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { serverListDetailDiffersFromDexie } from '@/lib/data/listDetailServerDexieDiff'
-import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 import {
   isLikelyConnectivityError,
   resolveServerWorkOutcomeFromResult,
@@ -869,9 +868,6 @@ export function useList(listId: string) {
         items: mergedItemsForCache,
         members: mergedMembersForCache,
       })
-      if (differsFromDexie) {
-        useListsCatalogStore.getState().recordCatalogListPullSuccessPulse(listId)
-      }
       await setLastMirroredListDetailVersion(listId, data.list.version ?? 1)
       listCount = 1
       itemCountResult = mergedItemsForCache.length

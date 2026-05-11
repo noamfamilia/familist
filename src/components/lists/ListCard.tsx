@@ -70,14 +70,11 @@ const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Moda
 })
 interface ListCardProps {
   list: ListWithRole
-  /** Epoch ms when catalog success pulse started; from `listsCatalogStore.recentSuccesses`. */
-  recentSuccessStartedAt?: number
-  /** Background `get_list_data` prefetch (realtime) — cyan while in flight. */
-  remoteDetailInflight?: boolean
-  /** Epoch ms when remote-detail teal pulse started; from `listsCatalogStore.remoteDetailPulseAt`. */
-  remotePulseStartedAt?: number
   existingListNames: string[]
-  onUpdate: (listId: string, updates: { name?: string; archived?: boolean; comment?: string }) => Promise<{ error: Error | null }>
+  onUpdate: (
+    listId: string,
+    updates: { name?: string; archived?: boolean; comment?: string | null },
+  ) => Promise<{ error: Error | null }>
   onDelete: (listId: string) => Promise<{ error: Error | null }>
   onArchive: (listId: string, updates: { archived?: boolean }) => Promise<{ error: Error | null }>
   onDuplicate: (listId: string, newName: string, label?: string) => Promise<{ error: Error | null; warning?: string | null }>
@@ -96,9 +93,6 @@ interface ListCardProps {
 function listCardPropsEqual(prev: ListCardProps, next: ListCardProps): boolean {
   return (
     listCardModelEqual(prev.list, next.list) &&
-    (prev.recentSuccessStartedAt ?? 0) === (next.recentSuccessStartedAt ?? 0) &&
-    (prev.remoteDetailInflight ?? false) === (next.remoteDetailInflight ?? false) &&
-    (prev.remotePulseStartedAt ?? 0) === (next.remotePulseStartedAt ?? 0) &&
     sameStringList(prev.existingListNames, next.existingListNames) &&
     sameStringList(prev.labels, next.labels) &&
     (prev.currentFilter ?? 'Any') === (next.currentFilter ?? 'Any') &&
@@ -108,9 +102,6 @@ function listCardPropsEqual(prev: ListCardProps, next: ListCardProps): boolean {
 
 function ListCardInner({
   list,
-  recentSuccessStartedAt = 0,
-  remoteDetailInflight = false,
-  remotePulseStartedAt = 0,
   existingListNames,
   onUpdate,
   onDelete,
@@ -411,7 +402,7 @@ function ListCardInner({
     const trimmed = draftComment.trim()
     setComment(trimmed)
     setEditingComment(false)
-    const { error } = await onUpdate(list.id, { comment: trimmed || undefined })
+    const { error } = await onUpdate(list.id, { comment: trimmed.length > 0 ? trimmed : null })
     if (error) {
       showError('Failed to save comment', { serverError: error })
       setComment(list.comment || '')
@@ -634,13 +625,7 @@ function ListCardInner({
     <div
       className="group relative rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700"
     >
-      <ListSyncStatusIcon
-        pendingItems={list.pending_items ?? 0}
-        syncError={list.sync_error === true}
-        recentSuccessStartedAt={recentSuccessStartedAt}
-        remoteDetailInflight={remoteDetailInflight}
-        remotePulseStartedAt={remotePulseStartedAt}
-      />
+      <ListSyncStatusIcon pendingItems={list.pending_items ?? 0} syncError={list.sync_error === true} />
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle - only for active lists */}
@@ -702,10 +687,23 @@ function ListCardInner({
                 setIsRenaming(true)
               }}
             >
-              <span className="min-w-0 flex-1 truncate">{list.name}</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
-                <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
-              </svg>
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+                <span className="min-w-0 truncate">{list.name}</span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="flex-shrink-0 opacity-40"
+                  aria-hidden
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"
+                  />
+                </svg>
+              </span>
             </span>
           )
         ) : browserOffline ? (

@@ -6,7 +6,6 @@ import { upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
 import type { ItemWithState, List, MemberWithCreator } from '@/lib/supabase/types'
-import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 
 const supabase = createClient()
 
@@ -33,7 +32,7 @@ export function extractListIdsFromCatalogRealtimePayload(payload: {
 }
 
 /**
- * Pull `get_list_data` for each list, mirror into Dexie + L1 cache, and drive catalog pulse (cyan → teal → fade).
+ * Pull `get_list_data` for each list and mirror into Dexie + L1 cache when server data differs.
  */
 export async function prefetchListDetailsFromServer(
   userId: string | null | undefined,
@@ -43,9 +42,6 @@ export async function prefetchListDetailsFromServer(
   const listIds = [...new Set(rawListIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
   if (listIds.length === 0) return
 
-  const cat = useListsCatalogStore.getState()
-  cat.beginRemoteDetailPrefetchForLists(listIds)
-
   for (const listId of listIds) {
     try {
       appendMutationDiagnostic(`[get_list_data] prefetch start listId=${listId}`)
@@ -54,7 +50,6 @@ export async function prefetchListDetailsFromServer(
         appendMutationDiagnostic(
           `[get_list_data] prefetch rpc_fail listId=${listId} err=${error?.message ?? 'no_list'}`,
         )
-        cat.finishRemoteDetailPrefetchOne(listId, false)
         continue
       }
       const serverMembers = ((data.members ?? []) as MemberWithCreator[]).filter(
@@ -74,16 +69,11 @@ export async function prefetchListDetailsFromServer(
       )
       await upsertListDataPayloadFromServer(userId, listId, payload)
       setCachedList(userId, listId, payload)
-      cat.finishRemoteDetailPrefetchOne(listId, false)
-      if (differs) {
-        cat.recordCatalogListPullSuccessPulse(listId)
-      }
       appendMutationDiagnostic(`[get_list_data] prefetch applied listId=${listId}`)
     } catch (e) {
       appendMutationDiagnostic(
         `[get_list_data] prefetch catch listId=${listId} msg=${e instanceof Error ? e.message : String(e)}`,
       )
-      cat.finishRemoteDetailPrefetchOne(listId, false)
     }
   }
 }

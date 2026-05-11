@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useShallow } from 'zustand/react/shallow'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -48,13 +47,6 @@ interface ListsViewProps {
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager, onOfflineActionsDisabledChange }: ListsViewProps) {
   const { lists, loading, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels, isOfflineActionsDisabled } = useLists()
-  const { recentSuccesses, remoteDetailInflightIds, remoteDetailPulseAt } = useListsCatalogStore(
-    useShallow((s) => ({
-      recentSuccesses: s.recentSuccesses,
-      remoteDetailInflightIds: s.remoteDetailInflightIds,
-      remoteDetailPulseAt: s.remoteDetailPulseAt,
-    })),
-  )
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
   /** `inviteToken:userId` after a successful join so we do not enqueue twice. */
   const inviteJoinSucceededKeyRef = useRef<string | null>(null)
@@ -399,7 +391,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                   <SortableListCard
                     key={list.id}
                     list={list}
-                    recentSuccessStartedAt={recentSuccesses.get(list.id) ?? 0}
                     existingListNames={ownedListNames}
                     onUpdate={updateList}
                     onDelete={deleteList}
@@ -436,9 +427,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
               <ListCard
                     key={list.id}
                     list={list}
-                    recentSuccessStartedAt={recentSuccesses.get(list.id) ?? 0}
-                    remoteDetailInflight={remoteDetailInflightIds.has(list.id)}
-                    remotePulseStartedAt={remoteDetailPulseAt.get(list.id) ?? 0}
                     existingListNames={ownedListNames}
                     onUpdate={updateList}
                     onDelete={deleteList}
