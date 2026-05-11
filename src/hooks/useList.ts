@@ -20,7 +20,6 @@ import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 import { db, type DbItemRow } from '@/lib/db'
 import {
   normalizeServerSyncableFields,
-  readListPrefsFromDexie,
   reportServerDexieParityDiagnostics,
   upsertListDataPayloadFromServer,
   upsertListPrefsFromServer,
@@ -295,6 +294,8 @@ export function useList(listId: string) {
 
   const list = useListDataStore((s) => s.list)
   const listDataStatus = useListDataStore((s) => s.listDataStatus)
+  const prefsMirrorReady = useListDataStore((s) => s.prefsMirrorReady)
+  const mirroredListUserRow = useListDataStore((s) => s.mirroredListUserRow)
   const { items, members } = useListDataStore(
     useShallow((s) => ({
       items: s.items,
@@ -456,31 +457,40 @@ export function useList(listId: string) {
     }
   }, [userId, listId])
 
+  /** Apply `list_users` prefs from the Dexie-backed Zustand mirror (liveQuery + warm). */
   useEffect(() => {
-    if (!userId || !listId) return
-    let cancelled = false
-    void (async () => {
-      const dexiePrefs = await readListPrefsFromDexie(userId, listId)
-      if (!dexiePrefs || cancelled) return
-      const dexieFilter = VALID_MEMBER_FILTERS.includes(dexiePrefs.member_filter as MemberFilter)
-        ? dexiePrefs.member_filter as MemberFilter
-        : 'all' as MemberFilter
-      const parsed = parseWidthValue(dexiePrefs.item_text_width)
-      setMemberFilter(dexieFilter)
-      setItemTextWidthMode(parsed.mode)
-      if (parsed.mode === 'manual') {
-        setItemTextWidth(parsed.width)
-      }
-      const dexieFontStep = parseItemNameFontStep(dexiePrefs.item_name_font_step)
-      itemNameFontStepRef.current = dexieFontStep
-      setItemNameFontStep(dexieFontStep)
-      setLastViewedMembers(dexiePrefs.last_viewed_members ?? null)
-      setSumScope(parseListUserSumScope(dexiePrefs.sum_scope))
-    })()
-    return () => {
-      cancelled = true
+    if (!userId || !listId || !prefsMirrorReady) return
+    const dexiePrefs = mirroredListUserRow
+    if (!dexiePrefs) {
+      setMemberFilter('all')
+      setItemTextWidthMode('auto')
+      setItemTextWidth(80)
+      itemNameFontStepRef.current = ITEM_NAME_FONT_DEFAULT
+      setItemNameFontStep(ITEM_NAME_FONT_DEFAULT)
+      setLastViewedMembers(null)
+      setSumScope('none')
+      return
     }
-  }, [listId, userId])
+    const dexieFilter = VALID_MEMBER_FILTERS.includes(dexiePrefs.member_filter as MemberFilter)
+      ? (dexiePrefs.member_filter as MemberFilter)
+      : ('all' as MemberFilter)
+    const parsed = parseWidthValue(dexiePrefs.item_text_width)
+    setMemberFilter(dexieFilter)
+    setItemTextWidthMode(parsed.mode)
+    if (parsed.mode === 'manual') {
+      setItemTextWidth(parsed.width)
+    }
+    const dexieFontStep = parseItemNameFontStep(dexiePrefs.item_name_font_step)
+    itemNameFontStepRef.current = dexieFontStep
+    setItemNameFontStep(dexieFontStep)
+    setLastViewedMembers(dexiePrefs.last_viewed_members ?? null)
+    setSumScope(parseListUserSumScope(dexiePrefs.sum_scope))
+  }, [listId, userId, prefsMirrorReady, mirroredListUserRow])
+
+  const sessionMirrorReady = useMemo(
+    () => !userId || !listId || (listDataStatus === 'ready' && prefsMirrorReady),
+    [userId, listId, listDataStatus, prefsMirrorReady],
+  )
 
   const trackSaveOperation = useCallback(async <T>(operation: PromiseLike<T>): Promise<T> => {
     pendingSaveOpsRef.current++
@@ -1831,32 +1841,37 @@ export function useList(listId: string) {
         setLastViewedMembers(lastVmPatch)
       }
       if (userId) {
+        useListDataStore.getState().beginPrefsPersistence()
         try {
           const luPatch: Record<string, unknown> = { member_filter: filter }
           if (lastVmPatch !== undefined) luPatch.last_viewed_members = lastVmPatch
-          await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-            const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
-            if (!lu) throw new Error('Missing list_users row')
-            await db.list_users.update(lu.id, luPatch as never)
-            await enqueueSyncQueueRecord({
-              entity: 'list',
-              entity_id: newBatchEntityId(),
-              kind: 'rpc',
-              payload: {
-                method: 'patchListUser',
-                id: listId,
-                user_id: userId,
-                ...luPatch,
-              },
-              ...listQueueParent(listId),
-              status: 'queued',
+          try {
+            await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+              const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+              if (!lu) throw new Error('Missing list_users row')
+              await db.list_users.update(lu.id, luPatch as never)
+              await enqueueSyncQueueRecord({
+                entity: 'list',
+                entity_id: newBatchEntityId(),
+                kind: 'rpc',
+                payload: {
+                  method: 'patchListUser',
+                  id: listId,
+                  user_id: userId,
+                  ...luPatch,
+                },
+                ...listQueueParent(listId),
+                status: 'queued',
+              })
             })
-          })
-          markOnlineRecovered()
-        } catch {
-          setMemberFilter(prev)
-          setCachedPrefs(listId, { memberFilter: prev }, userId)
-          setLastViewedMembers(prevLastViewedSnapshot)
+            markOnlineRecovered()
+          } catch {
+            setMemberFilter(prev)
+            setCachedPrefs(listId, { memberFilter: prev }, userId)
+            setLastViewedMembers(prevLastViewedSnapshot)
+          }
+        } finally {
+          useListDataStore.getState().endPrefsPersistence()
         }
       }
     } finally {
@@ -1877,30 +1892,35 @@ export function useList(listId: string) {
       setItemTextWidthMode('manual')
       setCachedPrefs(listId, { itemTextWidth: value }, userId)
       if (userId) {
+        useListDataStore.getState().beginPrefsPersistence()
         try {
-          await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-            const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
-            if (!lu) throw new Error('Missing list_users row')
-            await db.list_users.update(lu.id, { item_text_width: value })
-            await enqueueSyncQueueRecord({
-              entity: 'list',
-              entity_id: newBatchEntityId(),
-              kind: 'rpc',
-              payload: {
-                method: 'patchListUser',
-                id: listId,
-                user_id: userId,
-                item_text_width: value,
-              },
-              ...listQueueParent(listId),
-              status: 'queued',
+          try {
+            await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+              const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+              if (!lu) throw new Error('Missing list_users row')
+              await db.list_users.update(lu.id, { item_text_width: value })
+              await enqueueSyncQueueRecord({
+                entity: 'list',
+                entity_id: newBatchEntityId(),
+                kind: 'rpc',
+                payload: {
+                  method: 'patchListUser',
+                  id: listId,
+                  user_id: userId,
+                  item_text_width: value,
+                },
+                ...listQueueParent(listId),
+                status: 'queued',
+              })
             })
-          })
-          markOnlineRecovered()
-        } catch {
-          setItemTextWidth(prevWidth)
-          setItemTextWidthMode(prevMode)
-          setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
+            markOnlineRecovered()
+          } catch {
+            setItemTextWidth(prevWidth)
+            setItemTextWidthMode(prevMode)
+            setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
+          }
+        } finally {
+          useListDataStore.getState().endPrefsPersistence()
         }
       }
     } finally {
@@ -1927,30 +1947,35 @@ export function useList(listId: string) {
       const value = mode === 'auto' ? 'auto' : String(itemTextWidth)
       setCachedPrefs(listId, { itemTextWidth: value }, userId)
       if (userId) {
+        useListDataStore.getState().beginPrefsPersistence()
         try {
-          await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-            const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
-            if (!lu) throw new Error('Missing list_users row')
-            await db.list_users.update(lu.id, { item_text_width: value })
-            await enqueueSyncQueueRecord({
-              entity: 'list',
-              entity_id: newBatchEntityId(),
-              kind: 'rpc',
-              payload: {
-                method: 'patchListUser',
-                id: listId,
-                user_id: userId,
-                item_text_width: value,
-              },
-              ...listQueueParent(listId),
-              status: 'queued',
+          try {
+            await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+              const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+              if (!lu) throw new Error('Missing list_users row')
+              await db.list_users.update(lu.id, { item_text_width: value })
+              await enqueueSyncQueueRecord({
+                entity: 'list',
+                entity_id: newBatchEntityId(),
+                kind: 'rpc',
+                payload: {
+                  method: 'patchListUser',
+                  id: listId,
+                  user_id: userId,
+                  item_text_width: value,
+                },
+                ...listQueueParent(listId),
+                status: 'queued',
+              })
             })
-          })
-          markOnlineRecovered()
-        } catch {
-          setItemTextWidthMode(prevMode)
-          setItemTextWidth(prevWidth)
-          setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
+            markOnlineRecovered()
+          } catch {
+            setItemTextWidthMode(prevMode)
+            setItemTextWidth(prevWidth)
+            setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
+          }
+        } finally {
+          useListDataStore.getState().endPrefsPersistence()
         }
       }
     } finally {
@@ -1969,31 +1994,36 @@ export function useList(listId: string) {
     try {
       setSumScope(next)
       setCachedPrefs(listId, { sumScope: next }, userId)
+      useListDataStore.getState().beginPrefsPersistence()
       try {
-        await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-          const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
-          if (!lu) throw new Error('Missing list_users row')
-          await db.list_users.update(lu.id, { sum_scope: next })
-          await enqueueSyncQueueRecord({
-            entity: 'list',
-            entity_id: newBatchEntityId(),
-            kind: 'rpc',
-            payload: {
-              method: 'patchListUser',
-              id: listId,
-              user_id: userId,
-              sum_scope: next,
-            },
-            ...listQueueParent(listId),
-            status: 'queued',
+        try {
+          await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+            const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+            if (!lu) throw new Error('Missing list_users row')
+            await db.list_users.update(lu.id, { sum_scope: next })
+            await enqueueSyncQueueRecord({
+              entity: 'list',
+              entity_id: newBatchEntityId(),
+              kind: 'rpc',
+              payload: {
+                method: 'patchListUser',
+                id: listId,
+                user_id: userId,
+                sum_scope: next,
+              },
+              ...listQueueParent(listId),
+              status: 'queued',
+            })
           })
-        })
-        markOnlineRecovered()
-        return { error: null }
-      } catch (e) {
-        setSumScope(prev)
-        setCachedPrefs(listId, { sumScope: prev }, userId)
-        return { error: e instanceof Error ? e : new Error('Failed to queue preference update') }
+          markOnlineRecovered()
+          return { error: null }
+        } catch (e) {
+          setSumScope(prev)
+          setCachedPrefs(listId, { sumScope: prev }, userId)
+          return { error: e instanceof Error ? e : new Error('Failed to queue preference update') }
+        }
+      } finally {
+        useListDataStore.getState().endPrefsPersistence()
       }
     } finally {
       mutationGate.end()
@@ -2013,30 +2043,35 @@ export function useList(listId: string) {
         setItemNameFontStep(s)
         setCachedPrefs(listId, { itemNameFontStep: s }, userId)
         if (userId) {
+          useListDataStore.getState().beginPrefsPersistence()
           try {
-            await db.transaction('rw', db.list_users, db.sync_queue, async () => {
-              const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
-              if (!lu) throw new Error('Missing list_users row')
-              await db.list_users.update(lu.id, { item_name_font_step: s })
-              await enqueueSyncQueueRecord({
-                entity: 'list',
-                entity_id: newBatchEntityId(),
-                kind: 'rpc',
-                payload: {
-                  method: 'patchListUser',
-                  id: listId,
-                  user_id: userId,
-                  item_name_font_step: s,
-                },
-                ...listQueueParent(listId),
-                status: 'queued',
+            try {
+              await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+                const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+                if (!lu) throw new Error('Missing list_users row')
+                await db.list_users.update(lu.id, { item_name_font_step: s })
+                await enqueueSyncQueueRecord({
+                  entity: 'list',
+                  entity_id: newBatchEntityId(),
+                  kind: 'rpc',
+                  payload: {
+                    method: 'patchListUser',
+                    id: listId,
+                    user_id: userId,
+                    item_name_font_step: s,
+                  },
+                  ...listQueueParent(listId),
+                  status: 'queued',
+                })
               })
-            })
-            markOnlineRecovered()
-          } catch {
-            itemNameFontStepRef.current = prev
-            setItemNameFontStep(prev)
-            setCachedPrefs(listId, { itemNameFontStep: prev }, userId)
+              markOnlineRecovered()
+            } catch {
+              itemNameFontStepRef.current = prev
+              setItemNameFontStep(prev)
+              setCachedPrefs(listId, { itemNameFontStep: prev }, userId)
+            }
+          } finally {
+            useListDataStore.getState().endPrefsPersistence()
           }
         }
       } finally {
@@ -2278,6 +2313,7 @@ export function useList(listId: string) {
     items: itemsForUi,
     members,
     listDataStatus,
+    sessionMirrorReady,
     loading,
     isFetching,
     isInitialSyncing,

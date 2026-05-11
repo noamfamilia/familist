@@ -2,7 +2,7 @@
 
 import { liveQuery } from 'dexie'
 import { create } from 'zustand'
-import { db, type DbListRow } from '@/lib/db'
+import { db, type DbListRow, type DbListUserRow } from '@/lib/db'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { loadListDetailFromDexie, type ListDetailDexieSnapshot } from '@/lib/data/queries'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
@@ -16,9 +16,11 @@ type CachedListPayload = {
   members: MemberWithCreator[]
 } | null
 
-type L2BridgePayload = {
+export type L2BridgePayload = {
   listRow: DbListRow | undefined | null
   detail: ListDetailDexieSnapshot
+  /** `null` when there is no `list_users` row for this list + user in Dexie. */
+  listUserRow: DbListUserRow | null
 }
 
 function ts(v: string | null | undefined): string {
@@ -37,6 +39,11 @@ function shouldTakeItem(l1: ItemWithState | undefined, inc: ItemWithState): bool
   if (ti > tl) return true
   if (ti === tl && JSON.stringify(l1.memberStates) !== JSON.stringify(inc.memberStates)) return true
   return false
+}
+
+function shouldTakeListUser(l1: DbListUserRow | null | undefined, inc: DbListUserRow): boolean {
+  if (!l1) return true
+  return ts(inc.updated_at) > ts(l1.updated_at)
 }
 
 function mergeMembers(l1: MemberWithCreator[], incoming: MemberWithCreator[]): MemberWithCreator[] {
@@ -83,6 +90,12 @@ type ListDataState = {
   items: ItemWithState[]
   members: MemberWithCreator[]
   localPersistenceDepth: number
+  /** Blocks applying `list_users` prefs from L2 while prefs-only Dexie transactions run. */
+  prefsPersistenceDepth: number
+  /** Dexie-backed `list_users` row for prefs (null = hydrated, no row). Undefined only before first warm for this session. */
+  mirroredListUserRow: DbListUserRow | null | undefined
+  /** True after first `warmListData` prefs application for the active session. */
+  prefsMirrorReady: boolean
 }
 
 type ListDataActions = {
@@ -94,7 +107,15 @@ type ListDataActions = {
   setMembers: (updater: MemberWithCreator[] | ((prev: MemberWithCreator[]) => MemberWithCreator[])) => void
   beginLocalListPersistence: () => void
   endLocalListPersistence: () => void
-  applyWarmResult: (userId: string, listId: string, listRow: DbListRow | undefined, detail: ListDetailDexieSnapshot) => void
+  beginPrefsPersistence: () => void
+  endPrefsPersistence: () => void
+  applyWarmResult: (
+    userId: string,
+    listId: string,
+    listRow: DbListRow | undefined,
+    detail: ListDetailDexieSnapshot,
+    listUserRow: DbListUserRow | null,
+  ) => void
   applyL2BridgePayload: (userId: string, listId: string, payload: L2BridgePayload) => void
 }
 
@@ -106,6 +127,9 @@ export const useListDataStore = create<ListDataState & ListDataActions>((set, ge
   items: [],
   members: [],
   localPersistenceDepth: 0,
+  prefsPersistenceDepth: 0,
+  mirroredListUserRow: undefined,
+  prefsMirrorReady: false,
 
   clearActiveListData: () =>
     set({
@@ -115,9 +139,12 @@ export const useListDataStore = create<ListDataState & ListDataActions>((set, ge
       list: null,
       items: [],
       members: [],
+      prefsPersistenceDepth: 0,
+      mirroredListUserRow: undefined,
+      prefsMirrorReady: false,
     }),
 
-  beginListSession: (userId: string, listId: string, cached: CachedListPayload) => {
+  beginListSession: (userId, listId, cached) => {
     const seed =
       cached?.list != null
         ? {
@@ -130,6 +157,8 @@ export const useListDataStore = create<ListDataState & ListDataActions>((set, ge
       activeUserId: userId,
       activeListId: listId,
       listDataStatus: 'loading',
+      prefsMirrorReady: false,
+      mirroredListUserRow: undefined,
       ...seed,
     })
   },
@@ -157,7 +186,12 @@ export const useListDataStore = create<ListDataState & ListDataActions>((set, ge
   endLocalListPersistence: () =>
     set((s) => ({ localPersistenceDepth: Math.max(0, s.localPersistenceDepth - 1) })),
 
-  applyWarmResult: (userId, listId, listRow, detail) => {
+  beginPrefsPersistence: () => set((s) => ({ prefsPersistenceDepth: s.prefsPersistenceDepth + 1 })),
+
+  endPrefsPersistence: () =>
+    set((s) => ({ prefsPersistenceDepth: Math.max(0, s.prefsPersistenceDepth - 1) })),
+
+  applyWarmResult: (userId, listId, listRow, detail, listUserRow) => {
     const st = get()
     if (st.activeUserId !== userId || st.activeListId !== listId) return
     if (!listRow || isTombstoned(listRow.deleted_at)) {
@@ -166,6 +200,8 @@ export const useListDataStore = create<ListDataState & ListDataActions>((set, ge
         items: [],
         members: [],
         listDataStatus: 'ready',
+        mirroredListUserRow: listUserRow,
+        prefsMirrorReady: true,
       })
       return
     }
@@ -174,34 +210,63 @@ export const useListDataStore = create<ListDataState & ListDataActions>((set, ge
       items: normalizeItemsCategory(detail.items),
       members: detail.members,
       listDataStatus: 'ready',
+      mirroredListUserRow: listUserRow,
+      prefsMirrorReady: true,
     })
   },
 
   applyL2BridgePayload: (userId, listId, payload) => {
     const st = get()
     if (st.activeUserId !== userId || st.activeListId !== listId) return
-    if (st.localPersistenceDepth > 0) return
-    const { listRow, detail } = payload
-    if (!listRow || isTombstoned(listRow.deleted_at)) {
-      set({ list: null, items: [], members: [] })
-      return
+    const { listRow, detail, listUserRow } = payload
+    const canMergeEntities = st.localPersistenceDepth === 0
+    const canMergePrefs = st.localPersistenceDepth === 0 && st.prefsPersistenceDepth === 0
+
+    let nextList = st.list
+    let nextItems = st.items
+    let nextMembers = st.members
+    let nextMirroredUser = st.mirroredListUserRow
+    let prefsChanged = false
+
+    if (canMergeEntities) {
+      if (!listRow || isTombstoned(listRow.deleted_at)) {
+        nextList = null
+        nextItems = []
+        nextMembers = []
+      } else {
+        const incomingItems = normalizeItemsCategory(detail.items)
+        const incomingMembers = detail.members
+        nextList = mergeListRow(st.list, listRow)
+        nextItems = mergeItems(st.items, incomingItems)
+        nextMembers = mergeMembers(st.members, incomingMembers)
+      }
     }
-    const incomingItems = normalizeItemsCategory(detail.items)
-    const incomingMembers = detail.members
-    const nextList = mergeListRow(st.list, listRow)
-    const nextItems = mergeItems(st.items, incomingItems)
-    const nextMembers = mergeMembers(st.members, incomingMembers)
-    if (
-      nextList === st.list &&
-      nextItems === st.items &&
-      nextMembers === st.members
-    ) {
-      return
+
+    if (canMergePrefs) {
+      const prevLu = st.mirroredListUserRow
+      const inc = listUserRow
+      if (inc === null) {
+        if (prevLu != null) {
+          nextMirroredUser = null
+          prefsChanged = true
+        }
+      } else if (shouldTakeListUser(prevLu ?? undefined, inc)) {
+        nextMirroredUser = inc
+        prefsChanged = true
+      }
     }
+
+    const entitiesChanged =
+      canMergeEntities &&
+      (nextList !== st.list || nextItems !== st.items || nextMembers !== st.members)
+
+    if (!entitiesChanged && !prefsChanged) return
+
     set({
-      list: nextList,
-      items: nextItems,
-      members: nextMembers,
+      ...(canMergeEntities
+        ? { list: nextList, items: nextItems, members: nextMembers }
+        : {}),
+      ...(prefsChanged ? { mirroredListUserRow: nextMirroredUser } : {}),
     })
   },
 }))
@@ -210,17 +275,19 @@ export const useListDataStore = create<ListDataState & ListDataActions>((set, ge
 export async function warmListData(userId: string, listId: string): Promise<void> {
   const listRow = await db.lists.get(listId)
   const detail = await loadListDetailFromDexie(userId, listId)
+  const listUserRow = (await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()) ?? null
   const st = useListDataStore.getState()
   if (st.activeUserId !== userId || st.activeListId !== listId) return
-  st.applyWarmResult(userId, listId, listRow, detail)
+  st.applyWarmResult(userId, listId, listRow, detail, listUserRow)
 }
 
-/** Single top-level Dexie `liveQuery` for the active list: L2 → L1, gated by `localPersistenceDepth` and per-row `updated_at`. */
+/** Dexie `liveQuery` for the active list: L2 → L1, gated by persistence depth and per-row `updated_at`. */
 export function subscribeListDataL2Bridge(userId: string, listId: string): () => void {
   const subscription = liveQuery(async (): Promise<L2BridgePayload> => {
     const listRow = await db.lists.get(listId)
     const detail = await loadListDetailFromDexie(userId, listId)
-    return { listRow, detail }
+    const listUserRow = (await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()) ?? null
+    return { listRow, detail, listUserRow }
   }).subscribe({
     next: (payload) => {
       useListDataStore.getState().applyL2BridgePayload(userId, listId, payload)

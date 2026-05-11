@@ -277,6 +277,7 @@ export default function ListPage() {
     items,
     members,
     listDataStatus,
+    sessionMirrorReady,
     loading,
     error,
     accessDenied,
@@ -659,7 +660,20 @@ export default function ListPage() {
   const blockOnListData =
     listDataStatus !== 'ready' && !list && !error
 
-  if (!hasMounted || (authLoading && !bootstrapUserId) || loading || blockOnListData) {
+  const effectiveUserIdForMirror = user?.id ?? bootstrapUserId
+  const blockUntilSessionMirrorReady =
+    !!list &&
+    !accessDenied &&
+    !!effectiveUserIdForMirror &&
+    !sessionMirrorReady
+
+  if (
+    !hasMounted ||
+    (authLoading && !bootstrapUserId) ||
+    loading ||
+    blockOnListData ||
+    blockUntilSessionMirrorReady
+  ) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-6 sm:p-8 w-full sm:min-w-[300px] sm:w-auto min-h-screen sm:min-h-0 flex items-center justify-center">
         <Spinner />
