@@ -132,6 +132,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
       const parsed = parseSheetCsv(csv)
       if (!parsed.ok) {
         setError(parsed.error)
+        showError(parsed.error)
         return
       }
 
@@ -156,7 +157,9 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
         parsed.hasTargets,
       )
       if (importErr) {
-        setError(importErr.message || 'Import failed.')
+        const msg = importErr.message || 'Import failed.'
+        setError(msg)
+        showError(msg)
         return
       }
 

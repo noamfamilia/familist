@@ -35,6 +35,7 @@ import {
   userQueueParent,
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
+import { validateImportSheetRowTextsUnique } from '@/lib/data/localItemTextUniqueness'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 import {
   isLikelyConnectivityError,
@@ -948,6 +949,10 @@ export function useLists() {
 
   const importList = async (name: string, label?: string, categoryNames?: string, rows?: Json, hasTargets?: boolean) => {
     if (!user) return { error: new Error('Not authenticated') }
+    const importDup = validateImportSheetRowTextsUnique(rows)
+    if (!importDup.ok) {
+      return { error: new Error(importDup.message) }
+    }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }

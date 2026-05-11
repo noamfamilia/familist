@@ -44,6 +44,7 @@ import {
   syncFieldsForLocalInsert,
   withLastSyncedNow,
 } from '@/lib/data/base_sync_fields'
+import { validateBulkItemLinesUniqueness } from '@/lib/data/localItemTextUniqueness'
 import { APP_VERSION } from '@/lib/appVersion'
 import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
@@ -1240,6 +1241,10 @@ export function useList(listId: string) {
         error: { message: `Too many lines (max ${MAX_BULK_ADD_LINES})` },
         inserted: 0,
       }
+    }
+    const bulkDup = await validateBulkItemLinesUniqueness(listId, trimmed)
+    if (!bulkDup.ok) {
+      return { error: { message: bulkDup.message }, inserted: 0 }
     }
     if (!userId) {
       return { error: { message: 'Not authenticated' }, inserted: 0 }

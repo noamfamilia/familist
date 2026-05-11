@@ -9,6 +9,7 @@ import {
   stableItemMemberStateDexieId,
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
+import { validateSingleNewItemTextUniqueness } from '@/lib/data/localItemTextUniqueness'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 
 export async function addItemMutation(input: {
@@ -25,6 +26,11 @@ export async function addItemMutation(input: {
   const t = isoNow()
   const sync = syncFieldsForLocalInsert({ client_created_at: t })
   const sortOrder = input.sort_order ?? 0
+  const dup = await validateSingleNewItemTextUniqueness(input.list_id, input.text)
+  if (!dup.ok) {
+    throw new Error(dup.message)
+  }
+
   const row: DbItemRow = {
     id,
     list_id: input.list_id,
