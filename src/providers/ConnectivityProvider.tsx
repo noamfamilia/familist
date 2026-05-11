@@ -262,10 +262,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         const cacheNames = await caches.keys()
         for (const cacheName of cacheNames) {
           if (cancelled) return
-          if (cacheName.startsWith('serwist-')) {
-            await caches.delete(cacheName)
-            continue
-          }
           const cache = await caches.open(cacheName)
           const requests = await cache.keys()
           for (const req of requests) {

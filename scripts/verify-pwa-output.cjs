@@ -15,6 +15,8 @@ function ensureFileExists(filePath, label) {
 const projectRoot = process.cwd()
 const swPath = path.join(projectRoot, 'public', 'sw.js')
 ensureFileExists(swPath, 'Service worker file')
+ensureFileExists(path.join(projectRoot, 'public', 'icon-192.png'), 'PWA icon-192')
+ensureFileExists(path.join(projectRoot, 'public', 'icon-512.png'), 'PWA icon-512')
 
 const swContent = fs.readFileSync(swPath, 'utf8')
 if (!swContent || swContent.trim().length === 0) {

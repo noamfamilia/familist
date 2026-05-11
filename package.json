@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/verify-pwa-output.cjs",
+    "generate:pwa-icons": "node scripts/generate-pwa-icons.cjs",
     "start": "next start",
     "lint": "next lint"
   },

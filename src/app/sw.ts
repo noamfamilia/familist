@@ -37,11 +37,6 @@ const serwist = new Serwist({
 
 serwist.addEventListeners()
 
-// Activate updated worker immediately instead of waiting for old clients to close.
-self.addEventListener('install', (event: ExtendableEvent) => {
-  event.waitUntil(self.skipWaiting())
-})
-
 /**
  * Clean stale offline-wall assets from older deployments so navigation cannot
  * land on "/~offline" once we're on the banner-first local UI.
@@ -62,27 +57,12 @@ async function purgeLegacyOfflineWallCacheEntries() {
 }
 
 /**
- * Hard reset old SW cache namespaces from earlier deployments.
- * Dexie/IndexedDB local data is unaffected.
+ * Do not delete `serwist-*` caches here: Serwist already prunes precache on activate.
+ * Wiping every `serwist-*` bucket removed the precache immediately after install, breaking
+ * offline refresh and navigateFallback (`/`).
  */
-async function purgeLegacySerwistCaches() {
-  const cacheNames = await caches.keys()
-  const deleteJobs: Promise<boolean>[] = []
-  for (const cacheName of cacheNames) {
-    if (cacheName.startsWith('serwist-')) {
-      deleteJobs.push(caches.delete(cacheName))
-    }
-  }
-  await Promise.all(deleteJobs)
-}
-
 self.addEventListener('activate', (event: ExtendableEvent) => {
-  event.waitUntil(
-    (async () => {
-      await purgeLegacyOfflineWallCacheEntries()
-      await purgeLegacySerwistCaches()
-    })(),
-  )
+  event.waitUntil(purgeLegacyOfflineWallCacheEntries())
 })
 
 async function hasAnyCachedRequestMatching(predicate: (url: URL) => boolean) {
