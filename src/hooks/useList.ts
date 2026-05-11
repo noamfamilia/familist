@@ -1664,7 +1664,6 @@ export function useList(listId: string) {
         })
         mutationVersionRef.current += 1
         skipRealtimeUntilRef.current = Date.now() + 2000
-        markOnlineRecovered()
         return { error: null, newMemberId: memberId }
       } finally {
         useListDataStore.getState().endLocalListPersistence()
@@ -1959,7 +1958,6 @@ export function useList(listId: string) {
                 status: 'queued',
               })
             })
-            markOnlineRecovered()
           } catch {
             setMemberFilter(prev)
             setCachedPrefs(listId, { memberFilter: prev }, userId)
@@ -2008,7 +2006,6 @@ export function useList(listId: string) {
                 status: 'queued',
               })
             })
-            markOnlineRecovered()
           } catch {
             setItemTextWidth(prevWidth)
             setItemTextWidthMode(prevMode)
@@ -2063,7 +2060,6 @@ export function useList(listId: string) {
                 status: 'queued',
               })
             })
-            markOnlineRecovered()
           } catch {
             setItemTextWidthMode(prevMode)
             setItemTextWidth(prevWidth)
@@ -2110,7 +2106,6 @@ export function useList(listId: string) {
               status: 'queued',
             })
           })
-          markOnlineRecovered()
           return { error: null }
         } catch (e) {
           setSumScope(prev)
@@ -2159,7 +2154,6 @@ export function useList(listId: string) {
                   status: 'queued',
                 })
               })
-              markOnlineRecovered()
             } catch {
               itemNameFontStepRef.current = prev
               setItemNameFontStep(prev)
@@ -2211,7 +2205,6 @@ export function useList(listId: string) {
           status: 'queued',
         })
       })
-      markOnlineRecovered()
       return { error: null }
     } catch {
       setCategoryNames(prev)
@@ -2251,7 +2244,6 @@ export function useList(listId: string) {
           status: 'queued',
         })
       })
-      markOnlineRecovered()
       return { error: null }
     } catch {
       setCategoryOrder(prev)
@@ -2342,7 +2334,6 @@ export function useList(listId: string) {
         useListDataStore.getState().setMembers((prev) => prev.filter((m) => m.id !== memberId))
         return
       }
-      markOnlineRecovered()
 
       const itemsForIms = useListDataStore.getState().items
       if (itemsForIms.length > 0) {
@@ -2382,7 +2373,6 @@ export function useList(listId: string) {
             },
           })
         }
-        markOnlineRecovered()
       }
     } finally {
       useListDataStore.getState().endLocalListPersistence()

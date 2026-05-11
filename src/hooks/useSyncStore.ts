@@ -5,7 +5,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type DbSyncQueueRow } from '@/lib/db'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { createClient } from '@/lib/supabase/client'
-import { isLikelyConnectivityError } from '@/lib/connectivityErrors'
+import {
+  isLikelyConnectivityError,
+  shouldSetListUserSyncErrorAfterOutboundFailure,
+} from '@/lib/connectivityErrors'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useToast } from '@/components/ui/Toast'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
@@ -1092,13 +1095,13 @@ export function useSyncStore(): SyncStoreState {
             )
             if (isLikelyConnectivityError(error)) {
               setLastError(message)
-              if (syncUserId) {
-                await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, true)
-              }
               await releaseRowForConnectivityRetry(claimed.id)
               break
             }
-            if (syncUserId) {
+            if (
+              syncUserId &&
+              shouldSetListUserSyncErrorAfterOutboundFailure(error, claimed.attempt_count)
+            ) {
               await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, true)
             }
             await markRowFailedAfterError(claimed, message)
@@ -1134,12 +1137,6 @@ export function useSyncStore(): SyncStoreState {
     showErrorToast,
     status,
   ])
-
-  useEffect(() => {
-    if (status === 'online' && rows.length > 0) {
-      markOnlineRecovered('use-sync-store-online-drain')
-    }
-  }, [markOnlineRecovered, rows.length, status])
 
   return useMemo(
     () => ({

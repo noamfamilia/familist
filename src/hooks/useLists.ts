@@ -597,7 +597,6 @@ export function useLists() {
       cat.endLocalCatalogPersistence()
     }
     appendMutationDiagnostic(`[mutation:list.create] local:queued listId=${listId} server:queued`)
-    markOnlineRecovered()
     return { data: { id: listId }, error: null }
     } finally {
       mutationGate.end()
@@ -649,7 +648,6 @@ export function useLists() {
       }
       appendMutationDiagnostic(`[mutation:list.update] local:queued listId=${listId} server:queued`)
 
-      markOnlineRecovered()
       return { error: null }
     } finally {
       mutationGate.end()
@@ -674,7 +672,6 @@ export function useLists() {
         cat.endLocalCatalogPersistence()
       }
       removeCachedList(userId, listId)
-      markOnlineRecovered()
       appendMutationDiagnostic(`[mutation:list.delete] local:queued-soft-delete listId=${listId} server:queued`)
       return { error: null }
     } finally {
@@ -739,7 +736,6 @@ export function useLists() {
       cat.endLocalCatalogPersistence()
     }
 
-    markOnlineRecovered()
     return { error: null }
     } finally {
       mutationGate.end()
@@ -822,7 +818,6 @@ export function useLists() {
         appendMutationDiagnostic(
           `[invite] joinListByToken queued_ok userId=${user.id} tokenLen=${tokenLen} fetchLists_scheduled=1`,
         )
-        markOnlineRecovered()
         void fetchLists()
         window.setTimeout(() => void fetchLists(), 700)
         window.setTimeout(() => void fetchLists(), 2200)
@@ -867,7 +862,6 @@ export function useLists() {
       } finally {
         cat.endLocalCatalogPersistence()
       }
-      markOnlineRecovered()
       return { error: null }
     } finally {
       mutationGate.end()
@@ -969,7 +963,6 @@ export function useLists() {
       catDup.endLocalCatalogPersistence()
     }
 
-    markOnlineRecovered()
     return { data: optimisticList, error: null }
     } finally {
       mutationGate.end()
@@ -1077,7 +1070,6 @@ export function useLists() {
       catImp.endLocalCatalogPersistence()
     }
 
-    markOnlineRecovered()
     void fetchLists()
     window.setTimeout(() => void fetchLists(), 800)
     window.setTimeout(() => void fetchLists(), 2500)
@@ -1112,7 +1104,6 @@ export function useLists() {
       catLbl.endLocalCatalogPersistence()
     }
     appendMutationDiagnostic(`[mutation:list.label] local:queued listId=${listId} label="${label}" server:queued`)
-    markOnlineRecovered()
     return { error: null }
   }
 
@@ -1169,7 +1160,6 @@ export function useLists() {
       appendMutationDiagnostic(
         `[mutation:list.label.batch] local:queued count=${changes.length} server:queued`,
       )
-      markOnlineRecovered()
       return { error: null }
     } finally {
       mutationGate.end()
@@ -1206,7 +1196,6 @@ export function useLists() {
       catOrd.endLocalCatalogPersistence()
     }
     appendMutationDiagnostic('[mutation:list.reorder] local:queued server:queued')
-    markOnlineRecovered()
     } finally {
       mutationGate.end()
     }

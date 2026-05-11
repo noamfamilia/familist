@@ -87,3 +87,44 @@ export function isLikelyConnectivityError(err: unknown): boolean {
 
   return false
 }
+
+/** After this many failed outbound attempts (1-based next count), treat as terminal for per-list `sync_error` UI. */
+export const LIST_USER_SYNC_ERROR_OUTBOUND_ATTEMPT_THRESHOLD = 5
+
+/**
+ * Whether a failed outbound sync row should set Dexie `list_users.sync_error` (red list icon).
+ * Excludes connectivity (transient). Includes auth/RLS and repeated application failures.
+ */
+export function shouldSetListUserSyncErrorAfterOutboundFailure(
+  err: unknown,
+  attemptCountBeforeThisFailure: number,
+): boolean {
+  if (isLikelyConnectivityError(err)) return false
+  if (isAuthPermissionOrRlsFailure(err)) return true
+  const nextAttempt = attemptCountBeforeThisFailure + 1
+  return nextAttempt >= LIST_USER_SYNC_ERROR_OUTBOUND_ATTEMPT_THRESHOLD
+}
+
+/** 401/403, JWT/session loss, RLS / permission — user-visible “cannot push” (e.g. removed from list). */
+export function isAuthPermissionOrRlsFailure(err: unknown): boolean {
+  const { code, message } = readErrFields(err)
+  const m = message.toLowerCase()
+  const c = code.trim().toUpperCase()
+
+  if (typeof err === 'object' && err !== null) {
+    const o = err as Record<string, unknown>
+    const st = o.status
+    const status = typeof st === 'number' ? st : typeof st === 'string' ? parseInt(String(st), 10) : NaN
+    if (status === 401 || status === 403) return true
+  }
+
+  if (c === '401' || c === '403') return true
+  if (m.includes('jwt expired') || m.includes('invalid jwt') || m.includes('refresh token')) return true
+  if (m.includes('permission denied')) return true
+  if (m.includes('row-level security') || m.includes('violates row-level security')) return true
+  if (c === '42501') return true
+  if (m.includes(' not authorized') || m.includes('unauthorized')) return true
+  if (m.includes('forbidden')) return true
+
+  return false
+}
