@@ -1,8 +1,15 @@
 /// <reference lib="webworker" />
 
-import { Serwist, type PrecacheEntry, type SerwistGlobalConfig } from 'serwist'
+import {
+  ExpirationPlugin,
+  NetworkFirst,
+  NetworkOnly,
+  Serwist,
+  type PrecacheEntry,
+  type SerwistGlobalConfig,
+  type SerwistPlugin,
+} from 'serwist'
 import { defaultCache } from '@serwist/next/worker'
-import { NetworkOnly } from 'serwist'
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -15,11 +22,22 @@ declare const self: ServiceWorkerGlobalScope
 const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
 const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
 
+/** Set immediately after `new Serwist` so strategy plugins can call `matchPrecache`. */
+const serwistRef: { current: Serwist | null } = { current: null }
+
+const precachedAppShellOnNavigateError: SerwistPlugin = {
+  handlerDidError: async () => {
+    const instance = serwistRef.current
+    if (!instance) return undefined
+    return (await instance.matchPrecache('/')) ?? undefined
+  },
+}
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
-  precacheOptions: {
-    navigateFallback: '/',
-  },
+  // Full-document navigations use the runtime rule below (`NetworkFirst` + precached `/`
+  // on total failure) so `/`, `/list/[id]`, and other app paths share one offline shell
+  // when the network and the per-URL runtime cache miss.
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
@@ -31,9 +49,30 @@ const serwist = new Serwist({
         url.pathname === '/api/reachability',
       handler: new NetworkOnly(),
     },
+    {
+      matcher: ({ request, url, sameOrigin }) =>
+        sameOrigin &&
+        request.method === 'GET' &&
+        request.mode === 'navigate' &&
+        !url.pathname.startsWith('/api/'),
+      handler: new NetworkFirst({
+        cacheName: 'pages-document-navigate',
+        networkTimeoutSeconds: 5,
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 48,
+            maxAgeSeconds: 24 * 60 * 60,
+            maxAgeFrom: 'last-used',
+          }),
+          precachedAppShellOnNavigateError,
+        ],
+      }),
+    },
     ...defaultCache,
   ],
 })
+
+serwistRef.current = serwist
 
 serwist.addEventListeners()
 
@@ -59,7 +98,7 @@ async function purgeLegacyOfflineWallCacheEntries() {
 /**
  * Do not delete `serwist-*` caches here: Serwist already prunes precache on activate.
  * Wiping every `serwist-*` bucket removed the precache immediately after install, breaking
- * offline refresh and navigateFallback (`/`).
+ * offline refresh and the precached app shell (`/`).
  */
 self.addEventListener('activate', (event: ExtendableEvent) => {
   event.waitUntil(purgeLegacyOfflineWallCacheEntries())
