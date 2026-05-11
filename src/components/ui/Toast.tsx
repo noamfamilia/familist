@@ -1,12 +1,33 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { formatServerErrorForUser } from '@/lib/serverErrorMessage'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 export type ToastAction = { label: string; onClick: () => void }
 
 export type ToastOptions = { durationMs?: number; action?: ToastAction }
+
+/** Optional structured server error (e.g. PostgREST `AuthApiError` / RPC error) appended to the summary. */
+export type ToastErrorOptions = { serverError?: unknown }
+
+function buildErrorMessage(summary: string, serverError?: unknown): string {
+  const detail = serverError == null ? '' : formatServerErrorForUser(serverError)
+  if (!detail) return summary
+  const s = summary.trim()
+  if (!s) return detail
+  if (detail === s) return s
+  if (detail.includes(s) && detail.length > s.length) return detail
+  if (s.includes(detail)) return s
+  return `${s}\n\n${detail}`
+}
+
+function errorToastDurationMs(message: string): number {
+  const n = message.length
+  if (n <= 80) return 5000
+  return Math.min(25_000, 6000 + Math.floor(n * 25))
+}
 
 interface Toast {
   id: string
@@ -22,7 +43,7 @@ interface ToastContextType {
   dismissToast: (id: string) => void
   clearToasts: () => void
   success: (message: string) => void
-  error: (message: string) => void
+  error: (message: string, options?: ToastErrorOptions) => void
   warning: (message: string) => void
   info: (message: string) => void
 }
@@ -67,7 +88,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const success = useCallback((message: string) => showToast(message, 'success'), [showToast])
-  const error = useCallback((message: string) => showToast(message, 'error'), [showToast])
+  const error = useCallback(
+    (message: string, options?: ToastErrorOptions) => {
+      const text = buildErrorMessage(message, options?.serverError)
+      return showToast(text, 'error', { durationMs: errorToastDurationMs(text) })
+    },
+    [showToast],
+  )
   const warning = useCallback((message: string) => showToast(message, 'warning'), [showToast])
   const info = useCallback((message: string) => showToast(message, 'info'), [showToast])
 
@@ -119,13 +146,21 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     <div
       className={`
         pointer-events-auto flex items-center gap-3 px-4 py-3 bg-white dark:bg-neutral-900 rounded-lg shadow-lg dark:shadow-black/40
-        border-l-4 ${colors[toast.type]} max-w-[350px]
+        border-l-4 ${colors[toast.type]} ${
+          toast.type === 'error' ? 'max-w-[min(92vw,28rem)]' : 'max-w-[350px]'
+        }
         transition-transform duration-300 ease-out
         ${isVisible ? 'translate-x-0' : 'translate-x-[120%]'}
       `}
     >
       <span className="text-lg flex-shrink-0">{icons[toast.type]}</span>
-      <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">{toast.message}</span>
+      <span
+        className={`flex-1 text-sm text-gray-700 dark:text-gray-200 ${
+          toast.type === 'error' ? 'whitespace-pre-wrap break-words' : ''
+        }`}
+      >
+        {toast.message}
+      </span>
       {toast.action ? (
         <button
           type="button"

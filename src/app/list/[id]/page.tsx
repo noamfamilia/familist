@@ -244,7 +244,9 @@ async function getServiceWorkerDebugInfo() {
     }))
   }
 
-  console.log('SW DEBUG', result)
+  if (isPwaDebugEnabled()) {
+    console.log('SW DEBUG', result)
+  }
   return result
 }
 
@@ -525,12 +527,11 @@ export default function ListPage() {
       try {
         const [pwa, info] = await Promise.all([collectPwaDiagnostics(), getServiceWorkerDebugInfo()])
         if (cancelled) return
-        console.log('SW+PWA DEBUG', { pwa, sw: info })
         appendDiagnostics(
           `list-page SW+PWA (${listId})\n${JSON.stringify({ pwa, sw: info }, null, 2)}`,
         )
-      } catch (err) {
-        console.error('SW DEBUG failed', err)
+      } catch {
+        /* diagnostics panel only */
       }
     }
 
@@ -744,7 +745,7 @@ export default function ListPage() {
           addItemTextareaRef.current?.blur()
         }
         if (shouldShowConnectivityRelatedMutationToast(err.message)) {
-          showError(err.message || 'Failed to add item')
+          showError(err.message || 'Failed to add item', { serverError: err })
         }
       }
     } finally {
@@ -774,7 +775,7 @@ export default function ListPage() {
       err = result.error
       if (err) {
         if (shouldShowConnectivityRelatedMutationToast(err.message)) {
-          showError(err.message || 'Failed to add items')
+          showError(err.message || 'Failed to add items', { serverError: err })
         }
       }
     } finally {
@@ -850,7 +851,7 @@ export default function ListPage() {
     const { error: reorderError } = await reorderItems(fullOrder)
     setCategorySortLoading(false)
     if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
-      showError(reorderError.message || 'Failed to sort by category')
+      showError(reorderError.message || 'Failed to sort by category', { serverError: reorderError })
     }
   }
 
@@ -860,7 +861,7 @@ export default function ListPage() {
   const persistSumScope = async (next: ListUserSumScope) => {
     const { error } = await updateListUserSumScope(next)
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to update sum row')
+      showError(error.message || 'Failed to update sum row', { serverError: error })
     }
   }
 
@@ -870,7 +871,7 @@ export default function ListPage() {
     setBulkLoading(false)
     setConfirmDeleteArchived(false)
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to delete archived items')
+      showError(error.message || 'Failed to delete archived items', { serverError: error })
     }
   }
 
@@ -880,7 +881,7 @@ export default function ListPage() {
     setBulkLoading(false)
     setConfirmRestoreArchived(false)
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to restore archived items')
+      showError(error.message || 'Failed to restore archived items', { serverError: error })
     }
   }
 
@@ -900,7 +901,7 @@ export default function ListPage() {
         const fullOrder = reorderWithDrag(currentFull, newActiveOrder, active.id as string)
         const { error: reorderError } = await reorderItems(fullOrder)
         if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
-          showError(reorderError.message || 'Failed to reorder items')
+          showError(reorderError.message || 'Failed to reorder items', { serverError: reorderError })
         }
       }
     }

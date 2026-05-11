@@ -2,6 +2,7 @@
 
 import { liveQuery } from 'dexie'
 import { create } from 'zustand'
+import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 import { buildListsCatalogFromDexie } from '@/lib/data/queries'
 import type { ListWithRole } from '@/lib/supabase/types'
 
@@ -223,7 +224,9 @@ export function subscribeListsCatalogL2Bridge(userId: string): () => void {
       useListsCatalogStore.getState().applyL2BridgePayload(userId, lists)
     },
     error: (err) => {
-      console.error('[listsCatalogStore] L2 bridge liveQuery error', err)
+      if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+        console.error('[listsCatalogStore] L2 bridge liveQuery error', err)
+      }
     },
   })
   return () => subscription.unsubscribe()

@@ -19,6 +19,7 @@ import {
   OFFLINE_ACTIONS_DISABLED_MSG,
   RECOVERING_MUTATIONS_DISABLED_MSG,
 } from '@/lib/mutationToastPolicy'
+import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 import type { ServerWorkOutcome } from '@/lib/connectivityErrors'
 
@@ -68,12 +69,16 @@ function createSwLifecycleHandlers(appendDiagnostics: (section: string) => void)
       `SW worker [${label}] snapshot\nstate=${sw.state}\nscriptURL=${sw.scriptURL}`,
     )
     const onState = () => {
-      console.log('SW statechange', { label, state: sw.state, scriptURL: sw.scriptURL })
+      if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+        console.log('SW statechange', { label, state: sw.state, scriptURL: sw.scriptURL })
+      }
       appendDiagnostics(
         `SW statechange [${label}]\nstate=${sw.state}\nscriptURL=${sw.scriptURL}`,
       )
       if (sw.state === 'redundant') {
-        console.warn('[SW] redundant', sw.scriptURL)
+        if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+          console.warn('[SW] redundant', sw.scriptURL)
+        }
         appendDiagnostics(
           'SW reached redundant — use Remote debugging or SW DevTools console for install/precache errors (page-side precache-verify can still be ok).',
         )
@@ -899,7 +904,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           if (debug) {
             const d = await collectPwaDiagnostics()
             if (cancelled) return
-            console.log('[PWA DIAG]', d)
+            if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+              console.log('[PWA DIAG]', d)
+            }
             if (appendPwaBlock) {
               logDiag(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
               logDiag('pwa: no serviceWorker in navigator')
@@ -970,7 +977,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         const d = await diagPromise
         if (cancelled) return
         if (debug && d) {
-          console.log('[PWA DIAG]', d)
+          if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+            console.log('[PWA DIAG]', d)
+          }
           if (appendPwaBlock) {
             logDiag(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
           }
@@ -1000,11 +1009,15 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
             activeState: reg.active?.state,
           }
           if (debug) {
-            console.log('SW reg', regSnap)
+            if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+              console.log('SW reg', regSnap)
+            }
             logDiag(`SW reg (after wait / register)\n${JSON.stringify(regSnap, null, 2)}`)
 
             const regsNow = await navigator.serviceWorker.getRegistrations()
-            console.log('SW getRegistrations (after wait / register)', regsNow.length, regsNow)
+            if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+              console.log('SW getRegistrations (after wait / register)', regsNow.length, regsNow)
+            }
             logDiag(
               `getRegistrations (after wait / register) n=${regsNow.length}\n${JSON.stringify(
                 regsNow.map((r) => ({
@@ -1045,7 +1058,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           logDiag(`sw-reg FAIL\n${msg}`)
         }
       } catch (e) {
-        console.error('[PWA DIAG] failed', e)
+        if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+          console.error('[PWA DIAG] failed', e)
+        }
       }
     }
 
@@ -1079,7 +1094,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           failCount: stats?.failCount ?? 0,
         })
       } catch (e) {
-        console.error('[precache-verify]', e)
+        if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+          console.error('[precache-verify]', e)
+        }
         appendDiagnostics(`[precache-verify] runner error: ${e instanceof Error ? e.message : String(e)}`)
         perfLog('precache-verify MANUAL end', {
           durationMs: Math.round(performance.now() - t0),

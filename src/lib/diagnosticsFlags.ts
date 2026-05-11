@@ -1,13 +1,14 @@
 /**
  * Debug toggles for diagnostics / perf buffering.
- * For full legacy behavior, set **both** to `true` (panel + in-memory nav/perf buffers).
+ * Set **both** to `true` to restore the in-app diagnostics panel and buffered nav/perf lines.
+ * Verbose console noise (SW/PWA) also keys off `DIAGNOSTICS_DATA_COLLECTION_ENABLED`.
  */
 
 /** When false, nav/perf lines are not appended to React state (no in-memory buffer growth). */
-export const DIAGNOSTICS_DATA_COLLECTION_ENABLED = true
+export const DIAGNOSTICS_DATA_COLLECTION_ENABLED = false
 
 /** When false, the bottom diagnostics panel is not rendered. */
-export const DIAGNOSTICS_PANEL_VISIBLE = true
+export const DIAGNOSTICS_PANEL_VISIBLE = false
 
 const DEBUG_VERBOSE_STORAGE_KEY = 'DEBUG_VERBOSE'
 

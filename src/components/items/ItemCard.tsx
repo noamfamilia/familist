@@ -354,7 +354,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       setIsEditing(false)
       void onUpdateItem(item.id, { text: trimmed }).then(({ error }) => {
         if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-          showError(error.message || 'Failed to rename item')
+          showError(error.message || 'Failed to rename item', { serverError: error })
         }
       })
       return
@@ -366,7 +366,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (memberQuantityLocked) return
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: true })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to assign')
+      showError(error.message || 'Failed to assign', { serverError: error })
     }
   }
 
@@ -374,7 +374,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (memberQuantityLocked) return
     const { error } = await onUpdateMemberState(item.id, memberId, { done: true })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to mark done')
+      showError(error.message || 'Failed to mark done', { serverError: error })
     }
   }
 
@@ -382,7 +382,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (memberQuantityLocked) return
     const { error } = await onUpdateMemberState(item.id, memberId, { assigned: false, done: false })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to unassign')
+      showError(error.message || 'Failed to unassign', { serverError: error })
     }
   }
 
@@ -434,7 +434,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
     void onUpdateMemberState(item.id, memberId, { quantity: newQuantity, assigned: true }).then(({ error }) => {
       if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-        showError(error.message || 'Failed to update quantity')
+        showError(error.message || 'Failed to update quantity', { serverError: error })
       }
     })
   }
@@ -458,7 +458,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       : await onUpdateItem(item.id, { archived: true, archived_at: new Date().toISOString() })
 
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || `Failed to ${item.archived ? 'restore' : 'archive'} item`)
+      showError(error.message || `Failed to ${item.archived ? 'restore' : 'archive'} item`, { serverError: error })
     }
   }
 
@@ -474,7 +474,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     const { error } = await onUpdateItem(item.id, { comment: trimmed || null })
     if (error) {
       if (shouldShowConnectivityRelatedMutationToast(error.message)) {
-        showError(error.message || 'Failed to save comment')
+        showError(error.message || 'Failed to save comment', { serverError: error })
       }
       setComment(item.comment || '')
     }
@@ -502,7 +502,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (error) {
       const msg = typeof error === 'object' && error !== null && 'message' in error ? String((error as { message?: string }).message) : ''
       if (shouldShowConnectivityRelatedMutationToast(msg)) {
-        showError('Failed to delete item')
+        showError('Failed to delete item', { serverError: error })
       }
     }
     setDeleting(false)
@@ -517,7 +517,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     if (next === category) return
     const { error } = await onUpdateItem(item.id, { category: next })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to update category')
+      showError(error.message || 'Failed to update category', { serverError: error })
     }
   }
 

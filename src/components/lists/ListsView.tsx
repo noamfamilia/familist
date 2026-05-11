@@ -164,7 +164,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     if (error) {
       setInputValue(submittedValue)
       setError(error.message)
-      showError('Failed to create list')
+      showError('Failed to create list', { serverError: error })
       refocusInput = true
     } else {
       onSelectLabel?.(filterAfterCreate)
@@ -272,7 +272,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
           `[invite] ListsView join failed userId=${user.id} tokenLen=${inviteToken.length} err=${error.message}`,
         )
         setError(error.message)
-        showError(error.message || 'Failed to join list')
+        showError(error.message || 'Failed to join list', { serverError: error })
         return
       }
 

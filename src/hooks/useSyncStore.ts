@@ -858,7 +858,7 @@ export function useSyncStore(): SyncStoreState {
             }
             await markRowFailedAfterError(claimed, message)
             if (claimed.attempt_count === 0) {
-              showErrorToast(message || 'Sync failed; will retry.')
+              showErrorToast(message || 'Sync failed; will retry.', { serverError: error })
             }
             setLastError(message)
           }

@@ -78,8 +78,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
     })
     
     if (error) {
-      console.error('Error fetching joined users:', error)
-      showError('Failed to load joined users')
+      showError('Failed to load joined users', { serverError: error })
       setJoinedUsers([])
       return []
     }
@@ -103,8 +102,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       .maybeSingle()
 
     if (error) {
-      console.error('Error fetching invite token:', error)
-      showError('Failed to load invite link')
+      showError('Failed to load invite link', { serverError: error })
       const cached = await db.lists.get(list.id)
       const fallbackToken = cached?.join_token || ''
       setToken(fallbackToken)
@@ -225,8 +223,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       setToken(nextToken)
       return nextToken || null
     } catch (err) {
-      console.error('Error generating token:', err)
-      showError('Failed to generate invite link')
+      showError('Failed to generate invite link', { serverError: err })
       return null
     } finally {
       setLoading(false)
@@ -248,8 +245,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
     } catch (err) {
       const shareError = err as Error & { name?: string }
       if (shareError.name === 'AbortError') return
-      console.error('Error sharing invite link:', err)
-      showError('Failed to share invite link')
+      showError('Failed to share invite link', { serverError: err })
     }
   }
 
@@ -284,8 +280,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       setRegenAnimSeq(s => s + 1)
       setRegenAnimPlaying(true)
     } catch (err) {
-      console.error('Error regenerating token:', err)
-      showError('Failed to regenerate invite link')
+      showError('Failed to regenerate invite link', { serverError: err })
     } finally {
       setRegeneratePending(false)
     }
@@ -372,8 +367,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       onUpdate()
       return true
     } catch (err) {
-      console.error('Error updating visibility:', err)
-      showError('Failed to update sharing settings')
+      showError('Failed to update sharing settings', { serverError: err })
       if (snapshot) {
         try {
           await db.lists.put(snapshot)
@@ -421,8 +415,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
       setSelectedUserIds(new Set())
       setShowRemoveConfirm(false)
     } catch (err) {
-      console.error('Error removing users:', err)
-      showError('Failed to remove users')
+      showError('Failed to remove users', { serverError: err })
     } finally {
       setLoading(false)
     }

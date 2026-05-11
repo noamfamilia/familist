@@ -417,7 +417,7 @@ function ListCardInner({
     setEditingComment(false)
     const { error } = await onUpdate(list.id, { comment: trimmed || undefined })
     if (error) {
-      showError('Failed to save comment')
+      showError('Failed to save comment', { serverError: error })
       setComment(list.comment || '')
     }
   }
@@ -524,7 +524,7 @@ function ListCardInner({
       setIsRenaming(false)
       void onUpdate(list.id, { name: trimmed }).then(({ error }) => {
         if (error) {
-          showError('Failed to rename list')
+          showError('Failed to rename list', { serverError: error })
           setNewName(list.name)
         }
       })
@@ -544,7 +544,7 @@ function ListCardInner({
     setDeleting(true)
     const { error } = await onDelete(list.id)
     if (error) {
-      showError('Failed to delete list')
+      showError('Failed to delete list', { serverError: error })
     }
     setDeleting(false)
     setShowDeleteConfirm(false)
@@ -589,7 +589,7 @@ function ListCardInner({
 
     void onDuplicate(list.id, dupName.trim(), dupLabel || undefined).then(({ error, warning }) => {
       if (error) {
-        showError('Failed to duplicate list')
+        showError('Failed to duplicate list', { serverError: error })
       } else if (warning) {
         showError(warning)
       }
@@ -608,7 +608,7 @@ function ListCardInner({
     setLeaving(true)
     const { error } = await onLeave(list.id)
     if (error) {
-      showError('Failed to leave list')
+      showError('Failed to leave list', { serverError: error })
     }
     setLeaving(false)
     setShowLeaveConfirm(false)

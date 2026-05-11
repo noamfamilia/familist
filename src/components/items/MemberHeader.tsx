@@ -211,7 +211,7 @@ export function MemberHeader({
       setNewMemberName(nameToAdd)
       setIsAdding(true)
       if (shouldShowConnectivityRelatedMutationToast(error.message)) {
-        showError(error.message || 'Failed to add member')
+        showError(error.message || 'Failed to add member', { serverError: error })
       }
       return
     }
@@ -296,7 +296,7 @@ export function MemberHeader({
     handleCancelEdit()
     void onUpdateMember(memberId, { name: trimmedName }).then(({ error }) => {
       if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-        showError(error.message || 'Failed to update member')
+        showError(error.message || 'Failed to update member', { serverError: error })
       }
     })
   }
@@ -314,7 +314,7 @@ export function MemberHeader({
     setDeleteLoading(false)
     
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to delete member')
+      showError(error.message || 'Failed to delete member', { serverError: error })
     }
     setDeleteConfirm({ open: false, memberId: null, memberName: '' })
   }
@@ -323,7 +323,7 @@ export function MemberHeader({
     closeMemberMenu()
     const { error } = await onUpdateMember(member.id, { is_public: !member.is_public })
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to update member')
+      showError(error.message || 'Failed to update member', { serverError: error })
     }
   }
 
@@ -338,7 +338,7 @@ export function MemberHeader({
     const { error, newMemberId } = await onOwnMember(ownConfirm.memberId, profile?.nickname || undefined)
     setOwnLoading(false)
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || 'Failed to take ownership')
+      showError(error.message || 'Failed to take ownership', { serverError: error })
     }
     setOwnConfirm({ open: false, memberId: null, memberName: '' })
   }

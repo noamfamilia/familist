@@ -3,6 +3,8 @@
  * Used to find install failures (installing → redundant) caused by bad precache responses.
  */
 
+import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
+
 const PRECACHE_VERIFY_SESSION_KEY = 'familist_precache_verify_v1'
 
 /** Returns true the first time per tab session; then false (avoids hammering the network). */
@@ -233,13 +235,17 @@ export async function runSwPrecacheVerification(
   for (const f of failures) {
     if (!f.ok) {
       const block = formatFailBlock(f.path, f.absolute, f.detail)
-      console.warn(block)
+      if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+        console.warn(block)
+      }
       appendDiagnostics(block)
     }
   }
 
   const summary = `[precache-verify] RESULT SUMMARY\nok=${okCount}\nfail=${failures.length}\ntotal=${results.length}`
-  console.log(summary)
+  if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+    console.log(summary)
+  }
   appendDiagnostics(summary)
 
   if (failures.length > 0) {
