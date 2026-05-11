@@ -18,6 +18,7 @@ import type {
   ListWithRole,
   MemberWithCreator,
 } from '@/lib/supabase/types'
+import { compareListsCatalogSortOrder } from '@/lib/data/listCatalogSort'
 
 const PATCH_OVERLAY_STATUSES: readonly SyncQueueStatus[] = ['queued', 'processing', 'failed']
 
@@ -248,14 +249,7 @@ export async function buildListsCatalogFromDexie(userId: string): Promise<ListWi
     }
   })
 
-  return merged.sort((a, b) => {
-    const aOrd = a.sort_order ?? Number.MAX_SAFE_INTEGER
-    const bOrd = b.sort_order ?? Number.MAX_SAFE_INTEGER
-    if (aOrd !== bOrd) return aOrd - bOrd
-    const aT = a.server_created_at || a.client_created_at || ''
-    const bT = b.server_created_at || b.client_created_at || ''
-    return bT.localeCompare(aT)
-  })
+  return merged.sort(compareListsCatalogSortOrder)
 }
 
 export function useListsQuery(userId: string | null | undefined) {

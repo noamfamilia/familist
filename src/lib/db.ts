@@ -123,6 +123,37 @@ async function migrateV9SyncFields(trans: Transaction) {
   await migrateIms()
 }
 
+/** Invert legacy list_users.sort_order per user (0 = top → higher = top). Runs once on schema v12. */
+async function migrateV12ListCatalogSortOrder(trans: Transaction) {
+  const lu = trans.table('list_users')
+  const rows = (await lu.toArray()) as Array<{
+    id: string
+    user_id: string
+    list_id: string
+    sort_order?: number | null
+  }>
+  const byUser = new Map<string, typeof rows>()
+  for (const r of rows) {
+    const g = byUser.get(r.user_id) ?? []
+    g.push(r)
+    byUser.set(r.user_id, g)
+  }
+  for (const [, group] of byUser) {
+    const sorted = [...group].sort((a, b) => {
+      const ao =
+        typeof a.sort_order === 'number' && Number.isFinite(a.sort_order) ? a.sort_order : Number.POSITIVE_INFINITY
+      const bo =
+        typeof b.sort_order === 'number' && Number.isFinite(b.sort_order) ? b.sort_order : Number.POSITIVE_INFINITY
+      if (ao !== bo) return ao - bo
+      return a.list_id.localeCompare(b.list_id)
+    })
+    const n = sorted.length
+    for (let i = 0; i < n; i++) {
+      await lu.update(sorted[i]!.id, { sort_order: n - 1 - i } as never)
+    }
+  }
+}
+
 export class FamilistDexie extends Dexie {
   lists!: EntityTable<DbListRow, 'id'>
   list_users!: EntityTable<DbListUserRow, 'id'>
@@ -234,6 +265,23 @@ export class FamilistDexie extends Dexie {
             await lu.update(r.id, { sync_error: false } as never)
           }
         }
+      })
+    this.version(12)
+      .stores({
+        lists: '&id, owner_id',
+        list_users: '&id, [list_id+user_id], user_id',
+        items: '&id, list_id, text',
+        members: '&id, [list_id+name], list_id',
+        item_member_state: '&id, [item_id+member_id], member_id, [list_id+item_id]',
+        profiles: '&id',
+        feedback: '&id, user_id',
+        sync_queue:
+          '&id, status, [entity+entity_id], [status+updated_at], parent1_type, parent1_id, parent2_id, updated_at, next_retry_at',
+        offline_route_markers: '&id',
+        meta: '&id',
+      })
+      .upgrade(async (trans) => {
+        await migrateV12ListCatalogSortOrder(trans)
       })
   }
 }

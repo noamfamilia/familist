@@ -47,6 +47,10 @@ import {
 import type { Database, Json, ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { normalizeItemCategory } from '@/lib/supabase/types'
 import Dexie from 'dexie'
+import {
+  listCatalogSortOrderForVisualIndex,
+  nextListCatalogSortOrderFromMembershipRows,
+} from '@/lib/data/listCatalogSort'
 
 const supabase = createClient()
 
@@ -84,20 +88,6 @@ function extractListRowFields(list: ListWithRole) {
   void pending_items
   void sync_error
   return listFields
-}
-
-/**
- * Matches `create_list` / `duplicate_list` / `import_list` on Postgres: new list membership is
- * `sort_order = 0` (top); every other `list_users` row for this user gets `coalesce(sort_order,0)+1`.
- * Call inside the same Dexie `rw` transaction as inserting the new list, before the new `list_users` row exists.
- */
-async function bumpListUserSortOrdersForUserExceptList(userId: string, excludeListId: string): Promise<void> {
-  const rows = await db.list_users.where('user_id').equals(userId).toArray()
-  for (const lu of rows) {
-    if (lu.list_id === excludeListId) continue
-    const cur = typeof lu.sort_order === 'number' && Number.isFinite(lu.sort_order) ? lu.sort_order : 0
-    await db.list_users.update(lu.id, { sort_order: cur + 1 })
-  }
 }
 
 async function softDeleteListInDexie(
@@ -279,9 +269,10 @@ export function useLists() {
       `[mutation:list.reorder.queue] userId=${user.id} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')} tail=${orderedIds.slice(-5).join(',')}`,
     )
     await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+      const n = orderedLists.length
       for (const [index, list] of orderedLists.entries()) {
         const row = await db.list_users.where('[list_id+user_id]').equals([list.id, user.id]).first()
-        if (row) await db.list_users.update(row.id, { sort_order: index })
+        if (row) await db.list_users.update(row.id, { sort_order: listCatalogSortOrderForVisualIndex(index, n) })
       }
       await enqueueSyncQueueRecord({
         entity: 'list',
@@ -520,6 +511,9 @@ export function useLists() {
     const listId = crypto.randomUUID()
     const now = new Date().toISOString()
     const sync = syncFieldsForLocalInsert()
+    const cat = useListsCatalogStore.getState()
+    const existingMemberships = await db.list_users.where('user_id').equals(user.id).toArray()
+    const nextSort = nextListCatalogSortOrderFromMembershipRows(existingMemberships, listId)
     const optimisticList: ListWithRole = {
       id: listId,
       name: trimmedName,
@@ -543,20 +537,15 @@ export function useLists() {
       archivedItemCount: 0,
       sumScope: 'none',
       label: label || '',
-      sort_order: 0,
+      sort_order: nextSort,
     }
 
     catalogMutationVersionRef.current += 1
     catalogSkipRealtimeUntilRef.current = Date.now() + 2000
-    const cat = useListsCatalogStore.getState()
     cat.beginLocalCatalogPersistence()
     try {
-      cat.setCatalogLists((prev) => [
-        optimisticList,
-        ...prev.map((l) => ({ ...l, sort_order: (l.sort_order ?? 0) + 1 })),
-      ])
+      cat.setCatalogLists((prev) => [optimisticList, ...prev])
       await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-        await bumpListUserSortOrdersForUserExceptList(user.id, listId)
         await db.lists.put({
           ...extractListRowFields(optimisticList),
           cached_at: Date.now(),
@@ -568,7 +557,7 @@ export function useLists() {
           user_id: user.id,
           role: 'owner',
           archived: false,
-          sort_order: 0,
+          sort_order: nextSort,
           ...syncFieldsForLocalInsert(),
           member_filter: 'all',
           item_text_width: 'auto',
@@ -731,9 +720,10 @@ export function useLists() {
             appendMutationDiagnostic(
               `[mutation:list.user_state.reorder] userId=${user.id} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')}`,
             )
+            const n = nextLists.length
             for (const [index, list] of nextLists.entries()) {
               const lu = await db.list_users.where('[list_id+user_id]').equals([list.id, user.id]).first()
-              if (lu) await db.list_users.update(lu.id, { sort_order: index })
+              if (lu) await db.list_users.update(lu.id, { sort_order: listCatalogSortOrderForVisualIndex(index, n) })
             }
             await enqueueSyncQueueRecord({
               entity: 'list',
@@ -896,10 +886,13 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-    const sourceList = useListsCatalogStore.getState().lists.find((l) => l.id === listId)
+    const catDup0 = useListsCatalogStore.getState()
+    const sourceList = catDup0.lists.find((l) => l.id === listId)
     const duplicateId = crypto.randomUUID()
     const now = new Date().toISOString()
     const sync = syncFieldsForLocalInsert()
+    const existingMembershipsDup = await db.list_users.where('user_id').equals(user.id).toArray()
+    const nextSortDup = nextListCatalogSortOrderFromMembershipRows(existingMembershipsDup, duplicateId)
     const optimisticList: ListWithRole = {
       id: duplicateId,
       name: newName,
@@ -923,7 +916,7 @@ export function useLists() {
       archivedItemCount: sourceList?.archivedItemCount ?? 0,
       sumScope: 'none',
       label: label || '',
-      sort_order: 0,
+      sort_order: nextSortDup,
     }
 
     catalogMutationVersionRef.current += 1
@@ -931,13 +924,9 @@ export function useLists() {
     const catDup = useListsCatalogStore.getState()
     catDup.beginLocalCatalogPersistence()
     try {
-      catDup.setCatalogLists((prev) => [
-        optimisticList,
-        ...prev.map((l) => ({ ...l, sort_order: (l.sort_order ?? 0) + 1 })),
-      ])
+      catDup.setCatalogLists((prev) => [optimisticList, ...prev])
       try {
         await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-          await bumpListUserSortOrdersForUserExceptList(user.id, duplicateId)
           await db.lists.put({
             ...extractListRowFields(optimisticList),
             cached_at: Date.now(),
@@ -949,7 +938,7 @@ export function useLists() {
             user_id: user.id,
             role: 'owner',
             archived: false,
-            sort_order: 0,
+            sort_order: nextSortDup,
             ...syncFieldsForLocalInsert(),
             member_filter: 'all',
             item_text_width: 'auto',
@@ -1005,6 +994,8 @@ export function useLists() {
     const now = new Date().toISOString()
     const sync = syncFieldsForLocalInsert()
     const itemCount = Array.isArray(rows) ? rows.length : 0
+    const existingMembershipsImp = await db.list_users.where('user_id').equals(user.id).toArray()
+    const nextSortImp = nextListCatalogSortOrderFromMembershipRows(existingMembershipsImp, importedId)
     const optimisticList: ListWithRole = {
       id: importedId,
       name,
@@ -1028,7 +1019,7 @@ export function useLists() {
       archivedItemCount: 0,
       sumScope: 'none',
       label: label || '',
-      sort_order: 0,
+      sort_order: nextSortImp,
     }
 
     catalogMutationVersionRef.current += 1
@@ -1036,13 +1027,9 @@ export function useLists() {
     const catImp = useListsCatalogStore.getState()
     catImp.beginLocalCatalogPersistence()
     try {
-      catImp.setCatalogLists((prev) => [
-        optimisticList,
-        ...prev.map((l) => ({ ...l, sort_order: (l.sort_order ?? 0) + 1 })),
-      ])
+      catImp.setCatalogLists((prev) => [optimisticList, ...prev])
       try {
         await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-          await bumpListUserSortOrdersForUserExceptList(user.id, importedId)
           await db.lists.put({
             ...extractListRowFields(optimisticList),
             cached_at: Date.now(),
@@ -1054,7 +1041,7 @@ export function useLists() {
             user_id: user.id,
             role: 'owner',
             archived: false,
-            sort_order: 0,
+            sort_order: nextSortImp,
             ...syncFieldsForLocalInsert(),
             member_filter: 'all',
             item_text_width: 'auto',
