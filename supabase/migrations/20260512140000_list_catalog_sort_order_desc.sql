@@ -6,7 +6,8 @@
 -- -----------------------------------------------------------------------------
 WITH ranked AS (
   SELECT
-    id,
+    list_id,
+    user_id,
     COUNT(*) OVER (PARTITION BY user_id) AS cnt,
     ROW_NUMBER() OVER (
       PARTITION BY user_id
@@ -17,7 +18,8 @@ WITH ranked AS (
 UPDATE public.list_users lu
 SET sort_order = ranked.cnt - ranked.rn
 FROM ranked
-WHERE lu.id = ranked.id;
+WHERE lu.list_id = ranked.list_id
+  AND lu.user_id = ranked.user_id;
 
 -- -----------------------------------------------------------------------------
 -- 2) reorder_user_lists: first array entry = top = largest sort_order
