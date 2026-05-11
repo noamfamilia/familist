@@ -1,5 +1,5 @@
 import { getActiveCacheUserId } from '@/lib/cache'
-import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind } from '@/lib/db'
+import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind, type SyncQueueStatus } from '@/lib/db'
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 
 /** True when a sync_queue row is scoped to `listId` (parent, entity id, or payload.list_id). */
@@ -14,6 +14,55 @@ export function syncQueueRowTouchesListId(row: DbSyncQueueRow, listId: string): 
 
 export function itemMemberStateOutboxKey(itemId: string, memberId: string) {
   return `ims:${itemId}:${memberId}`
+}
+
+const IMS_PATCH_OVERLAY_STATUSES: readonly SyncQueueStatus[] = ['queued', 'processing', 'failed']
+
+export type PendingImsPatchFields = {
+  quantity: number
+  done: boolean
+  assigned: boolean
+}
+
+/** Latest outbound IMS patch intent per item → member (last `updated_at` wins). Used to overlay server fetches. */
+export function collectLatestPendingItemMemberStatePatchesForList(
+  listId: string,
+  rows: readonly DbSyncQueueRow[],
+): Map<string, Map<string, PendingImsPatchFields>> {
+  const ordered = [...rows]
+    .filter(
+      (r) =>
+        r.entity === 'item_member_state' &&
+        r.kind === 'patch' &&
+        IMS_PATCH_OVERLAY_STATUSES.includes(r.status) &&
+        syncQueueRowTouchesListId(r, listId),
+    )
+    .sort((a, b) => a.updated_at - b.updated_at)
+
+  const out = new Map<string, Map<string, PendingImsPatchFields>>()
+  for (const r of ordered) {
+    const p = r.payload as {
+      item_id?: string
+      member_id?: string
+      quantity?: unknown
+      done?: unknown
+      assigned?: unknown
+    }
+    const item_id = typeof p.item_id === 'string' ? p.item_id : ''
+    const member_id = typeof p.member_id === 'string' ? p.member_id : ''
+    if (!item_id || !member_id) continue
+    let inner = out.get(item_id)
+    if (!inner) {
+      inner = new Map()
+      out.set(item_id, inner)
+    }
+    inner.set(member_id, {
+      quantity: typeof p.quantity === 'number' && !Number.isNaN(p.quantity) ? p.quantity : 1,
+      done: Boolean(p.done),
+      assigned: Boolean(p.assigned),
+    })
+  }
+  return out
 }
 
 /**
@@ -167,11 +216,14 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
     !shouldAppendOnly(input.entity, input.entity_id, input.kind)
 
   if (mergePatch) {
-    const existing = await db.sync_queue
+    const mergeableStatuses: readonly SyncQueueStatus[] = ['queued', 'processing']
+    const matches = await db.sync_queue
       .where('[entity+entity_id]')
       .equals([input.entity, input.entity_id])
-      .filter((r) => r.kind === 'patch' && r.status === 'queued')
-      .first()
+      .filter((r) => r.kind === 'patch' && mergeableStatuses.includes(r.status))
+      .toArray()
+    const existing =
+      matches.length === 0 ? undefined : matches.reduce((a, b) => (a.updated_at >= b.updated_at ? a : b))
     if (existing) {
       const mergedPayload = { ...existing.payload, ...input.payload }
       await db.sync_queue.update(existing.id, {
@@ -190,7 +242,7 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
         entity: input.entity,
         entity_id: input.entity_id,
         payload: mergedPayload,
-        status: 'queued',
+        status: existing.status,
       })
       return
     }

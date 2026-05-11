@@ -38,12 +38,7 @@ import {
   resolveServerWorkOutcomeFromThrown,
   type ServerWorkOutcome,
 } from '@/lib/connectivityErrors'
-import {
-  clearSyncQueueForList,
-  enqueueSyncQueueRecord,
-  listQueueParent,
-  newBatchEntityId,
-} from '@/lib/data/syncQueue'
+import { clearSyncQueueForList, enqueueSyncQueueRecord, listQueueParent, newBatchEntityId } from '@/lib/data/syncQueue'
 import {
   isoNow,
   isTombstoned,
@@ -1587,10 +1582,7 @@ export function useList(listId: string) {
     if (isOfflineActionsDisabled) {
       return { error: { message: blockedMutationMessage() } }
     }
-    if (!tryBeginItemQueueableMutation()) {
-      return { error: { message: blockedMutationMessage() } }
-    }
-    const existingState = items.find((i) => i.id === itemId)?.memberStates[memberId]
+    const existingState = useListDataStore.getState().items.find((i) => i.id === itemId)?.memberStates[memberId]
     const t = isoNow()
     const syncBase =
       existingState != null
@@ -1641,7 +1633,6 @@ export function useList(listId: string) {
       return { error: { message: rpcFailureMessage(error) } }
     } finally {
       useListDataStore.getState().endLocalListPersistence()
-      mutationGate.end()
     }
   }
 
@@ -1649,10 +1640,7 @@ export function useList(listId: string) {
     if (isOfflineActionsDisabled) {
       return { data: null, error: { message: blockedMutationMessage() } }
     }
-    if (!tryBeginItemQueueableMutation()) {
-      return { data: null, error: { message: blockedMutationMessage() } }
-    }
-    const previousState = items.find((item) => item.id === itemId)?.memberStates[memberId]
+    const previousState = useListDataStore.getState().items.find((item) => item.id === itemId)?.memberStates[memberId]
     const t = isoNow()
     const syncBase =
       previousState != null
@@ -1703,7 +1691,6 @@ export function useList(listId: string) {
       return { data: null, error: { message: rpcFailureMessage(error) } }
     } finally {
       useListDataStore.getState().endLocalListPersistence()
-      mutationGate.end()
     }
   }
 

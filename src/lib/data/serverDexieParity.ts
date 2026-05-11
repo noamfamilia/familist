@@ -11,6 +11,10 @@ import {
   pendingCreateForItemMemberStateComposite,
   pendingRpcTouchesList,
 } from '@/lib/data/syncPruneGuards'
+import {
+  reconcileListDetailPayloadWithPendingSyncPatches,
+  reconcileUserListsSummaryRowsWithPendingPatches,
+} from '@/lib/data/queries'
 import { stableItemMemberStateDexieId, syncQueueRowTouchesListId } from '@/lib/data/syncQueue'
 import type {
   Database,
@@ -156,8 +160,9 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
     ],
     async () => {
       const queue = await loadPendingOutboundQueueSnapshot()
-      const incomingIds = new Set(rows.map((row) => row.id))
-      for (const row of rows) {
+      const rowsReconciled = reconcileUserListsSummaryRowsWithPendingPatches(rows, queue)
+      const incomingIds = new Set(rowsReconciled.map((row) => row.id))
+      for (const row of rowsReconciled) {
         const { role, userArchived, sort_order, sumScope, label } = row
         const existingList = await db.lists.get(row.id)
         const listSync = normalizeServerSyncableFields(row as unknown as Record<string, unknown>)
@@ -248,18 +253,19 @@ export async function upsertListDataPayloadFromServer(
   const now = Date.now()
   await db.transaction('rw', [db.lists, db.items, db.members, db.item_member_state, db.sync_queue], async () => {
     const queue = await loadPendingOutboundQueueSnapshot()
-    if (payload.list) {
-      const listSync = normalizeServerSyncableFields(payload.list as unknown as Record<string, unknown>)
+    const payloadReconciled = reconcileListDetailPayloadWithPendingSyncPatches(listId, payload, queue)
+    if (payloadReconciled.list) {
+      const listSync = normalizeServerSyncableFields(payloadReconciled.list as unknown as Record<string, unknown>)
       await db.lists.put(
         withLastSyncedNow({
-          ...payload.list,
+          ...payloadReconciled.list,
           ...listSync,
           cached_at: now,
           app_version: APP_VERSION,
         }),
       )
     }
-    for (const item of payload.items) {
+    for (const item of payloadReconciled.items) {
       const itemSync = normalizeServerSyncableFields(item as unknown as Record<string, unknown>)
       await db.items.put(withLastSyncedNow({ ...item, ...itemSync }))
       for (const memberState of Object.values(item.memberStates ?? {})) {
@@ -282,11 +288,11 @@ export async function upsertListDataPayloadFromServer(
         )
       }
     }
-    for (const member of payload.members) {
+    for (const member of payloadReconciled.members) {
       const memSync = normalizeServerSyncableFields(member as unknown as Record<string, unknown>)
       await db.members.put(withLastSyncedNow({ ...member, ...memSync }))
     }
-    await pruneListDetailAfterServerUpsert(listId, payload, queue)
+    await pruneListDetailAfterServerUpsert(listId, payloadReconciled, queue)
   })
 }
 
@@ -332,18 +338,19 @@ export async function upsertListDataPayloadFromMirror(
 
   await db.transaction('rw', [db.lists, db.items, db.members, db.item_member_state, db.sync_queue], async () => {
     const queue = await loadPendingOutboundQueueSnapshot()
-    if (payload.list) {
-      const listSync = normalizeServerSyncableFields(payload.list as unknown as Record<string, unknown>)
+    const payloadReconciled = reconcileListDetailPayloadWithPendingSyncPatches(listId, payload, queue)
+    if (payloadReconciled.list) {
+      const listSync = normalizeServerSyncableFields(payloadReconciled.list as unknown as Record<string, unknown>)
       await db.lists.put(
         withLastSyncedNow({
-          ...payload.list,
+          ...payloadReconciled.list,
           ...listSync,
           cached_at: now,
           app_version: APP_VERSION,
         }),
       )
     }
-    for (const item of payload.items) {
+    for (const item of payloadReconciled.items) {
       if (skipItemIds.has(item.id)) continue
       const itemSync = normalizeServerSyncableFields(item as unknown as Record<string, unknown>)
       await db.items.put(withLastSyncedNow({ ...item, ...itemSync }))
@@ -367,12 +374,12 @@ export async function upsertListDataPayloadFromMirror(
         )
       }
     }
-    for (const member of payload.members) {
+    for (const member of payloadReconciled.members) {
       if (skipMemberIds.has(member.id)) continue
       const memSync = normalizeServerSyncableFields(member as unknown as Record<string, unknown>)
       await db.members.put(withLastSyncedNow({ ...member, ...memSync }))
     }
-    await pruneListDetailAfterServerUpsert(listId, payload, queue, skipItemIds, skipMemberIds)
+    await pruneListDetailAfterServerUpsert(listId, payloadReconciled, queue, skipItemIds, skipMemberIds)
   })
 }
 

@@ -197,7 +197,8 @@ export function useSyncStore(): SyncStoreState {
       const listId = rowListIdForSync(row)
       if (listId && !isVirtualUserListKey(listId)) {
         const pl = row.payload as { method?: unknown }
-        const skipListDetail = row.kind === 'rpc' && String(pl?.method ?? '') === 'leaveList'
+        const skipListDetail =
+          (row.kind === 'rpc' && String(pl?.method ?? '') === 'leaveList') || row.kind === 'patch'
         if (!skipListDetail) {
           await syncListDetail(userId, listId, 'Post-mutation verification: list detail')
         }
@@ -380,7 +381,8 @@ export function useSyncStore(): SyncStoreState {
         })
         if (error) throw error
       } else if (row.kind === 'patch' && row.entity === 'item_member_state') {
-        const payload = row.payload as {
+        const fresh = (await db.sync_queue.get(row.id)) ?? row
+        const payload = fresh.payload as {
           item_id?: string
           member_id?: string
           quantity?: number
