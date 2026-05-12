@@ -50,8 +50,10 @@ export type SyncQueueKind = 'create' | 'patch' | 'delete' | 'rpc'
  *   lock freshness). New rows default here.
  * - **processing** — Worker claimed the row (`tryClaimSyncRow`), is running `executeOutboundRow` (Supabase RPC/table writes).
  *   On success the row is **deleted**. On failure → **failed** or connectivity retry → back to **queued** with delay.
- * - **failed** — Non-connectivity error or verification failure; `last_error` set, `attempt_count` bumped, exponential
- *   `next_retry_at`. Window `online` may reset all failed → queued (`resetFailedSyncQueueRows`).
+ * - **failed** — Non-connectivity error or verification failure; `last_error` set, `attempt_count` bumped,
+ *   `next_retry_at` from **exponential backoff** (HTTP 429 / 5xx only) or **linear** backoff otherwise.
+ *   **Terminal** logical errors (any explicit HTTP status except **429** and **5xx**, or structured Postgres/PostgREST `code`) **drop** the row
+ *   instead of `failed`. Window `online` resets remaining `failed` → `queued` (`resetFailedSyncQueueRows`).
  *
  * **Consumers:** `useSyncStore` (drain), `buildListsCatalogFromDexie` / `useListsQuery` / `countPendingOutboundForList` (per-list `pending_items`),
  * `outboundDeletePending` in serverDexieParity, `waitForSyncQueueRowCompletion`, `versionCheck` prune, dev Diagnostics.

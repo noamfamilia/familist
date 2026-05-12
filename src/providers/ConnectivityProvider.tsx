@@ -15,6 +15,7 @@ import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { connectivityProbeDelayForStep } from '@/lib/connectivityBackoff'
+import { scheduleOutboundSyncKick } from '@/lib/outboundSyncKick'
 import {
   OFFLINE_ACTIONS_DISABLED_MSG,
   RECOVERING_MUTATIONS_DISABLED_MSG,
@@ -523,6 +524,12 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     scheduleNextProbeRef.current = scheduleNextProbe
   }, [scheduleNextProbe])
 
+  useLayoutEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      scheduleOutboundSyncKick('mount-navigator-onLine')
+    }
+  }, [])
+
   const enterOffline = useCallback((cause = 'unknown') => {
     const prev = statusRef.current
     appendOfflineNavDiagnostic(
@@ -772,27 +779,31 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       enterOffline('window-offline-event')
     }
     const onOnline = () => {
-      if (statusRef.current === 'offline') {
-        appendOfflineNavDiagnostic(
-          '[connectivity-event] window-online while offline -> schedule fast probe',
-        )
-        clearProbeSchedule()
-        probeStepRef.current = 0
-        useNextProbeDelay1sRef.current = true
-        skipNextProbeStepIncrementRef.current = false
-        queueMicrotask(() => {
-          scheduleNextProbeRef.current()
-        })
-        return
-      }
-      if (statusRef.current === 'recovering') {
-        appendOfflineNavDiagnostic(
-          '[connectivity-event] window-online while recovering -> bump recovery fetch',
-        )
-        bumpRecoveryFetchGeneration()
-        queueMicrotask(() => {
-          scheduleNextProbeRef.current()
-        })
+      try {
+        if (statusRef.current === 'offline') {
+          appendOfflineNavDiagnostic(
+            '[connectivity-event] window-online while offline -> schedule fast probe',
+          )
+          clearProbeSchedule()
+          probeStepRef.current = 0
+          useNextProbeDelay1sRef.current = true
+          skipNextProbeStepIncrementRef.current = false
+          queueMicrotask(() => {
+            scheduleNextProbeRef.current()
+          })
+          return
+        }
+        if (statusRef.current === 'recovering') {
+          appendOfflineNavDiagnostic(
+            '[connectivity-event] window-online while recovering -> bump recovery fetch',
+          )
+          bumpRecoveryFetchGeneration()
+          queueMicrotask(() => {
+            scheduleNextProbeRef.current()
+          })
+        }
+      } finally {
+        scheduleOutboundSyncKick('window-online')
       }
     }
     window.addEventListener('offline', onOffline)
@@ -812,6 +823,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     if (typeof document === 'undefined') return
     const onVis = () => {
       if (document.visibilityState !== 'visible') return
+      scheduleOutboundSyncKick('visibility-visible')
       const s = statusRef.current
       if (s === 'offline') {
         appendOfflineNavDiagnostic(

@@ -1,12 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type DbSyncQueueRow } from '@/lib/db'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { createClient } from '@/lib/supabase/client'
 import {
   isLikelyConnectivityError,
+  isOutboundSyncTerminalError,
+  resolveOutboundRetryDelayMs,
   shouldSetListUserSyncErrorAfterOutboundFailure,
 } from '@/lib/connectivityErrors'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
@@ -23,6 +25,7 @@ import {
   cleanupDexieAfterMemberServerDeleted,
 } from '@/lib/data/shadowDeleteDexieCleanup'
 import { resetFailedSyncQueueRows } from '@/lib/data/syncQueue'
+import { subscribeOutboundSyncKick } from '@/lib/outboundSyncKick'
 import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
@@ -39,12 +42,6 @@ const supabase = createClient()
 
 const LOCK_STALE_MS = 60_000
 const CONNECTIVITY_RETRY_DELAY_MS = 2_000
-
-/** `attemptCount` is 1-based after increment (first failure → 1). */
-function backoffMsAfterFailure(attemptCount: number): number {
-  const exp = Math.min(Math.max(attemptCount, 1), 10)
-  return Math.min(300_000, 1000 * 2 ** exp)
-}
 
 /** First list id for verification (`syncListDetail`); multi-list RPCs use the primary id only here. */
 function rowListIdForSync(row: DbSyncQueueRow): string | null {
@@ -264,7 +261,7 @@ async function releaseRowForConnectivityRetry(rowId: string): Promise<void> {
   })
 }
 
-async function markRowFailedAfterError(row: DbSyncQueueRow, message: string): Promise<void> {
+async function markRowFailedAfterError(row: DbSyncQueueRow, message: string, error: unknown): Promise<void> {
   const now = Date.now()
   const ac = row.attempt_count + 1
   await db.sync_queue.update(row.id, {
@@ -272,7 +269,7 @@ async function markRowFailedAfterError(row: DbSyncQueueRow, message: string): Pr
     attempt_count: ac,
     last_error: message,
     locked_at: null,
-    next_retry_at: now + backoffMsAfterFailure(ac),
+    next_retry_at: now + resolveOutboundRetryDelayMs(error, ac),
     updated_at: now,
   })
 }
@@ -293,11 +290,19 @@ export function useSyncStore(): SyncStoreState {
     statusRef.current = status
   }, [status])
 
+  useLayoutEffect(() => {
+    return subscribeOutboundSyncKick(() => {
+      void resetFailedSyncQueueRows()
+      setOutboundSyncKick((n) => n + 1)
+    })
+  }, [])
+
   const { error: showErrorToast, info: showInfoToast } = useToast()
   const drainingRef = useRef(false)
   const [isDraining, setIsDraining] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
   const [retryPulse, setRetryPulse] = useState(0)
+  const [outboundSyncKick, setOutboundSyncKick] = useState(0)
 
   const normalizeErrorMessage = useCallback((error: unknown): string => {
     if (error instanceof Error) return error.message
@@ -1046,14 +1051,6 @@ export function useSyncStore(): SyncStoreState {
   }, [needsBackoffWake, rows.length, status])
 
   useEffect(() => {
-    const onOnline = () => {
-      void resetFailedSyncQueueRows()
-    }
-    window.addEventListener('online', onOnline)
-    return () => window.removeEventListener('online', onOnline)
-  }, [])
-
-  useEffect(() => {
     if (status !== 'online') return
     if (rows.length === 0) return
     if (drainingRef.current) return
@@ -1098,13 +1095,27 @@ export function useSyncStore(): SyncStoreState {
               await releaseRowForConnectivityRetry(claimed.id)
               break
             }
+            if (isOutboundSyncTerminalError(error)) {
+              if (
+                syncUserId &&
+                shouldSetListUserSyncErrorAfterOutboundFailure(error, claimed.attempt_count)
+              ) {
+                await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, true)
+              }
+              await db.sync_queue.delete(claimed.id)
+              if (claimed.attempt_count === 0) {
+                showErrorToast(message || 'Sync failed; change was not applied.', { serverError: error })
+              }
+              setLastError(message)
+              continue
+            }
             if (
               syncUserId &&
               shouldSetListUserSyncErrorAfterOutboundFailure(error, claimed.attempt_count)
             ) {
               await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, true)
             }
-            await markRowFailedAfterError(claimed, message)
+            await markRowFailedAfterError(claimed, message, error)
             if (claimed.attempt_count === 0) {
               showErrorToast(message || 'Sync failed; will retry.', { serverError: error })
             }
@@ -1132,6 +1143,7 @@ export function useSyncStore(): SyncStoreState {
     markOnlineRecovered,
     needsBackoffWake,
     normalizeErrorMessage,
+    outboundSyncKick,
     retryPulse,
     rows,
     showErrorToast,
