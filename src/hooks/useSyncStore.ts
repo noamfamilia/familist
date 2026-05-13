@@ -16,6 +16,7 @@ import { useToast } from '@/components/ui/Toast'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
 import { getActiveCacheUserId } from '@/lib/cache'
 import { listIdsTouchingOutboundRow } from '@/lib/data/syncQueueListScope'
+import { scrubAfterTerminalOutboundFailure } from '@/lib/data/outboundTerminalScrub'
 import { applyListUserSyncErrorForListIds } from '@/lib/data/listUserSyncStatus'
 import { isoNow } from '@/lib/data/base_sync_fields'
 import {
@@ -1096,11 +1097,9 @@ export function useSyncStore(): SyncStoreState {
               break
             }
             if (isOutboundSyncTerminalError(error)) {
-              if (
-                syncUserId &&
-                shouldSetListUserSyncErrorAfterOutboundFailure(error, claimed.attempt_count)
-              ) {
-                await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, true)
+              await scrubAfterTerminalOutboundFailure(claimed, syncUserId, normalizeErrorMessage)
+              if (syncUserId) {
+                await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, false)
               }
               await db.sync_queue.delete(claimed.id)
               if (claimed.attempt_count === 0) {
