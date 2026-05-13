@@ -77,6 +77,7 @@ export interface Database {
           join_revoked_at: string | null
           join_use_count: number
           updated_at: string
+          last_content_update: string
         } & DbSyncableFields
         Insert: {
           id?: string
@@ -93,6 +94,7 @@ export interface Database {
           join_revoked_at?: string | null
           join_use_count?: number
           updated_at?: string
+          last_content_update?: string
         } & DbSyncableFieldsPartial
         Update: {
           id?: string
@@ -109,6 +111,7 @@ export interface Database {
           join_revoked_at?: string | null
           join_use_count?: number
           updated_at?: string
+          last_content_update?: string
         } & DbSyncableFieldsPartial
         Relationships: []
       }
@@ -124,6 +127,7 @@ export interface Database {
           item_name_font_step: number
           show_targets: boolean
           last_viewed_members: string | null
+          last_viewed: string | null
           sum_scope: 'none' | 'all' | 'active' | 'archived'
           label: string
         } & DbSyncableFields
@@ -138,6 +142,7 @@ export interface Database {
           item_name_font_step?: number
           show_targets?: boolean
           last_viewed_members?: string | null
+          last_viewed?: string | null
           sum_scope?: 'none' | 'all' | 'active' | 'archived'
           label?: string
         } & DbSyncableFieldsPartial
@@ -152,6 +157,7 @@ export interface Database {
           item_name_font_step?: number
           show_targets?: boolean
           last_viewed_members?: string | null
+          last_viewed?: string | null
           sum_scope?: 'none' | 'all' | 'active' | 'archived'
           label?: string
         } & DbSyncableFieldsPartial
@@ -302,6 +308,7 @@ export interface Database {
           visibility: 'private' | 'link'
           archived: boolean
           updated_at: string
+          last_content_update: string
           client_created_at: string
           server_created_at: string | null
           deleted_at: string | null
@@ -310,6 +317,7 @@ export interface Database {
           role: 'owner' | 'editor' | 'viewer'
           userArchived: boolean
           sort_order: number | null
+          last_viewed: string | null
           sumScope?: 'none' | 'all' | 'active' | 'archived'
           ownerNickname: string | null
           comment: string | null
@@ -327,6 +335,10 @@ export interface Database {
             creator?: { nickname: string | null } | null
           })[]
         }
+      }
+      touch_list_viewed: {
+        Args: { p_list_id: string }
+        Returns: string
       }
       duplicate_list: {
         Args: {
@@ -486,6 +498,8 @@ export type ListWithRole = List & {
   ownerNickname?: string | null
   comment?: string | null
   label?: string
+  /** Per-user read cursor from `list_users.last_viewed`, used by the home activity LED. */
+  last_viewed?: string | null
   /** Outbound sync queue rows touching this list (Dexie liveQuery). */
   pending_items?: number
   /** Dexie `list_users.sync_error`: last push failed until retry / success / manual edit */

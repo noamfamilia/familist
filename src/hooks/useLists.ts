@@ -73,6 +73,7 @@ function extractListRowFields(list: ListWithRole) {
     sumScope,
     ownerNickname,
     label,
+    last_viewed,
     pending_items,
     sync_error,
     ...listFields
@@ -85,6 +86,7 @@ function extractListRowFields(list: ListWithRole) {
   void sumScope
   void ownerNickname
   void label
+  void last_viewed
   void pending_items
   void sync_error
   return listFields
@@ -388,9 +390,11 @@ export function useLists() {
         version: item.version ?? 1,
         last_synced_at: item.last_synced_at ?? null,
         updated_at: item.updated_at,
+        last_content_update: item.last_content_update ?? item.updated_at,
         role: item.role,
         userArchived: item.userArchived,
         sort_order: item.sort_order ?? null,
+        last_viewed: item.last_viewed ?? null,
         memberCount: 0,
         activeItemCount: 0,
         archivedItemCount: 0,
@@ -530,6 +534,7 @@ export function useLists() {
       join_use_count: 0,
       ...sync,
       updated_at: now,
+      last_content_update: now,
       role: 'owner',
       userArchived: false,
       memberCount: 0,
@@ -537,6 +542,7 @@ export function useLists() {
       archivedItemCount: 0,
       sumScope: 'none',
       label: label || '',
+      last_viewed: now,
       sort_order: nextSort,
     }
 
@@ -563,6 +569,7 @@ export function useLists() {
           item_text_width: 'auto',
           label: label || '',
           last_viewed_members: null,
+          last_viewed: now,
           show_targets: false,
           item_name_font_step: 3,
           sum_scope: 'none',
@@ -906,6 +913,7 @@ export function useLists() {
       join_use_count: 0,
       ...sync,
       updated_at: now,
+      last_content_update: now,
       role: 'owner',
       userArchived: false,
       memberCount: sourceList?.memberCount ?? 0,
@@ -913,6 +921,7 @@ export function useLists() {
       archivedItemCount: sourceList?.archivedItemCount ?? 0,
       sumScope: 'none',
       label: label || '',
+      last_viewed: now,
       sort_order: nextSortDup,
     }
 
@@ -941,6 +950,7 @@ export function useLists() {
             item_text_width: 'auto',
             label: label || '',
             last_viewed_members: null,
+            last_viewed: now,
             show_targets: false,
             item_name_font_step: 3,
             sum_scope: 'none',
@@ -1009,6 +1019,7 @@ export function useLists() {
       join_use_count: 0,
       ...sync,
       updated_at: now,
+      last_content_update: now,
       role: 'owner',
       userArchived: false,
       memberCount: hasTargets ? 1 : 0,
@@ -1016,6 +1027,7 @@ export function useLists() {
       archivedItemCount: 0,
       sumScope: 'none',
       label: label || '',
+      last_viewed: now,
       sort_order: nextSortImp,
     }
 
@@ -1044,6 +1056,7 @@ export function useLists() {
             item_text_width: 'auto',
             label: label || '',
             last_viewed_members: null,
+            last_viewed: now,
             show_targets: false,
             item_name_font_step: 3,
             sum_scope: 'none',

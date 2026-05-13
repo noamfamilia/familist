@@ -201,6 +201,7 @@ export function reconcileUserListsSummaryRowsWithPendingCatalogQueue(
         const out: Record<string, unknown> = { ...row }
         if (pl.archived !== undefined) out.userArchived = Boolean(pl.archived)
         if (pl.sort_order !== undefined) out.sort_order = pl.sort_order
+        if (pl.last_viewed !== undefined) out.last_viewed = pl.last_viewed
         return out as GetUserListsSummaryRow
       })
     } else if (method === 'reorderListUsers') {
@@ -297,6 +298,7 @@ export async function buildListsCatalogFromDexie(userId: string): Promise<ListWi
       sort_order: listUser.sort_order,
       sumScope: listUser.sum_scope ?? 'none',
       label: listUser.label ?? '',
+      last_viewed: listUser.last_viewed ?? null,
       memberCount: counts.memberCount,
       activeItemCount: counts.activeItemCount,
       archivedItemCount: counts.archivedItemCount,

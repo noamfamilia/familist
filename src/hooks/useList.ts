@@ -70,6 +70,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useToast } from '@/components/ui/Toast'
 import { createUserMutationGate } from '@/lib/userMutationGate'
 import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
+import { markListViewedLocally } from '@/lib/data/listActivity'
 
 const supabase = createClient()
 
@@ -373,6 +374,18 @@ export function useList(listId: string) {
     (itemId: string, updates: Partial<Item>) => Promise<{ error: { message?: string } | null }>
   >(async () => ({ error: null }))
   const mutationGate = useMemo(() => createUserMutationGate(), [])
+  const markCurrentListViewed = useCallback(
+    async (nowIso?: string) => {
+      try {
+        await markListViewedLocally(userId, listId, { nowIso })
+      } catch (error) {
+        appendMutationDiagnostic(
+          `[list-activity] mark_viewed_failed listId=${listId} msg=${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+    },
+    [listId, userId],
+  )
 
   const tryBeginMutation = useCallback((): boolean => {
     if (!canMutateNow()) return false
@@ -455,6 +468,13 @@ export function useList(listId: string) {
     const unsub = subscribeListDataL2Bridge(userId, listId)
     return () => {
       unsub()
+    }
+  }, [userId, listId])
+
+  useEffect(() => {
+    if (!userId || !listId) return
+    return () => {
+      void markListViewedLocally(userId, listId)
     }
   }, [userId, listId])
 
@@ -703,7 +723,7 @@ export function useList(listId: string) {
         const { data: listUserData } = await supabase
           .from('list_users')
           .select(
-            'member_filter, item_text_width, last_viewed_members, item_name_font_step, sum_scope',
+            'member_filter, item_text_width, last_viewed_members, last_viewed, item_name_font_step, sum_scope',
           )
           .eq('list_id', listId)
           .eq('user_id', userId)
@@ -868,7 +888,7 @@ export function useList(listId: string) {
         items: mergedItemsForCache,
         members: mergedMembersForCache,
       })
-      await setLastMirroredListDetailVersion(listId, data.list.version ?? 1)
+      await setLastMirroredListDetailVersion(listId, data.list.version ?? 1, data.list.last_content_update ?? null)
       listCount = 1
       itemCountResult = mergedItemsForCache.length
 
@@ -1215,6 +1235,7 @@ export function useList(listId: string) {
       })
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
+      await markCurrentListViewed(t)
       persistListSnapshotToDetailCache(userId, listId)
       return { data: { id } as Item, error: null }
     } catch (error) {
@@ -1295,6 +1316,7 @@ export function useList(listId: string) {
             status: 'queued',
           })
         })
+        await markCurrentListViewed(t)
         persistListSnapshotToDetailCache(userId, listId)
         return { error: null, inserted: trimmed.length }
       } catch (error) {
@@ -1402,6 +1424,7 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       const skipMs = persistedUpdates.category !== undefined ? 4500 : 2000
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + skipMs)
+      await markCurrentListViewed(nowIso)
       return { error: null }
     } catch (error) {
       if (rollbackItem) {
@@ -1433,6 +1456,7 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       delete desiredArchivedByItemRef.current[itemId]
+      await markCurrentListViewed()
       return { error: null }
     } catch (error) {
       useListDataStore.getState().setItems(itemsSnapshot)
@@ -1479,6 +1503,7 @@ export function useList(listId: string) {
       })
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
+      await markCurrentListViewed(t)
       return { data: { id: memberId, creator: creatorNickname ? { nickname: creatorNickname } : null }, error: null }
     } catch (error) {
       useListDataStore.getState().setMembers((prev) => prev.filter((m) => m.id !== memberId))
@@ -1546,6 +1571,7 @@ export function useList(listId: string) {
           status: 'queued',
         })
       })
+      await markCurrentListViewed(nowIso)
       return { error: null }
     } catch (error) {
       useListDataStore.getState().setMembers(membersSnapshot)
@@ -1602,6 +1628,7 @@ export function useList(listId: string) {
           status: 'queued',
         })
       })
+      await markCurrentListViewed(nowIso)
       return { error: null }
     } catch (error) {
       useListDataStore.getState().setItems(itemsSnapshot)
@@ -1660,6 +1687,7 @@ export function useList(listId: string) {
         })
         mutationVersionRef.current += 1
         skipRealtimeUntilRef.current = Date.now() + 2000
+        await markCurrentListViewed(nowIso)
         return { error: null, newMemberId: memberId }
       } finally {
         useListDataStore.getState().endLocalListPersistence()
@@ -1727,6 +1755,7 @@ export function useList(listId: string) {
       })
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
+      await markCurrentListViewed(t)
       return { error: null }
     } catch (error) {
       useListDataStore.getState().setItems(itemsSnapshot)
@@ -1785,6 +1814,7 @@ export function useList(listId: string) {
       })
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
+      await markCurrentListViewed(t)
       return { data: optimisticState.quantity, error: null }
     } catch (error) {
       useListDataStore.getState().setItems(itemsSnapshot)
@@ -1809,6 +1839,7 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
       await bulkSoftDeleteArchivedItemsMutation(listId, [...archivedIds])
+      await markCurrentListViewed()
       persistListSnapshotToDetailCache(userId, listId)
       return { error: null, count: archivedIds.size }
     } catch (error) {
@@ -1859,6 +1890,7 @@ export function useList(listId: string) {
           status: 'queued',
         })
       })
+      await markCurrentListViewed(nowIso)
       persistListSnapshotToDetailCache(userId, listId)
       return { error: null, count: archivedIds.length }
     } catch (error) {
@@ -1906,6 +1938,7 @@ export function useList(listId: string) {
           status: 'queued',
         })
       })
+      await markCurrentListViewed(nowIso)
       return { error: null }
     } catch (error) {
       useListDataStore.getState().setItems(itemsSnapshot)

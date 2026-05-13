@@ -823,6 +823,10 @@ export function useSyncStore(): SyncStoreState {
           if (plWide.sum_scope !== undefined) patch.sum_scope = plWide.sum_scope
           if (plWide.item_name_font_step !== undefined) patch.item_name_font_step = plWide.item_name_font_step
           if (plWide.last_viewed_members !== undefined) patch.last_viewed_members = plWide.last_viewed_members
+          const shouldTouchLastViewed = plWide.last_viewed !== undefined
+          appendMutationDiagnostic(
+            `[list-activity] sync_patchListUser_start listId=${id} userId=${patchUserId} patchKeys=${Object.keys(patch).join(',') || 'none'} touchLastViewed=${shouldTouchLastViewed ? 1 : 0}`,
+          )
           if (Object.keys(patch).length > 0) {
             const { error } = await supabase
               .from('list_users')
@@ -830,6 +834,30 @@ export function useSyncStore(): SyncStoreState {
               .eq('list_id', id)
               .eq('user_id', patchUserId)
             if (error) throw error
+            appendMutationDiagnostic(
+              `[list-activity] sync_patchListUser_update_ok listId=${id} userId=${patchUserId} patchKeys=${Object.keys(patch).join(',')}`,
+            )
+          }
+          if (shouldTouchLastViewed) {
+            appendMutationDiagnostic(`[list-activity] sync_touch_list_viewed_request listId=${id} userId=${patchUserId}`)
+            const { data: serverLastViewed, error } = await supabase.rpc('touch_list_viewed', {
+              p_list_id: id,
+            })
+            if (error) throw error
+            appendMutationDiagnostic(
+              `[list-activity] sync_touch_list_viewed_response listId=${id} userId=${patchUserId} serverLastViewed=${typeof serverLastViewed === 'string' ? serverLastViewed : 'non_string'}`,
+            )
+            if (typeof serverLastViewed === 'string') {
+              const listUser = await db.list_users.where('[list_id+user_id]').equals([id, patchUserId]).first()
+              if (listUser) {
+                await db.list_users.update(listUser.id, { last_viewed: serverLastViewed })
+                appendMutationDiagnostic(
+                  `[list-activity] sync_touch_list_viewed_dexie_reconcile listId=${id} rowId=${listUser.id} serverLastViewed=${serverLastViewed}`,
+                )
+              } else {
+                appendMutationDiagnostic(`[list-activity] sync_touch_list_viewed_dexie_missing listId=${id} userId=${patchUserId}`)
+              }
+            }
           }
         } else if (method === 'reorderListUsers') {
           const listIds = Array.isArray(payload.list_ids) ? payload.list_ids : []

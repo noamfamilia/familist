@@ -15,6 +15,7 @@ function listComparableSnapshot(list: List): string {
     JSON.stringify(list.category_order ?? null),
     String(list.version ?? 1),
     list.updated_at,
+    list.last_content_update,
   ].join(RS)
 }
 

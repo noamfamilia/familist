@@ -44,7 +44,7 @@ export async function syncListDetail(userId: string, listId: string, respondsTo:
 
     await upsertListDataPayloadFromServer(userId, listId, { list, items, members })
     if (list) {
-      await setLastMirroredListDetailVersion(listId, list.version ?? 1)
+      await setLastMirroredListDetailVersion(listId, list.version ?? 1, list.last_content_update ?? null)
     }
     const title = formatQuotedListName(list?.name, listId)
     logServerRoundTrip({

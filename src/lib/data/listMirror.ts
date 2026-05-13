@@ -21,6 +21,7 @@ export const LIST_MIRROR_SESSION_OWNER =
     : `tab_${String(Date.now())}_${String(Math.random()).slice(2)}`
 
 type QueuePayload = { ids: string[] }
+type DetailMirrorWatermark = { version: number; last_content_update: string | null }
 
 function detailVersionMetaId(listId: string) {
   return `${MIRROR_DETAIL_VERSION_PREFIX}${listId}`
@@ -29,13 +30,29 @@ function detailVersionMetaId(listId: string) {
 export async function getLastMirroredListDetailVersion(listId: string): Promise<number> {
   const row = await db.meta.get(detailVersionMetaId(listId))
   const v = row?.value
+  if (v && typeof v === 'object' && 'version' in v) {
+    const version = (v as DetailMirrorWatermark).version
+    return typeof version === 'number' && Number.isFinite(version) ? version : 0
+  }
   return typeof v === 'number' && Number.isFinite(v) ? v : 0
 }
 
-export async function setLastMirroredListDetailVersion(listId: string, version: number): Promise<void> {
+async function getLastMirroredListDetailContentUpdate(listId: string): Promise<string | null> {
+  const row = await db.meta.get(detailVersionMetaId(listId))
+  const v = row?.value
+  if (!v || typeof v !== 'object' || !('last_content_update' in v)) return null
+  const lastContentUpdate = (v as DetailMirrorWatermark).last_content_update
+  return typeof lastContentUpdate === 'string' ? lastContentUpdate : null
+}
+
+export async function setLastMirroredListDetailVersion(
+  listId: string,
+  version: number,
+  lastContentUpdate?: string | null,
+): Promise<void> {
   await db.meta.put({
     id: detailVersionMetaId(listId),
-    value: version,
+    value: { version, last_content_update: lastContentUpdate ?? null } satisfies DetailMirrorWatermark,
     updated_at: Date.now(),
   })
 }
@@ -126,8 +143,13 @@ export async function runListMirrorJob(
       return false
     }
     const lastMirrored = await getLastMirroredListDetailVersion(listId)
+    const lastMirroredContentUpdate = await getLastMirroredListDetailContentUpdate(listId)
+    const contentChanged =
+      typeof list.last_content_update === 'string' &&
+      list.last_content_update.length > 0 &&
+      list.last_content_update !== lastMirroredContentUpdate
     const bypass = options?.bypassVersionGate === true
-    if (!bypass && !(list.version > lastMirrored)) {
+    if (!bypass && !(list.version > lastMirrored) && !contentChanged) {
       appendMutationDiagnostic(
         `[list-mirror] skip version gate listId=${listId} list.version=${list.version} lastMirrored=${lastMirrored}`,
       )
@@ -159,7 +181,11 @@ export async function runListMirrorJob(
       items,
       members,
     })
-    await setLastMirroredListDetailVersion(listId, data.list.version ?? list.version)
+    await setLastMirroredListDetailVersion(
+      listId,
+      data.list.version ?? list.version,
+      data.list.last_content_update ?? null,
+    )
     await db.meta.put({
       id: LIST_MIRROR_LAST_SUCCESS_LIST_ID_META_ID,
       value: { list_id: listId, at_iso: new Date().toISOString() },

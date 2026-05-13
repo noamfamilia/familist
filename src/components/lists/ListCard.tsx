@@ -44,6 +44,25 @@ const ListCardSumCountsInline = memo(function ListCardSumCountsInline({
   )
 })
 
+const ActivityLed = memo(function ActivityLed({ show }: { show: boolean }) {
+  if (!show) return null
+  return (
+    <span
+      className="pointer-events-none absolute bottom-2 right-2 h-2.5 w-2.5 rounded-full"
+      style={{ backgroundColor: '#00FF00', boxShadow: '0 0 4px #00FF00' }}
+      aria-label="New activity"
+      title="New activity"
+    />
+  )
+})
+
+function hasNewListActivity(list: ListWithRole): boolean {
+  const contentMs = Date.parse(String(list.last_content_update ?? ''))
+  const viewedMs = Date.parse(String(list.last_viewed ?? list.client_created_at ?? ''))
+  if (!Number.isFinite(contentMs) || !Number.isFinite(viewedMs)) return false
+  return contentMs > viewedMs
+}
+
 function subscribeNavigatorOnline(cb: () => void) {
   if (typeof window === 'undefined') return () => {}
   window.addEventListener('online', cb)
@@ -618,6 +637,7 @@ function ListCardInner({
   const showSumCounts = listCardShowsSumRowMetadata(list)
   const activeCount = list.activeItemCount ?? 0
   const archivedCount = list.archivedItemCount ?? 0
+  const showActivityLed = hasNewListActivity(list)
 
   return (
     <>
@@ -626,6 +646,7 @@ function ListCardInner({
       className="group relative rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-700"
     >
       <ListSyncStatusIcon pendingItems={list.pending_items ?? 0} syncError={list.sync_error === true} />
+      <ActivityLed show={showActivityLed} />
       {/* Card row */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
       {/* Drag handle - only for active lists */}

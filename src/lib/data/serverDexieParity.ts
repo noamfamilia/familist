@@ -141,6 +141,7 @@ type ListUserPrefsServerRow = {
   item_text_width?: string | number | null
   item_name_font_step?: number | null
   last_viewed_members?: string | null
+  last_viewed?: string | null
   sum_scope?: unknown
 }
 
@@ -179,6 +180,7 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
             version: listSync.version,
             last_synced_at: listSync.last_synced_at,
             updated_at: row.updated_at,
+            last_content_update: row.last_content_update ?? existingList?.last_content_update ?? row.updated_at,
             comment: row.comment ?? null,
             category_names: existingList?.category_names ?? null,
             category_order: existingList?.category_order ?? null,
@@ -210,6 +212,7 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
             item_name_font_step: existingListUser?.item_name_font_step ?? 3,
             show_targets: existingListUser?.show_targets ?? false,
             last_viewed_members: existingListUser?.last_viewed_members ?? null,
+            last_viewed: row.last_viewed ?? existingListUser?.last_viewed ?? null,
             sum_scope: sumScope ?? 'none',
             label: label ?? '',
             sync_error: existingListUser?.sync_error ?? false,
@@ -414,6 +417,7 @@ export async function upsertListPrefsFromServer(
       item_text_width: itemTextWidth,
       label: existingByComposite?.label ?? '',
       last_viewed_members: row.last_viewed_members ?? null,
+      last_viewed: row.last_viewed ?? existingByComposite?.last_viewed ?? null,
       show_targets: existingByComposite?.show_targets ?? false,
       item_name_font_step: row.item_name_font_step ?? existingByComposite?.item_name_font_step ?? 3,
       sum_scope: normalizeListUserSumScope(row.sum_scope),
