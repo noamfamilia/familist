@@ -634,12 +634,37 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const addItemInFlightRef = useRef(false)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [showWidthBoundaryGuide, setShowWidthBoundaryGuide] = useState(false)
+  const widthBoundaryGuideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (isOfflineActionsDisabled && showShareModal) {
       setShowShareModal(false)
     }
   }, [isOfflineActionsDisabled, showShareModal])
+
+  const hideWidthBoundaryGuide = useCallback(() => {
+    if (widthBoundaryGuideTimeoutRef.current) {
+      clearTimeout(widthBoundaryGuideTimeoutRef.current)
+      widthBoundaryGuideTimeoutRef.current = null
+    }
+    setShowWidthBoundaryGuide(false)
+  }, [])
+
+  const pulseWidthBoundaryGuide = useCallback(() => {
+    setShowWidthBoundaryGuide(true)
+    if (widthBoundaryGuideTimeoutRef.current) clearTimeout(widthBoundaryGuideTimeoutRef.current)
+    widthBoundaryGuideTimeoutRef.current = setTimeout(() => {
+      widthBoundaryGuideTimeoutRef.current = null
+      setShowWidthBoundaryGuide(false)
+    }, 2000)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (widthBoundaryGuideTimeoutRef.current) clearTimeout(widthBoundaryGuideTimeoutRef.current)
+    }
+  }, [])
 
   const handleBackToLists = () => {
     if (surface === 'home_modal' && onRequestClose) {
@@ -650,6 +675,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const handleWidthChange = (delta: number) => {
+    pulseWidthBoundaryGuide()
     if (itemTextWidthMode === 'auto') {
       updateItemTextWidthMode('manual')
     }
@@ -657,6 +683,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const handleWidthModeToggle = () => {
+    pulseWidthBoundaryGuide()
     updateItemTextWidthMode('auto')
   }
 
@@ -1116,9 +1143,16 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       <div className={noMemberColumns ? 'w-full min-w-0' : 'max-w-full overflow-x-auto'}>
         <div
           className={
-            noMemberColumns ? 'inline-block w-max min-w-full' : 'inline-block min-w-full'
+            noMemberColumns ? 'relative inline-block w-max min-w-full' : 'relative inline-block min-w-full'
           }
         >
+          {showWidthBoundaryGuide ? (
+            <div
+              className="pointer-events-none absolute inset-y-0 z-30 w-px bg-teal/70 shadow-[0_0_4px_rgba(13,148,136,0.55)]"
+              style={{ left: itemTextWidth + 30 }}
+              aria-hidden
+            />
+          ) : null}
           {/* Members header with hide done toggles */}
           <div
             className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}`}
@@ -1160,6 +1194,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               onSaveCategorySettings={saveCategorySettings}
               sumScope={sumScope}
               onEnableSumItems={() => void persistSumScope('all')}
+              onDisplayControlsOpenChange={(open) => {
+                if (!open) hideWidthBoundaryGuide()
+              }}
             />
           </div>
 

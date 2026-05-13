@@ -78,6 +78,7 @@ interface MemberHeaderProps {
   onEnableSumItems?: () => void
   /** Offline / recovering: add-member control is dimmed and disabled. */
   isOfflineActionsDisabled?: boolean
+  onDisplayControlsOpenChange?: (open: boolean) => void
 }
 
 export function MemberHeader({
@@ -116,6 +117,7 @@ export function MemberHeader({
   sumScope = 'none',
   onEnableSumItems,
   isOfflineActionsDisabled = false,
+  onDisplayControlsOpenChange,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
   const { error: showError } = useToast()
@@ -375,6 +377,10 @@ export function MemberHeader({
   const itemNameFontPosStableRef = useRef(itemNameFontPos)
   if (itemNameFontPos) itemNameFontPosStableRef.current = itemNameFontPos
   const itemNameFontMenuAnim = useMenuOpenAnimation(itemNameFontOpen && !!itemNameFontPos)
+
+  useEffect(() => {
+    onDisplayControlsOpenChange?.(itemNameFontOpen)
+  }, [itemNameFontOpen, onDisplayControlsOpenChange])
 
   const MENU_WIDTH = 224 // w-56
   const RENAME_WIDTH = 160
