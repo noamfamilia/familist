@@ -12,13 +12,12 @@ import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
 import { AddIcon } from '@/components/icons/AddIcon'
 import { FontSizeIcon } from '@/components/icons/FontSizeIcon'
-import { ResizeWidthIcon } from '@/components/icons/ResizeWidthIcon'
 import {
   ITEM_NAME_FONT_MAX,
   ITEM_NAME_FONT_MIN,
   ITEM_NAME_FONT_DEFAULT,
 } from '@/lib/itemNameFontStep'
-import { ITEM_TEXT_WIDTH_MAX, ITEM_TEXT_WIDTH_MIN } from '@/lib/itemTextWidthFit'
+import { ITEM_TEXT_WIDTH_MIN } from '@/lib/itemTextWidthFit'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 
 const CategoryNamesModal = dynamic(() => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
@@ -452,16 +451,6 @@ export function MemberHeader({
     onItemNameFontStepChange(step)
   }
 
-  const handleWidthBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation()
-    if (!onWidthChange) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const ratio = rect.width <= 0 ? 0 : Math.min(1, Math.max(0, x / rect.width))
-    const width = Math.round(ITEM_TEXT_WIDTH_MIN + ratio * (ITEM_TEXT_WIDTH_MAX - ITEM_TEXT_WIDTH_MIN))
-    onWidthChange(width - itemTextWidth)
-  }
-
   // Escape to close member menu / rename / add member
   useEffect(() => {
     if (!openMenuId && !isAdding) return
@@ -582,9 +571,6 @@ export function MemberHeader({
 
   // With member chips, keep the name column aligned with item rows. With none, keep the control slot compact.
   const headerItemNameSlotWidthPx = members.length > 0 ? itemTextWidth : ITEM_TEXT_WIDTH_MIN
-  const clampedItemTextWidth = Math.max(ITEM_TEXT_WIDTH_MIN, Math.min(ITEM_TEXT_WIDTH_MAX, itemTextWidth))
-  const itemTextWidthRatio =
-    (clampedItemTextWidth - ITEM_TEXT_WIDTH_MIN) / (ITEM_TEXT_WIDTH_MAX - ITEM_TEXT_WIDTH_MIN)
 
   return (
     <div className={members.length > 0 ? 'mb-3 min-w-full w-max' : 'mb-3 block min-w-full w-max'}>
@@ -592,6 +578,7 @@ export function MemberHeader({
       <div ref={headerCardRef} className="bg-gray-50 dark:bg-neutral-900 rounded-lg">
         {/* Header row - matching item card styling */}
         <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
+          <div className="flex h-[40px] w-5 flex-shrink-0 items-center justify-center" aria-hidden />
           <div className="relative h-[40px] flex-shrink-0" style={{ width: headerItemNameSlotWidthPx }}>
             {onItemNameFontStepChange && (
               <button
@@ -1113,37 +1100,52 @@ export function MemberHeader({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <ResizeWidthIcon className="h-5 w-5 flex-shrink-0 text-teal" />
-                <div
-                  role="slider"
-                  aria-valuemin={ITEM_TEXT_WIDTH_MIN}
-                  aria-valuemax={ITEM_TEXT_WIDTH_MAX}
-                  aria-valuenow={clampedItemTextWidth}
-                  aria-label="Item name column width"
-                  className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
-                  onClick={handleWidthBarClick}
-                >
-                  <div
-                    className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal"
-                    style={{ width: `${itemTextWidthRatio * 100}%` }}
-                  />
-                </div>
+              <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  className={`flex h-8 flex-shrink-0 items-center justify-center rounded px-3 text-xs font-semibold text-white touch-manipulation hover:opacity-80 ${
-                    itemTextWidthMode === 'auto' ? 'bg-teal' : 'bg-teal/80'
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onWidthChange?.(-20)
+                  }}
+                  disabled={itemTextWidth <= ITEM_TEXT_WIDTH_MIN}
+                  className={`flex h-8 items-center text-xl font-semibold touch-manipulation disabled:opacity-30 ${
+                    itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
+                  }`}
+                  aria-label="Narrow item name column"
+                >
+                  ◀
+                </button>
+                <button
+                  type="button"
+                  className={`text-sm font-semibold leading-none touch-manipulation select-none ${
+                    itemTextWidthMode === 'auto' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
                   }`}
                   onClick={(e) => {
+                    e.preventDefault()
                     e.stopPropagation()
                     onWidthModeToggle?.()
                   }}
                 >
-                  Auto
+                  Auto width
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onWidthChange?.(20)
+                  }}
+                  className={`flex h-8 items-center text-xl font-semibold touch-manipulation disabled:opacity-30 ${
+                    itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
+                  }`}
+                  aria-label="Widen item name column"
+                >
+                  ▶
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <FontSizeIcon className="h-5 w-5 flex-shrink-0 text-teal" />
+                <span className="w-[68px] flex-shrink-0 text-sm font-semibold text-teal">Font size</span>
                 <div
                   role="slider"
                   aria-valuemin={ITEM_NAME_FONT_MIN}
