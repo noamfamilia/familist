@@ -591,7 +591,7 @@ export function MemberHeader({
                 ref={itemNameFontBtnRef}
                 type="button"
                 onClick={handleItemNameFontButtonClick}
-                className="absolute left-[40px] top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
+                className="absolute left-0 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-start rounded p-0 text-teal touch-manipulation hover:opacity-80"
                 aria-label="Item display controls"
                 aria-expanded={itemNameFontOpen}
                 data-tour="item-text-width"
