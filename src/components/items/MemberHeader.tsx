@@ -1145,15 +1145,15 @@ export function MemberHeader({
                 </button>
               </div>
               <div className="h-px bg-gray-200 dark:bg-neutral-700" />
-              <div className="flex flex-col items-start gap-2">
-                <span className="text-sm font-semibold text-teal">Font size</span>
+              <div className="flex flex-col items-stretch gap-2">
+                <span className="text-center text-sm font-semibold text-teal">Font size</span>
                 <div
                   role="slider"
                   aria-valuemin={ITEM_NAME_FONT_MIN}
                   aria-valuemax={ITEM_NAME_FONT_MAX}
                   aria-valuenow={itemNameFontStep}
                   aria-label="Font size"
-                  className="relative h-2.5 w-[100px] cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
+                  className="relative h-2.5 w-full cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
                   onClick={handleFontBarClick}
                 >
                   <div
