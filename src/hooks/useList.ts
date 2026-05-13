@@ -378,10 +378,8 @@ export function useList(listId: string) {
     async (nowIso?: string) => {
       try {
         await markListViewedLocally(userId, listId, { nowIso })
-      } catch (error) {
-        appendMutationDiagnostic(
-          `[list-activity] mark_viewed_failed listId=${listId} msg=${error instanceof Error ? error.message : String(error)}`,
-        )
+      } catch {
+        // Best effort only; read-cursor failures should not block item mutations.
       }
     },
     [listId, userId],

@@ -1,7 +1,6 @@
 import { db } from '@/lib/db'
 import { isoNow } from '@/lib/data/base_sync_fields'
 import { enqueueSyncQueueRecord, listQueueParent, newBatchEntityId } from '@/lib/data/syncQueue'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 
 type MarkViewedOptions = {
   nowIso?: string
@@ -25,30 +24,15 @@ export async function markListViewedLocally(
   listId: string | null | undefined,
   options?: MarkViewedOptions,
 ): Promise<string | null> {
-  if (!userId || !listId) {
-    appendMutationDiagnostic(
-      `[list-activity] mark_viewed_skip reason=missing_scope userId=${userId ?? 'null'} listId=${listId ?? 'null'}`,
-    )
-    return null
-  }
+  if (!userId || !listId) return null
   const lastViewed = options?.nowIso ?? isoNow()
   const queueRemote = options?.queueRemote !== false
-  appendMutationDiagnostic(
-    `[list-activity] mark_viewed_start listId=${listId} userId=${userId} lastViewed=${lastViewed} queueRemote=${queueRemote ? 1 : 0}`,
-  )
 
   await db.transaction('rw', db.list_users, db.sync_queue, async () => {
     const listUser = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
-    if (!listUser) {
-      appendMutationDiagnostic(`[list-activity] dexie_missing_list_user listId=${listId} userId=${userId}`)
-      return
-    }
+    if (!listUser) return
 
-    const previousLastViewed = listUser.last_viewed ?? null
     await db.list_users.update(listUser.id, { last_viewed: lastViewed })
-    appendMutationDiagnostic(
-      `[list-activity] dexie_update listId=${listId} rowId=${listUser.id} prev=${previousLastViewed ?? 'null'} next=${lastViewed}`,
-    )
     if (!queueRemote) return
 
     const existing = await db.sync_queue
@@ -66,9 +50,6 @@ export async function markListViewedLocally(
         locked_at: null,
         next_retry_at: null,
       })
-      appendMutationDiagnostic(
-        `[list-activity] queue_coalesce listId=${listId} queueId=${existing.id} status=${existing.status} next=${lastViewed}`,
-      )
       return
     }
 
@@ -86,9 +67,7 @@ export async function markListViewedLocally(
       ...listQueueParent(listId),
       status: 'queued',
     })
-    appendMutationDiagnostic(`[list-activity] queue_enqueue listId=${listId} entityId=${entityId} next=${lastViewed}`)
   })
 
-  appendMutationDiagnostic(`[list-activity] mark_viewed_done listId=${listId} next=${lastViewed}`)
   return lastViewed
 }
