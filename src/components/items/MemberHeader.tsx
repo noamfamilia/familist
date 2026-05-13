@@ -12,12 +12,13 @@ import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
 import { AddIcon } from '@/components/icons/AddIcon'
 import { FontSizeIcon } from '@/components/icons/FontSizeIcon'
+import { ResizeWidthIcon } from '@/components/icons/ResizeWidthIcon'
 import {
   ITEM_NAME_FONT_MAX,
   ITEM_NAME_FONT_MIN,
   ITEM_NAME_FONT_DEFAULT,
 } from '@/lib/itemNameFontStep'
-import { ITEM_TEXT_WIDTH_MIN } from '@/lib/itemTextWidthFit'
+import { ITEM_TEXT_WIDTH_MAX, ITEM_TEXT_WIDTH_MIN } from '@/lib/itemTextWidthFit'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 
 const CategoryNamesModal = dynamic(() => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
@@ -432,7 +433,7 @@ export function MemberHeader({
         if (!el) return
         const r = el.getBoundingClientRect()
         const vw = window.innerWidth
-        const popoverWidth = 220
+        const popoverWidth = 260
         const left = Math.min(Math.max(8, r.left), vw - popoverWidth - 8)
         setItemNameFontPos({ top: r.bottom + 6, left })
         setItemNameFontOpen(true)
@@ -449,6 +450,16 @@ export function MemberHeader({
     const ratio = rect.width <= 0 ? 0 : Math.min(1, Math.max(0, x / rect.width))
     const step = Math.round(ratio * ITEM_NAME_FONT_MAX)
     onItemNameFontStepChange(step)
+  }
+
+  const handleWidthBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    if (!onWidthChange) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const ratio = rect.width <= 0 ? 0 : Math.min(1, Math.max(0, x / rect.width))
+    const width = Math.round(ITEM_TEXT_WIDTH_MIN + ratio * (ITEM_TEXT_WIDTH_MAX - ITEM_TEXT_WIDTH_MIN))
+    onWidthChange(width - itemTextWidth)
   }
 
   // Escape to close member menu / rename / add member
@@ -569,8 +580,11 @@ export function MemberHeader({
     return () => cancelAnimationFrame(id)
   }, [itemNameFontOpen])
 
-  // With member chips, keep the name column aligned with item rows. With none, only the ◀ Auto ▶ band is needed.
+  // With member chips, keep the name column aligned with item rows. With none, keep the control slot compact.
   const headerItemNameSlotWidthPx = members.length > 0 ? itemTextWidth : ITEM_TEXT_WIDTH_MIN
+  const clampedItemTextWidth = Math.max(ITEM_TEXT_WIDTH_MIN, Math.min(ITEM_TEXT_WIDTH_MAX, itemTextWidth))
+  const itemTextWidthRatio =
+    (clampedItemTextWidth - ITEM_TEXT_WIDTH_MIN) / (ITEM_TEXT_WIDTH_MAX - ITEM_TEXT_WIDTH_MIN)
 
   return (
     <div className={members.length > 0 ? 'mb-3 min-w-full w-max' : 'mb-3 block min-w-full w-max'}>
@@ -578,68 +592,20 @@ export function MemberHeader({
       <div ref={headerCardRef} className="bg-gray-50 dark:bg-neutral-900 rounded-lg">
         {/* Header row - matching item card styling */}
         <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
-          <div className="flex h-[40px] w-5 flex-shrink-0 items-center justify-center">
+          <div className="relative h-[40px] flex-shrink-0" style={{ width: headerItemNameSlotWidthPx }}>
             {onItemNameFontStepChange && (
               <button
                 ref={itemNameFontBtnRef}
                 type="button"
                 onClick={handleItemNameFontButtonClick}
-                className="flex h-8 w-8 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
-                aria-label="Item name font size"
+                className="absolute left-[40px] top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
+                aria-label="Item display controls"
                 aria-expanded={itemNameFontOpen}
+                data-tour="item-text-width"
               >
                 <FontSizeIcon className="h-5 w-5" />
               </button>
             )}
-          </div>
-          <div className="relative h-[40px] flex-shrink-0" style={{ width: headerItemNameSlotWidthPx }}>
-            <div
-              className="absolute inset-y-0 left-0 box-border flex w-[80px] shrink-0 items-center justify-between pl-2.5"
-              data-tour="item-text-width"
-            >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onWidthChange?.(-20)
-                }}
-                disabled={itemTextWidth <= 80}
-                className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
-                  itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
-                }`}
-                aria-label="Narrow item name column"
-              >
-                ◀
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onWidthModeToggle?.()
-                }}
-                className={`text-[11px] font-medium leading-none touch-manipulation select-none ${
-                  itemTextWidthMode === 'auto' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
-                }`}
-              >
-                Auto
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onWidthChange?.(20)
-                }}
-                className={`h-[32px] flex items-center touch-manipulation disabled:opacity-30 text-sm ${
-                  itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
-                }`}
-                aria-label="Widen item name column"
-              >
-                ▶
-              </button>
-            </div>
           </div>
           
           {/* Members section — dimmed and non-interactive while offline or recovering */}
@@ -1138,51 +1104,61 @@ export function MemberHeader({
             ref={itemNameFontPopoverRef}
             tabIndex={-1}
             role="dialog"
-            aria-label="Item name font size"
-            className={`fixed z-[10000] w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${itemNameFontMenuAnim.menuClassName}`}
+            aria-label="Item display controls"
+            className={`fixed z-[10000] w-[260px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${itemNameFontMenuAnim.menuClassName}`}
             style={{
               top: (itemNameFontPos ?? itemNameFontPosStableRef.current)!.top,
               left: (itemNameFontPos ?? itemNameFontPosStableRef.current)!.left,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-lg font-semibold text-teal touch-manipulation hover:bg-teal/10"
-                aria-label="Smaller text"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onItemNameFontStepChange(Math.max(ITEM_NAME_FONT_MIN, itemNameFontStep - 1))
-                }}
-              >
-                −
-              </button>
-              <div
-                role="slider"
-                aria-valuemin={ITEM_NAME_FONT_MIN}
-                aria-valuemax={ITEM_NAME_FONT_MAX}
-                aria-valuenow={itemNameFontStep}
-                aria-label="Font size"
-                className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
-                onClick={handleFontBarClick}
-              >
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <ResizeWidthIcon className="h-5 w-5 flex-shrink-0 text-teal" />
                 <div
-                  className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal"
-                  style={{ width: `${(itemNameFontStep / ITEM_NAME_FONT_MAX) * 100}%` }}
-                />
+                  role="slider"
+                  aria-valuemin={ITEM_TEXT_WIDTH_MIN}
+                  aria-valuemax={ITEM_TEXT_WIDTH_MAX}
+                  aria-valuenow={clampedItemTextWidth}
+                  aria-label="Item name column width"
+                  className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
+                  onClick={handleWidthBarClick}
+                >
+                  <div
+                    className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal"
+                    style={{ width: `${itemTextWidthRatio * 100}%` }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={`flex h-8 flex-shrink-0 items-center justify-center rounded px-3 text-xs font-semibold text-white touch-manipulation hover:opacity-80 ${
+                    itemTextWidthMode === 'auto' ? 'bg-teal' : 'bg-teal/80'
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onWidthModeToggle?.()
+                  }}
+                >
+                  Auto
+                </button>
               </div>
-              <button
-                type="button"
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-lg font-semibold text-teal touch-manipulation hover:bg-teal/10"
-                aria-label="Larger text"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onItemNameFontStepChange(Math.min(ITEM_NAME_FONT_MAX, itemNameFontStep + 1))
-                }}
-              >
-                +
-              </button>
+              <div className="flex items-center gap-2">
+                <FontSizeIcon className="h-5 w-5 flex-shrink-0 text-teal" />
+                <div
+                  role="slider"
+                  aria-valuemin={ITEM_NAME_FONT_MIN}
+                  aria-valuemax={ITEM_NAME_FONT_MAX}
+                  aria-valuenow={itemNameFontStep}
+                  aria-label="Font size"
+                  className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
+                  onClick={handleFontBarClick}
+                >
+                  <div
+                    className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal"
+                    style={{ width: `${(itemNameFontStep / ITEM_NAME_FONT_MAX) * 100}%` }}
+                  />
+                </div>
+              </div>
             </div>
           </div>,
           document.body,
