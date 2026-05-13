@@ -1127,7 +1127,7 @@ export function MemberHeader({
                     onWidthModeToggle?.()
                   }}
                 >
-                  Auto width
+                  Auto Width
                 </button>
                 <button
                   type="button"
