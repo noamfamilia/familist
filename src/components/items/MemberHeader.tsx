@@ -432,7 +432,7 @@ export function MemberHeader({
         if (!el) return
         const r = el.getBoundingClientRect()
         const vw = window.innerWidth
-        const popoverWidth = 260
+        const popoverWidth = 180
         const left = Math.min(Math.max(8, r.left), vw - popoverWidth - 8)
         setItemNameFontPos({ top: r.bottom + 6, left })
         setItemNameFontOpen(true)
@@ -585,12 +585,12 @@ export function MemberHeader({
                 ref={itemNameFontBtnRef}
                 type="button"
                 onClick={handleItemNameFontButtonClick}
-                className="absolute left-[40px] top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
+                className="absolute left-[40px] top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
                 aria-label="Item display controls"
                 aria-expanded={itemNameFontOpen}
                 data-tour="item-text-width"
               >
-                <FontSizeIcon className="h-5 w-5" />
+                <FontSizeIcon className="h-7 w-7 [&_*]:stroke-[3]" />
               </button>
             )}
           </div>
@@ -1092,7 +1092,7 @@ export function MemberHeader({
             tabIndex={-1}
             role="dialog"
             aria-label="Item display controls"
-            className={`fixed z-[10000] w-[260px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${itemNameFontMenuAnim.menuClassName}`}
+            className={`fixed z-[10000] w-[180px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${itemNameFontMenuAnim.menuClassName}`}
             style={{
               top: (itemNameFontPos ?? itemNameFontPosStableRef.current)!.top,
               left: (itemNameFontPos ?? itemNameFontPosStableRef.current)!.left,
@@ -1100,7 +1100,7 @@ export function MemberHeader({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1144,15 +1144,16 @@ export function MemberHeader({
                   ▶
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-[68px] flex-shrink-0 text-sm font-semibold text-teal">Font size</span>
+              <div className="h-px bg-gray-200 dark:bg-neutral-700" />
+              <div className="flex flex-col items-start gap-2">
+                <span className="text-sm font-semibold text-teal">Font size</span>
                 <div
                   role="slider"
                   aria-valuemin={ITEM_NAME_FONT_MIN}
                   aria-valuemax={ITEM_NAME_FONT_MAX}
                   aria-valuenow={itemNameFontStep}
                   aria-label="Font size"
-                  className="relative h-2.5 min-w-[100px] flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
+                  className="relative h-2.5 w-[100px] cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
                   onClick={handleFontBarClick}
                 >
                   <div
