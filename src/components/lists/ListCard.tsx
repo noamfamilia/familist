@@ -48,8 +48,7 @@ const ActivityLed = memo(function ActivityLed({ show }: { show: boolean }) {
   if (!show) return null
   return (
     <span
-      className="pointer-events-none absolute bottom-2 right-2 h-2.5 w-2.5 rounded-full"
-      style={{ backgroundColor: '#00FF00', boxShadow: '0 0 4px #00FF00' }}
+      className="pointer-events-none absolute bottom-2 right-2 z-20 h-[5.6px] w-[5.6px] rounded-full bg-teal ring-1 ring-black/10 dark:ring-white/15"
       aria-label="New activity"
       title="New activity"
     />
