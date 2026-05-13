@@ -16,10 +16,9 @@ import { LabelManagerModal } from './LabelManagerModal'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
-import { prefetchListPageForNavigation } from '@/lib/data/listPageCachePrefetch'
 import { useAuth } from '@/providers/AuthProvider'
 import { useListsCatalogStore } from '@/stores/listsCatalogStore'
-import { useActiveListUiStore } from '@/stores/activeListUiStore'
+import { formatJoinListInviteErrorForUser } from '@/lib/joinListInviteErrorMessage'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
@@ -46,7 +45,25 @@ interface ListsViewProps {
 }
 
 export function ListsView({ viewMode, homeTourSteps, showTutorial = true, inviteToken = null, onInviteHandled, selectedLabel = 'Any', onLabelsChange, onSelectLabel, onCreatingChange, preCreateFilter, localLabels = [], showImport, onCloseImport, onAddLocalLabel, labelManagerOpen = false, onCloseLabelManager, onOfflineActionsDisabledChange }: ListsViewProps) {
-  const { lists, loading, error: fetchError, refresh, createList, updateList, deleteList, updateUserListState, joinListByToken, leaveList, duplicateList, importList, reorderLists, updateListLabel, applyListLabelsBatch, labels, isOfflineActionsDisabled } = useLists()
+  const {
+    lists,
+    loading,
+    error: catalogFetchError,
+    refresh,
+    createList,
+    updateList,
+    deleteList,
+    updateUserListState,
+    joinListByToken,
+    leaveList,
+    duplicateList,
+    importList,
+    reorderLists,
+    updateListLabel,
+    applyListLabelsBatch,
+    labels,
+    isOfflineActionsDisabled,
+  } = useLists()
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
   /** `inviteToken:userId` after a successful join so we do not enqueue twice. */
   const inviteJoinSucceededKeyRef = useRef<string | null>(null)
@@ -65,7 +82,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const [inputValue, setInputValue] = useState('')
   const inputValueRef = useRef('')
   inputValueRef.current = inputValue
-  const [error, setError] = useState('')
+  const catalogFetchErrorToastKeyRef = useRef<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   /** True when create form was submitted via Enter in the text field (refocus after success). */
@@ -75,6 +92,16 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   useEffect(() => {
     onOfflineActionsDisabledChange?.(isOfflineActionsDisabled)
   }, [isOfflineActionsDisabled, onOfflineActionsDisabledChange])
+
+  useEffect(() => {
+    if (!catalogFetchError) {
+      catalogFetchErrorToastKeyRef.current = null
+      return
+    }
+    if (catalogFetchErrorToastKeyRef.current === catalogFetchError) return
+    catalogFetchErrorToastKeyRef.current = catalogFetchError
+    showError(catalogFetchError)
+  }, [catalogFetchError, showError])
 
   const wasOfflineRef = useRef(isOfflineActionsDisabled)
   useEffect(() => {
@@ -138,7 +165,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
     const submittedValue = inputValue.trim()
     createListInFlightRef.current = true
-    setError('')
 
     let refocusInput = false
 
@@ -154,7 +180,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
     if (error) {
       setInputValue(submittedValue)
-      setError(error.message)
       showError('Failed to create list', { serverError: error })
       refocusInput = true
     } else {
@@ -246,7 +271,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     let cancelled = false
 
     const handleInviteJoin = async () => {
-      setError('')
       appendMutationDiagnostic(`[invite] ListsView join start userId=${user.id} tokenLen=${inviteToken.length}`)
       const { data, error, joinedListName } = await joinListByToken(inviteToken)
       if (cancelled) {
@@ -262,8 +286,9 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
         appendMutationDiagnostic(
           `[invite] ListsView join failed userId=${user.id} tokenLen=${inviteToken.length} err=${error.message}`,
         )
-        setError(error.message)
-        showError(error.message || 'Failed to join list', { serverError: error })
+        const toastMessage = formatJoinListInviteErrorForUser(error.message)
+        showError(toastMessage, { serverError: error })
+        onInviteHandled?.()
         return
       }
 
@@ -286,12 +311,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
             ? `Joined successfully to list ${nameFromCatalog}`
             : 'Joined successfully to list',
         )
-        try {
-          await prefetchListPageForNavigation(user.id, data)
-        } catch {
-          /* list page will warm if prefetch fails */
-        }
-        useActiveListUiStore.getState().setActiveListId(data)
       } else {
         success('Joined successfully to list')
       }
@@ -368,12 +387,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
               ? 'No matching lists'
               : 'Filtering...'}
         </p>
-      )}
-
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-          {error}
-        </div>
       )}
 
       {/* Lists */}

@@ -824,25 +824,13 @@ export function useLists() {
         }
 
         appendMutationDiagnostic(
-          `[invite] joinListByToken queue userId=${user.id} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
+          `[invite] joinListByToken blocked reason=not_online userId=${user.id} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
         )
-        catalogMutationVersionRef.current += 1
-        catalogSkipRealtimeUntilRef.current = Date.now() + 2000
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: newBatchEntityId(),
-          kind: 'rpc',
-          payload: { method: 'joinListByToken', token, user_id: user.id },
-          ...userQueueParent(user.id),
-          status: 'queued',
-        })
-        appendMutationDiagnostic(
-          `[invite] joinListByToken queued_ok userId=${user.id} tokenLen=${tokenLen} fetchLists_scheduled=1`,
-        )
-        void fetchLists()
-        window.setTimeout(() => void fetchLists(), 700)
-        window.setTimeout(() => void fetchLists(), 2200)
-        return { data: null, error: null, joinedListName: null as string | null }
+        return {
+          data: null,
+          error: new Error(blockedMutationMessage()),
+          joinedListName: null as string | null,
+        }
       } catch (e) {
         appendMutationDiagnostic(
           `[invite] joinListByToken throw userId=${user.id} tokenLen=${tokenLen} err=${e instanceof Error ? e.message : String(e)}`,
