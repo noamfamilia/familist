@@ -26,10 +26,15 @@ import {
   cleanupDexieAfterListServerDeleted,
   cleanupDexieAfterMemberServerDeleted,
 } from '@/lib/data/shadowDeleteDexieCleanup'
-import { resetFailedSyncQueueRows } from '@/lib/data/syncQueue'
+import { resetFailedSyncQueueRows, updateSyncQueueProcessingDetail } from '@/lib/data/syncQueue'
 import { subscribeOutboundSyncKick } from '@/lib/outboundSyncKick'
 import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
+import {
+  initialOutboundProgressMessage,
+  outboundProgressAfterMutationListDetail,
+  outboundProgressAfterMutationOverview,
+} from '@/lib/data/outboundSyncProgressMessages'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
 import {
   normalizeItemCategory,
@@ -225,7 +230,12 @@ async function tryClaimSyncRow(id: string): Promise<DbSyncQueueRow | null> {
 
     if (row.status === 'processing') {
       if (!stale) return null
-      await db.sync_queue.update(id, { locked_at: now, updated_at: now })
+      await db.sync_queue.update(id, {
+        locked_at: now,
+        updated_at: now,
+        processing_detail:
+          'Resuming sync: the last attempt had no answer for a while, trying again from where it left off…',
+      })
       return (await db.sync_queue.get(id)) ?? null
     }
 
@@ -235,6 +245,7 @@ async function tryClaimSyncRow(id: string): Promise<DbSyncQueueRow | null> {
         status: 'processing',
         locked_at: now,
         updated_at: now,
+        processing_detail: null,
       })
       return (await db.sync_queue.get(id)) ?? null
     }
@@ -245,6 +256,7 @@ async function tryClaimSyncRow(id: string): Promise<DbSyncQueueRow | null> {
         status: 'processing',
         locked_at: now,
         updated_at: now,
+        processing_detail: null,
       })
       return (await db.sync_queue.get(id)) ?? null
     }
@@ -260,6 +272,7 @@ async function releaseRowForConnectivityRetry(rowId: string): Promise<void> {
     locked_at: null,
     next_retry_at: now + CONNECTIVITY_RETRY_DELAY_MS,
     updated_at: now,
+    processing_detail: null,
   })
 }
 
@@ -273,6 +286,7 @@ async function markRowFailedAfterError(row: DbSyncQueueRow, message: string, err
     locked_at: null,
     next_retry_at: now + resolveOutboundRetryDelayMs(error, ac),
     updated_at: now,
+    processing_detail: null,
   })
 }
 
@@ -330,13 +344,17 @@ export function useSyncStore(): SyncStoreState {
     async (row: DbSyncQueueRow): Promise<boolean> => {
       const userId = resolveSyncUserId((row.payload as { user_id?: unknown })?.user_id)
       if (!userId) return true
+
+      await updateSyncQueueProcessingDetail(row.id, outboundProgressAfterMutationOverview())
       await syncLists(userId, 'Post-mutation verification: list catalog')
+
       const listId = rowListIdForSync(row)
       if (listId && !isVirtualUserListKey(listId)) {
         const pl = row.payload as { method?: unknown }
         const skipListDetail =
           (row.kind === 'rpc' && String(pl?.method ?? '') === 'leaveList') || row.kind === 'patch'
         if (!skipListDetail) {
+          await updateSyncQueueProcessingDetail(row.id, await outboundProgressAfterMutationListDetail(listId))
           await syncListDetail(userId, listId, 'Post-mutation verification: list detail')
         }
       }
@@ -354,6 +372,7 @@ export function useSyncStore(): SyncStoreState {
         `[sync->server] send kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
       )
       try {
+      await updateSyncQueueProcessingDetail(row.id, await initialOutboundProgressMessage(row))
       if (row.kind === 'delete') {
         if (row.entity === 'item') {
           const id = String(row.payload.id ?? '')
@@ -884,6 +903,20 @@ export function useSyncStore(): SyncStoreState {
           if (!rpcListId) throw new Error('restoreArchivedItems missing list_id')
           appendMutationDiagnostic(`[sync->server] restoreArchivedItems listId=${rpcListId}`)
           const { error } = await supabase.rpc('restore_archived_items', { p_list_id: rpcListId })
+          if (error) throw error
+        } else if (method === 'seedItemMemberStateForMember') {
+          const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          const memberId = String(payload.member_id ?? '')
+          if (!rpcListId || !memberId) {
+            throw new Error('seedItemMemberStateForMember missing list_id/member_id')
+          }
+          appendMutationDiagnostic(
+            `[sync->server] seedItemMemberStateForMember listId=${rpcListId} memberId=${memberId}`,
+          )
+          const { error } = await supabase.rpc('seed_item_member_state_for_member', {
+            p_list_id: rpcListId,
+            p_member_id: memberId,
+          } as never)
           if (error) throw error
         } else if (method === 'joinListByToken') {
           const token = String(payload.token ?? '')

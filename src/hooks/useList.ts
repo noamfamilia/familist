@@ -14,6 +14,7 @@ import {
   addItemMutation,
   addMemberMutation,
   bulkSoftDeleteArchivedItemsMutation,
+  seedItemMemberStatesForMemberMutation,
   softDeleteItemMutation,
   toggleItemMemberStateMutation,
 } from '@/lib/data/mutations'
@@ -2460,22 +2461,10 @@ export function useList(listId: string) {
           })),
         )
 
-        for (const i of itemsForIms) {
-          await toggleItemMemberStateMutation({
-            list_id: listId,
-            item_id: i.id,
-            member_id: memberId,
-            state: {
-              item_id: i.id,
-              member_id: memberId,
-              quantity: 1,
-              done: false,
-              assigned: true,
-              ...syncRow,
-              updated_at: now,
-            },
-          })
-        }
+        await seedItemMemberStatesForMemberMutation({
+          list_id: listId,
+          member_id: memberId,
+        })
       }
     } finally {
       useListDataStore.getState().endLocalListPersistence()

@@ -368,6 +368,11 @@ export interface Database {
         Args: { p_item_id: string; p_member_id: string; p_delta: number }
         Returns: number
       }
+      seed_item_member_state_for_member: {
+        Args: { p_list_id: string; p_member_id: string }
+        /** `{ inserted: number }` — rows inserted (excludes conflicts). */
+        Returns: Json
+      }
       bulk_add_list_items: {
         Args: {
           p_list_id: string

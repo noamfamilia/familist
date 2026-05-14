@@ -8,7 +8,7 @@ import {
   removeOutboundQueueRowsForItemIds,
   stableItemMemberStateDexieId,
 } from '@/lib/data/syncQueue'
-import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
+import { isTombstoned, isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { validateSingleNewItemTextUniqueness } from '@/lib/data/localItemTextUniqueness'
 import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
@@ -172,6 +172,53 @@ export async function toggleItemMemberStateMutation(input: {
     })
   })
   return rowId
+}
+
+/** Local Dexie mirror + one outbound RPC to seed default IMS for every non-deleted item (Qty target flow). */
+export async function seedItemMemberStatesForMemberMutation(input: { list_id: string; member_id: string }) {
+  const t = isoNow()
+  const sync = syncFieldsForLocalInsert({ client_created_at: t })
+  const itemRows = await db.items
+    .where('list_id')
+    .equals(input.list_id)
+    .filter((it) => !isTombstoned(it.deleted_at ?? null))
+    .toArray()
+
+  await db.transaction('rw', db.item_member_state, db.lists, db.sync_queue, db.list_users, async () => {
+    for (const item of itemRows) {
+      const rowId = await stableItemMemberStateDexieId(item.id, input.member_id)
+      const dupes = await db.item_member_state
+        .where('[item_id+member_id]')
+        .equals([item.id, input.member_id])
+        .toArray()
+      for (const row of dupes) {
+        if (row.id !== rowId) await db.item_member_state.delete(row.id)
+      }
+      await db.item_member_state.put({
+        id: rowId,
+        item_id: item.id,
+        member_id: input.member_id,
+        list_id: input.list_id,
+        quantity: 1,
+        done: false,
+        assigned: true,
+        ...sync,
+        updated_at: t,
+      })
+    }
+    await enqueueSyncQueueRecord({
+      entity: 'list',
+      entity_id: newBatchEntityId(),
+      kind: 'rpc',
+      payload: {
+        method: 'seedItemMemberStateForMember',
+        list_id: input.list_id,
+        member_id: input.member_id,
+      },
+      ...listQueueParent(input.list_id),
+      status: 'queued',
+    })
+  })
 }
 
 export async function addMemberMutation(input: {

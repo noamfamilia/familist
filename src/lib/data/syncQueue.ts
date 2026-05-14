@@ -1,5 +1,11 @@
 import { getActiveCacheUserId } from '@/lib/cache'
 import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind, type SyncQueueStatus } from '@/lib/db'
+
+/** Live progress line while a row is `processing` (Server queue UI, diagnostics). */
+export async function updateSyncQueueProcessingDetail(rowId: string, detail: string | null): Promise<void> {
+  const now = Date.now()
+  await db.sync_queue.update(rowId, { processing_detail: detail, updated_at: now })
+}
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
 
@@ -199,6 +205,7 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
       last_error,
       next_retry_at,
       updated_at: ts,
+      processing_detail: null,
     })
     await clearListUserSyncErrorsForEnqueueRow({
       parent1_type: input.parent1_type,
@@ -236,6 +243,7 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
         parent1_id: input.parent1_id ?? existing.parent1_id,
         parent2_type: input.parent2_type ?? existing.parent2_type,
         parent2_id: input.parent2_id ?? existing.parent2_id,
+        processing_detail: null,
       })
       await clearListUserSyncErrorsForEnqueueRow({
         parent1_type: input.parent1_type ?? existing.parent1_type,
@@ -266,6 +274,7 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
     last_error,
     next_retry_at,
     updated_at: ts,
+    processing_detail: null,
   })
   await clearListUserSyncErrorsForEnqueueRow({
     parent1_type: input.parent1_type,
@@ -353,6 +362,8 @@ export function describeSyncQueueRow(row: DbSyncQueueRow): string {
         return 'Deleting archived items…'
       case 'restoreArchivedItems':
         return 'Restoring archived items…'
+      case 'seedItemMemberStateForMember':
+        return 'Saving item progress for new member…'
       default:
         return method ? `Server action (${method})` : 'Server action…'
     }
@@ -392,6 +403,7 @@ export async function reviveSyncQueueRowsForOutbound(rowIds: string[]): Promise<
         locked_at: null,
         next_retry_at: null,
         updated_at: now,
+        processing_detail: null,
       })
     }
   })
@@ -407,6 +419,7 @@ export async function resetFailedSyncQueueRows(): Promise<void> {
         next_retry_at: null,
         locked_at: null,
         updated_at: now,
+        processing_detail: null,
       })
     }
   })

@@ -82,6 +82,7 @@ export async function describeOutboundSyncRow(row: DbSyncQueueRow): Promise<stri
       removeUsersFromList: `Remove users from list ${lt}`,
       deleteArchivedItems: `Delete archived items on list ${lt}`,
       restoreArchivedItems: `Restore archived items on list ${lt}`,
+      seedItemMemberStateForMember: `Seed item progress for new member on list ${lt}`,
     }
     return map[method] ?? `RPC ${method}`
   }
