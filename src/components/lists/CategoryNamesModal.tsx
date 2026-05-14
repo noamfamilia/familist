@@ -14,7 +14,7 @@ interface CategoryNamesModalProps {
   categoryNames: CategoryNames
   categoryOrder: number[]
   onSave: (names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
-  /** When set, shows “Sort items by categories” (replaces gear-menu sort). */
+  /** When set, shows “Sort by categories” (replaces gear-menu sort). */
   onSortByCategory?: () => void | Promise<void>
   /** Disables the sort button (e.g. while a sort request is in flight). */
   sortDisabled?: boolean
@@ -132,17 +132,20 @@ export function CategoryNamesModal({
     onClose()
   }
 
-  const handleSortClick = () => {
+  const handleSortClick = async () => {
     if (!onSortByCategory || sortDisabled) return
+    const trimmed: CategoryNames = {}
+    for (const [k, v] of Object.entries(names)) {
+      trimmed[k] = v.trim()
+    }
+    await onSave(trimmed, order)
     void onSortByCategory()
+    onClose()
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={handleDone} size="xs" hideClose>
+    <Modal isOpen={isOpen} onClose={handleDone} size="xs" title="Category editor">
       <div>
-        <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3 text-center">
-          Category editor
-        </h3>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
@@ -161,7 +164,7 @@ export function CategoryNamesModal({
           <div className="mt-4 flex justify-center">
             <button
               type="button"
-              onClick={handleSortClick}
+              onClick={() => void handleSortClick()}
               disabled={sortDisabled}
               className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
