@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -14,6 +14,10 @@ interface CategoryNamesModalProps {
   categoryNames: CategoryNames
   categoryOrder: number[]
   onSave: (names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
+  /** When set, shows “Sort items by categories” (replaces gear-menu sort). */
+  onSortByCategory?: () => void | Promise<void>
+  /** Disables the sort button (e.g. while a sort request is in flight). */
+  sortDisabled?: boolean
 }
 
 function SortableCategoryRow({
@@ -75,7 +79,15 @@ function SortableCategoryRow({
   )
 }
 
-export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrder, onSave }: CategoryNamesModalProps) {
+export function CategoryNamesModal({
+  isOpen,
+  onClose,
+  categoryNames,
+  categoryOrder,
+  onSave,
+  onSortByCategory,
+  sortDisabled = false,
+}: CategoryNamesModalProps) {
   const [names, setNames] = useState<CategoryNames>({ ...categoryNames })
   const [order, setOrder] = useState<number[]>([...categoryOrder])
 
@@ -120,16 +132,17 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
     onClose()
   }
 
-  const handleCancel = () => {
-    setNames({ ...initialNamesRef.current })
-    setOrder([...initialOrderRef.current])
-    onClose()
+  const handleSortClick = () => {
+    if (!onSortByCategory || sortDisabled) return
+    void onSortByCategory()
   }
 
   return (
     <Modal isOpen={isOpen} onClose={handleDone} size="xs" hideClose>
       <div>
-        <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2 text-center">Set Categories</h3>
+        <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3 text-center">
+          Category editor
+        </h3>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
@@ -144,6 +157,16 @@ export function CategoryNamesModal({ isOpen, onClose, categoryNames, categoryOrd
             </div>
           </SortableContext>
         </DndContext>
+        {onSortByCategory ? (
+          <button
+            type="button"
+            onClick={handleSortClick}
+            disabled={sortDisabled}
+            className="mt-4 w-full rounded-lg bg-cyan px-3 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Sort items by categories
+          </button>
+        ) : null}
       </div>
     </Modal>
   )

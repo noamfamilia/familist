@@ -12,6 +12,7 @@ import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
 import { AddIcon } from '@/components/icons/AddIcon'
 import { FontSizeIcon } from '@/components/icons/FontSizeIcon'
+import { CategoryEditorIcon } from '@/components/icons/CategoryEditorIcon'
 import {
   ITEM_NAME_FONT_MAX,
   ITEM_NAME_FONT_MIN,
@@ -585,7 +586,10 @@ export function MemberHeader({
         {/* Header row - matching item card styling */}
         <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
           <div className="flex h-[40px] w-5 flex-shrink-0 items-center justify-center" aria-hidden />
-          <div className="relative h-[40px] flex-shrink-0" style={{ width: headerItemNameSlotWidthPx }}>
+          <div
+            className="relative h-[40px] flex-shrink-0 overflow-visible"
+            style={{ width: headerItemNameSlotWidthPx }}
+          >
             {onItemNameFontStepChange && (
               <button
                 ref={itemNameFontBtnRef}
@@ -597,6 +601,26 @@ export function MemberHeader({
                 data-tour="item-text-width"
               >
                 <FontSizeIcon className="h-7 w-7 [&_*]:stroke-[3]" />
+              </button>
+            )}
+            {onSaveCategorySettings && (
+              <button
+                type="button"
+                data-tour="category-sort"
+                disabled={isOfflineActionsDisabled}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (isOfflineActionsDisabled) return
+                  setShowCategoryModal(true)
+                }}
+                className={`absolute top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded p-0 touch-manipulation hover:opacity-80 ${
+                  isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''
+                } ${onItemNameFontStepChange ? 'left-[70px]' : 'left-0'}`}
+                aria-label={isOfflineActionsDisabled ? 'Category editor (unavailable offline)' : 'Open category editor'}
+                title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : 'Categories and sort'}
+              >
+                <CategoryEditorIcon className="h-7 w-7" />
               </button>
             )}
           </div>
@@ -765,7 +789,6 @@ export function MemberHeader({
               <button
                 ref={actionsButtonRef}
                 type="button"
-                data-tour="category-sort"
                 disabled={isOfflineActionsDisabled || actionsMenuLoading}
                 onClick={handleToggleActions}
                 className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation bg-cyan text-white hover:opacity-80 disabled:pointer-events-none ${
@@ -790,35 +813,6 @@ export function MemberHeader({
                     right: (actionsMenuPos ?? actionsMenuPosStableRef.current)!.right,
                   }}
                 >
-                  {onSaveCategorySettings && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                      onClick={() => {
-                        closeActions()
-                        setShowCategoryModal(true)
-                      }}
-                    >
-                      Set categories
-                    </button>
-                  )}
-                  {onCategorySortClick && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                      onClick={() => {
-                        closeActions()
-                        void onCategorySortClick()
-                      }}
-                    >
-                      Sort by category
-                    </button>
-                  )}
-                  {(onSaveCategorySettings || onCategorySortClick) && (
-                    <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
-                  )}
                   {onExpandAll && (
                     <button
                       type="button"
@@ -1208,6 +1202,8 @@ export function MemberHeader({
           categoryNames={categoryNames}
           categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
           onSave={async (names, order) => onSaveCategorySettings(names, order)}
+          onSortByCategory={onCategorySortClick ? () => void onCategorySortClick() : undefined}
+          sortDisabled={actionsMenuLoading}
         />
       )}
     </div>
