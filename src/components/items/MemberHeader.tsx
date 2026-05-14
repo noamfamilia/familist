@@ -1098,7 +1098,7 @@ export function MemberHeader({
             tabIndex={-1}
             role="dialog"
             aria-label="Item display controls"
-            className={`fixed z-[10000] w-[180px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${itemNameFontMenuAnim.menuClassName}`}
+            className={`fixed z-[10000] w-[200px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${itemNameFontMenuAnim.menuClassName}`}
             style={{
               top: (itemNameFontPos ?? itemNameFontPosStableRef.current)!.top,
               left: (itemNameFontPos ?? itemNameFontPosStableRef.current)!.left,
@@ -1153,19 +1153,47 @@ export function MemberHeader({
               <div className="h-px bg-gray-200 dark:bg-neutral-700" />
               <div className="flex flex-col items-stretch gap-2">
                 <span className="text-center text-sm font-semibold text-teal">Font size</span>
-                <div
-                  role="slider"
-                  aria-valuemin={ITEM_NAME_FONT_MIN}
-                  aria-valuemax={ITEM_NAME_FONT_MAX}
-                  aria-valuenow={itemNameFontStep}
-                  aria-label="Font size"
-                  className="relative h-2.5 w-full cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
-                  onClick={handleFontBarClick}
-                >
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onItemNameFontStepChange(Math.max(ITEM_NAME_FONT_MIN, itemNameFontStep - 1))
+                    }}
+                    disabled={itemNameFontStep <= ITEM_NAME_FONT_MIN}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 text-lg font-semibold text-teal touch-manipulation hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30 dark:border-neutral-600 dark:hover:bg-neutral-800"
+                    aria-label="Decrease font size"
+                  >
+                    −
+                  </button>
                   <div
-                    className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal"
-                    style={{ width: `${(itemNameFontStep / ITEM_NAME_FONT_MAX) * 100}%` }}
-                  />
+                    role="slider"
+                    aria-valuemin={ITEM_NAME_FONT_MIN}
+                    aria-valuemax={ITEM_NAME_FONT_MAX}
+                    aria-valuenow={itemNameFontStep}
+                    aria-label="Font size"
+                    className="relative h-2.5 min-w-0 flex-1 cursor-pointer rounded-full border border-gray-300 bg-gray-50 dark:border-neutral-500 dark:bg-neutral-900"
+                    onClick={handleFontBarClick}
+                  >
+                    <div
+                      className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-teal"
+                      style={{ width: `${(itemNameFontStep / ITEM_NAME_FONT_MAX) * 100}%` }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onItemNameFontStepChange(Math.min(ITEM_NAME_FONT_MAX, itemNameFontStep + 1))
+                    }}
+                    disabled={itemNameFontStep >= ITEM_NAME_FONT_MAX}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 text-lg font-semibold text-teal touch-manipulation hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30 dark:border-neutral-600 dark:hover:bg-neutral-800"
+                    aria-label="Increase font size"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
             </div>
