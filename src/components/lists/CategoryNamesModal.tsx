@@ -101,17 +101,16 @@ export function CategoryNamesModal({
   const [names, setNames] = useState<CategoryNames>({ ...categoryNames })
   const [order, setOrder] = useState<number[]>([...categoryOrder])
 
-  const initialNamesRef = useRef(categoryNames)
-  const initialOrderRef = useRef(categoryOrder)
+  const wasOpenRef = useRef(false)
 
-  // Snapshot initial values when modal opens
+  // Snapshot from props only when the modal transitions to open — not when Zustand/realtime
+  // updates categoryOrder or categoryNames while the editor is already open (that was resetting drag state).
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       setNames({ ...categoryNames })
       setOrder([...categoryOrder])
-      initialNamesRef.current = categoryNames
-      initialOrderRef.current = categoryOrder
     }
+    wasOpenRef.current = isOpen
   }, [isOpen, categoryNames, categoryOrder])
 
   const sensors = useSensors(
