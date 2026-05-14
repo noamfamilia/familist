@@ -158,14 +158,16 @@ export function CategoryNamesModal({
           </SortableContext>
         </DndContext>
         {onSortByCategory ? (
-          <button
-            type="button"
-            onClick={handleSortClick}
-            disabled={sortDisabled}
-            className="mt-4 w-full rounded-lg bg-cyan px-3 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Sort items by categories
-          </button>
+          <div className="mt-4 flex justify-center">
+            <button
+              type="button"
+              onClick={handleSortClick}
+              disabled={sortDisabled}
+              className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Sort by categories
+            </button>
+          </div>
         ) : null}
       </div>
     </Modal>

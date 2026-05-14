@@ -4,7 +4,7 @@ function canvasFontForItemName(px: number): string {
   return `400 ${px}px Inter, "Inter Fallback", system-ui, sans-serif`
 }
 
-export const ITEM_TEXT_WIDTH_MIN = 80
+export const ITEM_TEXT_WIDTH_MIN = 120
 /** Keeps the name column from growing unbounded on very long single-line strings. */
 export const ITEM_TEXT_WIDTH_MAX = 560
 

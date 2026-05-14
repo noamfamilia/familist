@@ -95,7 +95,7 @@ export function MemberHeader({
   onOwnMember,
   listId,
   showAddMember = true,
-  itemTextWidth = 80,
+  itemTextWidth = ITEM_TEXT_WIDTH_MIN,
   itemTextWidthMode = 'auto',
   onWidthChange,
   onWidthModeToggle,

@@ -46,7 +46,7 @@ import {
 import { validateBulkItemLinesUniqueness, validateSingleNewItemTextUniqueness } from '@/lib/data/localItemTextUniqueness'
 import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
 import { APP_VERSION } from '@/lib/appVersion'
-import { measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
+import { ITEM_TEXT_WIDTH_MAX, ITEM_TEXT_WIDTH_MIN, measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
   ITEM_NAME_FONT_MAX,
@@ -83,10 +83,13 @@ function getPrefsKey(listId: string, userId?: string | null) {
 type WidthMode = 'auto' | 'manual'
 
 function parseWidthValue(raw: string | number | null | undefined): { mode: WidthMode; width: number } {
-  if (raw == null || raw === 'auto' || typeof raw === 'number') return { mode: 'auto', width: 80 }
-  const num = parseInt(raw, 10)
-  if (isNaN(num) || num < 80) return { mode: 'auto', width: 80 }
-  return { mode: 'manual', width: num }
+  if (raw == null || raw === 'auto' || typeof raw === 'number') {
+    return { mode: 'auto', width: ITEM_TEXT_WIDTH_MIN }
+  }
+  const num = parseInt(String(raw), 10)
+  if (isNaN(num)) return { mode: 'auto', width: ITEM_TEXT_WIDTH_MIN }
+  if (num < ITEM_TEXT_WIDTH_MIN) return { mode: 'manual', width: ITEM_TEXT_WIDTH_MIN }
+  return { mode: 'manual', width: Math.min(ITEM_TEXT_WIDTH_MAX, num) }
 }
 
 const EMPTY_CATEGORY_NAMES: CategoryNames = { '1': '', '2': '', '3': '', '4': '', '5': '', '6': '' }
@@ -483,7 +486,7 @@ export function useList(listId: string) {
     if (!dexiePrefs) {
       setMemberFilter('all')
       setItemTextWidthMode('auto')
-      setItemTextWidth(80)
+      setItemTextWidth(ITEM_TEXT_WIDTH_MIN)
       itemNameFontStepRef.current = ITEM_NAME_FONT_DEFAULT
       setItemNameFontStep(ITEM_NAME_FONT_DEFAULT)
       setLastViewedMembers(null)
@@ -2004,7 +2007,7 @@ export function useList(listId: string) {
       return
     }
     try {
-      const newWidth = Math.max(80, width)
+      const newWidth = Math.min(ITEM_TEXT_WIDTH_MAX, Math.max(ITEM_TEXT_WIDTH_MIN, width))
       const prevWidth = itemTextWidth
       const prevMode = itemTextWidthMode
       const value = String(newWidth)
