@@ -311,6 +311,7 @@ export function useList(listId: string) {
   )
 
   useListSyncErrorToast(list, listId)
+  const [loading, setLoading] = useState(true)
   const [isFetching, setIsFetching] = useState(true)
   const [hasCompletedInitialFetch, setHasCompletedInitialFetch] = useState(false)
   const [fetchTimedOut, setFetchTimedOut] = useState(false)
