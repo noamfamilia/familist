@@ -132,9 +132,34 @@ function shouldAppendOnly(entity: SyncQueueEntity, entityId: string, kind: SyncQ
   return false
 }
 
+async function deleteOutboundImsRowsForItemId(itemId: string): Promise<void> {
+  await db.sync_queue
+    .filter((r) => {
+      if (r.entity !== 'item_member_state') return false
+      const p = r.payload as { item_id?: unknown }
+      return typeof p.item_id === 'string' && p.item_id === itemId
+    })
+    .delete()
+}
+
+async function deleteOutboundImsRowsForMemberId(memberId: string): Promise<void> {
+  await db.sync_queue
+    .filter((r) => {
+      if (r.entity !== 'item_member_state') return false
+      const p = r.payload as { member_id?: unknown }
+      return typeof p.member_id === 'string' && p.member_id === memberId
+    })
+    .delete()
+}
+
+/** Remove every `sync_queue` row whose scope includes `listId` (Dexie only; no list-user / message cleanup). */
+export async function deleteOutboundQueueRowsTouchingList(listId: string): Promise<void> {
+  await db.sync_queue.filter((r) => syncQueueRowTouchesListId(r, listId)).delete()
+}
+
 /** Remove all outbound work scoped to a list (prevents ghost sync after delete/leave). */
 export async function clearSyncQueueForList(listId: string): Promise<void> {
-  await db.sync_queue.filter((r) => syncQueueRowTouchesListId(r, listId)).delete()
+  await deleteOutboundQueueRowsTouchingList(listId)
   const uid = getActiveCacheUserId()
   if (uid) await clearListUserSyncError(listId, uid)
   await clearListSyncErrorMessages([listId])
@@ -188,7 +213,81 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
   const next_retry_at = input.next_retry_at ?? null
 
   if (input.kind === 'delete') {
+    /**
+     * Net-zero / ordering: detect a co-located `create` without loading all same-key rows.
+     * When `enqueueSyncQueueRecord` is awaited inside an outer `db.transaction` (e.g. list soft-delete),
+     * these `sync_queue` operations stay in that transaction — including `deleteOutboundQueueRowsTouchingList`
+     * for list deletes (full prune + IMS removal for that list) immediately before inserting the delete row.
+     */
+    const hasPendingCreateSameKey =
+      (await db.sync_queue
+        .where('[entity+entity_id]')
+        .equals([input.entity, input.entity_id])
+        .filter((r) => r.kind === 'create')
+        .count()) > 0
+
+    if (hasPendingCreateSameKey) {
+      /* Net-zero: entity never reached the server — remove same-key rows + dependent IMS; no delete row. */
+      await db.sync_queue.where('[entity+entity_id]').equals([input.entity, input.entity_id]).delete()
+      if (input.entity === 'item') {
+        await deleteOutboundImsRowsForItemId(input.entity_id)
+      } else if (input.entity === 'member') {
+        await deleteOutboundImsRowsForMemberId(input.entity_id)
+      } else if (input.entity === 'list') {
+        await deleteOutboundQueueRowsTouchingList(input.entity_id)
+      }
+      await clearListUserSyncErrorsForEnqueueRow({
+        parent1_type: input.parent1_type,
+        parent1_id: input.parent1_id,
+        kind: 'delete',
+        entity: input.entity,
+        entity_id: input.entity_id,
+        payload: input.payload,
+        status,
+      })
+      return
+    }
+
+    if (input.entity === 'list') {
+      await deleteOutboundQueueRowsTouchingList(input.entity_id)
+      await db.sync_queue.put({
+        id,
+        entity: input.entity,
+        entity_id: input.entity_id,
+        kind: 'delete',
+        payload: input.payload,
+        parent1_type: input.parent1_type,
+        parent1_id: input.parent1_id,
+        parent2_type: input.parent2_type,
+        parent2_id: input.parent2_id,
+        status,
+        locked_at,
+        attempt_count,
+        last_error,
+        next_retry_at,
+        updated_at: ts,
+        processing_detail: null,
+      })
+      await clearListUserSyncErrorsForEnqueueRow({
+        parent1_type: input.parent1_type,
+        parent1_id: input.parent1_id,
+        kind: 'delete',
+        entity: input.entity,
+        entity_id: input.entity_id,
+        payload: input.payload,
+        status,
+      })
+      return
+    }
+
     await db.sync_queue.where('[entity+entity_id]').equals([input.entity, input.entity_id]).delete()
+
+    if (input.entity === 'item') {
+      await deleteOutboundImsRowsForItemId(input.entity_id)
+    } else if (input.entity === 'member') {
+      await deleteOutboundImsRowsForMemberId(input.entity_id)
+    }
+
     await db.sync_queue.put({
       id,
       entity: input.entity,

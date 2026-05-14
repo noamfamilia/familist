@@ -47,7 +47,7 @@ export type SyncQueueKind = 'create' | 'patch' | 'delete' | 'rpc'
  * Outbound Dexie `sync_queue` row state — driven by `useSyncStore` (see `tryClaimSyncRow`, drain loop).
  *
  * - **queued** — Not being executed yet. Worker picks it when `isEligibleForSync` passes (`next_retry_at`,
- *   lock freshness). New rows default here.
+ *   lock freshness, and universal dependency ordering (`isBlockedByPendingDependencies` in `syncQueueListScope`). New rows default here.
  * - **processing** — Worker claimed the row (`tryClaimSyncRow`), is running `executeOutboundRow` (Supabase RPC/table writes).
  *   Optional **`processing_detail`** is human-readable progress while this row is active (see `useSyncStore`).
  *   On success the row is **deleted**. On failure → **failed** or connectivity retry → back to **queued** with delay.

@@ -16,6 +16,35 @@ function isVirtualUserListKey(listId: string): boolean {
 }
 
 /**
+ * Drop outbound `item_member_state` queue rows that still pointed at an item or member whose
+ * `create` failed terminally (parent will never exist on the server).
+ */
+async function removeOutboundImsQueueRowsReferencingTerminalFailedParentCreate(parent: DbSyncQueueRow): Promise<void> {
+  if (parent.kind !== 'create') return
+  if (parent.entity !== 'item' && parent.entity !== 'member') return
+  const pl = parent.payload as { id?: string }
+  const parentId = String(parent.entity_id ?? pl.id ?? '')
+  if (!parentId) return
+
+  const all = await db.sync_queue.toArray()
+  for (const r of all) {
+    if (r.entity !== 'item_member_state') continue
+    const imsPl = r.payload as { item_id?: unknown; member_id?: unknown }
+    const itemId = typeof imsPl.item_id === 'string' ? imsPl.item_id : ''
+    const memberId = typeof imsPl.member_id === 'string' ? imsPl.member_id : ''
+    if (!itemId || !memberId) continue
+    const hit =
+      (parent.entity === 'item' && itemId === parentId) ||
+      (parent.entity === 'member' && memberId === parentId)
+    if (!hit) continue
+    await db.sync_queue.delete(r.id)
+    appendMutationDiagnostic(
+      `[sync] scrub removed orphan item_member_state queue row queueId=${r.id} parent=${parent.entity} parentId=${parentId}`,
+    )
+  }
+}
+
+/**
  * Rows whose local intent is "add new server entities" (or join). On terminal failure the server
  * never applied the change — remove optimistic Dexie rows and trim the open list Zustand slice.
  */
@@ -80,6 +109,7 @@ export async function scrubAfterTerminalOutboundFailure(
           st.setItems((prev) => prev.filter((i) => i.id !== id))
         }
       }
+      await removeOutboundImsQueueRowsReferencingTerminalFailedParentCreate(row)
       appendMutationDiagnostic(`[sync] scrub create item removed id=${id || 'n/a'} listId=${listId || 'n/a'}`)
       return
     }
@@ -97,6 +127,7 @@ export async function scrubAfterTerminalOutboundFailure(
           st.setMembers((prev) => prev.filter((x) => x.id !== id))
         }
       }
+      await removeOutboundImsQueueRowsReferencingTerminalFailedParentCreate(row)
       appendMutationDiagnostic(`[sync] scrub create member removed id=${id || 'n/a'} listId=${listId || 'n/a'}`)
       return
     }

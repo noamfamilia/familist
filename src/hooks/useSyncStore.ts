@@ -15,7 +15,11 @@ import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useToast } from '@/components/ui/Toast'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
 import { getActiveCacheUserId } from '@/lib/cache'
-import { listIdsTouchingOutboundRow } from '@/lib/data/syncQueueListScope'
+import {
+  blockedOutboundDependencyReason,
+  isBlockedByPendingDependencies,
+  listIdsTouchingOutboundRow,
+} from '@/lib/data/syncQueueListScope'
 import { scrubAfterTerminalOutboundFailure } from '@/lib/data/outboundTerminalScrub'
 import { applyListUserSyncErrorForListIds } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages, setListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
@@ -210,7 +214,29 @@ async function localListNamesForIds(ids: string[]): Promise<string> {
   }
 }
 
-function isEligibleForSync(row: DbSyncQueueRow, now: number): boolean {
+/** Thrown when a claimed row must wait for another pending queue row (defense in depth after claim). */
+class SyncDependencyBlockedError extends Error {
+  override readonly name = 'SyncDependencyBlockedError'
+  constructor() {
+    super('Outbound sync blocked: dependency ordering')
+  }
+}
+
+const DEPENDENCY_RETRY_DELAY_MS = 2_000
+
+async function releaseRowForDependencyWait(rowId: string): Promise<void> {
+  const now = Date.now()
+  await db.sync_queue.update(rowId, {
+    status: 'queued',
+    locked_at: null,
+    next_retry_at: now + DEPENDENCY_RETRY_DELAY_MS,
+    updated_at: now,
+    processing_detail:
+      'Waiting for a parent list or entity create ahead in the queue — will retry in about 2 seconds…',
+  })
+}
+
+function isBaseEligibleForSync(row: DbSyncQueueRow, now: number): boolean {
   const nr = row.next_retry_at ?? null
   const stale = row.locked_at != null && now - row.locked_at > LOCK_STALE_MS
 
@@ -224,6 +250,12 @@ function isEligibleForSync(row: DbSyncQueueRow, now: number): boolean {
     return nr == null || nr <= now
   }
   return false
+}
+
+function isEligibleForSync(row: DbSyncQueueRow, now: number, queue: readonly DbSyncQueueRow[]): boolean {
+  if (!isBaseEligibleForSync(row, now)) return false
+  if (isBlockedByPendingDependencies(row, queue)) return false
+  return true
 }
 
 async function tryClaimSyncRow(id: string): Promise<DbSyncQueueRow | null> {
@@ -321,6 +353,8 @@ export function useSyncStore(): SyncStoreState {
 
   const { error: showErrorToast, info: showInfoToast } = useToast()
   const drainingRef = useRef(false)
+  /** Throttles dev-only dependency latch diagnostics (console + mutation log). */
+  const dependencyDevDiagLastMsRef = useRef(0)
   const [isDraining, setIsDraining] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
   const [retryPulse, setRetryPulse] = useState(0)
@@ -380,7 +414,11 @@ export function useSyncStore(): SyncStoreState {
         `[sync->server] send kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
       )
       try {
-      await updateSyncQueueProcessingDetail(row.id, await initialOutboundProgressMessage(row))
+        const dependencyQueue = await db.sync_queue.toArray()
+        if (isBlockedByPendingDependencies(row, dependencyQueue)) {
+          throw new SyncDependencyBlockedError()
+        }
+        await updateSyncQueueProcessingDetail(row.id, await initialOutboundProgressMessage(row))
       if (row.kind === 'delete') {
         if (row.entity === 'item') {
           const id = String(row.payload.id ?? '')
@@ -1116,7 +1154,7 @@ export function useSyncStore(): SyncStoreState {
     if (drainingRef.current) return
 
     const now = Date.now()
-    const hasEligible = rows.some((r) => isEligibleForSync(r, now))
+    const hasEligible = rows.some((r) => isEligibleForSync(r, now, rows))
     if (!hasEligible && !needsBackoffWake) return
 
     let cancelled = false
@@ -1128,8 +1166,32 @@ export function useSyncStore(): SyncStoreState {
           const tick = Date.now()
           const batch = await db.sync_queue.orderBy('updated_at').toArray()
           const eligible = batch
-            .filter((r) => isEligibleForSync(r, tick))
+            .filter((r) => isEligibleForSync(r, tick, batch))
             .sort((a, b) => a.updated_at - b.updated_at)
+
+          if (process.env.NODE_ENV === 'development' && batch.length > 0) {
+            const latched = batch
+              .filter(
+                (r) =>
+                  isBaseEligibleForSync(r, tick) && blockedOutboundDependencyReason(r, batch) != null,
+              )
+              .sort((a, b) => a.updated_at - b.updated_at)
+            if (latched.length > 0 && tick - dependencyDevDiagLastMsRef.current >= 2_000) {
+              dependencyDevDiagLastMsRef.current = tick
+              const r = latched[0]!
+              const reason = blockedOutboundDependencyReason(r, batch)!
+              appendMutationDiagnostic(
+                `[sync-dep] latched queueId=${r.id} ${r.kind}/${r.entity} — ${reason}`,
+              )
+              console.info('[familist/outbound-sync] dependency latch', {
+                queueId: r.id,
+                kind: r.kind,
+                entity: r.entity,
+                reason,
+              })
+            }
+          }
+
           const next = eligible[0]
           if (!next) break
 
@@ -1151,6 +1213,15 @@ export function useSyncStore(): SyncStoreState {
             appendMutationDiagnostic(
               `[sync<-server] error kind=${claimed.kind} entity=${claimed.entity} key=${queueDiagKey(claimed)} msg=${message}`,
             )
+            if (error instanceof SyncDependencyBlockedError) {
+              const depSnap = await db.sync_queue.toArray()
+              const depReason = blockedOutboundDependencyReason(claimed, depSnap)
+              appendMutationDiagnostic(
+                `[sync] dependency wait queueId=${claimed.id} kind=${claimed.kind} entity=${claimed.entity}${depReason ? ` — ${depReason}` : ''}`,
+              )
+              await releaseRowForDependencyWait(claimed.id)
+              continue
+            }
             if (isLikelyConnectivityError(error)) {
               setLastError(message)
               await releaseRowForConnectivityRetry(claimed.id)

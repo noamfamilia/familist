@@ -14,8 +14,10 @@ function truncate(s: string, max: number): string {
 
 function humanStatus(row: DbSyncQueueRow): string {
   const parts: string[] = []
-  if (row.status === 'queued') parts.push('Waiting to send')
-  else if (row.status === 'processing') {
+  if (row.status === 'queued') {
+    const detail = row.processing_detail?.trim()
+    parts.push(detail && detail.length > 0 ? detail : 'Waiting to send')
+  } else if (row.status === 'processing') {
     const detail = row.processing_detail?.trim()
     parts.push(detail && detail.length > 0 ? detail : 'Sending this change to the server…')
   } else if (row.status === 'failed') parts.push('Waiting to retry')

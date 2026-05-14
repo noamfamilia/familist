@@ -100,14 +100,21 @@ async function softDeleteListInDexie(
   options?: { queueServerDelete?: boolean; leaveRpc?: boolean },
 ) {
   if (!userId) return
-  await clearSyncQueueForList(listId)
   const nowMs = Date.now()
   const queueServerDelete = options?.queueServerDelete !== false
   const leaveRpc = options?.leaveRpc === true
+  /**
+   * Single Dexie write scope: list/members/items/IMS soft-delete and outbound `sync_queue` updates
+   * (including `deleteOutboundQueueRowsTouchingList` inside list `delete` enqueue) must not interleave
+   * with unrelated async work — only await Dexie tables in this store list.
+   */
   await db.transaction(
     'rw',
     [db.lists, db.items, db.members, db.item_member_state, db.list_users, db.sync_queue],
     async () => {
+      if (leaveRpc) {
+        await clearSyncQueueForList(listId)
+      }
       const t = isoNow()
       const listRow = await db.lists.get(listId)
       const renamedListName = withDeletionNameSuffix(listRow?.name ?? '')
