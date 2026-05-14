@@ -347,13 +347,24 @@ export function useList(listId: string) {
     reportServerDexieParityDiagnostics()
   }, [])
 
+  // Split so a list row update that only changes `category_names` (e.g. first half of
+  // `saveCategorySettings`) does not re-run `setCategoryOrder` from the same `list` object;
+  // that could fight `persistCategoryOrderOnly` and leave order unsaved in React state.
   useEffect(() => {
     if (!list || isTombstoned(list.deleted_at ?? null)) return
-    setCategoryNames(parseCategoryNames(list.category_names))
-    setCategoryOrder(parseCategoryOrder(list.category_order))
     setLoading(false)
     hasInitialDataRef.current = true
   }, [list])
+
+  useEffect(() => {
+    if (!list || isTombstoned(list.deleted_at ?? null)) return
+    setCategoryNames(parseCategoryNames(list.category_names))
+  }, [list, list.category_names])
+
+  useEffect(() => {
+    if (!list || isTombstoned(list.deleted_at ?? null)) return
+    setCategoryOrder(parseCategoryOrder(list.category_order))
+  }, [list, list.category_order])
 
   const { showToast, dismissToast, error: showErrorToast } = useToast()
   const {

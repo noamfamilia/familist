@@ -23,7 +23,7 @@ interface CategoryNamesModalProps {
   categoryNames: CategoryNames
   categoryOrder: number[]
   onSave: (names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
-  /** When set, shows “Sort by categories” (replaces gear-menu sort). Passes the editor’s category order so sort matches what was just saved. */
+  /** When set, shows “Save order & sort list” (saves category prefs, reorders items, closes). Passes the editor’s category order so sort matches what was just saved. */
   onSortByCategory?: (order: number[]) => void | Promise<void>
   /** Disables the sort button (e.g. during bulk list operations — not category sort in flight). */
   sortDisabled?: boolean
@@ -132,12 +132,19 @@ export function CategoryNamesModal({
     }
   }
 
-  const handleDone = () => {
+  const handleDone = async () => {
     const trimmed: CategoryNames = {}
     for (const [k, v] of Object.entries(names)) {
       trimmed[k] = v.trim()
     }
-    onSave(trimmed, order)
+    const saveRes = await onSave(trimmed, order)
+    if (saveRes.error) {
+      const msg = saveErrorMessage(saveRes.error)
+      if (shouldShowConnectivityRelatedMutationToast(msg)) {
+        showError(msg || 'Failed to save categories', { serverError: saveRes.error })
+      }
+      return
+    }
     onClose()
   }
 
@@ -160,7 +167,7 @@ export function CategoryNamesModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={handleDone} size="xs" title="Category editor">
+    <Modal isOpen={isOpen} onClose={() => void handleDone()} size="xs" title="Categories">
       <div>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
@@ -184,7 +191,7 @@ export function CategoryNamesModal({
               disabled={sortDisabled}
               className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Sort by categories
+              {'Save order & sort list'}
             </button>
           </div>
         ) : null}

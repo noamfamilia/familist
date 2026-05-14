@@ -65,7 +65,7 @@ interface MemberHeaderProps {
   hasArchivedItems?: boolean
   /** Optional category order from the editor so the first sort uses the order just saved. */
   onCategorySortClick?: (categoryOrder?: number[]) => void | Promise<void>
-  /** Disables “Sort by categories” in the category editor only (e.g. bulk operations). */
+  /** Disables “Save order & sort list” in the Categories modal only (e.g. bulk operations). */
   categoryEditorSortDisabled?: boolean
   onExpandAll?: () => void
   onCollapseAll?: () => void
@@ -621,8 +621,8 @@ export function MemberHeader({
                 className={`absolute top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded p-0 touch-manipulation hover:opacity-80 ${
                   isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''
                 } ${onItemNameFontStepChange ? 'left-[70px]' : 'left-0'}`}
-                aria-label={isOfflineActionsDisabled ? 'Category editor (unavailable offline)' : 'Open category editor'}
-                title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : 'Categories and sort'}
+                aria-label={isOfflineActionsDisabled ? 'Categories (unavailable offline)' : 'Open categories'}
+                title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : 'Categories and list sort'}
               >
                 <CategoryEditorIcon className="h-7 w-7" />
               </button>
