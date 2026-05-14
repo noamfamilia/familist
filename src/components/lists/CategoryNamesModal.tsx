@@ -5,8 +5,17 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Modal } from '@/components/ui/Modal'
+import { useToast } from '@/components/ui/Toast'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
+import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
 import type { ItemCategory, CategoryNames } from '@/lib/supabase/types'
+
+function saveErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
+    return (error as { message: string }).message
+  }
+  return 'Failed to save categories'
+}
 
 interface CategoryNamesModalProps {
   isOpen: boolean
@@ -14,9 +23,9 @@ interface CategoryNamesModalProps {
   categoryNames: CategoryNames
   categoryOrder: number[]
   onSave: (names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
-  /** When set, shows “Sort by categories” (replaces gear-menu sort). */
-  onSortByCategory?: () => void | Promise<void>
-  /** Disables the sort button (e.g. while a sort request is in flight). */
+  /** When set, shows “Sort by categories” (replaces gear-menu sort). Passes the editor’s category order so sort matches what was just saved. */
+  onSortByCategory?: (order: number[]) => void | Promise<void>
+  /** Disables the sort button (e.g. during bulk list operations — not category sort in flight). */
   sortDisabled?: boolean
 }
 
@@ -88,6 +97,7 @@ export function CategoryNamesModal({
   onSortByCategory,
   sortDisabled = false,
 }: CategoryNamesModalProps) {
+  const { error: showError } = useToast()
   const [names, setNames] = useState<CategoryNames>({ ...categoryNames })
   const [order, setOrder] = useState<number[]>([...categoryOrder])
 
@@ -133,14 +143,21 @@ export function CategoryNamesModal({
   }
 
   const handleSortClick = async () => {
-    if (!onSortByCategory || sortDisabled) return
+    if (!onSortByCategory) return
     const trimmed: CategoryNames = {}
     for (const [k, v] of Object.entries(names)) {
       trimmed[k] = v.trim()
     }
-    await onSave(trimmed, order)
-    void onSortByCategory()
+    const saveRes = await onSave(trimmed, order)
+    if (saveRes.error) {
+      const msg = saveErrorMessage(saveRes.error)
+      if (shouldShowConnectivityRelatedMutationToast(msg)) {
+        showError(msg || 'Failed to save categories', { serverError: saveRes.error })
+      }
+      return
+    }
     onClose()
+    await onSortByCategory(order)
   }
 
   return (

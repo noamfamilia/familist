@@ -897,17 +897,26 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     }))
   }
 
-  const handleCategorySortClick = async () => {
+  const handleCategorySortClick = async (orderFromEditor?: number[]) => {
     if (categorySortLoading || items.length === 0) return
-    const { byCategory } = makeCategoryComparators(categoryOrder)
+    const orderForSort = orderFromEditor ?? categoryOrder
+    const { byCategory } = makeCategoryComparators(orderForSort)
     const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
     const sortedActive = currentFull.filter(i => !i.archived).sort(byCategory)
     const fullOrder = reorderByCategory(currentFull, sortedActive)
     setCategorySortLoading(true)
-    const { error: reorderError } = await reorderItems(fullOrder)
-    setCategorySortLoading(false)
-    if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
-      showError(reorderError.message || 'Failed to sort by category', { serverError: reorderError })
+    try {
+      const { error: reorderError } = await reorderItems(fullOrder)
+      if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
+        showError(reorderError.message || 'Failed to sort by category', { serverError: reorderError })
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (shouldShowConnectivityRelatedMutationToast(message)) {
+        showError(message || 'Failed to sort by category', { serverError: error })
+      }
+    } finally {
+      setCategorySortLoading(false)
     }
   }
 
@@ -1180,6 +1189,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               onItemNameFontStepChange={updateItemNameFontStep}
               showActionsMenu
               actionsMenuLoading={categorySortLoading || bulkLoading}
+              categoryEditorSortDisabled={bulkLoading}
               hasArchivedItems={archivedItems.length > 0}
               onCategorySortClick={handleCategorySortClick}
               onExpandAll={handleExpandAll}

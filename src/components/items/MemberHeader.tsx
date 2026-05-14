@@ -63,7 +63,10 @@ interface MemberHeaderProps {
   showActionsMenu?: boolean
   actionsMenuLoading?: boolean
   hasArchivedItems?: boolean
-  onCategorySortClick?: () => void | Promise<void>
+  /** Optional category order from the editor so the first sort uses the order just saved. */
+  onCategorySortClick?: (categoryOrder?: number[]) => void | Promise<void>
+  /** Disables “Sort by categories” in the category editor only (e.g. bulk operations). */
+  categoryEditorSortDisabled?: boolean
   onExpandAll?: () => void
   onCollapseAll?: () => void
   onDeleteAllArchived?: () => void
@@ -105,6 +108,7 @@ export function MemberHeader({
   actionsMenuLoading = false,
   hasArchivedItems = false,
   onCategorySortClick,
+  categoryEditorSortDisabled = false,
   onExpandAll,
   onCollapseAll,
   onDeleteAllArchived,
@@ -1202,8 +1206,8 @@ export function MemberHeader({
           categoryNames={categoryNames}
           categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
           onSave={async (names, order) => onSaveCategorySettings(names, order)}
-          onSortByCategory={onCategorySortClick ? () => void onCategorySortClick() : undefined}
-          sortDisabled={actionsMenuLoading}
+          onSortByCategory={onCategorySortClick ? (order) => void onCategorySortClick(order) : undefined}
+          sortDisabled={categoryEditorSortDisabled}
         />
       )}
     </div>
