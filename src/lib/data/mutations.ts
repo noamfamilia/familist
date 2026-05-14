@@ -45,7 +45,7 @@ export async function addItemMutation(input: {
     updated_at: t,
   }
 
-  await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
+  await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
     await db.items.put(row)
     await enqueueSyncQueueRecord({
       entity: 'item',
@@ -79,7 +79,7 @@ export async function softDeleteItemMutation(
   const t = isoNow()
   const renamedText = withDeletionNameSuffix(existing.text ?? '')
 
-  await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
+  await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
     await db.items.update(item_id, {
       text: renamedText,
       deleted_at: t,
@@ -109,7 +109,7 @@ export async function bulkSoftDeleteArchivedItemsMutation(list_id: string, itemI
   const idSet = new Set(ids)
   const t = isoNow()
 
-  await db.transaction('rw', [db.items, db.sync_queue, db.list_users], async () => {
+  await db.transaction('rw', [db.items, db.lists, db.sync_queue, db.list_users], async () => {
     await removeOutboundQueueRowsForItemIds(list_id, idSet)
     for (const itemId of ids) {
       const existing = await db.items.get(itemId)
@@ -141,7 +141,7 @@ export async function toggleItemMemberStateMutation(input: {
   const t = isoNow()
   const sync = syncFieldsForLocalInsert({ client_created_at: t })
   const rowId = await stableItemMemberStateDexieId(input.item_id, input.member_id)
-  await db.transaction('rw', db.item_member_state, db.sync_queue, db.list_users, async () => {
+  await db.transaction('rw', db.item_member_state, db.lists, db.sync_queue, db.list_users, async () => {
     const dupes = await db.item_member_state
       .where('[item_id+member_id]')
       .equals([input.item_id, input.member_id])
@@ -206,7 +206,7 @@ export async function addMemberMutation(input: {
     creator: null,
   }
 
-  await db.transaction('rw', db.members, db.sync_queue, db.list_users, async () => {
+  await db.transaction('rw', db.members, db.lists, db.sync_queue, db.list_users, async () => {
     await db.members.put(row)
     await enqueueSyncQueueRecord({
       entity: 'member',

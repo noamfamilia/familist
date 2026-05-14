@@ -28,7 +28,7 @@ export async function markListViewedLocally(
   const lastViewed = options?.nowIso ?? isoNow()
   const queueRemote = options?.queueRemote !== false
 
-  await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+  await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
     const listUser = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
     if (!listUser) return
 
@@ -49,6 +49,7 @@ export async function markListViewedLocally(
         updated_at: Date.now(),
         locked_at: null,
         next_retry_at: null,
+        processing_detail: null,
       })
       return
     }

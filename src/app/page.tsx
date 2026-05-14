@@ -764,7 +764,7 @@ function HomeContent() {
                   ...sync,
                 }
                 const normalized = normalizeServerSyncableFields(base as Record<string, unknown>)
-                await db.transaction('rw', db.feedback, db.sync_queue, db.list_users, async () => {
+                await db.transaction('rw', db.feedback, db.lists, db.sync_queue, db.list_users, async () => {
                   await db.feedback.put({ ...base, ...normalized } as never)
                   await enqueueSyncQueueRecord({
                     entity: 'feedback',

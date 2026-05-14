@@ -272,7 +272,7 @@ export function useLists() {
     appendMutationDiagnostic(
       `[mutation:list.reorder.queue] userId=${user.id} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')} tail=${orderedIds.slice(-5).join(',')}`,
     )
-    await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+    await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
       const n = orderedLists.length
       for (const [index, list] of orderedLists.entries()) {
         const row = await db.list_users.where('[list_id+user_id]').equals([list.id, user.id]).first()
@@ -705,7 +705,7 @@ export function useLists() {
     try {
       cat.setCatalogLists(nextLists)
       try {
-        await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+        await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
           const queueTs = Date.now()
           const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
           if (row) {
@@ -1109,7 +1109,7 @@ export function useLists() {
     try {
       catLbl.setCatalogLists((prev) => prev.map((list) => (list.id === listId ? { ...list, label } : list)))
 
-      await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+      await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
         const row = await db.list_users.where('[list_id+user_id]').equals([listId, user!.id]).first()
         if (row) await db.list_users.update(row.id, { label })
         await enqueueSyncQueueRecord({
@@ -1158,7 +1158,7 @@ export function useLists() {
           ),
         )
 
-        await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+        await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
           for (const { listId, label } of changes) {
             const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
             if (row) await db.list_users.update(row.id, { label })

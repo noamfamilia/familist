@@ -1320,7 +1320,7 @@ export function useList(listId: string) {
       useListDataStore.getState().beginLocalListPersistence()
       try {
         useListDataStore.getState().setItems((prev) => [...prev, ...optimisticRows])
-        await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
+        await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
           await db.items.bulkAdd(rows)
           await enqueueSyncQueueRecord({
             entity: 'list',
@@ -1402,7 +1402,7 @@ export function useList(listId: string) {
         ),
       )
 
-      await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
+      await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
         await db.items.update(itemId, dbPatch)
         const payload: Record<string, unknown> = { id: itemId }
         if (persistedUpdates.text !== undefined) payload.text = persistedUpdates.text
@@ -1572,7 +1572,7 @@ export function useList(listId: string) {
       )
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      await db.transaction('rw', db.members, db.sync_queue, db.list_users, async () => {
+      await db.transaction('rw', db.members, db.lists, db.sync_queue, db.list_users, async () => {
         const memberPatch: Record<string, unknown> = { updated_at: nowIso }
         if (normalizedMemberUpdates.name !== undefined) memberPatch.name = normalizedMemberUpdates.name
         if (normalizedMemberUpdates.is_public !== undefined) memberPatch.is_public = normalizedMemberUpdates.is_public
@@ -1623,7 +1623,7 @@ export function useList(listId: string) {
       )
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
-      await db.transaction('rw', db.members, db.item_member_state, db.sync_queue, db.list_users, async () => {
+      await db.transaction('rw', [db.members, db.item_member_state, db.lists, db.sync_queue, db.list_users], async () => {
         const memberRow = await db.members.get(memberId)
         const renamedName = withDeletionNameSuffix(memberRow?.name ?? '')
         await db.members.update(memberId, {
@@ -1688,7 +1688,7 @@ export function useList(listId: string) {
               : m,
           ),
         )
-        await db.transaction('rw', db.members, db.sync_queue, db.list_users, async () => {
+        await db.transaction('rw', db.members, db.lists, db.sync_queue, db.list_users, async () => {
           await db.members.update(memberId, {
             created_by: userId,
             updated_at: nowIso,
@@ -1894,7 +1894,7 @@ export function useList(listId: string) {
       )
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 3000
-      await db.transaction('rw', [db.items, db.sync_queue, db.list_users], async () => {
+      await db.transaction('rw', [db.items, db.lists, db.sync_queue, db.list_users], async () => {
         for (const itemId of archivedIds) {
           await db.items.update(itemId, {
             archived: false,
@@ -1943,7 +1943,7 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
       const itemIds = reorderedItems.map((item) => item.id)
-      await db.transaction('rw', db.items, db.sync_queue, db.list_users, async () => {
+      await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
         for (const [index, item] of reorderedItems.entries()) {
           await db.items.update(item.id, {
             sort_order: index,
@@ -1990,7 +1990,7 @@ export function useList(listId: string) {
           const luPatch: Record<string, unknown> = { member_filter: filter }
           if (lastVmPatch !== undefined) luPatch.last_viewed_members = lastVmPatch
           try {
-            await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+            await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
               const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
               if (!lu) throw new Error('Missing list_users row')
               await db.list_users.update(lu.id, luPatch as never)
@@ -2038,7 +2038,7 @@ export function useList(listId: string) {
         useListDataStore.getState().beginPrefsPersistence()
         try {
           try {
-            await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+            await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
               const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
               if (!lu) throw new Error('Missing list_users row')
               await db.list_users.update(lu.id, { item_text_width: value })
@@ -2092,7 +2092,7 @@ export function useList(listId: string) {
         useListDataStore.getState().beginPrefsPersistence()
         try {
           try {
-            await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+            await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
               const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
               if (!lu) throw new Error('Missing list_users row')
               await db.list_users.update(lu.id, { item_text_width: value })
@@ -2138,7 +2138,7 @@ export function useList(listId: string) {
       useListDataStore.getState().beginPrefsPersistence()
       try {
         try {
-          await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+          await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
             const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
             if (!lu) throw new Error('Missing list_users row')
             await db.list_users.update(lu.id, { sum_scope: next })
@@ -2186,7 +2186,7 @@ export function useList(listId: string) {
           useListDataStore.getState().beginPrefsPersistence()
           try {
             try {
-              await db.transaction('rw', db.list_users, db.sync_queue, async () => {
+              await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
                 const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
                 if (!lu) throw new Error('Missing list_users row')
                 await db.list_users.update(lu.id, { item_name_font_step: s })
