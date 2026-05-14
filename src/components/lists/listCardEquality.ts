@@ -35,6 +35,7 @@ export function listCardModelEqual(a: ListWithRole, b: ListWithRole): boolean {
     String(a.server_created_at ?? '') === String(b.server_created_at ?? '') &&
     String(a.client_created_at ?? '') === String(b.client_created_at ?? '') &&
     (a.category_names ?? null) === (b.category_names ?? null) &&
-    (a.category_order ?? null) === (b.category_order ?? null)
+    (a.category_order ?? null) === (b.category_order ?? null) &&
+    (a.sync_error_message ?? '') === (b.sync_error_message ?? '')
   )
 }

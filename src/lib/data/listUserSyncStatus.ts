@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { getActiveCacheUserId } from '@/lib/cache'
 import type { DbSyncQueueRow } from '@/lib/db'
 import { listIdsTouchingOutboundRow } from '@/lib/data/syncQueueListScope'
+import { clearListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
 
 async function getListUserRowId(listId: string, userId: string): Promise<string | null> {
   const row = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
@@ -36,4 +37,5 @@ export async function clearListUserSyncErrorsForEnqueueRow(row: Pick<
   const lids = listIdsTouchingOutboundRow(row as DbSyncQueueRow)
   if (lids.length === 0) return
   await applyListUserSyncErrorForListIds(lids, userId, false)
+  await clearListSyncErrorMessages(lids)
 }

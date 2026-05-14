@@ -79,8 +79,26 @@ function mergeListRow(l1: List | null, row: DbListRow | null | undefined): List 
   if (!row || isTombstoned(row.deleted_at)) return null
   const incoming = row as List
   if (!l1) return incoming
-  if (ts(row.updated_at) > ts(l1.updated_at)) return incoming
+  const prevMsg = l1.sync_error_message
+  if (ts(row.updated_at) > ts(l1.updated_at)) {
+    const next = { ...incoming }
+    if (next.sync_error_message == null && prevMsg != null && String(prevMsg).trim() !== '') {
+      next.sync_error_message = prevMsg
+    }
+    return next
+  }
   return l1
+}
+
+/** When replacing the active list from a server payload, keep a Dexie-only sync error until cleared. */
+export function replaceListPreservingClientMirror(prev: List | null, incoming: List | null): List | null {
+  if (!incoming) return null
+  if (!prev || prev.id !== incoming.id) return incoming
+  const prevMsg = prev.sync_error_message
+  if (incoming.sync_error_message == null && prevMsg != null && String(prevMsg).trim() !== '') {
+    return { ...incoming, sync_error_message: prevMsg }
+  }
+  return incoming
 }
 
 type ListDataState = {

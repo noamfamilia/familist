@@ -18,6 +18,7 @@ import { getActiveCacheUserId } from '@/lib/cache'
 import { listIdsTouchingOutboundRow } from '@/lib/data/syncQueueListScope'
 import { scrubAfterTerminalOutboundFailure } from '@/lib/data/outboundTerminalScrub'
 import { applyListUserSyncErrorForListIds } from '@/lib/data/listUserSyncStatus'
+import { clearListSyncErrorMessages, setListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
 import { isoNow } from '@/lib/data/base_sync_fields'
 import {
   cleanupDexieAfterItemMemberStateServerDeleted,
@@ -1097,6 +1098,7 @@ export function useSyncStore(): SyncStoreState {
 
           try {
             await executeOutboundRow(claimed)
+            await clearListSyncErrorMessages(listIdsTouchingOutboundRow(claimed))
             await db.sync_queue.delete(claimed.id)
             markOnlineRecovered('use-sync-store-drain')
           } catch (error) {
@@ -1115,9 +1117,8 @@ export function useSyncStore(): SyncStoreState {
                 await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, false)
               }
               await db.sync_queue.delete(claimed.id)
-              if (claimed.attempt_count === 0) {
-                showErrorToast(message || 'Sync failed; change was not applied.', { serverError: error })
-              }
+              const terminalListIds = listIdsTouchingOutboundRow(claimed)
+              await setListSyncErrorMessages(terminalListIds, message)
               setLastError(message)
               continue
             }

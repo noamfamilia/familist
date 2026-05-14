@@ -76,6 +76,7 @@ function extractListRowFields(list: ListWithRole) {
     last_viewed,
     pending_items,
     sync_error,
+    sync_error_message,
     ...listFields
   } = list
   void role
@@ -89,6 +90,7 @@ function extractListRowFields(list: ListWithRole) {
   void last_viewed
   void pending_items
   void sync_error
+  void sync_error_message
   return listFields
 }
 

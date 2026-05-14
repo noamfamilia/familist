@@ -9,7 +9,7 @@ import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } 
 import { useShallow } from 'zustand/react/shallow'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
 import { computeItemsReorderedByCategory } from '@/lib/items/categoryItemReorder'
-import { subscribeListDataL2Bridge, useListDataStore, warmListData } from '@/stores/listDataStore'
+import { replaceListPreservingClientMirror, subscribeListDataL2Bridge, useListDataStore, warmListData } from '@/stores/listDataStore'
 import {
   addItemMutation,
   addMemberMutation,
@@ -72,6 +72,7 @@ import { useToast } from '@/components/ui/Toast'
 import { createUserMutationGate } from '@/lib/userMutationGate'
 import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 import { markListViewedLocally } from '@/lib/data/listActivity'
+import { useListSyncErrorToast } from '@/hooks/useListSyncErrorToast'
 
 const supabase = createClient()
 
@@ -309,7 +310,7 @@ export function useList(listId: string) {
     })),
   )
 
-  const [loading, setLoading] = useState(!cached?.list)
+  useListSyncErrorToast(list, listId)
   const [isFetching, setIsFetching] = useState(true)
   const [hasCompletedInitialFetch, setHasCompletedInitialFetch] = useState(false)
   const [fetchTimedOut, setFetchTimedOut] = useState(false)
@@ -845,7 +846,7 @@ export function useList(listId: string) {
 
       // Mark that we have access
       hadAccessRef.current = true
-      useListDataStore.getState().setList(data.list)
+      useListDataStore.getState().setList((prev) => replaceListPreservingClientMirror(prev, data.list))
       const pendingMutations = await db.sync_queue
         .filter(
           (m) =>

@@ -78,6 +78,8 @@ export interface Database {
           join_use_count: number
           updated_at: string
           last_content_update: string
+          /** Client + Dexie only: last terminal outbound sync error for this list (not on Postgres). */
+          sync_error_message?: string | null
         } & DbSyncableFields
         Insert: {
           id?: string
@@ -95,6 +97,7 @@ export interface Database {
           join_use_count?: number
           updated_at?: string
           last_content_update?: string
+          sync_error_message?: string | null
         } & DbSyncableFieldsPartial
         Update: {
           id?: string
@@ -112,6 +115,7 @@ export interface Database {
           join_use_count?: number
           updated_at?: string
           last_content_update?: string
+          sync_error_message?: string | null
         } & DbSyncableFieldsPartial
         Relationships: []
       }

@@ -1,6 +1,7 @@
 import { getActiveCacheUserId } from '@/lib/cache'
 import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind, type SyncQueueStatus } from '@/lib/db'
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
+import { clearListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
 
 /** True when a sync_queue row is scoped to `listId` (parent, entity id, or payload.list_id). */
 export function syncQueueRowTouchesListId(row: DbSyncQueueRow, listId: string): boolean {
@@ -130,6 +131,7 @@ export async function clearSyncQueueForList(listId: string): Promise<void> {
   await db.sync_queue.filter((r) => syncQueueRowTouchesListId(r, listId)).delete()
   const uid = getActiveCacheUserId()
   if (uid) await clearListUserSyncError(listId, uid)
+  await clearListSyncErrorMessages([listId])
 }
 
 /** Remove queued outbound rows for specific item ids (e.g. before bulk delete RPC makes them stale). */

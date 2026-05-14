@@ -259,12 +259,15 @@ export async function upsertListDataPayloadFromServer(
     const payloadReconciled = reconcileListDetailPayloadWithPendingSyncPatches(listId, payload, queue)
     if (payloadReconciled.list) {
       const listSync = normalizeServerSyncableFields(payloadReconciled.list as unknown as Record<string, unknown>)
+      const existingListRow = await db.lists.get(listId)
+      const keepMsg = existingListRow?.sync_error_message
       await db.lists.put(
         withLastSyncedNow({
           ...payloadReconciled.list,
           ...listSync,
           cached_at: now,
           app_version: APP_VERSION,
+          ...(typeof keepMsg === 'string' && keepMsg.trim() !== '' ? { sync_error_message: keepMsg } : {}),
         }),
       )
     }
@@ -344,12 +347,15 @@ export async function upsertListDataPayloadFromMirror(
     const payloadReconciled = reconcileListDetailPayloadWithPendingSyncPatches(listId, payload, queue)
     if (payloadReconciled.list) {
       const listSync = normalizeServerSyncableFields(payloadReconciled.list as unknown as Record<string, unknown>)
+      const existingListRow = await db.lists.get(listId)
+      const keepMsg = existingListRow?.sync_error_message
       await db.lists.put(
         withLastSyncedNow({
           ...payloadReconciled.list,
           ...listSync,
           cached_at: now,
           app_version: APP_VERSION,
+          ...(typeof keepMsg === 'string' && keepMsg.trim() !== '' ? { sync_error_message: keepMsg } : {}),
         }),
       )
     }
