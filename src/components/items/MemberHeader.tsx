@@ -63,8 +63,6 @@ interface MemberHeaderProps {
   showActionsMenu?: boolean
   actionsMenuLoading?: boolean
   hasArchivedItems?: boolean
-  /** Optional category order from the editor so the first sort uses the order just saved. */
-  onCategorySortClick?: (categoryOrder?: number[]) => void | Promise<void>
   /** Disables “Save order & sort list” in the Categories modal only (e.g. bulk operations). */
   categoryEditorSortDisabled?: boolean
   onExpandAll?: () => void
@@ -74,7 +72,11 @@ interface MemberHeaderProps {
   isOwner?: boolean
   categoryNames?: CategoryNames
   categoryOrder?: number[]
-  onSaveCategorySettings?: (names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
+  onSaveCategorySettings?: (
+    names: CategoryNames,
+    order: number[],
+    options?: { reorderItems?: boolean },
+  ) => Promise<{ error: unknown }>
   hasTargetMember?: boolean
   onCreateTargets?: () => void
   /** When `'none'`, the sum row is hidden and "Sum items" may be shown in the gear menu. */
@@ -107,7 +109,6 @@ export function MemberHeader({
   showActionsMenu = false,
   actionsMenuLoading = false,
   hasArchivedItems = false,
-  onCategorySortClick,
   categoryEditorSortDisabled = false,
   onExpandAll,
   onCollapseAll,
@@ -1205,8 +1206,7 @@ export function MemberHeader({
           onClose={() => setShowCategoryModal(false)}
           categoryNames={categoryNames}
           categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
-          onSave={async (names, order) => onSaveCategorySettings(names, order)}
-          onSortByCategory={onCategorySortClick ? (order) => void onCategorySortClick(order) : undefined}
+          onSave={async (names, order, options) => onSaveCategorySettings(names, order, options)}
           sortDisabled={categoryEditorSortDisabled}
         />
       )}

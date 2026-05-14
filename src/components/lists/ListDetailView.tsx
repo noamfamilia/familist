@@ -51,7 +51,7 @@ import { ShareCardIcon } from '@/components/ui/ShareIcons'
 import { LayerMultiIcon } from '@/components/icons/LayerMultiIcon'
 import { LayerSingleIcon } from '@/components/icons/LayerSingleIcon'
 import type { ItemWithState, ItemCategory, ListUserSumScope } from '@/lib/supabase/types'
-import { normalizeItemCategory, ITEM_CATEGORIES } from '@/lib/supabase/types'
+import { ITEM_CATEGORIES } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import type { Step } from 'react-joyride'
 
@@ -104,40 +104,6 @@ function reorderWithDrag(
   }
 
   return [dragged, ...without]
-}
-
-/**
- * Category sort: active items get sorted, archived items stay at their
- * exact positions in the full list.
- */
-function reorderByCategory(
-  currentFull: ItemWithState[],
-  sortedActive: ItemWithState[],
-): ItemWithState[] {
-  const result = [...currentFull]
-  let activeIdx = 0
-  for (let i = 0; i < result.length; i++) {
-    if (!result[i].archived) {
-      result[i] = sortedActive[activeIdx++]
-    }
-  }
-  return result
-}
-
-function makeCategoryComparators(order: number[]) {
-  const positionOf = (cat: number) => {
-    const idx = order.indexOf(cat)
-    return idx === -1 ? order.length : idx
-  }
-
-  const byCategory = (a: ItemWithState, b: ItemWithState) => {
-    const ac = positionOf(normalizeItemCategory(a.category))
-    const bc = positionOf(normalizeItemCategory(b.category))
-    if (ac !== bc) return ac - bc
-    return (a.sort_order || 0) - (b.sort_order || 0)
-  }
-
-  return { byCategory }
 }
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
@@ -324,6 +290,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     updateItemTextWidth,
     updateItemTextWidthMode,
     saveCategorySettings,
+    categorySettingsMutationPending,
     lastViewedMembers,
     createTargets,
     sumScope,
@@ -621,7 +588,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   newItemTextRef.current = newItemText
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})
   const [hideNotRelevant, setHideNotRelevant] = useState<Record<string, boolean>>({})
-  const [categorySortLoading, setCategorySortLoading] = useState(false)
   const [expandSignal, setExpandSignal] = useState(0)
   const [collapseSignal, setCollapseSignal] = useState(0)
   const [confirmDeleteArchived, setConfirmDeleteArchived] = useState(false)
@@ -897,29 +863,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     }))
   }
 
-  const handleCategorySortClick = async (orderFromEditor?: number[]) => {
-    if (categorySortLoading || items.length === 0) return
-    const orderForSort = orderFromEditor ?? categoryOrder
-    const { byCategory } = makeCategoryComparators(orderForSort)
-    const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    const sortedActive = currentFull.filter(i => !i.archived).sort(byCategory)
-    const fullOrder = reorderByCategory(currentFull, sortedActive)
-    setCategorySortLoading(true)
-    try {
-      const { error: reorderError } = await reorderItems(fullOrder)
-      if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
-        showError(reorderError.message || 'Failed to sort by category', { serverError: reorderError })
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (shouldShowConnectivityRelatedMutationToast(message)) {
-        showError(message || 'Failed to sort by category', { serverError: error })
-      }
-    } finally {
-      setCategorySortLoading(false)
-    }
-  }
-
   const handleExpandAll = () => setExpandSignal(s => s + 1)
   const handleCollapseAll = () => setCollapseSignal(s => s + 1)
 
@@ -1188,10 +1131,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               itemNameFontStep={itemNameFontStep}
               onItemNameFontStepChange={updateItemNameFontStep}
               showActionsMenu
-              actionsMenuLoading={categorySortLoading || bulkLoading}
+              actionsMenuLoading={categorySettingsMutationPending || bulkLoading}
               categoryEditorSortDisabled={bulkLoading}
               hasArchivedItems={archivedItems.length > 0}
-              onCategorySortClick={handleCategorySortClick}
               onExpandAll={handleExpandAll}
               onCollapseAll={handleCollapseAll}
               onDeleteAllArchived={() => openMutatingModal(() => setConfirmDeleteArchived(true))}

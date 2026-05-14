@@ -8,6 +8,7 @@ import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import { useShallow } from 'zustand/react/shallow'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
+import { computeItemsReorderedByCategory } from '@/lib/items/categoryItemReorder'
 import { subscribeListDataL2Bridge, useListDataStore, warmListData } from '@/stores/listDataStore'
 import {
   addItemMutation,
@@ -323,6 +324,13 @@ export function useList(listId: string) {
   itemNameFontStepRef.current = itemNameFontStep
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
+  const categoryNamesRef = useRef(categoryNames)
+  const categoryOrderRef = useRef(categoryOrder)
+  categoryNamesRef.current = categoryNames
+  categoryOrderRef.current = categoryOrder
+  /** >0 while applying optimistic category list-row updates; blocks mirror useEffect from overwriting. */
+  const categoryListMirrorSuppressCountRef = useRef(0)
+  const [categorySettingsMutationPending, setCategorySettingsMutationPending] = useState(false)
   const [lastViewedMembers, setLastViewedMembers] = useState<string | null>(null)
   const [sumScope, setSumScope] = useState<ListUserSumScope>(() =>
     parseListUserSumScope(getCachedPrefs(listId).sumScope),
@@ -347,24 +355,23 @@ export function useList(listId: string) {
     reportServerDexieParityDiagnostics()
   }, [])
 
-  // Split so a list row update that only changes `category_names` (e.g. first half of
-  // `saveCategorySettings`) does not re-run `setCategoryOrder` from the same `list` object;
-  // that could fight `persistCategoryOrderOnly` and leave order unsaved in React state.
   useEffect(() => {
     if (!list || isTombstoned(list.deleted_at ?? null)) return
     setLoading(false)
     hasInitialDataRef.current = true
   }, [list])
 
+  // Re-parse category prefs only when serialized list fields change (not on every `list`
+  // identity change). Skipped during local category mutations to avoid echo reverts.
   useEffect(() => {
-    if (!list || isTombstoned(list.deleted_at ?? null)) return
-    setCategoryNames(parseCategoryNames(list.category_names))
-  }, [list, list.category_names])
-
-  useEffect(() => {
-    if (!list || isTombstoned(list.deleted_at ?? null)) return
-    setCategoryOrder(parseCategoryOrder(list.category_order))
-  }, [list, list.category_order])
+    if (categoryListMirrorSuppressCountRef.current > 0) return
+    const st = useListDataStore.getState()
+    if (st.activeUserId !== userId || st.activeListId !== listId) return
+    const row = st.list
+    if (!row || isTombstoned(row.deleted_at ?? null)) return
+    setCategoryNames(parseCategoryNames(row.category_names))
+    setCategoryOrder(parseCategoryOrder(row.category_order))
+  }, [userId, listId, list?.category_names, list?.category_order])
 
   const { showToast, dismissToast, error: showErrorToast } = useToast()
   const {
@@ -2211,85 +2218,111 @@ export function useList(listId: string) {
     [listId, mutationGate, tryBeginMutation, userId],
   )
 
-  const persistCategoryNamesOnly = async (names: CategoryNames) => {
-    const prev = categoryNames
-    const prevList = list
+  const persistCategorySettingsToStorage = async (
+    names: CategoryNames,
+    order: number[],
+    shouldReorderItems: boolean,
+  ): Promise<{ error: Error | null }> => {
     const nonEmpty: Record<string, string> = {}
     for (const [k, v] of Object.entries(names)) {
       if (v) nonEmpty[k] = v
     }
-    const serialized = Object.keys(nonEmpty).length > 0 ? JSON.stringify(nonEmpty) : '{}'
-    mutationVersionRef.current += 1
-    setCategoryNames({ ...EMPTY_CATEGORY_NAMES, ...names })
-    useListDataStore.getState().setList((l) => (l ? { ...l, category_names: serialized } : l))
+    const serializedNames = Object.keys(nonEmpty).length > 0 ? JSON.stringify(nonEmpty) : '{}'
+    const serializedOrder = JSON.stringify(order)
 
+    const prevNames = categoryNamesRef.current
+    const prevOrder = categoryOrderRef.current
+    const prevList = useListDataStore.getState().list
+    const itemsSnapshot =
+      shouldReorderItems && useListDataStore.getState().items.length > 0
+        ? [...useListDataStore.getState().items]
+        : null
+
+    mutationVersionRef.current += 1
+    categoryListMirrorSuppressCountRef.current++
     try {
+      setCategoryNames({ ...EMPTY_CATEGORY_NAMES, ...names })
+      setCategoryOrder(order)
+      useListDataStore.getState().setList((l) =>
+        l ? { ...l, category_names: serializedNames, category_order: serializedOrder } : l,
+      )
+
+      let reorderedWithTs: ItemWithState[] | null = null
+      const nowIso = new Date(Date.now()).toISOString()
+      if (shouldReorderItems && itemsSnapshot) {
+        const fullOrder = computeItemsReorderedByCategory(itemsSnapshot, order)
+        reorderedWithTs = normalizeItemsCategory(
+          fullOrder.map((item, index) => ({
+            ...item,
+            sort_order: index,
+            updated_at: nowIso,
+          })),
+        )
+        useListDataStore.getState().setItems(reorderedWithTs)
+        skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
+      }
+
       const existing = await db.lists.get(listId)
       if (!existing || isTombstoned(existing.deleted_at ?? null)) {
         throw new Error('Missing list row')
       }
-      const merged = {
+      const mergedList = {
         ...existing,
-        category_names: serialized,
+        category_names: serializedNames,
+        category_order: serializedOrder,
         cached_at: Date.now(),
         app_version: APP_VERSION,
       }
-      const sync = normalizeServerSyncableFields(merged as unknown as Record<string, unknown>)
-      await db.transaction('rw', db.lists, db.sync_queue, db.list_users, async () => {
-        await db.lists.put(withLastSyncedNow({ ...merged, ...sync }))
+      const sync = normalizeServerSyncableFields(mergedList as unknown as Record<string, unknown>)
+
+      await db.transaction('rw', db.lists, db.items, db.sync_queue, db.list_users, async () => {
+        await db.lists.put(withLastSyncedNow({ ...mergedList, ...sync }))
         await enqueueSyncQueueRecord({
           entity: 'list',
           entity_id: listId,
           kind: 'patch',
-          payload: { id: listId, category_names: serialized },
+          payload: { id: listId, category_names: serializedNames, category_order: serializedOrder },
           ...listQueueParent(listId),
           status: 'queued',
         })
+        if (shouldReorderItems && reorderedWithTs) {
+          for (const [index, item] of reorderedWithTs.entries()) {
+            await db.items.update(item.id, {
+              sort_order: index,
+              updated_at: nowIso,
+            })
+          }
+          await enqueueSyncQueueRecord({
+            entity: 'list',
+            entity_id: newBatchEntityId(),
+            kind: 'rpc',
+            payload: {
+              method: 'reorderListItems',
+              list_id: listId,
+              item_ids: reorderedWithTs.map((i) => i.id),
+            },
+            ...listQueueParent(listId),
+            status: 'queued',
+          })
+        }
       })
-      return { error: null }
-    } catch {
-      setCategoryNames(prev)
-      useListDataStore.getState().setList(prevList)
-      return { error: new Error('Failed to save categories') }
-    }
-  }
 
-  const persistCategoryOrderOnly = async (order: number[]) => {
-    const prev = categoryOrder
-    const prevList = list
-    const serialized = JSON.stringify(order)
-    mutationVersionRef.current += 1
-    setCategoryOrder(order)
-    useListDataStore.getState().setList((l) => (l ? { ...l, category_order: serialized } : l))
-
-    try {
-      const existing = await db.lists.get(listId)
-      if (!existing || isTombstoned(existing.deleted_at ?? null)) {
-        throw new Error('Missing list row')
+      if (userId) {
+        await markCurrentListViewed(nowIso)
       }
-      const merged = {
-        ...existing,
-        category_order: serialized,
-        cached_at: Date.now(),
-        app_version: APP_VERSION,
-      }
-      const sync = normalizeServerSyncableFields(merged as unknown as Record<string, unknown>)
-      await db.transaction('rw', db.lists, db.sync_queue, db.list_users, async () => {
-        await db.lists.put(withLastSyncedNow({ ...merged, ...sync }))
-        await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: listId,
-          kind: 'patch',
-          payload: { id: listId, category_order: serialized },
-          ...listQueueParent(listId),
-          status: 'queued',
-        })
-      })
       return { error: null }
-    } catch {
-      setCategoryOrder(prev)
-      useListDataStore.getState().setList(prevList)
-      return { error: new Error('Failed to save category order') }
+    } catch (err: unknown) {
+      setCategoryNames(prevNames)
+      setCategoryOrder(prevOrder)
+      if (prevList) {
+        useListDataStore.getState().setList(prevList)
+      }
+      if (shouldReorderItems && itemsSnapshot) {
+        useListDataStore.getState().setItems(itemsSnapshot)
+      }
+      return { error: new Error(rpcFailureMessage(err)) }
+    } finally {
+      categoryListMirrorSuppressCountRef.current--
     }
   }
 
@@ -2297,10 +2330,13 @@ export function useList(listId: string) {
     if (!tryBeginMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
+    setCategorySettingsMutationPending(true)
     try {
-      return await persistCategoryNamesOnly(names)
+      const r = await persistCategorySettingsToStorage(names, categoryOrderRef.current, false)
+      return r.error ? { error: r.error } : { error: null }
     } finally {
       mutationGate.end()
+      setCategorySettingsMutationPending(false)
     }
   }
 
@@ -2308,23 +2344,47 @@ export function useList(listId: string) {
     if (!tryBeginMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
+    setCategorySettingsMutationPending(true)
     try {
-      return await persistCategoryOrderOnly(order)
+      const r = await persistCategorySettingsToStorage(categoryNamesRef.current, order, false)
+      return r.error ? { error: r.error } : { error: null }
     } finally {
       mutationGate.end()
+      setCategorySettingsMutationPending(false)
     }
   }
 
-  const saveCategorySettings = async (names: CategoryNames, order: number[]) => {
-    if (!tryBeginMutation()) {
-      return { error: { message: blockedMutationMessage() } }
+  const saveCategorySettings = async (
+    names: CategoryNames,
+    order: number[],
+    options?: { reorderItems?: boolean },
+  ) => {
+    const reorder = !!options?.reorderItems
+    if (reorder && !userId) {
+      return { error: { message: 'Not authenticated' } }
+    }
+    if (reorder) {
+      if (!tryBeginItemQueueableMutation()) {
+        return { error: { message: blockedMutationMessage() } }
+      }
+    } else {
+      if (!tryBeginMutation()) {
+        return { error: { message: blockedMutationMessage() } }
+      }
+    }
+    setCategorySettingsMutationPending(true)
+    if (reorder) {
+      useListDataStore.getState().beginLocalListPersistence()
     }
     try {
-      const r1 = await persistCategoryNamesOnly(names)
-      if (r1.error) return r1
-      return await persistCategoryOrderOnly(order)
+      const r = await persistCategorySettingsToStorage(names, order, reorder)
+      return r.error ? { error: r.error } : { error: null }
     } finally {
+      if (reorder) {
+        useListDataStore.getState().endLocalListPersistence()
+      }
       mutationGate.end()
+      setCategorySettingsMutationPending(false)
     }
   }
 
@@ -2475,6 +2535,7 @@ export function useList(listId: string) {
     updateCategoryNames,
     updateCategoryOrder,
     saveCategorySettings,
+    categorySettingsMutationPending,
     lastViewedMembers,
     createTargets,
     sumScope,

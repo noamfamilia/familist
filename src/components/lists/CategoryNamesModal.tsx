@@ -22,10 +22,12 @@ interface CategoryNamesModalProps {
   onClose: () => void
   categoryNames: CategoryNames
   categoryOrder: number[]
-  onSave: (names: CategoryNames, order: number[]) => Promise<{ error: unknown }>
-  /** When set, shows “Save order & sort list” (saves category prefs, reorders items, closes). Passes the editor’s category order so sort matches what was just saved. */
-  onSortByCategory?: (order: number[]) => void | Promise<void>
-  /** Disables the sort button (e.g. during bulk list operations — not category sort in flight). */
+  onSave: (
+    names: CategoryNames,
+    order: number[],
+    options?: { reorderItems?: boolean },
+  ) => Promise<{ error: unknown }>
+  /** Disables “Save order & sort list” (e.g. during bulk list operations). */
   sortDisabled?: boolean
 }
 
@@ -94,7 +96,6 @@ export function CategoryNamesModal({
   categoryNames,
   categoryOrder,
   onSave,
-  onSortByCategory,
   sortDisabled = false,
 }: CategoryNamesModalProps) {
   const { error: showError } = useToast()
@@ -149,12 +150,11 @@ export function CategoryNamesModal({
   }
 
   const handleSortClick = async () => {
-    if (!onSortByCategory) return
     const trimmed: CategoryNames = {}
     for (const [k, v] of Object.entries(names)) {
       trimmed[k] = v.trim()
     }
-    const saveRes = await onSave(trimmed, order)
+    const saveRes = await onSave(trimmed, order, { reorderItems: true })
     if (saveRes.error) {
       const msg = saveErrorMessage(saveRes.error)
       if (shouldShowConnectivityRelatedMutationToast(msg)) {
@@ -163,7 +163,6 @@ export function CategoryNamesModal({
       return
     }
     onClose()
-    await onSortByCategory(order)
   }
 
   return (
@@ -183,18 +182,16 @@ export function CategoryNamesModal({
             </div>
           </SortableContext>
         </DndContext>
-        {onSortByCategory ? (
-          <div className="mt-4 flex justify-center">
-            <button
-              type="button"
-              onClick={() => void handleSortClick()}
-              disabled={sortDisabled}
-              className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {'Save order & sort list'}
-            </button>
-          </div>
-        ) : null}
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={() => void handleSortClick()}
+            disabled={sortDisabled}
+            className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {'Save order & sort list'}
+          </button>
+        </div>
       </div>
     </Modal>
   )
