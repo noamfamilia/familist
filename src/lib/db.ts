@@ -49,6 +49,7 @@ export type SyncQueueKind = 'create' | 'patch' | 'delete' | 'rpc'
  * - **queued** — Not being executed yet. Worker picks it when `isEligibleForSync` passes (`next_retry_at`,
  *   lock freshness). New rows default here.
  * - **processing** — Worker claimed the row (`tryClaimSyncRow`), is running `executeOutboundRow` (Supabase RPC/table writes).
+ *   Optional **`processing_detail`** is human-readable progress while this row is active (see `useSyncStore`).
  *   On success the row is **deleted**. On failure → **failed** or connectivity retry → back to **queued** with delay.
  * - **failed** — Non-connectivity error or verification failure; `last_error` set, `attempt_count` bumped,
  *   `next_retry_at` from **exponential backoff** (HTTP 429 / 5xx only) or **linear** backoff otherwise.
@@ -78,6 +79,8 @@ export type DbSyncQueueRow = {
   /** When set and in the future, queued/failed work waits until this time (ms epoch). */
   next_retry_at: number | null
   updated_at: number
+  /** When status is `processing`, optional UI copy for which sub-step is running (Dexie-only). */
+  processing_detail?: string | null
 }
 
 export type DbOfflineRouteMarkerRow = {
@@ -284,6 +287,23 @@ export class FamilistDexie extends Dexie {
       })
       .upgrade(async (trans) => {
         await migrateV12ListCatalogSortOrder(trans)
+      })
+    this.version(13)
+      .stores({
+        lists: '&id, owner_id',
+        list_users: '&id, [list_id+user_id], user_id',
+        items: '&id, list_id, text',
+        members: '&id, [list_id+name], list_id',
+        item_member_state: '&id, [item_id+member_id], member_id, [list_id+item_id]',
+        profiles: '&id',
+        feedback: '&id, user_id',
+        sync_queue:
+          '&id, status, [entity+entity_id], [status+updated_at], parent1_type, parent1_id, parent2_id, updated_at, next_retry_at',
+        offline_route_markers: '&id',
+        meta: '&id',
+      })
+      .upgrade(async () => {
+        /* `processing_detail` is optional on sync_queue rows; no index migration required. */
       })
   }
 }

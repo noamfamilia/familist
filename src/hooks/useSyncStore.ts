@@ -32,8 +32,14 @@ import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
 import {
   initialOutboundProgressMessage,
-  outboundProgressAfterMutationListDetail,
-  outboundProgressAfterMutationOverview,
+  outboundProgressCatalogReceived,
+  outboundProgressCatalogWaiting,
+  outboundProgressListDetailReceived,
+  outboundProgressListDetailWaiting,
+  outboundProgressListUsersPatchReceived,
+  outboundProgressListUsersPatchWaiting,
+  outboundProgressTouchListViewedReceived,
+  outboundProgressTouchListViewedWaiting,
 } from '@/lib/data/outboundSyncProgressMessages'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
 import {
@@ -345,8 +351,9 @@ export function useSyncStore(): SyncStoreState {
       const userId = resolveSyncUserId((row.payload as { user_id?: unknown })?.user_id)
       if (!userId) return true
 
-      await updateSyncQueueProcessingDetail(row.id, outboundProgressAfterMutationOverview())
+      await updateSyncQueueProcessingDetail(row.id, outboundProgressCatalogWaiting())
       await syncLists(userId, 'Post-mutation verification: list catalog')
+      await updateSyncQueueProcessingDetail(row.id, outboundProgressCatalogReceived())
 
       const listId = rowListIdForSync(row)
       if (listId && !isVirtualUserListKey(listId)) {
@@ -354,8 +361,9 @@ export function useSyncStore(): SyncStoreState {
         const skipListDetail =
           (row.kind === 'rpc' && String(pl?.method ?? '') === 'leaveList') || row.kind === 'patch'
         if (!skipListDetail) {
-          await updateSyncQueueProcessingDetail(row.id, await outboundProgressAfterMutationListDetail(listId))
+          await updateSyncQueueProcessingDetail(row.id, await outboundProgressListDetailWaiting(listId))
           await syncListDetail(userId, listId, 'Post-mutation verification: list detail')
+          await updateSyncQueueProcessingDetail(row.id, await outboundProgressListDetailReceived(listId))
         }
       }
       return true
@@ -845,18 +853,22 @@ export function useSyncStore(): SyncStoreState {
           if (plWide.last_viewed_members !== undefined) patch.last_viewed_members = plWide.last_viewed_members
           const shouldTouchLastViewed = plWide.last_viewed !== undefined
           if (Object.keys(patch).length > 0) {
+            await updateSyncQueueProcessingDetail(row.id, await outboundProgressListUsersPatchWaiting(id))
             const { error } = await supabase
               .from('list_users')
               .update(patch)
               .eq('list_id', id)
               .eq('user_id', patchUserId)
             if (error) throw error
+            await updateSyncQueueProcessingDetail(row.id, await outboundProgressListUsersPatchReceived(id))
           }
           if (shouldTouchLastViewed) {
+            await updateSyncQueueProcessingDetail(row.id, await outboundProgressTouchListViewedWaiting(id))
             const { data: serverLastViewed, error } = await supabase.rpc('touch_list_viewed', {
               p_list_id: id,
             })
             if (error) throw error
+            await updateSyncQueueProcessingDetail(row.id, await outboundProgressTouchListViewedReceived(id))
             if (typeof serverLastViewed === 'string') {
               const listUser = await db.list_users.where('[list_id+user_id]').equals([id, patchUserId]).first()
               if (listUser) {

@@ -10,7 +10,14 @@ import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNam
 import type { CategoryNames, Member, MemberWithCreator } from '@/lib/supabase/types'
 import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
-import { AddIcon } from '@/components/icons/AddIcon'
+import { AddMemberOutlineIcon } from '@/components/icons/AddMemberOutlineIcon'
+import { GoalMenuIcon } from '@/components/icons/GoalMenuIcon'
+import { ExpandAllItemsIcon } from '@/components/icons/ExpandAllItemsIcon'
+import { CollapseAllItemsIcon } from '@/components/icons/CollapseAllItemsIcon'
+import { ArchiveRestoreMenuIcon } from '@/components/icons/ArchiveRestoreMenuIcon'
+import { TrashOutlineMenuIcon } from '@/components/icons/TrashOutlineMenuIcon'
+import { ShowItemSumIcon } from '@/components/icons/ShowItemSumIcon'
+import { HideItemSumIcon } from '@/components/icons/HideItemSumIcon'
 import { FontSizeIcon } from '@/components/icons/FontSizeIcon'
 import { CategoryEditorIcon } from '@/components/icons/CategoryEditorIcon'
 import {
@@ -79,9 +86,11 @@ interface MemberHeaderProps {
   ) => Promise<{ error: unknown }>
   hasTargetMember?: boolean
   onCreateTargets?: () => void
-  /** When `'none'`, the sum row is hidden and "Sum items" may be shown in the gear menu. */
+  /** When `'none'`, the sum row is hidden and "Show item sum" appears in the gear menu. */
   sumScope?: 'none' | 'all' | 'active' | 'archived'
   onEnableSumItems?: () => void
+  /** When sum row is visible, gear menu can offer "Hide item sum". */
+  onDisableSumItems?: () => void
   /** Offline / recovering: add-member control is dimmed and disabled. */
   isOfflineActionsDisabled?: boolean
   onDisplayControlsOpenChange?: (open: boolean) => void
@@ -122,6 +131,7 @@ export function MemberHeader({
   onCreateTargets,
   sumScope = 'none',
   onEnableSumItems,
+  onDisableSumItems,
   isOfflineActionsDisabled = false,
   onDisplayControlsOpenChange,
 }: MemberHeaderProps) {
@@ -155,6 +165,11 @@ export function MemberHeader({
     if (actionsOpen) {
       closeActions()
     } else {
+      if (isAdding) {
+        setNewMemberName('')
+        setIsAdding(false)
+        setAddMemberPopoverPos(null)
+      }
       if (actionsButtonRef.current) {
         const rect = actionsButtonRef.current.getBoundingClientRect()
         setActionsMenuPos({
@@ -164,6 +179,26 @@ export function MemberHeader({
       }
       setActionsOpen(true)
     }
+  }
+
+  const openAddMemberFromMenu = () => {
+    if (isOfflineActionsDisabled) return
+    closeActions()
+    setIsAdding(true)
+    setNewMemberName('')
+    requestAnimationFrame(() => {
+      const el = actionsButtonRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const EDGE_GUARD = 12
+      const vw = window.innerWidth
+      const popoverWidth = 200
+      let left = rect.left
+      if (left + popoverWidth + EDGE_GUARD > vw) {
+        left = Math.max(EDGE_GUARD, vw - popoverWidth - EDGE_GUARD)
+      }
+      setAddMemberPopoverPos({ top: rect.bottom + 4, left })
+    })
   }
 
   useEffect(() => {
@@ -358,7 +393,6 @@ export function MemberHeader({
   const [addMemberPopoverPos, setAddMemberPopoverPos] = useState<{ top: number; left: number } | null>(null)
   const renamePopoverRef = useRef<HTMLDivElement>(null)
   const addMemberPopoverRef = useRef<HTMLDivElement>(null)
-  const addMemberContainerRef = useRef<HTMLDivElement>(null)
   const itemNameFontBtnRef = useRef<HTMLButtonElement>(null)
   const itemNameFontPopoverRef = useRef<HTMLDivElement>(null)
   const [itemNameFontOpen, setItemNameFontOpen] = useState(false)
@@ -513,6 +547,7 @@ export function MemberHeader({
         fontFloating ||
         memberMenuRef.current?.contains(target) ||
         actionsMenuRef.current?.contains(target) ||
+        actionsButtonRef.current?.contains(target) ||
         renamePopoverRef.current?.contains(target) ||
         addMemberPopoverRef.current?.contains(target)
       )
@@ -583,6 +618,25 @@ export function MemberHeader({
 
   // With member chips, keep the name column aligned with item rows. With none, keep the control slot compact.
   const headerItemNameSlotWidthPx = members.length > 0 ? itemTextWidth : ITEM_TEXT_WIDTH_MIN
+
+  const showSetSelfGoalsItem = showAddMember
+  const showSetGroupGoalsItem = !!(onCreateTargets && !hasTargetMember)
+  const showShowItemSum = !!(onEnableSumItems && sumScope === 'none')
+  const showHideItemSum = !!(onDisableSumItems && sumScope !== 'none')
+  const showSumMenuBlock = showShowItemSum || showHideItemSum
+  const hasMenuBelowSum =
+    showSetSelfGoalsItem ||
+    showSetGroupGoalsItem ||
+    !!onExpandAll ||
+    !!onCollapseAll ||
+    !!(hasArchivedItems && (onRestoreAllArchived || onDeleteAllArchived))
+  const showSumBlockSeparator = showSumMenuBlock && hasMenuBelowSum
+
+  const showGoalsHeadSeparator =
+    (showSetSelfGoalsItem || showSetGroupGoalsItem) &&
+    !!(onExpandAll ||
+      onCollapseAll ||
+      (hasArchivedItems && (onRestoreAllArchived || onDeleteAllArchived)))
 
   return (
     <div className={members.length > 0 ? 'mb-3 min-w-full w-max' : 'mb-3 block min-w-full w-max'}>
@@ -711,84 +765,8 @@ export function MemberHeader({
             })}
           </div>
 
-          {/* Gear menu + Add task - aligned to right edge matching item card trailing section */}
-          <div className="flex-shrink-0 flex items-center ml-auto pl-2.5 gap-2">
-          {showAddMember && (
-            <div ref={addMemberContainerRef} className="relative flex-shrink-0">
-              <button
-                type="button"
-                disabled={isOfflineActionsDisabled}
-                onClick={() => {
-                  if (isOfflineActionsDisabled) return
-                  if (isAdding) {
-                    handleCancelAddMember()
-                  } else {
-                    setIsAdding(true)
-                    requestAnimationFrame(() => {
-                      const el = addMemberContainerRef.current
-                      if (!el) return
-                      const rect = el.getBoundingClientRect()
-                      const EDGE_GUARD = 12
-                      const vw = window.innerWidth
-                      const popoverWidth = 200
-                      let left = rect.left
-                      if (left + popoverWidth + EDGE_GUARD > vw) {
-                        left = Math.max(EDGE_GUARD, vw - popoverWidth - EDGE_GUARD)
-                      }
-                      setAddMemberPopoverPos({ top: rect.bottom + 4, left })
-                    })
-                  }
-                }}
-                className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation bg-teal text-white ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-80'}`}
-                data-tour="add-member"
-                aria-label="Add task"
-                title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : undefined}
-              >
-                <AddIcon className="w-[30px] h-[30px]" />
-              </button>
-              {addMemberMenuAnim.mounted && (addMemberPopoverPos ?? addMemberPopoverPosStableRef.current) && (
-                <div
-                  ref={addMemberPopoverRef}
-                  className={`fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${addMemberMenuAnim.menuClassName}`}
-                  style={{
-                    top: (addMemberPopoverPos ?? addMemberPopoverPosStableRef.current)!.top,
-                    left: (addMemberPopoverPos ?? addMemberPopoverPosStableRef.current)!.left,
-                  }}
-                >
-                  <input
-                    type="text"
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void handleAddMember()
-                      if (e.key === 'Escape') handleCancelAddMember()
-                    }}
-                    placeholder={suggestedName || 'Name'}
-                    className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
-                    autoFocus
-                  />
-                  <div className="flex gap-1.5">
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleCancelAddMember()}
-                      className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => void handleAddMember()}
-                      className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
-                    >
-                      Done
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Gear menu — goals + list actions */}
+          <div className="flex-shrink-0 flex items-center ml-auto pl-2.5">
           {showActionsMenu && (
             <div className="relative">
               <button
@@ -796,7 +774,7 @@ export function MemberHeader({
                 type="button"
                 disabled={isOfflineActionsDisabled || actionsMenuLoading}
                 onClick={handleToggleActions}
-                className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation bg-cyan text-white hover:opacity-80 disabled:pointer-events-none ${
+                className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation bg-transparent text-teal hover:bg-teal/10 disabled:pointer-events-none ${
                   isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'disabled:opacity-50'
                 }`}
                 aria-label={
@@ -818,30 +796,118 @@ export function MemberHeader({
                     right: (actionsMenuPos ?? actionsMenuPosStableRef.current)!.right,
                   }}
                 >
+                  {showShowItemSum && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={isOfflineActionsDisabled}
+                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm ${
+                        isOfflineActionsDisabled
+                          ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
+                          : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800'
+                      }`}
+                      onClick={() => {
+                        if (isOfflineActionsDisabled) return
+                        closeActions()
+                        onEnableSumItems?.()
+                      }}
+                    >
+                      <ShowItemSumIcon className="h-5 w-5 shrink-0 text-teal" />
+                      <span>Show item sum</span>
+                    </button>
+                  )}
+                  {showHideItemSum && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={isOfflineActionsDisabled}
+                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm ${
+                        isOfflineActionsDisabled
+                          ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
+                          : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800'
+                      }`}
+                      onClick={() => {
+                        if (isOfflineActionsDisabled) return
+                        closeActions()
+                        onDisableSumItems?.()
+                      }}
+                    >
+                      <HideItemSumIcon className="h-4 w-4 shrink-0 text-teal" />
+                      <span>Hide item sum</span>
+                    </button>
+                  )}
+                  {showSumBlockSeparator && (
+                    <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
+                  )}
+                  {showSetSelfGoalsItem && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-tour="add-member"
+                      disabled={isOfflineActionsDisabled}
+                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm ${
+                        isOfflineActionsDisabled
+                          ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
+                          : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800'
+                      }`}
+                      onClick={() => {
+                        if (isOfflineActionsDisabled) return
+                        openAddMemberFromMenu()
+                      }}
+                    >
+                      <AddMemberOutlineIcon className="h-5 w-5 shrink-0 text-teal" />
+                      <span>Set yourself goals</span>
+                    </button>
+                  )}
+                  {showSetGroupGoalsItem && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={isOfflineActionsDisabled}
+                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm ${
+                        isOfflineActionsDisabled
+                          ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
+                          : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800'
+                      }`}
+                      onClick={() => {
+                        if (isOfflineActionsDisabled) return
+                        closeActions()
+                        onCreateTargets()
+                      }}
+                    >
+                      <GoalMenuIcon className="h-5 w-5 shrink-0 text-teal" />
+                      <span>Set group&apos;s goals</span>
+                    </button>
+                  )}
+                  {showGoalsHeadSeparator && (
+                    <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
+                  )}
                   {onExpandAll && (
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onExpandAll()
                       }}
                     >
-                      Expand all items
+                      <ExpandAllItemsIcon className="h-6 w-6 shrink-0 text-teal" />
+                      <span>Expand all items</span>
                     </button>
                   )}
                   {onCollapseAll && (
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onCollapseAll()
                       }}
                     >
-                      Collapse all items
+                      <CollapseAllItemsIcon className="h-5 w-5 shrink-0 text-teal" />
+                      <span>Collapse all items</span>
                     </button>
                   )}
                   {hasArchivedItems && (onRestoreAllArchived || onDeleteAllArchived) && (
@@ -851,69 +917,76 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onRestoreAllArchived()
                       }}
                     >
-                      Restore all archived
+                      <ArchiveRestoreMenuIcon className="h-5 w-5 shrink-0 text-teal" />
+                      <span>Restore all archived</span>
                     </button>
                   )}
                   {hasArchivedItems && onDeleteAllArchived && (
                     <button
                       type="button"
                       role="menuitem"
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onDeleteAllArchived()
                       }}
                     >
-                      Delete all archived
+                      <TrashOutlineMenuIcon className="h-5 w-5 shrink-0 text-teal" />
+                      <span>Delete all archived</span>
                     </button>
-                  )}
-                  {onCreateTargets && !hasTargetMember && (
-                    <>
-                      <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
-                      <button
-                        type="button"
-                        role="menuitem"
-                        disabled={isOfflineActionsDisabled}
-                        className={`w-full text-left px-4 py-2.5 text-sm ${isOfflineActionsDisabled ? 'cursor-not-allowed text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
-                        onClick={() => {
-                          if (isOfflineActionsDisabled) return
-                          closeActions()
-                          onCreateTargets()
-                        }}
-                      >
-                        Add Qty goals
-                      </button>
-                    </>
-                  )}
-                  {onEnableSumItems && sumScope === 'none' && (
-                    <>
-                      {!(onCreateTargets && !hasTargetMember) && (
-                        <div className="my-1 h-px bg-gray-200 dark:bg-neutral-700" role="separator" />
-                      )}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                        onClick={() => {
-                          closeActions()
-                          onEnableSumItems()
-                        }}
-                      >
-                        Sum items
-                      </button>
-                    </>
                   )}
                 </div>
               )}
             </div>
           )}
           </div>
+          {showAddMember && addMemberMenuAnim.mounted && (addMemberPopoverPos ?? addMemberPopoverPosStableRef.current) && (
+            <div
+              ref={addMemberPopoverRef}
+              className={`fixed z-50 w-[200px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${addMemberMenuAnim.menuClassName}`}
+              style={{
+                top: (addMemberPopoverPos ?? addMemberPopoverPosStableRef.current)!.top,
+                left: (addMemberPopoverPos ?? addMemberPopoverPosStableRef.current)!.left,
+              }}
+            >
+              <input
+                type="text"
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleAddMember()
+                  if (e.key === 'Escape') handleCancelAddMember()
+                }}
+                placeholder={suggestedName || 'Name'}
+                className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20 bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200"
+                autoFocus
+              />
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleCancelAddMember()}
+                  className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void handleAddMember()}
+                  className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>

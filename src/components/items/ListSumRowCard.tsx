@@ -44,9 +44,6 @@ function sumTargetMemberDisplay(targetMemberId: string, scoped: ItemWithState[])
   return t
 }
 
-const ITEM_DELETE_ICON_PATH =
-  'M5.755,20.283,4,8H20L18.245,20.283A2,2,0,0,1,16.265,22H7.735A2,2,0,0,1,5.755,20.283ZM21,4H16V3a1,1,0,0,0-1-1H9A1,1,0,0,0,8,3V4H3A1,1,0,0,0,3,6H21a1,1,0,0,0,0-2Z'
-
 interface ListSumRowCardProps {
   sumScope: SumRowMode
   items: ItemWithState[]
@@ -55,7 +52,6 @@ interface ListSumRowCardProps {
   itemNameFontClassName: string
   itemNameFontStep?: number
   onCycleScope: () => void
-  onRemove: () => void
   onClearAddItemDraft?: () => void
 }
 
@@ -67,7 +63,6 @@ export function ListSumRowCard({
   itemNameFontClassName,
   itemNameFontStep = ITEM_NAME_FONT_DEFAULT,
   onCycleScope,
-  onRemove,
   onClearAddItemDraft,
 }: ListSumRowCardProps) {
   const compactRow = members.length === 0
@@ -146,29 +141,6 @@ export function ListSumRowCard({
               })}
             </div>
           ) : null}
-
-          <div
-            className={
-              compactRow
-                ? 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 pl-2'
-                : 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 pl-4'
-            }
-          >
-            <button
-              type="button"
-              onClick={e => {
-                e.stopPropagation()
-                onRemove()
-              }}
-              className="px-2 py-1 text-lg leading-none text-red-500 hover:opacity-70 flex-shrink-0"
-              title="Remove sum row"
-              aria-label="Remove sum row"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                <path d={ITEM_DELETE_ICON_PATH} />
-              </svg>
-            </button>
-          </div>
         </div>
       </div>
     </div>

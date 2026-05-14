@@ -1146,6 +1146,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               onSaveCategorySettings={saveCategorySettings}
               sumScope={sumScope}
               onEnableSumItems={() => void persistSumScope('all')}
+              onDisableSumItems={() => void persistSumScope('none')}
               onDisplayControlsOpenChange={(open) => {
                 if (!open) hideWidthBoundaryGuide()
               }}
@@ -1163,7 +1164,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                 itemNameFontClassName={itemNameFontClassName}
                 itemNameFontStep={itemNameFontStep}
                 onCycleScope={() => void persistSumScope(nextListUserSumScope(sumScope))}
-                onRemove={() => void persistSumScope('none')}
                 onClearAddItemDraft={handleClearAddItemDraftIfTyped}
               />
             )}

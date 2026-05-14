@@ -1,0 +1,63 @@
+/** From repo `collapse.svg` (collapse / compress). */
+export function CollapseAllItemsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        fill="currentColor"
+        d="M8,9H4C3.4,9,3,8.6,3,8s0.4-1,1-1h4c0.6,0,1,0.4,1,1S8.6,9,8,9z"
+      />
+      <path
+        fill="currentColor"
+        d="M8,9C7.4,9,7,8.6,7,8V4c0-0.6,0.4-1,1-1s1,0.4,1,1v4C9,8.6,8.6,9,8,9z"
+      />
+      <path
+        fill="currentColor"
+        d="M8,9C7.7,9,7.5,8.9,7.3,8.7l-7-7c-0.4-0.4-0.4-1,0-1.4s1-0.4,1.4,0l7,7c0.4,0.4,0.4,1,0,1.4C8.5,8.9,8.3,9,8,9z"
+      />
+      <path
+        fill="currentColor"
+        d="M20,9h-4c-0.6,0-1-0.4-1-1s0.4-1,1-1h4c0.6,0,1,0.4,1,1S20.6,9,20,9z"
+      />
+      <path
+        fill="currentColor"
+        d="M16,9c-0.6,0-1-0.4-1-1V4c0-0.6,0.4-1,1-1s1,0.4,1,1v4C17,8.6,16.6,9,16,9z"
+      />
+      <path
+        fill="currentColor"
+        d="M16,9c-0.3,0-0.5-0.1-0.7-0.3c-0.4-0.4-0.4-1,0-1.4l7-7c0.4-0.4,1-0.4,1.4,0s0.4,1,0,1.4l-7,7C16.5,8.9,16.3,9,16,9z"
+      />
+      <path
+        fill="currentColor"
+        d="M8,17H4c-0.6,0-1-0.4-1-1s0.4-1,1-1h4c0.6,0,1,0.4,1,1S8.6,17,8,17z"
+      />
+      <path
+        fill="currentColor"
+        d="M8,21c-0.6,0-1-0.4-1-1v-4c0-0.6,0.4-1,1-1s1,0.4,1,1v4C9,20.6,8.6,21,8,21z"
+      />
+      <path
+        fill="currentColor"
+        d="M1,24c-0.3,0-0.5-0.1-0.7-0.3c-0.4-0.4-0.4-1,0-1.4l7-7c0.4-0.4,1-0.4,1.4,0s0.4,1,0,1.4l-7,7C1.5,23.9,1.3,24,1,24z"
+      />
+      <path
+        fill="currentColor"
+        d="M20,17h-4c-0.6,0-1-0.4-1-1s0.4-1,1-1h4c0.6,0,1,0.4,1,1S20.6,17,20,17z"
+      />
+      <path
+        fill="currentColor"
+        d="M16,21c-0.6,0-1-0.4-1-1v-4c0-0.6,0.4-1,1-1s1,0.4,1,1v4C17,20.6,16.6,21,16,21z"
+      />
+      <path
+        fill="currentColor"
+        d="M23,24c-0.3,0-0.5-0.1-0.7-0.3l-7-7c-0.4-0.4-0.4-1,0-1.4s1-0.4,1.4,0l7,7c0.4,0.4,0.4,1,0,1.4C23.5,23.9,23.3,24,23,24z"
+      />
+    </svg>
+  )
+}

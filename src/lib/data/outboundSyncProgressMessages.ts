@@ -81,13 +81,46 @@ export async function initialOutboundProgressMessage(row: DbSyncQueueRow): Promi
   return 'Sending this change to the server…'
 }
 
-/** After the main mutation/RPC succeeded; before refreshing list catalog from server. */
-export function outboundProgressAfterMutationOverview(): string {
-  return 'Server approved your change. Sent another request to refresh your list overview, and waiting for the server to respond.'
+/** Post-mutation: `get_user_lists` RPC — request is in flight. */
+export function outboundProgressCatalogWaiting(): string {
+  return 'List catalog (get_user_lists): sent — waiting for server…'
 }
 
-/** After overview refresh; before fetching full list detail (when applicable). */
-export async function outboundProgressAfterMutationListDetail(listId: string): Promise<string> {
+/** Post-mutation: catalog RPC finished and Dexie was updated. */
+export function outboundProgressCatalogReceived(): string {
+  return 'List catalog (get_user_lists): received — saved locally.'
+}
+
+/** Post-mutation: `get_list_data` RPC — request is in flight. */
+export async function outboundProgressListDetailWaiting(listId: string): Promise<string> {
   const name = await listDisplayName(listId)
-  return `Server approved your change. Sent another request to load updated details for list ${name}, and waiting for the server to respond.`
+  return `List data (get_list_data) for ${name}: sent — waiting for server…`
+}
+
+/** Post-mutation: list detail RPC finished and Dexie was updated. */
+export async function outboundProgressListDetailReceived(listId: string): Promise<string> {
+  const name = await listDisplayName(listId)
+  return `List data (get_list_data) for ${name}: received — saved locally.`
+}
+
+/** Saving per-user list prefs row (`list_users` update) — in flight. */
+export async function outboundProgressListUsersPatchWaiting(listId: string): Promise<string> {
+  const name = await listDisplayName(listId)
+  return `List preferences (list_users update for ${name}): sent — waiting for server…`
+}
+
+export async function outboundProgressListUsersPatchReceived(listId: string): Promise<string> {
+  const name = await listDisplayName(listId)
+  return `List preferences (list_users update for ${name}): received.`
+}
+
+/** `touch_list_viewed` RPC — in flight. */
+export async function outboundProgressTouchListViewedWaiting(listId: string): Promise<string> {
+  const name = await listDisplayName(listId)
+  return `Last viewed (touch_list_viewed for ${name}): sent — waiting for server…`
+}
+
+export async function outboundProgressTouchListViewedReceived(listId: string): Promise<string> {
+  const name = await listDisplayName(listId)
+  return `Last viewed (touch_list_viewed for ${name}): received.`
 }

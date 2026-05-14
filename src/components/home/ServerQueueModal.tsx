@@ -15,8 +15,10 @@ function truncate(s: string, max: number): string {
 function humanStatus(row: DbSyncQueueRow): string {
   const parts: string[] = []
   if (row.status === 'queued') parts.push('Waiting to send')
-  else if (row.status === 'processing') parts.push('Sending to server')
-  else if (row.status === 'failed') parts.push('Waiting to retry')
+  else if (row.status === 'processing') {
+    const detail = row.processing_detail?.trim()
+    parts.push(detail && detail.length > 0 ? detail : 'Sending this change to the server…')
+  } else if (row.status === 'failed') parts.push('Waiting to retry')
   else parts.push(row.status)
   if (row.attempt_count > 0) {
     parts.push(`${row.attempt_count} failed attempt${row.attempt_count === 1 ? '' : 's'}`)
@@ -74,7 +76,9 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
               className={`py-3 ${i > 0 ? 'border-t border-gray-200 dark:border-neutral-600' : ''}`}
             >
               <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{row.description}</div>
-              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">{row.statusLine}</div>
+              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
+                {row.statusLine}
+              </div>
             </li>
           ))}
         </ul>
