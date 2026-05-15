@@ -70,7 +70,7 @@ interface MemberHeaderProps {
   showActionsMenu?: boolean
   actionsMenuLoading?: boolean
   hasArchivedItems?: boolean
-  /** Disables “Save order & sort list” in the Categories modal only (e.g. bulk operations). */
+  /** Disables “Sort list by Category” in the Categories modal only (e.g. bulk operations). */
   categoryEditorSortDisabled?: boolean
   onExpandAll?: () => void
   onCollapseAll?: () => void

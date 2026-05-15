@@ -27,7 +27,7 @@ interface CategoryNamesModalProps {
     order: number[],
     options?: { reorderItems?: boolean },
   ) => Promise<{ error: unknown }>
-  /** Disables “Save order & sort list” (e.g. during bulk list operations). */
+  /** Disables “Sort list by Category” (e.g. during bulk list operations). */
   sortDisabled?: boolean
 }
 
@@ -189,7 +189,7 @@ export function CategoryNamesModal({
             disabled={sortDisabled}
             className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {'Save order & sort list'}
+            {'Sort list by Category'}
           </button>
         </div>
       </div>
