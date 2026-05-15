@@ -2164,11 +2164,16 @@ export function useList(listId: string) {
     userId,
   ])
 
+  /** Always latest commit fn — do not put `commitDisplayPrefs` in an effect deps array: its identity
+   * changes when width/font preview updates state; cleanup would fire and commit mid-session (font + auto width). */
+  const commitDisplayPrefsRef = useRef(commitDisplayPrefs)
+  commitDisplayPrefsRef.current = commitDisplayPrefs
+
   useEffect(() => {
     return () => {
-      void commitDisplayPrefs()
+      void commitDisplayPrefsRef.current()
     }
-  }, [listId, commitDisplayPrefs])
+  }, [listId])
 
   const updateListUserSumScope = async (next: ListUserSumScope) => {
     if (!userId) {
