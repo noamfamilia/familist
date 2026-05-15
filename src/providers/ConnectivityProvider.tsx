@@ -49,6 +49,8 @@ const OFFLINE_BANNER_DEBOUNCE_MS = 3_000
 /** Online heartbeat + offline backoff probes (see recovery health 10s). */
 const REACHABILITY_PROBE_TIMEOUT_MS = 5_000
 const ONLINE_HEARTBEAT_INTERVAL_MS = 15_000
+/** Minimum time in `recovering` before the recovery-health request is sent. */
+const RECOVERY_HEALTH_DELAY_MS = 1_000
 const PWA_ENABLED = process.env.NEXT_PUBLIC_PWA_ENABLED === 'true'
 
 function navigatorReportsOnline(): boolean {
@@ -470,6 +472,13 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     }, RECOVERY_HEALTH_TIMEOUT_MS)
 
     void (async () => {
+      await sleep(RECOVERY_HEALTH_DELAY_MS)
+      if (activeRecoveryFlightIdRef.current !== flightId) return
+      if (abortController.signal.aborted) return
+
+      appendOfflineNavDiagnostic(
+        `[recovery-health] fetch after delayMs=${RECOVERY_HEALTH_DELAY_MS} flightId=${flightId}`,
+      )
       const result = await runRecoveryHealthCheck(flightId, abortController.signal)
       if (activeRecoveryFlightIdRef.current !== flightId) return
 
