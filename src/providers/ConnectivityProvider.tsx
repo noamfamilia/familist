@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useToast } from '@/components/ui/Toast'
 import type { PwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
@@ -49,8 +50,8 @@ const OFFLINE_BANNER_DEBOUNCE_MS = 3_000
 /** Online heartbeat + offline backoff probes (see recovery health 10s). */
 const REACHABILITY_PROBE_TIMEOUT_MS = 5_000
 const ONLINE_HEARTBEAT_INTERVAL_MS = 15_000
-/** Minimum time in `recovering` before the recovery-health request is sent. */
-const RECOVERY_HEALTH_DELAY_MS = 1_000
+/** Minimum time the recovering (cloud-only) icon stays visible before going online. */
+const RECOVERY_MIN_VISIBLE_MS = 1_000
 const PWA_ENABLED = process.env.NEXT_PUBLIC_PWA_ENABLED === 'true'
 
 function navigatorReportsOnline(): boolean {
@@ -313,6 +314,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const activeRecoveryFlightIdRef = useRef<string | null>(null)
   const recoveryAbortRef = useRef<AbortController | null>(null)
   const recoveryHealthTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const recoveringEnteredAtRef = useRef(0)
   const startRecoveryHealthCheckRef = useRef<() => void>(() => {})
 
   const statusRef = useRef<ConnectivityStatus>('online')
@@ -434,6 +436,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     skipNextProbeStepIncrementRef.current = false
     lastNetworkSuccessAtRef.current = Date.now()
     setInternetReachable(true)
+    statusRef.current = 'online'
     setStatus('online')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'online')
@@ -460,38 +463,52 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     const abortController = new AbortController()
     recoveryAbortRef.current = abortController
 
+    recoveringEnteredAtRef.current = Date.now()
+    statusRef.current = 'recovering'
+    flushSync(() => {
+      setStatus('recovering')
+    })
     appendOfflineNavDiagnostic(
-      `[recovery-health] start flightId=${flightId} timeoutMs=${RECOVERY_HEALTH_TIMEOUT_MS}`,
+      `[recovery-health] start flightId=${flightId} minVisibleMs=${RECOVERY_MIN_VISIBLE_MS} fetchTimeoutMs=${RECOVERY_HEALTH_TIMEOUT_MS}`,
     )
-    setStatus('recovering')
-
-    recoveryHealthTimeoutRef.current = setTimeout(() => {
-      if (activeRecoveryFlightIdRef.current !== flightId) return
-      appendOfflineNavDiagnostic('[recovery-health] timeout')
-      enterOfflineRef.current('recovery-health-timeout')
-    }, RECOVERY_HEALTH_TIMEOUT_MS)
 
     void (async () => {
-      await sleep(RECOVERY_HEALTH_DELAY_MS)
+      await sleep(RECOVERY_MIN_VISIBLE_MS)
       if (activeRecoveryFlightIdRef.current !== flightId) return
       if (abortController.signal.aborted) return
 
+      recoveryHealthTimeoutRef.current = setTimeout(() => {
+        if (activeRecoveryFlightIdRef.current !== flightId) return
+        appendOfflineNavDiagnostic('[recovery-health] timeout')
+        enterOfflineRef.current('recovery-health-timeout')
+      }, RECOVERY_HEALTH_TIMEOUT_MS)
+
       appendOfflineNavDiagnostic(
-        `[recovery-health] fetch after delayMs=${RECOVERY_HEALTH_DELAY_MS} flightId=${flightId}`,
+        `[recovery-health] fetch after minVisibleMs=${RECOVERY_MIN_VISIBLE_MS} flightId=${flightId}`,
       )
       const result = await runRecoveryHealthCheck(flightId, abortController.signal)
       if (activeRecoveryFlightIdRef.current !== flightId) return
 
       clearRecoveryHealthTimeout()
-      activeRecoveryFlightIdRef.current = null
-      recoveryAbortRef.current = null
 
       if (result === 'ok') {
-        appendOfflineNavDiagnostic(`[recovery-health] ok flightId=${flightId}`)
+        const visibleMs = Date.now() - recoveringEnteredAtRef.current
+        const remainingVisibleMs = RECOVERY_MIN_VISIBLE_MS - visibleMs
+        if (remainingVisibleMs > 0) {
+          await sleep(remainingVisibleMs)
+        }
+        if (activeRecoveryFlightIdRef.current !== flightId) return
+        appendOfflineNavDiagnostic(
+          `[recovery-health] ok flightId=${flightId} visibleMs=${Date.now() - recoveringEnteredAtRef.current}`,
+        )
+        activeRecoveryFlightIdRef.current = null
+        recoveryAbortRef.current = null
         markOnlineRecovered('recovery-health')
         return
       }
 
+      activeRecoveryFlightIdRef.current = null
+      recoveryAbortRef.current = null
       appendOfflineNavDiagnostic(`[recovery-health] connectivity_failure flightId=${flightId}`)
       enterOfflineRef.current('recovery-health-connectivity-failure')
     })()
@@ -555,11 +572,15 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         consecutiveProbeFailuresRef.current = 0
         skipNextProbeStepIncrementRef.current = false
         lastNetworkSuccessAtRef.current = Date.now()
-        if (s === 'offline') {
+        if (statusRef.current === 'offline') {
           appendOfflineNavDiagnostic(
             '[connectivity-transition] trigger=probe-success from=offline start=recovery-health',
           )
           startRecoveryHealthCheckRef.current()
+        } else {
+          appendOfflineNavDiagnostic(
+            `[probe] success ignored for recovery status=${statusRef.current}`,
+          )
         }
       })()
     }, delay)
@@ -591,6 +612,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     skipNextProbeStepIncrementRef.current = false
     serverLastProgressAtRef.current = Date.now()
     setInternetReachable(false)
+    statusRef.current = 'offline'
     setStatus('offline')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
