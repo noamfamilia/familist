@@ -8,10 +8,11 @@ import { isPwaDebugEnabled, isPwaDeepDebugEnabled } from '@/lib/pwaDebug'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { log, perfLog } from '@/lib/startupPerfLog'
 import { registerConnectivityFailureHandler } from '@/lib/connectivityFailureBridge'
+import { registerProfileFetchOfflineHandler } from '@/lib/profileFetchConnectivityBridge'
 import {
-  registerProfileFetchOfflineHandler,
-  registerProfileFetchRecoveryHandler,
-} from '@/lib/profileFetchConnectivityBridge'
+  RECOVERY_HEALTH_TIMEOUT_MS,
+  runRecoveryHealthCheck,
+} from '@/lib/recoveryHealthCheck'
 import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
@@ -32,7 +33,6 @@ const SERVER_PROGRESS_STALL_MS = 15_000
 
 const CONNECTIVITY_STATUS_KEY = 'familist_connectivity_status'
 const LEGACY_OFFLINE_WALL_PURGE_KEY = 'familist_legacy_offline_wall_purged_v2'
-const TEMP_SYNC_TIMEOUT_MS = 10000
 const SW_STATUS_REQUEST = 'SW_OFFLINE_ASSETS_STATUS_REQUEST'
 const SW_STATUS_RESPONSE = 'SW_OFFLINE_ASSETS_STATUS_RESPONSE'
 const SW_FALLBACK_REGISTER_COUNT_KEY = 'familist_sw_js_fallback_register_count'
@@ -46,10 +46,14 @@ const SW_QUIET_MAX_WAIT_MS = 3_000
 const SW_QUIET_POLL_MS = 500
 const BOOT_ONLINE_GRACE_MS = 1_500
 const OFFLINE_BANNER_DEBOUNCE_MS = 3_000
+/** Online heartbeat + offline backoff probes (see recovery health 10s). */
 const REACHABILITY_PROBE_TIMEOUT_MS = 5_000
-const OFFLINE_FAILURE_THRESHOLD = 2
-const RECENT_NETWORK_SUCCESS_OVERRIDE_MS = 60_000
+const ONLINE_HEARTBEAT_INTERVAL_MS = 15_000
 const PWA_ENABLED = process.env.NEXT_PUBLIC_PWA_ENABLED === 'true'
+
+function navigatorReportsOnline(): boolean {
+  return typeof navigator === 'undefined' || navigator.onLine
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -242,7 +246,7 @@ async function probeInternetReachable(): Promise<boolean> {
 }
 
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
-  const { showToast, dismissToast } = useToast()
+  const { dismissToast } = useToast()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   const [hasMounted, setHasMounted] = useState(false)
   const [status, setStatus] = useState<ConnectivityStatus>('online')
@@ -298,10 +302,16 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       `[connectivity] status=${status} swControlled=${swControlled} offlineAssetsReady=${offlineAssetsReady} navigator.onLine=${onLine}`,
     )
   }, [status, swControlled, offlineAssetsReady])
+  /** Bumped only when leaving `recovering` → `online` to refresh catalog once. */
   const [recoveryFetchGeneration, setRecoveryFetchGeneration] = useState(0)
-  const bumpRecoveryFetchGeneration = useCallback(() => {
+  const bumpCatalogRefreshAfterOnline = useCallback(() => {
     setRecoveryFetchGeneration((n) => n + 1)
   }, [])
+
+  const activeRecoveryFlightIdRef = useRef<string | null>(null)
+  const recoveryAbortRef = useRef<AbortController | null>(null)
+  const recoveryHealthTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startRecoveryHealthCheckRef = useRef<() => void>(() => {})
 
   const statusRef = useRef<ConnectivityStatus>('online')
   const bootStartedAtRef = useRef(Date.now())
@@ -393,8 +403,22 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     probeTimeoutRef.current = null
   }, [])
 
+  const clearRecoveryHealthTimeout = useCallback(() => {
+    if (!recoveryHealthTimeoutRef.current) return
+    clearTimeout(recoveryHealthTimeoutRef.current)
+    recoveryHealthTimeoutRef.current = null
+  }, [])
+
+  const cancelRecoveryHealth = useCallback(() => {
+    clearRecoveryHealthTimeout()
+    activeRecoveryFlightIdRef.current = null
+    recoveryAbortRef.current?.abort()
+    recoveryAbortRef.current = null
+  }, [clearRecoveryHealthTimeout])
+
   const markOnlineRecovered = useCallback((cause = 'unknown') => {
     const prev = statusRef.current
+    cancelRecoveryHealth()
     appendOfflineNavDiagnostic(
       `[connectivity-transition] trigger=${cause} from=${prev} to=online`,
     )
@@ -414,12 +438,63 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     } catch {
       // Ignore storage errors
     }
-  }, [appendOfflineNavDiagnostic, clearProbeSchedule, clearSyncTimeout, dismissSyncingToast])
+    if (prev === 'recovering') {
+      bumpCatalogRefreshAfterOnline()
+    }
+    scheduleOutboundSyncKick(`mark-online-recovered:${cause}`)
+  }, [
+    appendOfflineNavDiagnostic,
+    bumpCatalogRefreshAfterOnline,
+    cancelRecoveryHealth,
+    clearProbeSchedule,
+    clearSyncTimeout,
+    dismissSyncingToast,
+  ])
+
+  const startRecoveryHealthCheck = useCallback(() => {
+    cancelRecoveryHealth()
+    const flightId = crypto.randomUUID()
+    activeRecoveryFlightIdRef.current = flightId
+    const abortController = new AbortController()
+    recoveryAbortRef.current = abortController
+
+    appendOfflineNavDiagnostic(
+      `[recovery-health] start flightId=${flightId} timeoutMs=${RECOVERY_HEALTH_TIMEOUT_MS}`,
+    )
+    setStatus('recovering')
+
+    recoveryHealthTimeoutRef.current = setTimeout(() => {
+      if (activeRecoveryFlightIdRef.current !== flightId) return
+      appendOfflineNavDiagnostic('[recovery-health] timeout')
+      enterOfflineRef.current('recovery-health-timeout')
+    }, RECOVERY_HEALTH_TIMEOUT_MS)
+
+    void (async () => {
+      const result = await runRecoveryHealthCheck(flightId, abortController.signal)
+      if (activeRecoveryFlightIdRef.current !== flightId) return
+
+      clearRecoveryHealthTimeout()
+      activeRecoveryFlightIdRef.current = null
+      recoveryAbortRef.current = null
+
+      if (result === 'ok') {
+        appendOfflineNavDiagnostic(`[recovery-health] ok flightId=${flightId}`)
+        markOnlineRecovered('recovery-health')
+        return
+      }
+
+      appendOfflineNavDiagnostic(`[recovery-health] connectivity_failure flightId=${flightId}`)
+      enterOfflineRef.current('recovery-health-connectivity-failure')
+    })()
+  }, [cancelRecoveryHealth, clearRecoveryHealthTimeout, markOnlineRecovered])
+
+  startRecoveryHealthCheckRef.current = startRecoveryHealthCheck
 
   const scheduleNextProbe = useCallback(() => {
     clearProbeSchedule()
     if (typeof window === 'undefined') return
-    if (statusRef.current === 'online') return
+    if (statusRef.current === 'online' || statusRef.current === 'recovering') return
+    if (!navigatorReportsOnline()) return
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
 
     const use1s = useNextProbeDelay1sRef.current
@@ -457,44 +532,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         const s = statusRef.current
 
         if (!ok) {
-          const recentSuccessAgeMs = Date.now() - lastNetworkSuccessAtRef.current
-          if (recentSuccessAgeMs <= RECENT_NETWORK_SUCCESS_OVERRIDE_MS) {
-            appendOfflineNavDiagnostic(
-              `[probe] ignore-failure reason=recent-network-success ageMs=${recentSuccessAgeMs}`,
-            )
-            consecutiveProbeFailuresRef.current = 0
-            probeStepRef.current = 0
-            skipNextProbeStepIncrementRef.current = false
-            scheduleNextProbeRef.current()
-            return
-          }
-          consecutiveProbeFailuresRef.current += 1
-          const failureCount = consecutiveProbeFailuresRef.current
-          const thresholdReached = failureCount >= OFFLINE_FAILURE_THRESHOLD
-          if (thresholdReached && (s === 'recovering' || s === 'online')) {
-            try {
-              localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
-            } catch {
-              // ignore
-            }
-            appendOfflineNavDiagnostic(
-              `[connectivity-transition] trigger=probe-failure-threshold from=${s} to=offline failures=${failureCount}`,
-            )
-            log.warn('CONNECTIVITY', `Heartbeat failed after ${failureCount} retries`, {
-              trigger: 'heartbeat',
-              failures: failureCount,
-              step: probeStepRef.current,
-              status: s,
-            })
-            setStatus('offline')
-          } else {
-            appendOfflineNavDiagnostic(
-              `[probe] failure-pending failures=${failureCount}/${OFFLINE_FAILURE_THRESHOLD} status=${s}`,
-            )
-            if (s === 'online') {
-              setStatus('recovering')
-            }
-          }
+          appendOfflineNavDiagnostic(`[probe] failure status=${s} step=${probeStepRef.current}`)
           if (skipNextProbeStepIncrementRef.current) {
             skipNextProbeStepIncrementRef.current = false
           } else {
@@ -510,20 +548,13 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         lastNetworkSuccessAtRef.current = Date.now()
         if (s === 'offline') {
           appendOfflineNavDiagnostic(
-            '[connectivity-transition] trigger=probe-success from=offline to=recovering',
+            '[connectivity-transition] trigger=probe-success from=offline start=recovery-health',
           )
-          setStatus('recovering')
-          bumpRecoveryFetchGeneration()
-          scheduleNextProbeRef.current()
-          return
-        }
-        if (s === 'recovering') {
-          probeStepRef.current = Math.min(probeStepRef.current + 1, 2)
-          scheduleNextProbeRef.current()
+          startRecoveryHealthCheckRef.current()
         }
       })()
     }, delay)
-  }, [bumpRecoveryFetchGeneration, clearProbeSchedule])
+  }, [clearProbeSchedule])
 
   useLayoutEffect(() => {
     scheduleNextProbeRef.current = scheduleNextProbe
@@ -537,6 +568,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
   const enterOffline = useCallback((cause = 'unknown') => {
     const prev = statusRef.current
+    cancelRecoveryHealth()
     appendOfflineNavDiagnostic(
       `[connectivity-transition] trigger=${cause} from=${prev} to=offline`,
     )
@@ -549,16 +581,25 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     useNextProbeDelay1sRef.current = false
     skipNextProbeStepIncrementRef.current = false
     serverLastProgressAtRef.current = Date.now()
+    setInternetReachable(false)
     setStatus('offline')
     try {
       localStorage.setItem(CONNECTIVITY_STATUS_KEY, 'offline')
     } catch {
       // Ignore storage errors
     }
-    queueMicrotask(() => {
-      scheduleNextProbeRef.current()
-    })
-  }, [appendOfflineNavDiagnostic, clearProbeSchedule, clearSyncTimeout, dismissSyncingToast])
+    if (navigatorReportsOnline()) {
+      queueMicrotask(() => {
+        scheduleNextProbeRef.current()
+      })
+    }
+  }, [
+    appendOfflineNavDiagnostic,
+    cancelRecoveryHealth,
+    clearProbeSchedule,
+    clearSyncTimeout,
+    dismissSyncingToast,
+  ])
 
   enterOfflineRef.current = enterOffline
 
@@ -573,7 +614,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     const id = window.setInterval(() => {
       const s = statusRef.current
-      if (s !== 'online' && s !== 'recovering') return
+      if (s !== 'online') return
       if (serverWorkInFlightRef.current <= 0) return
       if (Date.now() - serverLastProgressAtRef.current >= SERVER_PROGRESS_STALL_MS) {
         enterOfflineRef.current('server-progress-watchdog')
@@ -586,24 +627,18 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     registerConnectivityFailureHandler((cause) => {
       enterOfflineRef.current(cause)
     })
-    registerProfileFetchOfflineHandler(null)
-    registerProfileFetchRecoveryHandler((source) => {
-      markOnlineRecovered(source ? `network-success-listener:${source}` : 'profile-fetch-recovery-handler')
+    registerProfileFetchOfflineHandler(() => {
+      enterOfflineRef.current('profile-fetch-timeout')
     })
     return () => {
       registerConnectivityFailureHandler(null)
       registerProfileFetchOfflineHandler(null)
-      registerProfileFetchRecoveryHandler(null)
     }
-  }, [markOnlineRecovered])
+  }, [])
 
   const startTempSyncWatch = useCallback(() => {
-    if (statusRef.current === 'offline') return
-    setStatus((s) => (s === 'offline' ? s : 'recovering'))
-    if (!syncToastIdRef.current) {
-      syncToastIdRef.current = showToast('Syncing with server ...', 'info', { durationMs: TEMP_SYNC_TIMEOUT_MS + 1000 })
-    }
-  }, [showToast])
+    // Status transitions use cloud icons only; no syncing toast.
+  }, [])
 
   const canMutateNow = useCallback(() => {
     if (status === 'online') return true
@@ -722,7 +757,11 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     let cancelled = false
-    const probeAndUpdate = async (cause: string) => {
+    const runOnlineHeartbeat = async (cause: string) => {
+      if (cancelled) return
+      if (statusRef.current !== 'online') return
+      if (!navigatorReportsOnline()) return
+
       const firstAttemptStartedAt = performance.now()
       let ok = await probeInternetReachable()
       const firstAttemptMs = Math.round(performance.now() - firstAttemptStartedAt)
@@ -733,49 +772,29 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         ok = await probeInternetReachable()
       }
       if (cancelled) return
+      if (statusRef.current !== 'online') return
+
       setInternetReachable(ok)
-      if (!ok) {
-        const recentSuccessAgeMs = Date.now() - lastNetworkSuccessAtRef.current
-        if (recentSuccessAgeMs <= RECENT_NETWORK_SUCCESS_OVERRIDE_MS) {
-          appendOfflineNavDiagnostic(
-            `[probe] ignore-failure reason=recent-network-success ageMs=${recentSuccessAgeMs} cause=${cause}`,
-          )
-          consecutiveProbeFailuresRef.current = 0
-          return
-        }
-        if (sinceBootMs >= BOOT_ONLINE_GRACE_MS) {
-          consecutiveProbeFailuresRef.current += 1
-          appendOfflineNavDiagnostic(
-            `[probe] initial-failure count=${consecutiveProbeFailuresRef.current}/${OFFLINE_FAILURE_THRESHOLD} cause=${cause}`,
-          )
-          if (consecutiveProbeFailuresRef.current >= OFFLINE_FAILURE_THRESHOLD) {
-            log.warn('CONNECTIVITY', `Heartbeat failed after ${consecutiveProbeFailuresRef.current} retries`, {
-              trigger: 'initial-reachability',
-              failures: consecutiveProbeFailuresRef.current,
-              cause,
-            })
-            enterOfflineRef.current(`heartbeat-failed-after-${consecutiveProbeFailuresRef.current}-retries:${cause}`)
-          } else if (statusRef.current === 'online') {
-            setStatus('recovering')
-          }
-          queueMicrotask(() => {
-            scheduleNextProbeRef.current()
-          })
-        } else {
-          appendOfflineNavDiagnostic(
-            `[probe] suppress-offline-during-boot-grace cause=${cause} sinceBootMs=${sinceBootMs}`,
-          )
-        }
-      }
       if (ok) {
-        consecutiveProbeFailuresRef.current = 0
         lastNetworkSuccessAtRef.current = Date.now()
+        return
       }
+
+      if (sinceBootMs < BOOT_ONLINE_GRACE_MS) {
+        appendOfflineNavDiagnostic(
+          `[heartbeat] suppress-offline-during-boot-grace cause=${cause} sinceBootMs=${sinceBootMs}`,
+        )
+        return
+      }
+
+      appendOfflineNavDiagnostic(`[heartbeat] failed cause=${cause} -> offline`)
+      log.warn('CONNECTIVITY', 'Online heartbeat failed', { trigger: 'heartbeat', cause })
+      enterOfflineRef.current(`heartbeat-failed:${cause}`)
     }
-    void probeAndUpdate('initial')
+    void runOnlineHeartbeat('initial')
     const id = window.setInterval(() => {
-      void probeAndUpdate('interval')
-    }, 15_000)
+      void runOnlineHeartbeat('interval')
+    }, ONLINE_HEARTBEAT_INTERVAL_MS)
     return () => {
       cancelled = true
       window.clearInterval(id)
@@ -783,41 +802,23 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
-    try {
-      if (localStorage.getItem(CONNECTIVITY_STATUS_KEY) === 'offline') {
-        enterOffline()
-      }
-    } catch {
-      // Ignore storage errors
-    }
     const onOffline = () => {
       enterOffline('window-offline-event')
     }
     const onOnline = () => {
-      try {
-        if (statusRef.current === 'offline') {
-          appendOfflineNavDiagnostic(
-            '[connectivity-event] window-online while offline -> schedule fast probe',
-          )
-          clearProbeSchedule()
-          probeStepRef.current = 0
-          useNextProbeDelay1sRef.current = true
-          skipNextProbeStepIncrementRef.current = false
-          queueMicrotask(() => {
-            scheduleNextProbeRef.current()
-          })
-          return
-        }
-        if (statusRef.current === 'recovering') {
-          appendOfflineNavDiagnostic(
-            '[connectivity-event] window-online while recovering -> bump recovery fetch',
-          )
-          bumpRecoveryFetchGeneration()
-          queueMicrotask(() => {
-            scheduleNextProbeRef.current()
-          })
-        }
-      } finally {
+      if (statusRef.current === 'offline') {
+        appendOfflineNavDiagnostic(
+          '[connectivity-event] window-online while offline -> schedule fast probe',
+        )
+        clearProbeSchedule()
+        probeStepRef.current = 0
+        useNextProbeDelay1sRef.current = true
+        skipNextProbeStepIncrementRef.current = false
+        queueMicrotask(() => {
+          scheduleNextProbeRef.current()
+        })
+      }
+      if (statusRef.current === 'online') {
         scheduleOutboundSyncKick('window-online')
       }
     }
@@ -832,32 +833,24 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       clearSyncTimeout()
       clearProbeSchedule()
     }
-  }, [bumpRecoveryFetchGeneration, clearProbeSchedule, clearSyncTimeout, enterOffline])
+  }, [clearProbeSchedule, clearSyncTimeout, enterOffline])
 
   useEffect(() => {
     if (typeof document === 'undefined') return
     const onVis = () => {
       if (document.visibilityState !== 'visible') return
-      scheduleOutboundSyncKick('visibility-visible')
+      if (statusRef.current === 'online') {
+        scheduleOutboundSyncKick('visibility-visible')
+      }
       const s = statusRef.current
-      if (s === 'offline') {
+      if (s === 'offline' && navigatorReportsOnline()) {
         appendOfflineNavDiagnostic(
           '[connectivity-event] visibility-visible while offline -> reschedule probe',
         )
         clearProbeSchedule()
         probeStepRef.current = 0
-        if (typeof navigator !== 'undefined' && navigator.onLine) {
-          useNextProbeDelay1sRef.current = true
-        }
+        useNextProbeDelay1sRef.current = true
         skipNextProbeStepIncrementRef.current = false
-        queueMicrotask(() => {
-          scheduleNextProbeRef.current()
-        })
-      } else if (s === 'recovering') {
-        appendOfflineNavDiagnostic(
-          '[connectivity-event] visibility-visible while recovering -> bump recovery fetch',
-        )
-        bumpRecoveryFetchGeneration()
         queueMicrotask(() => {
           scheduleNextProbeRef.current()
         })
@@ -865,7 +858,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     }
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
-  }, [bumpRecoveryFetchGeneration, clearProbeSchedule])
+  }, [clearProbeSchedule])
 
   useEffect(() => {
     if (!PWA_ENABLED) {

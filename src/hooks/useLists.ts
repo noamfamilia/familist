@@ -27,7 +27,6 @@ import {
 } from '@/lib/data/listsCatalogRealtimeBridge'
 import { enqueueListMirrorJobs } from '@/lib/data/listMirror'
 import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
-import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 import {
   clearSyncQueueForList,
   enqueueSyncQueueRecord,
@@ -188,10 +187,9 @@ export function useLists() {
   const {
     isOfflineActionsDisabled,
     recoveryFetchGeneration,
-    markOnlineRecovered,
+    status: connectivityStatus,
     beginServerWork,
     endServerWork,
-    startTempSyncWatch,
     canMutateNow,
     blockedMutationMessage,
     swControlled,
@@ -324,6 +322,11 @@ export function useLists() {
       `[fetchLists.debug] start userId=${userId ?? 'null'} staleCheck=${staleCheck == null ? 'null' : String(staleCheck)} mutationVersion=${catalogMutationVersionRef.current}`,
     )
 
+    if (connectivityStatus === 'recovering') {
+      appendMutationDiagnostic('[fetchLists.debug] skip reason=recovering')
+      return
+    }
+
     if (!userId) {
       perfLog('fetchLists start', { note: 'no user' })
       useListsCatalogStore.getState().clearListsCatalog()
@@ -422,8 +425,6 @@ export function useLists() {
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
       listCount = listsData.length
-      notifyNetworkOpSucceeded('fetchLists')
-      markOnlineRecovered('fetchLists-success')
       serverOutcome = 'success'
       logServerRoundTrip({
         description: `Fetched list catalog (${listsData.length} lists)`,
@@ -433,7 +434,7 @@ export function useLists() {
       })
     } catch (err) {
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
-      if (serverOutcome === 'connectivity_failure') {
+      if (serverOutcome === 'connectivity_failure' && connectivityStatus === 'online') {
         reportConnectivityFailure('fetchLists-connectivity-error')
       }
       fetchErr = (err as Error).message
@@ -468,7 +469,7 @@ export function useLists() {
         })
       }
     }
-  }, [beginServerWork, endServerWork, markOnlineRecovered, userId])
+  }, [beginServerWork, connectivityStatus, endServerWork, userId])
 
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && lists.length > 0
 
@@ -481,11 +482,11 @@ export function useLists() {
     fetchLists()
   }, [fetchLists])
 
-  const lastRecoveryFetchGenRef = useRef(0)
+  const lastCatalogRefreshGenRef = useRef(0)
   useEffect(() => {
     if (!userId) return
-    if (recoveryFetchGeneration <= lastRecoveryFetchGenRef.current) return
-    lastRecoveryFetchGenRef.current = recoveryFetchGeneration
+    if (recoveryFetchGeneration <= lastCatalogRefreshGenRef.current) return
+    lastCatalogRefreshGenRef.current = recoveryFetchGeneration
     void fetchLists()
   }, [recoveryFetchGeneration, fetchLists, userId])
 
@@ -833,7 +834,6 @@ export function useLists() {
               joinedListName: null as string | null,
             }
           }
-          markOnlineRecovered()
           await fetchLists()
           const joined = useListsCatalogStore.getState().lists.find((l) => l.id === listId)
           appendMutationDiagnostic(
@@ -867,7 +867,6 @@ export function useLists() {
       tryBeginMutation,
       mutationGate,
       blockedMutationMessage,
-      markOnlineRecovered,
       fetchLists,
       canMutateNow,
     ],

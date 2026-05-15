@@ -48,7 +48,8 @@ const serwist = new Serwist({
       matcher: ({ url, sameOrigin, request }) =>
         sameOrigin &&
         request.method === 'GET' &&
-        url.pathname === '/api/reachability',
+        url.pathname === '/api/reachability' ||
+        url.pathname === '/api/recovery-health',
       handler: new NetworkOnly(),
     },
     ...defaultCache,

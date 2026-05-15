@@ -72,7 +72,6 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useToast } from '@/components/ui/Toast'
 import { createUserMutationGate } from '@/lib/userMutationGate'
 import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
-import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 import { markListViewedLocally } from '@/lib/data/listActivity'
 import { useListSyncErrorToast } from '@/hooks/useListSyncErrorToast'
 
@@ -382,8 +381,6 @@ export function useList(listId: string) {
     status: connectivityStatus,
     isOfflineActionsDisabled,
     allowItemMutationQueue,
-    recoveryFetchGeneration,
-    markOnlineRecovered,
     beginServerWork,
     endServerWork,
     pulseServerWorkProgress,
@@ -601,6 +598,11 @@ export function useList(listId: string) {
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
       perfLog('fetchList end', { durationMs: 0, listCount: 0, itemCount: 0 })
+      return
+    }
+
+    if (connectivityStatus === 'recovering') {
+      appendOfflineNavDiagnostic(`[fetchList] skip reason=recovering listId=${listId}`)
       return
     }
 
@@ -941,8 +943,6 @@ export function useList(listId: string) {
         setSumScope(serverSumScope)
         setCachedPrefs(listId, { sumScope: serverSumScope }, userId)
       }
-      notifyNetworkOpSucceeded('fetchList')
-      markOnlineRecovered('fetchList-success')
       setFetchTimedOut(false)
       appendOfflineNavDiagnostic(
         `[fetchList] RPC success listId=${listId} items=${(data.items || []).length} members=${(data.members || []).length}`,
@@ -950,7 +950,7 @@ export function useList(listId: string) {
       serverOutcome = 'success'
     } catch (err) {
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
-      if (serverOutcome === 'connectivity_failure') {
+      if (serverOutcome === 'connectivity_failure' && connectivityStatus === 'online') {
         reportConnectivityFailure('fetchList-connectivity-error')
       }
       fetchErr = rpcFailureMessage(err)
@@ -1010,7 +1010,6 @@ export function useList(listId: string) {
     connectivityStatus,
     endServerWork,
     listId,
-    markOnlineRecovered,
     pulseServerWorkProgress,
     userId,
   ])
@@ -1025,14 +1024,6 @@ export function useList(listId: string) {
   useEffect(() => {
     fetchList()
   }, [fetchList])
-
-  const lastRecoveryFetchGenRef = useRef(0)
-  useEffect(() => {
-    if (!userId || !listId) return
-    if (recoveryFetchGeneration <= lastRecoveryFetchGenRef.current) return
-    lastRecoveryFetchGenRef.current = recoveryFetchGeneration
-    void fetchList()
-  }, [recoveryFetchGeneration, fetchList, listId, userId])
 
   // Keep local cache in sync with optimistic updates too.
   useEffect(() => {
@@ -1199,7 +1190,6 @@ export function useList(listId: string) {
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          markOnlineRecovered('realtime-subscribed-list')
           logRealtimeSubscribeEnd({})
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           logRealtimeSubscribeEnd({ error: err?.message ?? status })
@@ -1217,7 +1207,7 @@ export function useList(listId: string) {
         supabase.removeChannel(channelRef.current)
       }
     }
-  }, [fetchList, listId, markOnlineRecovered, userId])
+  }, [fetchList, listId, userId])
 
   const addItem = async (text: string, category?: number, comment?: string | null) => {
     if (!userId) {

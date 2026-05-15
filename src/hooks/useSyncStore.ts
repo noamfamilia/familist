@@ -324,7 +324,7 @@ type SyncStoreState = {
 export function useSyncStore(): SyncStoreState {
   const allRows = useLiveQuery(async () => db.sync_queue.orderBy('updated_at').toArray(), [], [])
   const rows = useMemo(() => allRows ?? [], [allRows])
-  const { status, markOnlineRecovered } = useConnectivity()
+  const { status } = useConnectivity()
   const statusRef = useRef(status)
   useEffect(() => {
     statusRef.current = status
@@ -1193,7 +1193,6 @@ export function useSyncStore(): SyncStoreState {
             await executeOutboundRow(claimed)
             await clearListSyncErrorMessages(listIdsTouchingOutboundRow(claimed))
             await db.sync_queue.delete(claimed.id)
-            markOnlineRecovered('use-sync-store-drain')
           } catch (error) {
             const message = normalizeErrorMessage(error)
             appendMutationDiagnostic(
@@ -1256,7 +1255,6 @@ export function useSyncStore(): SyncStoreState {
     }
   }, [
     executeOutboundRow,
-    markOnlineRecovered,
     needsBackoffWake,
     normalizeErrorMessage,
     outboundSyncKick,

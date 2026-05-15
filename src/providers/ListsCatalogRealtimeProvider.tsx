@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
-import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { perfLog } from '@/lib/startupPerfLog'
 import {
   catalogMutationVersionRef,
@@ -28,7 +27,6 @@ const supabase = createClient()
  */
 export function ListsCatalogRealtimeProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
-  const { markOnlineRecovered } = useConnectivity()
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -149,7 +147,6 @@ export function ListsCatalogRealtimeProvider({ children }: { children: ReactNode
       })
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          markOnlineRecovered('realtime-subscribed-lists')
           logRealtimeSubscribeEnd({})
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           logRealtimeSubscribeEnd({ error: err?.message ?? status })
@@ -175,7 +172,7 @@ export function ListsCatalogRealtimeProvider({ children }: { children: ReactNode
         channelRef.current = null
       }
     }
-  }, [markOnlineRecovered, userId])
+  }, [userId])
 
   return <>{children}</>
 }

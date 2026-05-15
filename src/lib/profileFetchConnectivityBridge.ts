@@ -4,32 +4,21 @@
  */
 
 let enterOfflineOnProfileTimeout: (() => void) | null = null
-let markOnlineAfterProfileRecovery: ((source?: string) => void) | null = null
-let offlineWasDueToProfileTimeout = false
 
 export function registerProfileFetchOfflineHandler(fn: (() => void) | null): void {
   enterOfflineOnProfileTimeout = fn
 }
 
-export function registerProfileFetchRecoveryHandler(fn: ((source?: string) => void) | null): void {
-  markOnlineAfterProfileRecovery = fn
-}
-
 export function notifyProfileFetchTimedOut(): void {
-  offlineWasDueToProfileTimeout = true
   enterOfflineOnProfileTimeout?.()
 }
 
-/** Call after profile rows load successfully so we can undo profile-timeout offline only. */
+/** Profile fetch completed; does not change connectivity status (recovery uses /api/recovery-health). */
 export function notifyProfileFetchSucceeded(): void {
-  if (offlineWasDueToProfileTimeout) {
-    offlineWasDueToProfileTimeout = false
-  }
-  // Any successful profile fetch is a strong online signal.
-  markOnlineAfterProfileRecovery?.('fetchProfile')
+  // Intentionally no-op for connectivity promotion.
 }
 
-export function notifyNetworkOpSucceeded(source: string): void {
-  offlineWasDueToProfileTimeout = false
-  markOnlineAfterProfileRecovery?.(source)
+/** Network op completed; does not change connectivity status. */
+export function notifyNetworkOpSucceeded(_source: string): void {
+  // Intentionally no-op for connectivity promotion.
 }
