@@ -1,3 +1,4 @@
+import { isLikelyConnectivityError } from '@/lib/connectivityErrors'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 
 /** Same string as ConnectivityProvider blocked mutations. */
@@ -15,5 +16,10 @@ export function shouldShowConnectivityRelatedMutationToast(message: string | und
   if (message === RECOVERING_MUTATIONS_DISABLED_MSG) return false
   if (message === 'Syncing with server ...') return false
   if (message === USER_MUTATION_WAIT_MSG) return false
+  if (isLikelyConnectivityError(message)) return false
+  const m = message.toLowerCase()
+  if (m.includes('failed to fetch') || m.includes('fetch failed') || m.includes('load failed')) {
+    return false
+  }
   return true
 }

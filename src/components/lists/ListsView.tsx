@@ -19,6 +19,7 @@ import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useAuth } from '@/providers/AuthProvider'
 import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 import { formatJoinListInviteErrorForUser } from '@/lib/joinListInviteErrorMessage'
+import { fetchFailureToastMessage } from '@/lib/fetchToastPolicy'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
@@ -49,6 +50,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     lists,
     loading,
     error: catalogFetchError,
+    lastFetchError,
     refresh,
     createList,
     updateList,
@@ -100,8 +102,9 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     }
     if (catalogFetchErrorToastKeyRef.current === catalogFetchError) return
     catalogFetchErrorToastKeyRef.current = catalogFetchError
-    showError(catalogFetchError)
-  }, [catalogFetchError, showError])
+    const toastMsg = fetchFailureToastMessage(lastFetchError ?? catalogFetchError, 'list catalog')
+    if (toastMsg) showError(toastMsg)
+  }, [catalogFetchError, lastFetchError, showError])
 
   const wasOfflineRef = useRef(isOfflineActionsDisabled)
   useEffect(() => {

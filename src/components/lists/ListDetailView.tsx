@@ -934,8 +934,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           className="h-8 flex items-center gap-1.5 text-primary dark:text-gray-100 hover:underline text-sm sm:text-base"
           aria-label="Go back to all lists"
         >
-          {isOffline ? <OfflineIcon className="h-5 w-5 shrink-0" aria-hidden /> : null}
           <span>← Back to lists</span>
+          {isOffline ? <OfflineIcon className="h-8 w-8 shrink-0" aria-hidden /> : null}
         </button>
         {list && list.owner_id === user?.id && (
           <button

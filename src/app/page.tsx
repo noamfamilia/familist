@@ -424,7 +424,6 @@ function HomeContent() {
         {/* Auth button - top left */}
         {user ? (
           <div className="relative flex items-center gap-1.5" ref={profileMenuRef} data-tour="home-profile-menu">
-            {isOffline ? <OfflineIcon className="h-6 w-6 shrink-0" aria-hidden /> : null}
             <button
               type="button"
               onClick={() => setProfileMenuOpen(o => !o)}
@@ -436,6 +435,9 @@ function HomeContent() {
             >
               <ThemedImage src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
             </button>
+            {isOffline ? (
+              <OfflineIcon className="h-8 w-8 shrink-0" aria-hidden />
+            ) : null}
             {profileMenuAnim.mounted && (
               <div
                 className={`absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${profileMenuAnim.menuClassName}`}

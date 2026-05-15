@@ -173,6 +173,7 @@ export function useLists() {
   const [fetchTimedOut, setFetchTimedOut] = useState(false)
   const [saveTimedOut, setSaveTimedOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastFetchError, setLastFetchError] = useState<unknown>(null)
   const fetchingRef = useRef(false)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSaveOpsRef = useRef(0)
@@ -350,6 +351,7 @@ export function useLists() {
     }, FETCH_TIMEOUT_MS)
 
     setError(null)
+    setLastFetchError(null)
 
     beginServerWork()
     let serverOutcome: ServerWorkOutcome = 'success'
@@ -435,6 +437,7 @@ export function useLists() {
         enterOffline('fetchLists-connectivity-error')
       }
       fetchErr = (err as Error).message
+      setLastFetchError(err)
       setError((err as Error).message)
       logServerRoundTrip({
         description: 'Fetched list catalog',
@@ -1242,6 +1245,7 @@ export function useLists() {
     fetchTimedOut,
     saveTimedOut,
     error,
+    lastFetchError,
     refresh: refreshLists,
     createList,
     updateList,
