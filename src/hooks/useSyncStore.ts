@@ -18,7 +18,10 @@ import { getActiveCacheUserId } from '@/lib/cache'
 import {
   blockedOutboundDependencyReason,
   isBlockedByPendingDependencies,
+  isOutboundRowBaseEligibleForSync,
+  isOutboundRowEligibleForSync,
   listIdsTouchingOutboundRow,
+  OUTBOUND_SYNC_LOCK_STALE_MS,
 } from '@/lib/data/syncQueueListScope'
 import { scrubAfterTerminalOutboundFailure } from '@/lib/data/outboundTerminalScrub'
 import { applyListUserSyncErrorForListIds } from '@/lib/data/listUserSyncStatus'
@@ -57,7 +60,6 @@ import { useListDataStore } from '@/stores/listDataStore'
 
 const supabase = createClient()
 
-const LOCK_STALE_MS = 60_000
 const CONNECTIVITY_RETRY_DELAY_MS = 2_000
 
 /** First list id for verification (`syncListDetail`); multi-list RPCs use the primary id only here. */
@@ -236,27 +238,8 @@ async function releaseRowForDependencyWait(rowId: string): Promise<void> {
   })
 }
 
-function isBaseEligibleForSync(row: DbSyncQueueRow, now: number): boolean {
-  const nr = row.next_retry_at ?? null
-  const stale = row.locked_at != null && now - row.locked_at > LOCK_STALE_MS
-
-  if (row.status === 'processing') {
-    return stale
-  }
-  if (row.status === 'queued') {
-    return nr == null || nr <= now
-  }
-  if (row.status === 'failed') {
-    return nr == null || nr <= now
-  }
-  return false
-}
-
-function isEligibleForSync(row: DbSyncQueueRow, now: number, queue: readonly DbSyncQueueRow[]): boolean {
-  if (!isBaseEligibleForSync(row, now)) return false
-  if (isBlockedByPendingDependencies(row, queue)) return false
-  return true
-}
+const isBaseEligibleForSync = isOutboundRowBaseEligibleForSync
+const isEligibleForSync = isOutboundRowEligibleForSync
 
 async function tryClaimSyncRow(id: string): Promise<DbSyncQueueRow | null> {
   return db.transaction('rw', db.sync_queue, async () => {
@@ -264,7 +247,7 @@ async function tryClaimSyncRow(id: string): Promise<DbSyncQueueRow | null> {
     if (!row) return null
     const now = Date.now()
     const nr = row.next_retry_at ?? null
-    const stale = row.locked_at != null && now - row.locked_at > LOCK_STALE_MS
+    const stale = row.locked_at != null && now - row.locked_at > OUTBOUND_SYNC_LOCK_STALE_MS
 
     if (row.status === 'processing') {
       if (!stale) return null

@@ -61,6 +61,58 @@ export function isOutboundRowPending(row: DbSyncQueueRow): boolean {
   return row.status === 'queued' || row.status === 'failed' || row.status === 'processing'
 }
 
+/** Matches outbound drain lock recovery in `useSyncStore`. */
+export const OUTBOUND_SYNC_LOCK_STALE_MS = 60_000
+
+export function isOutboundRowRetryTimerActive(row: DbSyncQueueRow, now: number): boolean {
+  const nr = row.next_retry_at ?? null
+  return nr != null && nr > now
+}
+
+export function isOutboundRowBaseEligibleForSync(row: DbSyncQueueRow, now: number): boolean {
+  const nr = row.next_retry_at ?? null
+  const stale = row.locked_at != null && now - row.locked_at > OUTBOUND_SYNC_LOCK_STALE_MS
+
+  if (row.status === 'processing') return stale
+  if (row.status === 'queued') return nr == null || nr <= now
+  if (row.status === 'failed') return nr == null || nr <= now
+  return false
+}
+
+export function isOutboundRowEligibleForSync(
+  row: DbSyncQueueRow,
+  now: number,
+  queue: readonly DbSyncQueueRow[],
+): boolean {
+  if (!isOutboundRowBaseEligibleForSync(row, now)) return false
+  if (isBlockedByPendingDependencies(row, queue)) return false
+  return true
+}
+
+/** True when this queued row is ready except another pending row is ahead in FIFO order or is processing. */
+export function isOutboundRowBlockedByEarlierQueueWork(
+  row: DbSyncQueueRow,
+  queue: readonly DbSyncQueueRow[],
+  now: number,
+): boolean {
+  if (row.status !== 'queued') return false
+  if (!isOutboundRowBaseEligibleForSync(row, now)) return false
+  if (isBlockedByPendingDependencies(row, queue)) return false
+
+  const rowUpdated = row.updated_at ?? 0
+  for (const other of queue) {
+    if (other.id === row.id || !isOutboundRowPending(other)) continue
+    if (other.status === 'processing') {
+      const stale = other.locked_at != null && now - other.locked_at > OUTBOUND_SYNC_LOCK_STALE_MS
+      if (!stale) return true
+    }
+    if (isOutboundRowEligibleForSync(other, now, queue) && (other.updated_at ?? 0) < rowUpdated) {
+      return true
+    }
+  }
+  return false
+}
+
 function pendingListCreateForId(
   queue: readonly DbSyncQueueRow[],
   excludeRowId: string,

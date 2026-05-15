@@ -5,35 +5,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '@/components/ui/Modal'
 import { db, type DbSyncQueueRow } from '@/lib/db'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
-
-function truncate(s: string, max: number): string {
-  const t = s.trim()
-  if (t.length <= max) return t
-  return `${t.slice(0, max - 1)}…`
-}
-
-function humanStatus(row: DbSyncQueueRow): string {
-  const parts: string[] = []
-  if (row.status === 'queued') {
-    const detail = row.processing_detail?.trim()
-    parts.push(detail && detail.length > 0 ? detail : 'Waiting to send')
-  } else if (row.status === 'processing') {
-    const detail = row.processing_detail?.trim()
-    parts.push(detail && detail.length > 0 ? detail : 'Sending this change to the server…')
-  } else if (row.status === 'failed') parts.push('Waiting to retry')
-  else parts.push(row.status)
-  if (row.attempt_count > 0) {
-    parts.push(`${row.attempt_count} failed attempt${row.attempt_count === 1 ? '' : 's'}`)
-  }
-  if (row.last_error) {
-    parts.push(`Last issue: ${truncate(row.last_error, 140)}`)
-  }
-  const nr = row.next_retry_at
-  if (nr != null && nr > Date.now()) {
-    parts.push(`Next try: ${new Date(nr).toLocaleString()}`)
-  }
-  return parts.join(' · ')
-}
+import { outboundQueueRowStatusLine } from '@/lib/data/outboundQueueStatus'
+import { useConnectivity } from '@/providers/ConnectivityProvider'
 
 type RowDisplay = {
   id: string
@@ -42,17 +15,19 @@ type RowDisplay = {
 }
 
 export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const { status: connectivityStatus } = useConnectivity()
   const rows = useLiveQuery(() => db.sync_queue.orderBy('updated_at').toArray(), [], []) ?? []
   const [displayRows, setDisplayRows] = useState<RowDisplay[]>([])
 
   useEffect(() => {
     let cancelled = false
+    const now = Date.now()
     void (async () => {
       const next = await Promise.all(
         rows.map(async (r) => ({
           id: r.id,
           description: await describeOutboundSyncRow(r),
-          statusLine: humanStatus(r),
+          statusLine: outboundQueueRowStatusLine(r, rows, { now, connectivityStatus }),
         })),
       )
       if (!cancelled) setDisplayRows(next)
@@ -60,7 +35,7 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
     return () => {
       cancelled = true
     }
-  }, [rows])
+  }, [rows, connectivityStatus])
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Server queue" size="md">
