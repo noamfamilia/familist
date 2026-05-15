@@ -71,6 +71,7 @@ import {
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useToast } from '@/components/ui/Toast'
 import { createUserMutationGate } from '@/lib/userMutationGate'
+import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
 import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 import { markListViewedLocally } from '@/lib/data/listActivity'
 import { useListSyncErrorToast } from '@/hooks/useListSyncErrorToast'
@@ -382,7 +383,6 @@ export function useList(listId: string) {
     isOfflineActionsDisabled,
     allowItemMutationQueue,
     recoveryFetchGeneration,
-    enterOffline,
     markOnlineRecovered,
     beginServerWork,
     endServerWork,
@@ -951,7 +951,7 @@ export function useList(listId: string) {
     } catch (err) {
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
       if (serverOutcome === 'connectivity_failure') {
-        enterOffline('fetchList-connectivity-error')
+        reportConnectivityFailure('fetchList-connectivity-error')
       }
       fetchErr = rpcFailureMessage(err)
       setError(rpcFailureMessage(err))
@@ -1009,7 +1009,6 @@ export function useList(listId: string) {
     beginServerWork,
     connectivityStatus,
     endServerWork,
-    enterOffline,
     listId,
     markOnlineRecovered,
     pulseServerWorkProgress,

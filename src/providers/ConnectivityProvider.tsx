@@ -7,6 +7,7 @@ import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { isPwaDebugEnabled, isPwaDeepDebugEnabled } from '@/lib/pwaDebug'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { log, perfLog } from '@/lib/startupPerfLog'
+import { registerConnectivityFailureHandler } from '@/lib/connectivityFailureBridge'
 import {
   registerProfileFetchOfflineHandler,
   registerProfileFetchRecoveryHandler,
@@ -130,6 +131,8 @@ type ConnectivityContextType = {
   internetReachable: boolean | null
   /** True when connectivity status is `offline` (show offline indicator). */
   isOffline: boolean
+  /** True when connectivity status is `recovering` (show cloud-only indicator). */
+  isRecovering: boolean
   /** Legacy gate for dimming controls; kept false so offline UX stays fully interactive except sheet import. */
   isOfflineActionsDisabled: boolean
   /** When true, add/archive/restore item may be queued locally until status is online. */
@@ -580,11 +583,15 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
+    registerConnectivityFailureHandler((cause) => {
+      enterOfflineRef.current(cause)
+    })
     registerProfileFetchOfflineHandler(null)
     registerProfileFetchRecoveryHandler((source) => {
       markOnlineRecovered(source ? `network-success-listener:${source}` : 'profile-fetch-recovery-handler')
     })
     return () => {
+      registerConnectivityFailureHandler(null)
       registerProfileFetchOfflineHandler(null)
       registerProfileFetchRecoveryHandler(null)
     }
@@ -1168,6 +1175,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         online: status === 'online',
         internetReachable,
         isOffline: status === 'offline',
+        isRecovering: status === 'recovering',
         isOfflineActionsDisabled: false,
         allowItemMutationQueue: status !== 'online',
         recoveryFetchGeneration,

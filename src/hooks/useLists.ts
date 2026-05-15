@@ -26,6 +26,7 @@ import {
   requestListsCatalogRealtimeFlush,
 } from '@/lib/data/listsCatalogRealtimeBridge'
 import { enqueueListMirrorJobs } from '@/lib/data/listMirror'
+import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
 import { notifyNetworkOpSucceeded } from '@/lib/profileFetchConnectivityBridge'
 import {
   clearSyncQueueForList,
@@ -187,7 +188,6 @@ export function useLists() {
   const {
     isOfflineActionsDisabled,
     recoveryFetchGeneration,
-    enterOffline,
     markOnlineRecovered,
     beginServerWork,
     endServerWork,
@@ -434,7 +434,7 @@ export function useLists() {
     } catch (err) {
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
       if (serverOutcome === 'connectivity_failure') {
-        enterOffline('fetchLists-connectivity-error')
+        reportConnectivityFailure('fetchLists-connectivity-error')
       }
       fetchErr = (err as Error).message
       setLastFetchError(err)
@@ -468,7 +468,7 @@ export function useLists() {
         })
       }
     }
-  }, [beginServerWork, endServerWork, enterOffline, markOnlineRecovered, userId])
+  }, [beginServerWork, endServerWork, markOnlineRecovered, userId])
 
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && lists.length > 0
 

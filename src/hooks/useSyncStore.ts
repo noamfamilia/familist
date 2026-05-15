@@ -11,6 +11,8 @@ import {
   resolveOutboundRetryDelayMs,
   shouldSetListUserSyncErrorAfterOutboundFailure,
 } from '@/lib/connectivityErrors'
+import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
+import { OUTBOUND_CONNECTIVITY_QUEUE_DETAIL } from '@/lib/outboundConnectivityQueue'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useToast } from '@/components/ui/Toast'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
@@ -286,14 +288,15 @@ async function tryClaimSyncRow(id: string): Promise<DbSyncQueueRow | null> {
   })
 }
 
-async function releaseRowForConnectivityRetry(rowId: string): Promise<void> {
+async function releaseRowForConnectivityRetry(rowId: string, message: string): Promise<void> {
   const now = Date.now()
   await db.sync_queue.update(rowId, {
     status: 'queued',
     locked_at: null,
     next_retry_at: now + CONNECTIVITY_RETRY_DELAY_MS,
     updated_at: now,
-    processing_detail: null,
+    last_error: message,
+    processing_detail: OUTBOUND_CONNECTIVITY_QUEUE_DETAIL,
   })
 }
 
@@ -1207,7 +1210,8 @@ export function useSyncStore(): SyncStoreState {
             }
             if (isLikelyConnectivityError(error)) {
               setLastError(message)
-              await releaseRowForConnectivityRetry(claimed.id)
+              reportConnectivityFailure('outbound-sync-connectivity-error')
+              await releaseRowForConnectivityRetry(claimed.id, message)
               break
             }
             if (isOutboundSyncTerminalError(error)) {

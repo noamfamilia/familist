@@ -89,6 +89,7 @@ function HomeContent() {
     online,
     internetReachable,
     isOffline,
+    isRecovering,
   } = useConnectivity()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
@@ -435,8 +436,12 @@ function HomeContent() {
             >
               <ThemedImage src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
             </button>
-            {isOffline ? (
-              <OfflineIcon className="h-8 w-8 shrink-0" aria-hidden />
+            {isOffline || isRecovering ? (
+              <OfflineIcon
+                variant={isOffline ? 'offline' : 'recovering'}
+                className="h-8 w-8 shrink-0"
+                aria-hidden
+              />
             ) : null}
             {profileMenuAnim.mounted && (
               <div

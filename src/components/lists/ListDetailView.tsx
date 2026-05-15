@@ -253,7 +253,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const { error: showError } = useToast()
   const hasMounted = useHasMounted()
-  const { offlineAssetsReady, swControlled, internetReachable, online, isOffline } = useConnectivity()
+  const { offlineAssetsReady, swControlled, internetReachable, online, isOffline, isRecovering } =
+    useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
@@ -935,7 +936,13 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           aria-label="Go back to all lists"
         >
           <span>← Back to lists</span>
-          {isOffline ? <OfflineIcon className="h-8 w-8 shrink-0" aria-hidden /> : null}
+          {isOffline || isRecovering ? (
+            <OfflineIcon
+              variant={isOffline ? 'offline' : 'recovering'}
+              className="h-8 w-8 shrink-0"
+              aria-hidden
+            />
+          ) : null}
         </button>
         {list && list.owner_id === user?.id && (
           <button
