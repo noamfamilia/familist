@@ -111,8 +111,10 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           Sign Out
         </Button>
 
-        <div className="flex items-center justify-between gap-3 pt-2">
-          <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">v{APP_VERSION}</span>
+        <div className="relative flex items-center justify-center pt-2">
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-gray-500">
+            v{APP_VERSION}
+          </span>
           <button
             type="button"
             className="hover:opacity-80 shrink-0"
