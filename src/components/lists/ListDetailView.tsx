@@ -17,6 +17,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
+import { OfflineIcon } from '@/components/icons/OfflineIcon'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
@@ -252,7 +253,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const { error: showError } = useToast()
   const hasMounted = useHasMounted()
-  const { offlineAssetsReady, swControlled, internetReachable, online } = useConnectivity()
+  const { offlineAssetsReady, swControlled, internetReachable, online, isOffline } = useConnectivity()
   const { appendDiagnostics } = useDiagnosticsMessageBox()
   
   const {
@@ -930,10 +931,11 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         <button
           type="button"
           onClick={handleBackToLists}
-          className="h-8 flex items-center text-primary dark:text-gray-100 hover:underline text-sm sm:text-base"
+          className="h-8 flex items-center gap-1.5 text-primary dark:text-gray-100 hover:underline text-sm sm:text-base"
           aria-label="Go back to all lists"
         >
-          ← Back to lists
+          {isOffline ? <OfflineIcon className="h-5 w-5 shrink-0" aria-hidden /> : null}
+          <span>← Back to lists</span>
         </button>
         {list && list.owner_id === user?.id && (
           <button

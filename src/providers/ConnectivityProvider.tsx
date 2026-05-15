@@ -128,7 +128,9 @@ type ConnectivityContextType = {
   status: ConnectivityStatus
   online: boolean
   internetReachable: boolean | null
-  /** True when offline or recovering (navigation / optimistic UI should match). */
+  /** True when connectivity status is `offline` (show offline indicator). */
+  isOffline: boolean
+  /** Legacy gate for dimming controls; kept false so offline UX stays fully interactive except sheet import. */
   isOfflineActionsDisabled: boolean
   /** When true, add/archive/restore item may be queued locally until status is online. */
   allowItemMutationQueue: boolean
@@ -597,8 +599,14 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [showToast])
 
   const canMutateNow = useCallback(() => {
-    return status === 'online'
-  }, [status])
+    if (status === 'online') return true
+    const browserOffline = typeof navigator !== 'undefined' && !navigator.onLine
+    const offlineCatalogOk =
+      (status === 'offline' || browserOffline || status === 'recovering') &&
+      swControlled &&
+      offlineAssetsReady
+    return offlineCatalogOk
+  }, [offlineAssetsReady, status, swControlled])
 
   const blockedMutationMessage = useCallback(() => {
     if (status === 'offline') return OFFLINE_ACTIONS_DISABLED_MSG
@@ -1159,7 +1167,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         status,
         online: status === 'online',
         internetReachable,
-        isOfflineActionsDisabled: status === 'offline' || status === 'recovering',
+        isOffline: status === 'offline',
+        isOfflineActionsDisabled: false,
         allowItemMutationQueue: status !== 'online',
         recoveryFetchGeneration,
         swControlled,

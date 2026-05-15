@@ -23,6 +23,7 @@ import { normalizeServerSyncableFields } from '@/lib/data/serverDexieParity'
 import { useToast } from '@/components/ui/Toast'
 import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
+import { OfflineIcon } from '@/components/icons/OfflineIcon'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import { useShallow } from 'zustand/react/shallow'
@@ -87,7 +88,7 @@ function HomeContent() {
     offlineAssetsReady,
     online,
     internetReachable,
-    isOfflineActionsDisabled: connectivityOffline,
+    isOffline,
   } = useConnectivity()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
@@ -329,12 +330,9 @@ function HomeContent() {
   }, [])
 
   useEffect(() => {
-    if (!connectivityOffline) return
-    setProfileMenuOpen(false)
-    setShowProfile(false)
+    if (!isOffline) return
     setShowImport(false)
-    setShowFeedback(false)
-  }, [connectivityOffline])
+  }, [isOffline])
 
   const handleOfflineActionsDisabledChange = useCallback((offline: boolean) => {
     setIsOfflineActionsDisabled(offline)
@@ -425,18 +423,13 @@ function HomeContent() {
       <div className="flex items-center justify-between mb-4">
         {/* Auth button - top left */}
         {user ? (
-          <div className="relative" ref={profileMenuRef} data-tour="home-profile-menu">
+          <div className="relative flex items-center gap-1.5" ref={profileMenuRef} data-tour="home-profile-menu">
+            {isOffline ? <OfflineIcon className="h-6 w-6 shrink-0" aria-hidden /> : null}
             <button
               type="button"
-              disabled={connectivityOffline}
-              onClick={() => {
-                if (connectivityOffline) return
-                setProfileMenuOpen(o => !o)
-              }}
-              className={`h-8 flex items-center rounded-lg ${
-                connectivityOffline ? 'cursor-not-allowed opacity-40' : 'hover:opacity-80'
-              }`}
-              aria-label={connectivityOffline ? 'Account menu (unavailable offline)' : 'Account menu'}
+              onClick={() => setProfileMenuOpen(o => !o)}
+              className="h-8 flex items-center rounded-lg hover:opacity-80"
+              aria-label="Account menu"
               aria-expanded={profileMenuOpen}
               aria-haspopup="menu"
               title={user.email}
@@ -478,9 +471,19 @@ function HomeContent() {
                 </button>
                 <button
                   type="button"
-                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                  disabled={isOffline}
+                  className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
+                    isOffline
+                      ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
+                      : 'text-gray-900 dark:text-gray-100'
+                  }`}
                   role="menuitem"
-                  onClick={() => { setProfileMenuOpen(false); setShowImport(true) }}
+                  onClick={() => {
+                    if (isOffline) return
+                    setProfileMenuOpen(false)
+                    setShowImport(true)
+                  }}
+                  title={isOffline ? 'Requires an internet connection' : undefined}
                 >
                   Import from Google Sheet
                 </button>

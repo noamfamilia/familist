@@ -389,6 +389,8 @@ export function useList(listId: string) {
     pulseServerWorkProgress,
     canMutateNow,
     blockedMutationMessage,
+    offlineAssetsReady,
+    swControlled,
   } = useConnectivity()
   const archiveUndoToastIdRef = useRef<string | null>(null)
   /** User intent while archive / undo requests settle (`true` = archived, `false` = not). Read after awaits, not from closures. */
@@ -410,9 +412,11 @@ export function useList(listId: string) {
   )
 
   const tryBeginMutation = useCallback((): boolean => {
-    if (!canMutateNow()) return false
+    const browserOffline = typeof navigator !== 'undefined' && !navigator.onLine
+    const offlineCatalogOk = browserOffline && swControlled && offlineAssetsReady
+    if (!canMutateNow() && !offlineCatalogOk) return false
     return mutationGate.tryBegin()
-  }, [canMutateNow, mutationGate])
+  }, [canMutateNow, mutationGate, offlineAssetsReady, swControlled])
 
   /** Add / archive-restore item queue: allowed while offline or recovering. */
   const tryBeginItemQueueableMutation = useCallback((): boolean => {
