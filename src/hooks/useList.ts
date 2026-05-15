@@ -179,7 +179,7 @@ function getCachedPrefs(listId: string, userId?: string | null) {
   return defaults
 }
 
-function setCachedPrefs(
+function setCachedPrefsLocalOnly(
   listId: string,
   prefs: { memberFilter?: MemberFilter; itemTextWidth?: string; itemNameFontStep?: number; sumScope?: ListUserSumScope },
   userId?: string | null,
@@ -192,6 +192,14 @@ function setCachedPrefs(
     const updated = { ...current, ...prefs }
     localStorage.setItem(prefsKey, JSON.stringify(updated))
   } catch { /* ignore */ }
+}
+
+function setCachedPrefs(
+  listId: string,
+  prefs: { memberFilter?: MemberFilter; itemTextWidth?: string; itemNameFontStep?: number; sumScope?: ListUserSumScope },
+  userId?: string | null,
+) {
+  setCachedPrefsLocalOnly(listId, prefs, userId)
   if (userId) {
     void upsertListPrefsFromServer(userId, listId, {
       member_filter: prefs.memberFilter ?? null,
@@ -201,6 +209,8 @@ function setCachedPrefs(
     })
   }
 }
+
+type DisplayPrefsBaseline = { widthValue: string; fontStep: number }
 
 const FETCH_TIMEOUT_MS = 10_000
 const SAVE_TIMEOUT_MS = 10_000
@@ -325,6 +335,8 @@ export function useList(listId: string) {
   const [itemNameFontStep, setItemNameFontStep] = useState(() => getCachedPrefs(listId).itemNameFontStep)
   const itemNameFontStepRef = useRef(itemNameFontStep)
   itemNameFontStepRef.current = itemNameFontStep
+  const displayPrefsSessionActiveRef = useRef(false)
+  const displayPrefsBaselineRef = useRef<DisplayPrefsBaseline | null>(null)
   const [categoryNames, setCategoryNames] = useState<CategoryNames>(() => parseCategoryNames(cached?.list?.category_names))
   const [categoryOrder, setCategoryOrder] = useState<number[]>(() => parseCategoryOrder(cached?.list?.category_order))
   const categoryNamesRef = useRef(categoryNames)
@@ -2016,107 +2028,147 @@ export function useList(listId: string) {
     }
   }
 
-  const updateItemTextWidth = async (width: number) => {
-    if (!tryBeginMutation()) {
-      return
-    }
-    try {
+  const applyDisplayPrefsBaseline = useCallback(
+    (baseline: DisplayPrefsBaseline) => {
+      const parsed = parseWidthValue(baseline.widthValue)
+      setItemTextWidthMode(parsed.mode)
+      if (parsed.mode === 'manual') {
+        setItemTextWidth(parsed.width)
+      }
+      itemNameFontStepRef.current = baseline.fontStep
+      setItemNameFontStep(baseline.fontStep)
+      setCachedPrefsLocalOnly(
+        listId,
+        { itemTextWidth: baseline.widthValue, itemNameFontStep: baseline.fontStep },
+        userId,
+      )
+    },
+    [listId, userId],
+  )
+
+  const previewItemTextWidth = useCallback(
+    (width: number) => {
       const newWidth = Math.min(ITEM_TEXT_WIDTH_MAX, Math.max(ITEM_TEXT_WIDTH_MIN, width))
-      const prevWidth = itemTextWidth
-      const prevMode = itemTextWidthMode
-      const value = String(newWidth)
       setItemTextWidth(newWidth)
       setItemTextWidthMode('manual')
-      setCachedPrefs(listId, { itemTextWidth: value }, userId)
-      if (userId) {
-        useListDataStore.getState().beginPrefsPersistence()
-        try {
-          try {
-            await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
-              const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
-              if (!lu) throw new Error('Missing list_users row')
-              await db.list_users.update(lu.id, { item_text_width: value })
-              await enqueueSyncQueueRecord({
-                entity: 'list',
-                entity_id: newBatchEntityId(),
-                kind: 'rpc',
-                payload: {
-                  method: 'patchListUser',
-                  id: listId,
-                  user_id: userId,
-                  item_text_width: value,
-                },
-                ...listQueueParent(listId),
-                status: 'queued',
-              })
-            })
-          } catch {
-            setItemTextWidth(prevWidth)
-            setItemTextWidthMode(prevMode)
-            setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
-          }
-        } finally {
-          useListDataStore.getState().endPrefsPersistence()
-        }
-      }
-    } finally {
-      mutationGate.end()
-    }
-  }
+      setCachedPrefsLocalOnly(listId, { itemTextWidth: String(newWidth) }, userId)
+    },
+    [listId, userId],
+  )
 
-  const updateItemTextWidthMode = async (mode: WidthMode) => {
-    if (!tryBeginMutation()) {
-      return
-    }
-    try {
-      const prevMode = itemTextWidthMode
-      const prevWidth = itemTextWidth
+  const previewItemTextWidthMode = useCallback(
+    (mode: WidthMode) => {
+      let widthForValue = itemTextWidth
       if (mode === 'auto') {
         const texts = [
-          ...items.map(i => i.text ?? ''),
+          ...items.map((i) => i.text ?? ''),
           ...sumRowTitlesForAutoWidth(sumScope, items),
         ]
-        const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
-        setItemTextWidth(fitWidth)
+        widthForValue = measureFitItemTextWidthPx(texts, itemNameFontStepRef.current)
+        setItemTextWidth(widthForValue)
       }
       setItemTextWidthMode(mode)
-      const value = mode === 'auto' ? 'auto' : String(itemTextWidth)
-      setCachedPrefs(listId, { itemTextWidth: value }, userId)
-      if (userId) {
-        useListDataStore.getState().beginPrefsPersistence()
-        try {
-          try {
-            await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
-              const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
-              if (!lu) throw new Error('Missing list_users row')
-              await db.list_users.update(lu.id, { item_text_width: value })
-              await enqueueSyncQueueRecord({
-                entity: 'list',
-                entity_id: newBatchEntityId(),
-                kind: 'rpc',
-                payload: {
-                  method: 'patchListUser',
-                  id: listId,
-                  user_id: userId,
-                  item_text_width: value,
-                },
-                ...listQueueParent(listId),
-                status: 'queued',
-              })
-            })
-          } catch {
-            setItemTextWidthMode(prevMode)
-            setItemTextWidth(prevWidth)
-            setCachedPrefs(listId, { itemTextWidth: prevMode === 'auto' ? 'auto' : String(prevWidth) }, userId)
-          }
-        } finally {
-          useListDataStore.getState().endPrefsPersistence()
-        }
+      const value = mode === 'auto' ? 'auto' : String(widthForValue)
+      setCachedPrefsLocalOnly(listId, { itemTextWidth: value }, userId)
+    },
+    [itemTextWidth, items, listId, sumScope, userId],
+  )
+
+  const previewItemNameFontStep = useCallback(
+    (step: number) => {
+      const s = Math.min(ITEM_NAME_FONT_MAX, Math.max(ITEM_NAME_FONT_MIN, Math.round(step)))
+      if (s === itemNameFontStepRef.current) return
+      itemNameFontStepRef.current = s
+      setItemNameFontStep(s)
+      setCachedPrefsLocalOnly(listId, { itemNameFontStep: s }, userId)
+    },
+    [listId, userId],
+  )
+
+  const beginDisplayPrefsSession = useCallback(() => {
+    if (displayPrefsSessionActiveRef.current) return
+    const widthValue = itemTextWidthMode === 'auto' ? 'auto' : String(itemTextWidth)
+    displayPrefsBaselineRef.current = { widthValue, fontStep: itemNameFontStepRef.current }
+    displayPrefsSessionActiveRef.current = true
+    useListDataStore.getState().beginPrefsPersistence()
+  }, [itemTextWidth, itemTextWidthMode])
+
+  const commitDisplayPrefs = useCallback(async () => {
+    if (!displayPrefsSessionActiveRef.current) return
+    displayPrefsSessionActiveRef.current = false
+    const baseline = displayPrefsBaselineRef.current
+    displayPrefsBaselineRef.current = null
+
+    const endDisplayPrefsSession = () => {
+      useListDataStore.getState().endPrefsPersistence()
+    }
+
+    const widthValue = itemTextWidthMode === 'auto' ? 'auto' : String(itemTextWidth)
+    const fontStep = itemNameFontStepRef.current
+
+    if (!baseline || (widthValue === baseline.widthValue && fontStep === baseline.fontStep)) {
+      endDisplayPrefsSession()
+      return
+    }
+
+    if (!userId) {
+      setCachedPrefs(listId, { itemTextWidth: widthValue, itemNameFontStep: fontStep }, userId)
+      endDisplayPrefsSession()
+      return
+    }
+
+    if (!tryBeginMutation()) {
+      applyDisplayPrefsBaseline(baseline)
+      endDisplayPrefsSession()
+      return
+    }
+
+    try {
+      const luPatch: Record<string, unknown> = {}
+      if (widthValue !== baseline.widthValue) luPatch.item_text_width = widthValue
+      if (fontStep !== baseline.fontStep) luPatch.item_name_font_step = fontStep
+      try {
+        await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
+          const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+          if (!lu) throw new Error('Missing list_users row')
+          await db.list_users.update(lu.id, luPatch as never)
+          await enqueueSyncQueueRecord({
+            entity: 'list',
+            entity_id: newBatchEntityId(),
+            kind: 'rpc',
+            payload: {
+              method: 'patchListUser',
+              id: listId,
+              user_id: userId,
+              ...luPatch,
+            },
+            ...listQueueParent(listId),
+            status: 'queued',
+          })
+        })
+        setCachedPrefs(listId, { itemTextWidth: widthValue, itemNameFontStep: fontStep }, userId)
+      } catch {
+        applyDisplayPrefsBaseline(baseline)
       }
     } finally {
       mutationGate.end()
+      endDisplayPrefsSession()
     }
-  }
+  }, [
+    applyDisplayPrefsBaseline,
+    itemTextWidth,
+    itemTextWidthMode,
+    listId,
+    mutationGate,
+    tryBeginMutation,
+    userId,
+  ])
+
+  useEffect(() => {
+    return () => {
+      void commitDisplayPrefs()
+    }
+  }, [listId, commitDisplayPrefs])
 
   const updateListUserSumScope = async (next: ListUserSumScope) => {
     if (!userId) {
@@ -2164,55 +2216,6 @@ export function useList(listId: string) {
     }
   }
 
-  const updateItemNameFontStep = useCallback(
-    async (step: number) => {
-      const s = Math.min(ITEM_NAME_FONT_MAX, Math.max(ITEM_NAME_FONT_MIN, Math.round(step)))
-      const prev = itemNameFontStepRef.current
-      if (s === prev) return
-      if (!tryBeginMutation()) {
-        return
-      }
-      try {
-        itemNameFontStepRef.current = s
-        setItemNameFontStep(s)
-        setCachedPrefs(listId, { itemNameFontStep: s }, userId)
-        if (userId) {
-          useListDataStore.getState().beginPrefsPersistence()
-          try {
-            try {
-              await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
-                const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
-                if (!lu) throw new Error('Missing list_users row')
-                await db.list_users.update(lu.id, { item_name_font_step: s })
-                await enqueueSyncQueueRecord({
-                  entity: 'list',
-                  entity_id: newBatchEntityId(),
-                  kind: 'rpc',
-                  payload: {
-                    method: 'patchListUser',
-                    id: listId,
-                    user_id: userId,
-                    item_name_font_step: s,
-                  },
-                  ...listQueueParent(listId),
-                  status: 'queued',
-                })
-              })
-            } catch {
-              itemNameFontStepRef.current = prev
-              setItemNameFontStep(prev)
-              setCachedPrefs(listId, { itemNameFontStep: prev }, userId)
-            }
-          } finally {
-            useListDataStore.getState().endPrefsPersistence()
-          }
-        }
-      } finally {
-        mutationGate.end()
-      }
-    },
-    [listId, mutationGate, tryBeginMutation, userId],
-  )
 
   const persistCategorySettingsToStorage = async (
     names: CategoryNames,
@@ -2496,7 +2499,9 @@ export function useList(listId: string) {
     itemTextWidth,
     itemTextWidthMode,
     itemNameFontStep,
-    updateItemNameFontStep,
+    beginDisplayPrefsSession,
+    commitDisplayPrefs,
+    previewItemNameFontStep,
     categoryNames,
     categoryOrder,
     refresh: refreshList,
@@ -2514,8 +2519,8 @@ export function useList(listId: string) {
     deleteArchivedItems,
     restoreArchivedItems,
     updateMemberFilter,
-    updateItemTextWidth,
-    updateItemTextWidthMode,
+    previewItemTextWidth,
+    previewItemTextWidthMode,
     updateCategoryNames,
     updateCategoryOrder,
     saveCategorySettings,

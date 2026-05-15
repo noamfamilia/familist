@@ -271,7 +271,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     itemTextWidth,
     itemTextWidthMode,
     itemNameFontStep,
-    updateItemNameFontStep,
+    beginDisplayPrefsSession,
+    commitDisplayPrefs,
+    previewItemNameFontStep,
     categoryNames,
     categoryOrder,
     refresh,
@@ -289,8 +291,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     deleteArchivedItems,
     restoreArchivedItems,
     updateMemberFilter,
-    updateItemTextWidth,
-    updateItemTextWidthMode,
+    previewItemTextWidth,
+    previewItemTextWidthMode,
     saveCategorySettings,
     categorySettingsMutationPending,
     lastViewedMembers,
@@ -645,14 +647,14 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const handleWidthChange = (delta: number) => {
     pulseWidthBoundaryGuide()
     if (itemTextWidthMode === 'auto') {
-      updateItemTextWidthMode('manual')
+      previewItemTextWidthMode('manual')
     }
-    updateItemTextWidth(itemTextWidth + delta)
+    previewItemTextWidth(itemTextWidth + delta)
   }
 
   const handleWidthModeToggle = () => {
     pulseWidthBoundaryGuide()
-    updateItemTextWidthMode('auto')
+    previewItemTextWidthMode('auto')
   }
 
   const itemNameFontClassName = itemNameFontClassForStep(itemNameFontStep)
@@ -1138,7 +1140,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               onWidthChange={handleWidthChange}
               onWidthModeToggle={handleWidthModeToggle}
               itemNameFontStep={itemNameFontStep}
-              onItemNameFontStepChange={updateItemNameFontStep}
+              onItemNameFontStepChange={previewItemNameFontStep}
               showActionsMenu
               actionsMenuLoading={categorySettingsMutationPending || bulkLoading}
               categoryEditorSortDisabled={bulkLoading}
@@ -1157,7 +1159,12 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               onEnableSumItems={() => void persistSumScope('all')}
               onDisableSumItems={() => void persistSumScope('none')}
               onDisplayControlsOpenChange={(open) => {
-                if (!open) hideWidthBoundaryGuide()
+                if (open) {
+                  beginDisplayPrefsSession()
+                } else {
+                  hideWidthBoundaryGuide()
+                  void commitDisplayPrefs()
+                }
               }}
             />
           </div>
