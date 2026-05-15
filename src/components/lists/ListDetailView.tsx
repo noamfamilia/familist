@@ -18,6 +18,7 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { OfflineIcon } from '@/components/icons/OfflineIcon'
+import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueIndicator'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
@@ -931,13 +932,16 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-fit max-w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
       {/* Top bar with back button and member filter */}
       <div className="flex w-full min-w-0 items-center justify-between mb-4">
-        <button
-          type="button"
-          onClick={handleBackToLists}
-          className="h-8 flex items-center gap-1.5 text-primary dark:text-gray-100 hover:underline text-sm sm:text-base"
-          aria-label="Go back to all lists"
-        >
-          <span>← Back to lists</span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleBackToLists}
+            className="h-8 flex items-center text-primary dark:text-gray-100 hover:underline text-sm sm:text-base"
+            aria-label="Go back to all lists"
+          >
+            <span>← Back to lists</span>
+          </button>
+          <OutboundQueueIndicator />
           {isOffline || isRecovering ? (
             <OfflineIcon
               variant={isOffline ? 'offline' : 'recovering'}
@@ -945,7 +949,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               aria-hidden
             />
           ) : null}
-        </button>
+        </div>
         {list && list.owner_id === user?.id && (
           <button
             type="button"

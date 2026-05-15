@@ -24,6 +24,7 @@ import { useToast } from '@/components/ui/Toast'
 import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { OfflineIcon } from '@/components/icons/OfflineIcon'
+import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueIndicator'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import { useShallow } from 'zustand/react/shallow'
@@ -438,6 +439,7 @@ function HomeContent() {
             >
               <ThemedImage src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
             </button>
+            <OutboundQueueIndicator />
             {isOffline || isRecovering ? (
               <OfflineIcon
                 variant={isOffline ? 'offline' : 'recovering'}
