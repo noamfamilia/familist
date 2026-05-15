@@ -32,7 +32,8 @@ export function LinkEnabledCardIcon({ className = 'w-5 h-5' }: ShareIconProps) {
 }
 
 export function ShareCardIcon({ className = 'w-5 h-5', emphasized = false }: ShareCardIconProps) {
-  const sw = emphasized ? 2.25 : 1.5
+  /** Thinner than before; emphasized still slightly heavier for teal accent contexts */
+  const sw = emphasized ? 1.65 : 1.15
   return (
     <svg
       viewBox="0 0 24 24"
@@ -52,15 +53,17 @@ export function ShareCardIcon({ className = 'w-5 h-5', emphasized = false }: Sha
         strokeWidth={sw}
         strokeLinecap="round"
       />
+      {/* Leg into bottom-right node — red accent */}
       <path
         d="M14 17.5L9 14"
-        stroke="currentColor"
+        className="stroke-red-500"
         strokeWidth={sw}
         strokeLinecap="round"
       />
+      {/* Bottom-right circle — red accent */}
       <path
         d="M19 18.5C19 19.8807 17.8807 21 16.5 21C15.1193 21 14 19.8807 14 18.5C14 17.1193 15.1193 16 16.5 16C17.8807 16 19 17.1193 19 18.5Z"
-        stroke="currentColor"
+        className="stroke-red-500"
         strokeWidth={sw}
       />
       <path
