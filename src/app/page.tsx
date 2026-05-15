@@ -396,6 +396,8 @@ function HomeContent() {
 
   const effectiveUserId = user?.id ?? bootstrapUserId
   const showListsShell = !!effectiveUserId
+  const sessionRestoring = !user && !!bootstrapUserId
+  const profileMenuNeedsSession = sessionRestoring
   const homeGateLogPrevRef = useRef<string>('')
   useEffect(() => {
     const payload = {
@@ -423,7 +425,7 @@ function HomeContent() {
       {/* Top bar */}
       <div className="flex items-center justify-between mb-4">
         {/* Auth button - top left */}
-        {user ? (
+        {showListsShell ? (
           <div className="relative flex items-center gap-1.5" ref={profileMenuRef} data-tour="home-profile-menu">
             <button
               type="button"
@@ -432,7 +434,7 @@ function HomeContent() {
               aria-label="Account menu"
               aria-expanded={profileMenuOpen}
               aria-haspopup="menu"
-              title={user.email}
+              title={user?.email ?? (sessionRestoring ? 'Restoring session…' : 'Account')}
             >
               <ThemedImage src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
             </button>
@@ -450,9 +452,18 @@ function HomeContent() {
               >
                 <button
                   type="button"
-                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                  disabled={profileMenuNeedsSession}
+                  className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
+                    profileMenuNeedsSession
+                      ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
+                      : 'text-gray-900 dark:text-gray-100'
+                  }`}
                   role="menuitem"
-                  onClick={() => { setProfileMenuOpen(false); setShowProfile(true) }}
+                  onClick={() => {
+                    if (profileMenuNeedsSession) return
+                    setProfileMenuOpen(false)
+                    setShowProfile(true)
+                  }}
                 >
                   Profile settings
                 </button>
@@ -466,31 +477,39 @@ function HomeContent() {
                     const next: 'light' | 'dark' = prev === 'dark' ? 'light' : 'dark'
                     setProfileMenuOpen(false)
                     setTheme(next)
-                    void updateProfile({ theme: next }).then(({ error: themeErr }) => {
-                      if (themeErr) {
-                        setTheme(prev)
-                        showError(themeErr.message || 'Could not save theme')
-                      }
-                    })
+                    if (user) {
+                      void updateProfile({ theme: next }).then(({ error: themeErr }) => {
+                        if (themeErr) {
+                          setTheme(prev)
+                          showError(themeErr.message || 'Could not save theme')
+                        }
+                      })
+                    }
                   }}
                 >
                   {themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}
                 </button>
                 <button
                   type="button"
-                  disabled={isOffline}
+                  disabled={isOffline || profileMenuNeedsSession}
                   className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
-                    isOffline
+                    isOffline || profileMenuNeedsSession
                       ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
                       : 'text-gray-900 dark:text-gray-100'
                   }`}
                   role="menuitem"
                   onClick={() => {
-                    if (isOffline) return
+                    if (isOffline || profileMenuNeedsSession) return
                     setProfileMenuOpen(false)
                     setShowImport(true)
                   }}
-                  title={isOffline ? 'Requires an internet connection' : undefined}
+                  title={
+                    profileMenuNeedsSession
+                      ? 'Restoring session…'
+                      : isOffline
+                        ? 'Requires an internet connection'
+                        : undefined
+                  }
                 >
                   Import from Google Sheet
                 </button>
@@ -532,12 +551,6 @@ function HomeContent() {
               </div>
             )}
           </div>
-        ) : loading && bootstrapUserId ? (
-          <div
-            className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-gray-200 dark:bg-neutral-600"
-            title="Restoring session…"
-            aria-label="Restoring session"
-          />
         ) : (
           <button
             onClick={() => setShowAuthModal(true)}

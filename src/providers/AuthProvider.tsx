@@ -14,6 +14,7 @@ import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
 import { runLocalDexieGc } from '@/lib/data/localDexieGc'
 import { reportServerDexieParityDiagnostics, upsertProfileFromServer } from '@/lib/data/serverDexieParity'
+import { readProfileFromDexie } from '@/lib/profileDexieHydrate'
 
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 
@@ -128,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const mountedRef = useRef(true)
   const userRef = useRef<User | null>(null)
+  const bootstrapUserIdRef = useRef<string | null>(null)
   const profileFetchGenRef = useRef(0)
   useEffect(() => {
     reportServerDexieParityDiagnostics()
@@ -148,12 +150,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user])
 
   useEffect(() => {
+    bootstrapUserIdRef.current = bootstrapUserId
+  }, [bootstrapUserId])
+
+  const hydrateProfileFromDexie = useCallback(async (userId: string) => {
+    try {
+      const hydrated = await readProfileFromDexie(userId)
+      if (!hydrated || !mountedRef.current) return
+      const activeId = userRef.current?.id ?? bootstrapUserIdRef.current ?? getActiveCacheUserId()
+      if (activeId !== userId) return
+      setProfile(hydrated)
+      perfLog('auth/hydrateProfileFromDexie', { userId })
+    } catch {
+      // best-effort local hydrate
+    }
+  }, [])
+
+  useEffect(() => {
     if (typeof window === 'undefined') return
     const cachedUserId = getActiveCacheUserId()
     if (cachedUserId) {
       setBootstrapUserId(cachedUserId)
+      void hydrateProfileFromDexie(cachedUserId)
     }
-  }, [])
+  }, [hydrateProfileFromDexie])
 
   const fetchProfile = useCallback(async (userId: string) => {
     const t0 = performance.now()
@@ -180,12 +200,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!mountedRef.current || userRef.current?.id !== userId) return
       if (error) {
-        const cachedProfile = await db.profiles.get(userId)
+        const cachedProfile = await readProfileFromDexie(userId)
         if (!cachedProfile) return
-        setProfile({
-          ...cachedProfile,
-          theme: cachedProfile.theme === 'dark' ? 'dark' : 'light',
-        })
+        setProfile(cachedProfile)
         return
       }
       if (!data) return
@@ -282,12 +299,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               message: msg,
             })
             if (msg === PROFILE_FETCH_TIMEOUT_MESSAGE && profileFetchGenRef.current === gen) {
-              const cachedProfile = await db.profiles.get(userId)
+              const cachedProfile = await readProfileFromDexie(userId)
               if (cachedProfile) {
-                setProfile({
-                  ...cachedProfile,
-                  theme: cachedProfile.theme === 'dark' ? 'dark' : 'light',
-                })
+                setProfile(cachedProfile)
               }
               log.warn('AUTH', 'fetchProfile timeout; proceeding with cached profile', {
                 userId,
@@ -323,6 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (nextUser) {
         setActiveCacheUserId(nextUser.id)
         setBootstrapUserId(nextUser.id)
+        void hydrateProfileFromDexie(nextUser.id)
         scheduleStartupProfileFetch(nextUser.id)
       } else {
         profileFetchGenRef.current++
@@ -474,7 +489,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false
       subscription?.unsubscribe()
     }
-  }, [hardRecoverInvalidRefreshToken, scheduleStartupProfileFetch, supabase.auth])
+  }, [hardRecoverInvalidRefreshToken, hydrateProfileFromDexie, scheduleStartupProfileFetch, supabase.auth])
 
   useEffect(() => {
     const t = profile?.theme
@@ -499,6 +514,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(result.data.user)
         setActiveCacheUserId(result.data.user.id)
         setBootstrapUserId(result.data.user.id)
+        void hydrateProfileFromDexie(result.data.user.id)
         scheduleStartupProfileFetch(result.data.user.id)
       }
 
@@ -523,6 +539,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data.user)
       setActiveCacheUserId(data.user.id)
       setBootstrapUserId(data.user.id)
+      void hydrateProfileFromDexie(data.user.id)
       scheduleStartupProfileFetch(data.user.id)
     }
 
