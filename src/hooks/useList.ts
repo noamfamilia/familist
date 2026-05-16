@@ -78,6 +78,7 @@ import {
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
 import { markListViewedLocally } from '@/lib/data/listActivity'
+import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { useListSyncErrorToast } from '@/hooks/useListSyncErrorToast'
 
 const supabase = createClient()
@@ -314,6 +315,8 @@ export function useList(listId: string) {
   const { user, profile, loading: authLoading, bootstrapUserId } = useAuth()
   const cached = getCachedList(undefined, listId)
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
+  const mutationUserId = resolveCatalogMutationUserId(user?.id, bootstrapUserId)
+  const scopedUserId = userId ?? mutationUserId
 
   const list = useListDataStore((s) => s.list)
   const listDataStatus = useListDataStore((s) => s.listDataStatus)
@@ -417,12 +420,12 @@ export function useList(listId: string) {
   const markCurrentListViewed = useCallback(
     async (nowIso?: string) => {
       try {
-        await markListViewedLocally(userId, listId, { nowIso })
+        await markListViewedLocally(mutationUserId, listId, { nowIso })
       } catch {
         // Best effort only; read-cursor failures should not block item mutations.
       }
     },
-    [listId, userId],
+    [listId, mutationUserId],
   )
 
   const tryBeginMutation = useCallback((): boolean => {
@@ -467,14 +470,14 @@ export function useList(listId: string) {
     const lsT0 = performance.now()
     let approxStorageChars = 0
     try {
-      if (userId && listId && typeof localStorage !== 'undefined') {
-        approxStorageChars = localStorage.getItem(`cached_list_${userId}_${listId}`)?.length ?? 0
+      if (scopedUserId && listId && typeof localStorage !== 'undefined') {
+        approxStorageChars = localStorage.getItem(`cached_list_${scopedUserId}_${listId}`)?.length ?? 0
       }
     } catch {
       // ignore
     }
-    const cachedData = getCachedList(userId, listId)
-    const cachedPrefs = getCachedPrefs(listId, userId)
+    const cachedData = getCachedList(scopedUserId, listId)
+    const cachedPrefs = getCachedPrefs(listId, scopedUserId)
     const itemCount = (cachedData?.items || []).length
     perfLog('localStorage read end', {
       durationMs: Math.round(performance.now() - lsT0),
@@ -483,8 +486,8 @@ export function useList(listId: string) {
       approxStorageChars,
     })
 
-    if (userId && listId) {
-      useListDataStore.getState().beginListSession(userId, listId, cachedData)
+    if (scopedUserId && listId) {
+      useListDataStore.getState().beginListSession(scopedUserId, listId, cachedData)
     } else {
       useListDataStore.getState().clearActiveListData()
     }
@@ -496,31 +499,31 @@ export function useList(listId: string) {
     setCategoryNames(parseCategoryNames(cachedData?.list?.category_names))
     setCategoryOrder(parseCategoryOrder(cachedData?.list?.category_order))
     setSumScope(parseListUserSumScope(cachedPrefs.sumScope))
-    setLoading(!!userId && !cachedData?.list)
+    setLoading(!!scopedUserId && !cachedData?.list)
     setHasCompletedInitialFetch(false)
     hasInitialDataRef.current = !!cachedData?.list
     prefsFetchedRef.current = false
-  }, [listId, userId])
+  }, [listId, scopedUserId])
 
   useEffect(() => {
-    if (!userId || !listId) return
-    void warmListData(userId, listId)
-    const unsub = subscribeListDataL2Bridge(userId, listId)
+    if (!scopedUserId || !listId) return
+    void warmListData(scopedUserId, listId)
+    const unsub = subscribeListDataL2Bridge(scopedUserId, listId)
     return () => {
       unsub()
     }
-  }, [userId, listId])
+  }, [scopedUserId, listId])
 
   useEffect(() => {
-    if (!userId || !listId) return
+    if (!scopedUserId || !listId) return
     return () => {
-      void markListViewedLocally(userId, listId)
+      void markListViewedLocally(scopedUserId, listId)
     }
-  }, [userId, listId])
+  }, [scopedUserId, listId])
 
   /** Apply `list_users` prefs from the Dexie-backed Zustand mirror before paint (avoids font/prefs flash after gate). */
   useLayoutEffect(() => {
-    if (!userId || !listId || !prefsMirrorReady) return
+    if (!scopedUserId || !listId || !prefsMirrorReady) return
     const dexiePrefs = mirroredListUserRow
     if (!dexiePrefs) {
       setMemberFilter('all')
@@ -546,11 +549,11 @@ export function useList(listId: string) {
     setItemNameFontStep(dexieFontStep)
     setLastViewedMembers(dexiePrefs.last_viewed_members ?? null)
     setSumScope(parseListUserSumScope(dexiePrefs.sum_scope))
-  }, [listId, userId, prefsMirrorReady, mirroredListUserRow])
+  }, [listId, scopedUserId, prefsMirrorReady, mirroredListUserRow])
 
   const sessionMirrorReady = useMemo(
-    () => !userId || !listId || (listDataStatus === 'ready' && prefsMirrorReady),
-    [userId, listId, listDataStatus, prefsMirrorReady],
+    () => !scopedUserId || !listId || (listDataStatus === 'ready' && prefsMirrorReady),
+    [scopedUserId, listId, listDataStatus, prefsMirrorReady],
   )
 
   const trackSaveOperation = useCallback(async <T>(operation: PromiseLike<T>): Promise<T> => {
@@ -607,7 +610,7 @@ export function useList(listId: string) {
     let connectivityDiscarded = false
     let listMirrorLockHeld = false
 
-    if (!userId || !listId) {
+    if (!scopedUserId || !listId) {
       perfLog('fetchList start', { note: 'no user or list' })
       useListDataStore.getState().setList(null)
       useListDataStore.getState().setItems([])
@@ -645,17 +648,17 @@ export function useList(listId: string) {
       listMirrorLockHeld = true
       let hadList = false
       try {
-        await warmListData(userId, listId)
+        await warmListData(scopedUserId, listId)
         const st = useListDataStore.getState()
-        if (st.activeUserId === userId && st.activeListId === listId && st.list) {
+        if (st.activeUserId === scopedUserId && st.activeListId === listId && st.list) {
           hadList = true
           hadAccessRef.current = true
           hasInitialDataRef.current = true
           setCategoryNames(parseCategoryNames(st.list.category_names))
           setCategoryOrder(parseCategoryOrder(st.list.category_order))
-          setCachedList(userId, listId, { list: st.list, items: st.items, members: st.members })
+          setCachedList(scopedUserId, listId, { list: st.list, items: st.items, members: st.members })
         } else {
-          const fromLs = getCachedList(userId, listId)
+          const fromLs = getCachedList(scopedUserId, listId)
           if (fromLs?.list) {
             useListDataStore.getState().setList(fromLs.list)
             useListDataStore.getState().setItems(fromLs.items)
@@ -717,7 +720,7 @@ export function useList(listId: string) {
     setFetchTimedOut(false)
 
     appendOfflineNavDiagnostic(
-      `[fetchList] start listId=${listId} navigator.onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0} hadCachedListRow=${getCachedList(userId, listId)?.list ? 1 : 0}`,
+      `[fetchList] start listId=${listId} navigator.onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0} hadCachedListRow=${getCachedList(scopedUserId, listId)?.list ? 1 : 0}`,
     )
 
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
@@ -971,22 +974,22 @@ export function useList(listId: string) {
           ? listUserData.member_filter as MemberFilter
           : 'all' as MemberFilter
         setMemberFilter(serverFilter)
-        setCachedPrefs(listId, { memberFilter: serverFilter }, userId)
+        setCachedPrefs(listId, { memberFilter: serverFilter }, scopedUserId)
         const serverVal = listUserData.item_text_width
         const parsed = parseWidthValue(serverVal)
         setItemTextWidthMode(parsed.mode)
-        setCachedPrefs(listId, { itemTextWidth: serverVal ?? 'auto' }, userId)
+        setCachedPrefs(listId, { itemTextWidth: serverVal ?? 'auto' }, scopedUserId)
         if (parsed.mode === 'manual') {
           setItemTextWidth(parsed.width)
         }
         const serverFontStep = parseItemNameFontStep(listUserData.item_name_font_step)
         itemNameFontStepRef.current = serverFontStep
         setItemNameFontStep(serverFontStep)
-        setCachedPrefs(listId, { itemNameFontStep: serverFontStep }, userId)
+        setCachedPrefs(listId, { itemNameFontStep: serverFontStep }, scopedUserId)
         setLastViewedMembers(listUserData.last_viewed_members ?? null)
         const serverSumScope = parseListUserSumScope(listUserData.sum_scope)
         setSumScope(serverSumScope)
-        setCachedPrefs(listId, { sumScope: serverSumScope }, userId)
+        setCachedPrefs(listId, { sumScope: serverSumScope }, scopedUserId)
       }
       setFetchTimedOut(false)
       appendOfflineNavDiagnostic(
@@ -1062,6 +1065,7 @@ export function useList(listId: string) {
     endServerWork,
     listId,
     pulseServerWorkProgress,
+    scopedUserId,
     userId,
   ])
 
@@ -1079,11 +1083,11 @@ export function useList(listId: string) {
   // Keep local cache in sync with optimistic updates too.
   useEffect(() => {
     if (!list) return
-    setCachedList(userId, listId, { list, items, members })
-    if (userId) {
-      void upsertListDataPayloadFromServer(userId, listId, { list, items, members })
+    setCachedList(scopedUserId, listId, { list, items, members })
+    if (scopedUserId) {
+      void upsertListDataPayloadFromServer(scopedUserId, listId, { list, items, members })
     }
-  }, [userId, listId, list, items, members])
+  }, [scopedUserId, listId, list, items, members])
 
   useEffect(() => {
     if (!accessDenied) return
@@ -1261,7 +1265,7 @@ export function useList(listId: string) {
   }, [fetchList, listId, userId])
 
   const addItem = async (text: string, category?: number, comment?: string | null) => {
-    if (!userId) {
+    if (!mutationUserId) {
       return { data: null, error: { message: 'Not authenticated' } }
     }
     if (!tryBeginItemQueueableMutation()) {
@@ -1292,7 +1296,7 @@ export function useList(listId: string) {
     try {
       useListDataStore.getState().setItems((prev) => [...prev, optimistic])
       await addItemMutation({
-        user_id: userId,
+        user_id: mutationUserId,
         list_id: listId,
         text,
         category: cat,
@@ -1302,7 +1306,7 @@ export function useList(listId: string) {
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       await markCurrentListViewed(t)
-      persistListSnapshotToDetailCache(userId, listId)
+      persistListSnapshotToDetailCache(mutationUserId, listId)
       return { data: { id } as Item, error: null }
     } catch (error) {
       useListDataStore.getState().setItems((prev) => prev.filter((i) => i.id !== id))
@@ -1330,7 +1334,7 @@ export function useList(listId: string) {
     if (!bulkDup.ok) {
       return { error: { message: bulkDup.message }, inserted: 0 }
     }
-    if (!userId) {
+    if (!mutationUserId) {
       return { error: { message: 'Not authenticated' }, inserted: 0 }
     }
     if (!tryBeginItemQueueableMutation()) {
@@ -1383,7 +1387,7 @@ export function useList(listId: string) {
           })
         })
         await markCurrentListViewed(t)
-        persistListSnapshotToDetailCache(userId, listId)
+        persistListSnapshotToDetailCache(mutationUserId, listId)
         return { error: null, inserted: trimmed.length }
       } catch (error) {
         useListDataStore.getState().setItems((prev) => prev.filter((i) => !rollbackIds.has(i.id)))
@@ -1398,7 +1402,7 @@ export function useList(listId: string) {
 
   const updateItem = async (itemId: string, updates: Partial<Item>) => {
     const previousItem = items.find((item) => item.id === itemId)
-    if (!userId) {
+    if (!mutationUserId) {
       return { error: { message: 'Not authenticated' } }
     }
     if (!tryBeginItemQueueableMutation()) {
@@ -1508,7 +1512,7 @@ export function useList(listId: string) {
   updateItemRef.current = updateItem
 
   const deleteItem = async (itemId: string) => {
-    if (!userId) {
+    if (!mutationUserId) {
       return { error: new Error('Not authenticated') }
     }
     if (!tryBeginItemQueueableMutation()) {
@@ -1518,7 +1522,7 @@ export function useList(listId: string) {
     useListDataStore.getState().beginLocalListPersistence()
     try {
       useListDataStore.getState().setItems((prev) => prev.filter((i) => i.id !== itemId))
-      await softDeleteItemMutation(userId, listId, itemId)
+      await softDeleteItemMutation(mutationUserId, listId, itemId)
       mutationVersionRef.current += 1
       skipRealtimeUntilRef.current = Date.now() + 2000
       delete desiredArchivedByItemRef.current[itemId]
@@ -1537,7 +1541,7 @@ export function useList(listId: string) {
     if (isOfflineActionsDisabled) {
       return { error: { message: blockedMutationMessage() } }
     }
-    if (!userId) return { error: new Error('Not authenticated') }
+    if (!mutationUserId) return { error: new Error('Not authenticated') }
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
@@ -1549,7 +1553,7 @@ export function useList(listId: string) {
       id: memberId,
       list_id: listId,
       name,
-      created_by: userId,
+      created_by: mutationUserId,
       sort_order: sortOrder,
       is_public: false,
       is_target: false,
@@ -1562,7 +1566,7 @@ export function useList(listId: string) {
       useListDataStore.getState().setMembers((prev) => [...prev, optimistic])
       await addMemberMutation({
         id: memberId,
-        user_id: userId,
+        user_id: mutationUserId,
         list_id: listId,
         name,
         sort_order: sortOrder,
@@ -1581,7 +1585,7 @@ export function useList(listId: string) {
   }
 
   const updateMember = async (memberId: string, updates: Partial<Member>) => {
-    if (!userId) return { error: { message: 'Not authenticated' } }
+    if (!mutationUserId) return { error: { message: 'Not authenticated' } }
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
@@ -1649,7 +1653,7 @@ export function useList(listId: string) {
   }
 
   const deleteMember = async (memberId: string) => {
-    if (!userId) return { error: { message: 'Not authenticated' } }
+    if (!mutationUserId) return { error: { message: 'Not authenticated' } }
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
@@ -1707,14 +1711,14 @@ export function useList(listId: string) {
   }
 
   const ownMember = async (memberId: string, creatorNickname?: string) => {
-    if (!userId) return { error: { message: 'Not authenticated' } }
+    if (!mutationUserId) return { error: { message: 'Not authenticated' } }
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
     let membersSnapshot: MemberWithCreator[] | undefined
     try {
       const existing = members.find((m) => m.id === memberId)
-      if (existing && existing.created_by === userId) {
+      if (existing && existing.created_by === mutationUserId) {
         return { error: null, newMemberId: memberId }
       }
       membersSnapshot = [...useListDataStore.getState().members]
@@ -1726,7 +1730,7 @@ export function useList(listId: string) {
             m.id === memberId
               ? {
                   ...m,
-                  created_by: userId,
+                  created_by: mutationUserId,
                   creator: creatorNickname ? { nickname: creatorNickname } : m.creator,
                   updated_at: nowIso,
                 }
@@ -1735,7 +1739,7 @@ export function useList(listId: string) {
         )
         await db.transaction('rw', db.members, db.lists, db.sync_queue, db.list_users, async () => {
           await db.members.update(memberId, {
-            created_by: userId,
+            created_by: mutationUserId,
             updated_at: nowIso,
           })
           await enqueueSyncQueueRecord({
@@ -1745,7 +1749,7 @@ export function useList(listId: string) {
             payload: {
               method: 'ownMember',
               member_id: memberId,
-              user_id: userId,
+              user_id: mutationUserId,
             },
             ...listQueueParent(listId),
             status: 'queued',
@@ -1893,7 +1897,7 @@ export function useList(listId: string) {
   const deleteArchivedItems = async () => {
     const archivedIds = new Set(items.filter((i) => i.archived).map((i) => i.id))
     if (archivedIds.size === 0) return { error: null, count: 0 }
-    if (!userId) return { error: { message: 'Not authenticated' }, count: 0 }
+    if (!mutationUserId) return { error: { message: 'Not authenticated' }, count: 0 }
 
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() }, count: 0 }
@@ -1906,7 +1910,7 @@ export function useList(listId: string) {
       skipRealtimeUntilRef.current = Date.now() + 3000
       await bulkSoftDeleteArchivedItemsMutation(listId, [...archivedIds])
       await markCurrentListViewed()
-      persistListSnapshotToDetailCache(userId, listId)
+      persistListSnapshotToDetailCache(mutationUserId, listId)
       return { error: null, count: archivedIds.size }
     } catch (error) {
       useListDataStore.getState().setItems(itemsSnapshot)
@@ -1920,7 +1924,7 @@ export function useList(listId: string) {
   const restoreArchivedItems = async () => {
     const archivedIds = items.filter(i => i.archived).map(i => i.id)
     if (archivedIds.length === 0) return { error: null, count: 0 }
-    if (!userId) return { error: { message: 'Not authenticated' }, count: 0 }
+    if (!mutationUserId) return { error: { message: 'Not authenticated' }, count: 0 }
 
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() }, count: 0 }
@@ -1957,7 +1961,7 @@ export function useList(listId: string) {
         })
       })
       await markCurrentListViewed(nowIso)
-      persistListSnapshotToDetailCache(userId, listId)
+      persistListSnapshotToDetailCache(mutationUserId, listId)
       return { error: null, count: archivedIds.length }
     } catch (error) {
       useListDataStore.getState().setItems(itemsSnapshot)
@@ -1969,7 +1973,7 @@ export function useList(listId: string) {
   }
 
   const reorderItems = async (reorderedItems: ItemWithState[]) => {
-    if (!userId) return { error: { message: 'Not authenticated' } }
+    if (!mutationUserId) return { error: { message: 'Not authenticated' } }
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() } }
     }
@@ -2023,20 +2027,20 @@ export function useList(listId: string) {
       const prev = memberFilter
       const prevLastViewedSnapshot = lastViewedMembers
       setMemberFilter(filter)
-      setCachedPrefs(listId, { memberFilter: filter }, userId)
+      setCachedPrefs(listId, { memberFilter: filter }, scopedUserId)
       let lastVmPatch: string | undefined
       if (prev === 'all' && filter !== 'all') {
         lastVmPatch = new Date().toISOString()
         setLastViewedMembers(lastVmPatch)
       }
-      if (userId) {
+      if (mutationUserId) {
         useListDataStore.getState().beginPrefsPersistence()
         try {
           const luPatch: Record<string, unknown> = { member_filter: filter }
           if (lastVmPatch !== undefined) luPatch.last_viewed_members = lastVmPatch
           try {
             await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
-              const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+              const lu = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
               if (!lu) throw new Error('Missing list_users row')
               await db.list_users.update(lu.id, luPatch as never)
               await enqueueSyncQueueRecord({
@@ -2046,7 +2050,7 @@ export function useList(listId: string) {
                 payload: {
                   method: 'patchListUser',
                   id: listId,
-                  user_id: userId,
+                  user_id: mutationUserId,
                   ...luPatch,
                 },
                 ...listQueueParent(listId),
@@ -2055,7 +2059,7 @@ export function useList(listId: string) {
             })
           } catch {
             setMemberFilter(prev)
-            setCachedPrefs(listId, { memberFilter: prev }, userId)
+            setCachedPrefs(listId, { memberFilter: prev }, scopedUserId)
             setLastViewedMembers(prevLastViewedSnapshot)
           }
         } finally {
@@ -2150,8 +2154,8 @@ export function useList(listId: string) {
       return
     }
 
-    if (!userId) {
-      setCachedPrefs(listId, { itemTextWidth: widthValue, itemNameFontStep: fontStep }, userId)
+    if (!mutationUserId) {
+      setCachedPrefs(listId, { itemTextWidth: widthValue, itemNameFontStep: fontStep }, scopedUserId)
       endDisplayPrefsSession()
       return
     }
@@ -2168,7 +2172,7 @@ export function useList(listId: string) {
       if (fontStep !== baseline.fontStep) luPatch.item_name_font_step = fontStep
       try {
         await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
-          const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+          const lu = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
           if (!lu) throw new Error('Missing list_users row')
           await db.list_users.update(lu.id, luPatch as never)
           await enqueueSyncQueueRecord({
@@ -2178,14 +2182,14 @@ export function useList(listId: string) {
             payload: {
               method: 'patchListUser',
               id: listId,
-              user_id: userId,
+              user_id: mutationUserId,
               ...luPatch,
             },
             ...listQueueParent(listId),
             status: 'queued',
           })
         })
-        setCachedPrefs(listId, { itemTextWidth: widthValue, itemNameFontStep: fontStep }, userId)
+        setCachedPrefs(listId, { itemTextWidth: widthValue, itemNameFontStep: fontStep }, scopedUserId)
       } catch {
         applyDisplayPrefsBaseline(baseline)
       }
@@ -2199,8 +2203,9 @@ export function useList(listId: string) {
     itemTextWidthMode,
     listId,
     mutationGate,
+    mutationUserId,
+    scopedUserId,
     tryBeginMutation,
-    userId,
   ])
 
   /** Always latest commit fn — do not put `commitDisplayPrefs` in an effect deps array: its identity
@@ -2215,7 +2220,7 @@ export function useList(listId: string) {
   }, [listId])
 
   const updateListUserSumScope = async (next: ListUserSumScope) => {
-    if (!userId) {
+    if (!mutationUserId) {
       return { error: new Error('Not signed in') }
     }
     if (!tryBeginMutation()) {
@@ -2224,12 +2229,12 @@ export function useList(listId: string) {
     const prev = sumScope
     try {
       setSumScope(next)
-      setCachedPrefs(listId, { sumScope: next }, userId)
+      setCachedPrefs(listId, { sumScope: next }, scopedUserId)
       useListDataStore.getState().beginPrefsPersistence()
       try {
         try {
           await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
-            const lu = await db.list_users.where('[list_id+user_id]').equals([listId, userId]).first()
+            const lu = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
             if (!lu) throw new Error('Missing list_users row')
             await db.list_users.update(lu.id, { sum_scope: next })
             await enqueueSyncQueueRecord({
@@ -2239,7 +2244,7 @@ export function useList(listId: string) {
               payload: {
                 method: 'patchListUser',
                 id: listId,
-                user_id: userId,
+                user_id: mutationUserId,
                 sum_scope: next,
               },
               ...listQueueParent(listId),
@@ -2249,7 +2254,7 @@ export function useList(listId: string) {
           return { error: null }
         } catch (e) {
           setSumScope(prev)
-          setCachedPrefs(listId, { sumScope: prev }, userId)
+          setCachedPrefs(listId, { sumScope: prev }, scopedUserId)
           return { error: e instanceof Error ? e : new Error('Failed to queue preference update') }
         }
       } finally {
@@ -2403,7 +2408,7 @@ export function useList(listId: string) {
     options?: { reorderItems?: boolean },
   ) => {
     const reorder = !!options?.reorderItems
-    if (reorder && !userId) {
+    if (reorder && !mutationUserId) {
       return { error: { message: 'Not authenticated' } }
     }
     if (reorder) {
@@ -2432,7 +2437,7 @@ export function useList(listId: string) {
   }
 
   const createTargets = async () => {
-    if (!userId) return
+    if (!mutationUserId) return
     const hasTarget = members.some(m => m.is_target)
     if (hasTarget) return
 
@@ -2453,7 +2458,7 @@ export function useList(listId: string) {
         id: memberId,
         list_id: listId,
         name: 'Qty',
-        created_by: userId,
+        created_by: mutationUserId,
         sort_order: 0,
         is_public: false,
         is_target: true,
@@ -2468,7 +2473,7 @@ export function useList(listId: string) {
       try {
         await addMemberMutation({
           id: memberId,
-          user_id: userId,
+          user_id: mutationUserId,
           list_id: listId,
           name: 'Qty',
           is_target: true,

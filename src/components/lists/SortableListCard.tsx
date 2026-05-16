@@ -25,6 +25,7 @@ interface SortableListCardProps {
   onClearCreateInput?: () => void
   onClearCreateInputIfTyped?: () => void
   isOfflineActionsDisabled?: boolean
+  mutationUserId?: string | null
 }
 
 function sortableListCardPropsEqual(prev: SortableListCardProps, next: SortableListCardProps): boolean {
@@ -33,7 +34,8 @@ function sortableListCardPropsEqual(prev: SortableListCardProps, next: SortableL
     sameStringList(prev.existingListNames, next.existingListNames) &&
     sameStringList(prev.labels, next.labels) &&
     (prev.currentFilter ?? 'Any') === (next.currentFilter ?? 'Any') &&
-    prev.isOfflineActionsDisabled === next.isOfflineActionsDisabled
+    prev.isOfflineActionsDisabled === next.isOfflineActionsDisabled &&
+    (prev.mutationUserId ?? null) === (next.mutationUserId ?? null)
   )
 }
 
@@ -52,6 +54,7 @@ function SortableListCardInner({
   onClearCreateInput,
   onClearCreateInputIfTyped,
   isOfflineActionsDisabled = false,
+  mutationUserId = null,
 }: SortableListCardProps) {
   const {
     attributes,
@@ -86,6 +89,7 @@ function SortableListCardInner({
         onClearCreateInput={onClearCreateInput}
         onClearCreateInputIfTyped={onClearCreateInputIfTyped}
         isOfflineActionsDisabled={isOfflineActionsDisabled}
+        mutationUserId={mutationUserId}
       />
     </div>
   )

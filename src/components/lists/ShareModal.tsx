@@ -7,7 +7,7 @@ import { RegenerateIcon, ShareActionIcon } from '@/components/ui/ShareIcons'
 import { useToast } from '@/components/ui/Toast'
 import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 import { buildInviteUrl } from '@/lib/invite'
-import { getActiveCacheUserId } from '@/lib/cache'
+import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
 import { useAuth } from '@/providers/AuthProvider'
@@ -43,8 +43,8 @@ interface JoinedUser {
 type JoinedUsersRpcResult = Database['public']['Functions']['get_list_joined_users']['Returns']
 
 export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }: ShareModalProps) {
-  const { user } = useAuth()
-  const syncActorUserId = user?.id ?? getActiveCacheUserId() ?? ''
+  const { user, bootstrapUserId } = useAuth()
+  const syncActorUserId = resolveCatalogMutationUserId(user?.id, bootstrapUserId) ?? ''
   const { success, error: showError } = useToast()
   const [visibility, setVisibility] = useState<'private' | 'link'>(list.visibility)
   const [token, setToken] = useState<string>('')

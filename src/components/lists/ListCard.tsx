@@ -106,6 +106,8 @@ interface ListCardProps {
   /** Like clearing add-item draft when archiving an item: clear home create field if it had text. */
   onClearCreateInputIfTyped?: () => void
   isOfflineActionsDisabled?: boolean
+  /** Bumps ListCard re-render when auth resolves so memo does not keep stale action callbacks. */
+  mutationUserId?: string | null
 }
 
 function listCardPropsEqual(prev: ListCardProps, next: ListCardProps): boolean {
@@ -114,7 +116,8 @@ function listCardPropsEqual(prev: ListCardProps, next: ListCardProps): boolean {
     sameStringList(prev.existingListNames, next.existingListNames) &&
     sameStringList(prev.labels, next.labels) &&
     (prev.currentFilter ?? 'Any') === (next.currentFilter ?? 'Any') &&
-    prev.isOfflineActionsDisabled === next.isOfflineActionsDisabled
+    prev.isOfflineActionsDisabled === next.isOfflineActionsDisabled &&
+    (prev.mutationUserId ?? null) === (next.mutationUserId ?? null)
   )
 }
 

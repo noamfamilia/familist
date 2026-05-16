@@ -65,6 +65,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     applyListLabelsBatch,
     labels,
     isOfflineActionsDisabled,
+    mutationUserId,
   } = useLists()
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
   /** `inviteToken:userId` after a successful join so we do not enqueue twice. */
@@ -420,6 +421,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onClearCreateInput={clearCreateInput}
                     onClearCreateInputIfTyped={clearCreateInputIfTyped}
                     isOfflineActionsDisabled={isOfflineActionsDisabled}
+                    mutationUserId={mutationUserId}
                   />
                 ))}
               </div>
@@ -456,6 +458,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
                     onClearCreateInput={clearCreateInput}
                     onClearCreateInputIfTyped={clearCreateInputIfTyped}
                     isOfflineActionsDisabled={isOfflineActionsDisabled}
+                    mutationUserId={mutationUserId}
                   />
             ))}
           </div>

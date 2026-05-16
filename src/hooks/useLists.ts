@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
+import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { db } from '@/lib/db'
 import {
   subscribeListsCatalogL2Bridge,
@@ -185,6 +186,8 @@ export function useLists() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hasInitialDataRef = useRef(false)
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
+  /** Owner id for catalog mutations while session user is still null (offline bootstrap). */
+  const mutationUserId = resolveCatalogMutationUserId(user?.id, bootstrapUserId)
   useEffect(() => {
     reportServerDexieParityDiagnostics()
   }, [])
@@ -281,16 +284,16 @@ export function useLists() {
   }
 
   const persistListOrder = async (orderedLists: ListWithRole[]) => {
-    if (!user) return null
+    if (!mutationUserId) return null
     const nowMs = Date.now()
     const orderedIds = orderedLists.map((list) => list.id)
     appendMutationDiagnostic(
-      `[mutation:list.reorder.queue] userId=${user.id} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')} tail=${orderedIds.slice(-5).join(',')}`,
+      `[mutation:list.reorder.queue] userId=${mutationUserId} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')} tail=${orderedIds.slice(-5).join(',')}`,
     )
     await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
       const n = orderedLists.length
       for (const [index, list] of orderedLists.entries()) {
-        const row = await db.list_users.where('[list_id+user_id]').equals([list.id, user.id]).first()
+        const row = await db.list_users.where('[list_id+user_id]').equals([list.id, mutationUserId]).first()
         if (row) await db.list_users.update(row.id, { sort_order: listCatalogSortOrderForVisualIndex(index, n) })
       }
       await enqueueSyncQueueRecord({
@@ -299,10 +302,10 @@ export function useLists() {
         kind: 'rpc',
         payload: {
           method: 'reorderListUsers',
-          user_id: user.id,
+          user_id: mutationUserId,
           list_ids: orderedIds,
         },
-        ...userQueueParent(user.id),
+        ...userQueueParent(mutationUserId),
         status: 'queued',
       })
     })
@@ -569,7 +572,7 @@ export function useLists() {
   }, [fetchLists, userId])
 
   const createList = async (name: string, label?: string) => {
-    if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationUserId) return { error: new Error('Not authenticated') }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -578,7 +581,7 @@ export function useLists() {
     if (!trimmedName) {
       return { error: new Error('List name is required') }
     }
-    const nameDup = await validateListNameForOwner(user.id, trimmedName)
+    const nameDup = await validateListNameForOwner(mutationUserId, trimmedName)
     if (!nameDup.ok) {
       return { error: new Error(nameDup.message) }
     }
@@ -587,12 +590,12 @@ export function useLists() {
     const now = new Date().toISOString()
     const sync = syncFieldsForLocalInsert()
     const cat = useListsCatalogStore.getState()
-    const existingMemberships = await db.list_users.where('user_id').equals(user.id).toArray()
+    const existingMemberships = await db.list_users.where('user_id').equals(mutationUserId).toArray()
     const nextSort = nextListCatalogSortOrderFromMembershipRows(existingMemberships, listId)
     const optimisticList: ListWithRole = {
       id: listId,
       name: trimmedName,
-      owner_id: user.id,
+      owner_id: mutationUserId,
       visibility: 'private',
       archived: false,
       comment: null,
@@ -631,7 +634,7 @@ export function useLists() {
         await db.list_users.put({
           id: crypto.randomUUID(),
           list_id: listId,
-          user_id: user.id,
+          user_id: mutationUserId,
           role: 'owner',
           archived: false,
           sort_order: nextSort,
@@ -753,7 +756,7 @@ export function useLists() {
   }
 
   const updateUserListState = async (listId: string, updates: { archived?: boolean; sort_order?: number }) => {
-    if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationUserId) return { error: new Error('Not authenticated') }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -776,7 +779,7 @@ export function useLists() {
       try {
         await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
           const queueTs = Date.now()
-          const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
+          const row = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
           if (row) {
             await db.list_users.update(row.id, {
               ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
@@ -790,7 +793,7 @@ export function useLists() {
             payload: {
               method: 'patchListUser',
               id: listId,
-              user_id: user.id,
+              user_id: mutationUserId,
               ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
               ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
             },
@@ -804,11 +807,11 @@ export function useLists() {
           if (updates.archived !== undefined) {
             const orderedIds = nextLists.map((l) => l.id)
             appendMutationDiagnostic(
-              `[mutation:list.user_state.reorder] userId=${user.id} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')}`,
+              `[mutation:list.user_state.reorder] userId=${mutationUserId} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')}`,
             )
             const n = nextLists.length
             for (const [index, list] of nextLists.entries()) {
-              const lu = await db.list_users.where('[list_id+user_id]').equals([list.id, user.id]).first()
+              const lu = await db.list_users.where('[list_id+user_id]').equals([list.id, mutationUserId]).first()
               if (lu) await db.list_users.update(lu.id, { sort_order: listCatalogSortOrderForVisualIndex(index, n) })
             }
             await enqueueSyncQueueRecord({
@@ -817,10 +820,10 @@ export function useLists() {
               kind: 'rpc',
               payload: {
                 method: 'reorderListUsers',
-                user_id: user.id,
+                user_id: mutationUserId,
                 list_ids: orderedIds,
               },
-              ...userQueueParent(user.id),
+              ...userQueueParent(mutationUserId),
               status: 'queued',
               updated_at: queueTs + 1,
             })
@@ -850,23 +853,23 @@ export function useLists() {
         )
         return { data: null, error: new Error('Session still loading'), joinedListName: null as string | null }
       }
-      if (!user?.id) {
+      if (!mutationUserId) {
         appendMutationDiagnostic(
-          `[invite] joinListByToken blocked reason=no_user_session authLoading=0 catalogUserId=${userId ?? 'null'} bootstrapUserId=${bootstrapUserId ?? 'null'} tokenLen=${tokenLen}`,
+          `[invite] joinListByToken blocked reason=no_user_session authLoading=0 catalogUserId=${userId ?? 'null'} bootstrapUserId=${bootstrapUserId ?? 'null'} mutationUserId=null tokenLen=${tokenLen}`,
         )
         return { data: null, error: new Error('Not authenticated'), joinedListName: null as string | null }
       }
       if (!tryBeginMutation()) {
         const msg = blockedMutationMessage()
         appendMutationDiagnostic(
-          `[invite] joinListByToken blocked reason=mutation_gate userId=${user.id} tokenLen=${tokenLen} msg=${msg}`,
+          `[invite] joinListByToken blocked reason=mutation_gate userId=${mutationUserId} tokenLen=${tokenLen} msg=${msg}`,
         )
         return { data: null, error: new Error(msg), joinedListName: null as string | null }
       }
       try {
         if (canMutateNow()) {
           appendMutationDiagnostic(
-            `[invite] joinListByToken rpc userId=${user.id} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
+            `[invite] joinListByToken rpc userId=${mutationUserId} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
           )
           catalogMutationVersionRef.current += 1
           catalogSkipRealtimeUntilRef.current = Date.now() + 2000
@@ -875,7 +878,7 @@ export function useLists() {
           } as never)
           if (rpcError) {
             appendMutationDiagnostic(
-              `[invite] joinListByToken rpc_err userId=${user.id} tokenLen=${tokenLen} err=${rpcError.message}`,
+              `[invite] joinListByToken rpc_err userId=${mutationUserId} tokenLen=${tokenLen} err=${rpcError.message}`,
             )
             return { data: null, error: new Error(rpcError.message), joinedListName: null as string | null }
           }
@@ -895,13 +898,13 @@ export function useLists() {
           await fetchLists()
           const joined = useListsCatalogStore.getState().lists.find((l) => l.id === listId)
           appendMutationDiagnostic(
-            `[invite] joinListByToken rpc_ok userId=${user.id} listId=${listId} name=${joined?.name ? '1' : '0'}`,
+            `[invite] joinListByToken rpc_ok userId=${mutationUserId} listId=${listId} name=${joined?.name ? '1' : '0'}`,
           )
           return { data: listId, error: null, joinedListName: joined?.name ?? null }
         }
 
         appendMutationDiagnostic(
-          `[invite] joinListByToken blocked reason=not_online userId=${user.id} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
+          `[invite] joinListByToken blocked reason=not_online userId=${mutationUserId} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
         )
         return {
           data: null,
@@ -910,7 +913,7 @@ export function useLists() {
         }
       } catch (e) {
         appendMutationDiagnostic(
-          `[invite] joinListByToken throw userId=${user.id} tokenLen=${tokenLen} err=${e instanceof Error ? e.message : String(e)}`,
+          `[invite] joinListByToken throw userId=${mutationUserId} tokenLen=${tokenLen} err=${e instanceof Error ? e.message : String(e)}`,
         )
         return { data: null, error: e instanceof Error ? e : new Error(String(e)), joinedListName: null as string | null }
       } finally {
@@ -919,7 +922,7 @@ export function useLists() {
     },
     [
       authLoading,
-      user,
+      mutationUserId,
       userId,
       bootstrapUserId,
       tryBeginMutation,
@@ -931,7 +934,7 @@ export function useLists() {
   )
 
   const leaveList = async (listId: string) => {
-    if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationUserId) return { error: new Error('Not authenticated') }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -954,7 +957,7 @@ export function useLists() {
   }
 
   const duplicateList = async (listId: string, newName: string, label?: string) => {
-    if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationUserId) return { error: new Error('Not authenticated') }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -964,12 +967,12 @@ export function useLists() {
     const duplicateId = crypto.randomUUID()
     const now = new Date().toISOString()
     const sync = syncFieldsForLocalInsert()
-    const existingMembershipsDup = await db.list_users.where('user_id').equals(user.id).toArray()
+    const existingMembershipsDup = await db.list_users.where('user_id').equals(mutationUserId).toArray()
     const nextSortDup = nextListCatalogSortOrderFromMembershipRows(existingMembershipsDup, duplicateId)
     const optimisticList: ListWithRole = {
       id: duplicateId,
       name: newName,
-      owner_id: user.id,
+      owner_id: mutationUserId,
       visibility: 'private',
       archived: false,
       comment: null,
@@ -1010,7 +1013,7 @@ export function useLists() {
           await db.list_users.put({
             id: crypto.randomUUID(),
             list_id: duplicateId,
-            user_id: user.id,
+            user_id: mutationUserId,
             role: 'owner',
             archived: false,
             sort_order: nextSortDup,
@@ -1031,7 +1034,7 @@ export function useLists() {
             kind: 'rpc',
             payload: {
               method: 'duplicateList',
-              user_id: user.id,
+              user_id: mutationUserId,
               source_list_id: listId,
               duplicate_id: duplicateId,
               new_name: newName,
@@ -1057,7 +1060,7 @@ export function useLists() {
   }
 
   const importList = async (name: string, label?: string, categoryNames?: string, rows?: Json, hasTargets?: boolean) => {
-    if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationUserId) return { error: new Error('Not authenticated') }
     const importDup = validateImportSheetRowTextsUnique(rows)
     if (!importDup.ok) {
       return { error: new Error(importDup.message) }
@@ -1070,12 +1073,12 @@ export function useLists() {
     const now = new Date().toISOString()
     const sync = syncFieldsForLocalInsert()
     const itemCount = Array.isArray(rows) ? rows.length : 0
-    const existingMembershipsImp = await db.list_users.where('user_id').equals(user.id).toArray()
+    const existingMembershipsImp = await db.list_users.where('user_id').equals(mutationUserId).toArray()
     const nextSortImp = nextListCatalogSortOrderFromMembershipRows(existingMembershipsImp, importedId)
     const optimisticList: ListWithRole = {
       id: importedId,
       name,
-      owner_id: user.id,
+      owner_id: mutationUserId,
       visibility: 'private',
       archived: false,
       comment: null,
@@ -1116,7 +1119,7 @@ export function useLists() {
           await db.list_users.put({
             id: crypto.randomUUID(),
             list_id: importedId,
-            user_id: user.id,
+            user_id: mutationUserId,
             role: 'owner',
             archived: false,
             sort_order: nextSortImp,
@@ -1137,7 +1140,7 @@ export function useLists() {
             kind: 'rpc',
             payload: {
               method: 'importList',
-              user_id: user.id,
+              user_id: mutationUserId,
               imported_id: importedId,
               p_name: name,
               p_label: label || '',
@@ -1177,13 +1180,13 @@ export function useLists() {
       catLbl.setCatalogLists((prev) => prev.map((list) => (list.id === listId ? { ...list, label } : list)))
 
       await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
-        const row = await db.list_users.where('[list_id+user_id]').equals([listId, user!.id]).first()
+        const row = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
         if (row) await db.list_users.update(row.id, { label })
         await enqueueSyncQueueRecord({
           entity: 'list',
           entity_id: newBatchEntityId(),
           kind: 'rpc',
-          payload: { method: 'patchListUser', id: listId, user_id: user!.id, label },
+          payload: { method: 'patchListUser', id: listId, user_id: mutationUserId, label },
           ...listQueueParent(listId),
           status: 'queued',
         })
@@ -1196,7 +1199,7 @@ export function useLists() {
   }
 
   const updateListLabel = async (listId: string, label: string) => {
-    if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationUserId) return { error: new Error('Not authenticated') }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -1208,7 +1211,7 @@ export function useLists() {
   }
 
   const applyListLabelsBatch = async (changes: Array<{ listId: string; label: string }>) => {
-    if (!user) return { error: new Error('Not authenticated') }
+    if (!mutationUserId) return { error: new Error('Not authenticated') }
     if (!tryBeginMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
@@ -1227,7 +1230,7 @@ export function useLists() {
 
         await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
           for (const { listId, label } of changes) {
-            const row = await db.list_users.where('[list_id+user_id]').equals([listId, user.id]).first()
+            const row = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
             if (row) await db.list_users.update(row.id, { label })
           }
           await enqueueSyncQueueRecord({
@@ -1238,7 +1241,7 @@ export function useLists() {
               method: 'bulkPatchListLabels',
               updates: changes.map((c) => ({ list_id: c.listId, label: c.label })),
             },
-            ...userQueueParent(user.id),
+            ...userQueueParent(mutationUserId),
             status: 'queued',
           })
         })
@@ -1264,7 +1267,7 @@ export function useLists() {
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
     appendMutationDiagnostic(`[mutation:list.reorder] local:start count=${reorderedLists.length}`)
-    if (!user) {
+    if (!mutationUserId) {
       appendMutationDiagnostic('[mutation:list.reorder] local:blocked reason=no-user')
       return
     }
@@ -1317,5 +1320,6 @@ export function useLists() {
     applyListLabelsBatch,
     labels,
     isOfflineActionsDisabled,
+    mutationUserId,
   }
 }

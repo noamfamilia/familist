@@ -17,6 +17,7 @@ import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
 import { resetTutorial } from '@/components/ui/TutorialTour'
 import { db } from '@/lib/db'
+import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { enqueueSyncQueueRecord, userQueueParent } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { normalizeServerSyncableFields } from '@/lib/data/serverDexieParity'
@@ -775,16 +776,18 @@ function HomeContent() {
             type="button"
             disabled={!feedbackText.trim() || submittingFeedback}
             onClick={async () => {
-              if (!feedbackText.trim() || !user) return
+              const feedbackUserId = resolveCatalogMutationUserId(user?.id, bootstrapUserId)
+              if (!feedbackText.trim() || !feedbackUserId) return
               setSubmittingFeedback(true)
               try {
                 const id = crypto.randomUUID()
                 const t = isoNow()
                 const sync = syncFieldsForLocalInsert({ client_created_at: t })
+                const feedbackEmail = user?.email ?? profile?.email ?? ''
                 const base = {
                   id,
-                  user_id: user.id,
-                  email: user.email ?? '',
+                  user_id: feedbackUserId,
+                  email: feedbackEmail,
                   message: feedbackText.trim(),
                   ...sync,
                 }
@@ -797,12 +800,12 @@ function HomeContent() {
                     kind: 'create',
                     payload: {
                       id,
-                      user_id: user.id,
-                      email: base.email,
+                      user_id: feedbackUserId,
+                      email: feedbackEmail,
                       message: base.message,
                       client_created_at: sync.client_created_at,
                     },
-                    ...userQueueParent(user.id),
+                    ...userQueueParent(feedbackUserId),
                     status: 'queued',
                   })
                 })
