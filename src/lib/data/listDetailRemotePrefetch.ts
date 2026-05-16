@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/client'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { serverListDetailDiffersFromDexie } from '@/lib/data/listDetailServerDexieDiff'
 import { upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
+import {
+  canFetchFromServerNow,
+  captureReadFlightGeneration,
+  shouldDiscardReadFlightResult,
+} from '@/lib/data/serverReadPolicy'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
 import type { ItemWithState, List, MemberWithCreator } from '@/lib/supabase/types'
@@ -39,6 +44,8 @@ export async function prefetchListDetailsFromServer(
   rawListIds: readonly string[],
 ): Promise<void> {
   if (!userId) return
+  if (!canFetchFromServerNow()) return
+  const readFlightGen = captureReadFlightGeneration()
   const listIds = [...new Set(rawListIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
   if (listIds.length === 0) return
 
@@ -46,6 +53,10 @@ export async function prefetchListDetailsFromServer(
     try {
       appendMutationDiagnostic(`[get_list_data] prefetch start listId=${listId}`)
       const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
+      if (shouldDiscardReadFlightResult(readFlightGen)) {
+        appendMutationDiagnostic(`[get_list_data] prefetch connectivity-discard listId=${listId}`)
+        return
+      }
       if (error || !data?.list) {
         appendMutationDiagnostic(
           `[get_list_data] prefetch rpc_fail listId=${listId} err=${error?.message ?? 'no_list'}`,

@@ -15,6 +15,11 @@ import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
 import { runLocalDexieGc } from '@/lib/data/localDexieGc'
 import { reportServerDexieParityDiagnostics, upsertProfileFromServer } from '@/lib/data/serverDexieParity'
 import { readProfileFromDexie } from '@/lib/profileDexieHydrate'
+import {
+  canFetchFromServerNow,
+  captureReadFlightGeneration,
+  shouldDiscardReadFlightResult,
+} from '@/lib/data/serverReadPolicy'
 
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 
@@ -178,6 +183,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchProfile = useCallback(async (userId: string) => {
     const t0 = performance.now()
     perfLog('auth/fetchProfile start', { userId })
+    if (!canFetchFromServerNow()) {
+      const cachedProfile = await readProfileFromDexie(userId)
+      if (cachedProfile && mountedRef.current && userRef.current?.id === userId) {
+        setProfile(cachedProfile)
+      }
+      perfLog('auth/fetchProfile end', {
+        userId,
+        durationMs: Math.round(performance.now() - t0),
+        note: 'dexie-only',
+      })
+      return
+    }
+    const readFlightGen = captureReadFlightGeneration()
     try {
       const q0 = performance.now()
       const freshClient = forceNewClient()
@@ -186,6 +204,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .eq('id', userId)
         .maybeSingle()
+      if (shouldDiscardReadFlightResult(readFlightGen)) {
+        const cachedProfile = await readProfileFromDexie(userId)
+        if (cachedProfile && mountedRef.current && userRef.current?.id === userId) {
+          setProfile(cachedProfile)
+        }
+        perfLog('auth/fetchProfile end', {
+          userId,
+          durationMs: Math.round(performance.now() - t0),
+          note: 'discarded-not-online',
+        })
+        return
+      }
       logServerRoundTrip({
         description: error
           ? 'Fetched user profile (failed)'

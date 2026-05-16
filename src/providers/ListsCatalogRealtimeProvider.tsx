@@ -4,6 +4,8 @@ import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
+import { useConnectivity } from '@/providers/ConnectivityProvider'
+import { canFetchFromServer } from '@/lib/data/serverReadPolicy'
 import { perfLog } from '@/lib/startupPerfLog'
 import {
   catalogMutationVersionRef,
@@ -27,7 +29,13 @@ const supabase = createClient()
  */
 export function ListsCatalogRealtimeProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading, bootstrapUserId } = useAuth()
+  const { status: connectivityStatus } = useConnectivity()
   const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
+
+  const connectivityStatusRef = useRef(connectivityStatus)
+  useEffect(() => {
+    connectivityStatusRef.current = connectivityStatus
+  }, [connectivityStatus])
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
@@ -67,6 +75,11 @@ export function ListsCatalogRealtimeProvider({ children }: { children: ReactNode
         }
 
         if (consumePending) pendingRealtimeRef.current = false
+        if (!canFetchFromServer(connectivityStatusRef.current)) {
+          pendingRealtimeRef.current = true
+          catalogRealtimeScheduleCaptureVersionRef.current = null
+          return
+        }
         const cap = catalogRealtimeScheduleCaptureVersionRef.current
         const dirtyIds = [...realtimeDirtyListIdsRef.current]
         realtimeDirtyListIdsRef.current.clear()

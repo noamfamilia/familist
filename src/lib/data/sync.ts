@@ -4,15 +4,23 @@ import {
   upsertListsSummaryFromServer,
 } from '@/lib/data/serverDexieParity'
 import { setLastMirroredListDetailVersion } from '@/lib/data/listMirror'
+import {
+  canFetchFromServerNow,
+  captureReadFlightGeneration,
+  shouldDiscardReadFlightResult,
+} from '@/lib/data/serverReadPolicy'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
 
 const supabase = createClient()
 
 export async function syncLists(userId: string, respondsTo: string) {
+  if (!canFetchFromServerNow()) return
+  const readFlightGen = captureReadFlightGeneration()
   const t0 = performance.now()
   try {
     const { data, error } = await supabase.rpc('get_user_lists')
     if (error) throw error
+    if (shouldDiscardReadFlightResult(readFlightGen)) return
     await upsertListsSummaryFromServer(userId, data ?? [])
     const n = Array.isArray(data) ? data.length : 0
     logServerRoundTrip({
@@ -34,10 +42,13 @@ export async function syncLists(userId: string, respondsTo: string) {
 }
 
 export async function syncListDetail(userId: string, listId: string, respondsTo: string) {
+  if (!canFetchFromServerNow()) return
+  const readFlightGen = captureReadFlightGeneration()
   const t0 = performance.now()
   try {
     const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
     if (error) throw error
+    if (shouldDiscardReadFlightResult(readFlightGen)) return
     const list = data?.list ?? null
     const items = data?.items ?? []
     const members = data?.members ?? []

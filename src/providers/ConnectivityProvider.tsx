@@ -9,6 +9,11 @@ import { isPwaDebugEnabled, isPwaDeepDebugEnabled } from '@/lib/pwaDebug'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { log, perfLog } from '@/lib/startupPerfLog'
 import { registerConnectivityFailureHandler } from '@/lib/connectivityFailureBridge'
+import {
+  bumpReadDiscardGeneration,
+  registerConnectivityStatusForReads,
+  type ConnectivityStatus as ServerReadConnectivityStatus,
+} from '@/lib/data/serverReadPolicy'
 import { registerProfileFetchOfflineHandler } from '@/lib/profileFetchConnectivityBridge'
 import {
   RECOVERY_HEALTH_TIMEOUT_MS,
@@ -467,6 +472,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     const abortController = new AbortController()
     recoveryAbortRef.current = abortController
 
+    bumpReadDiscardGeneration('enter-recovering')
     recoveringEnteredAtRef.current = Date.now()
     statusRef.current = 'recovering'
     flushSync(() => {
@@ -611,6 +617,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     probeInFlightRef.current = false
     useNextProbeDelay1sRef.current = false
     skipNextProbeStepIncrementRef.current = false
+    bumpReadDiscardGeneration(`enter-offline:${cause}`)
     serverLastProgressAtRef.current = Date.now()
     setInternetReachable(false)
     statusRef.current = 'offline'
@@ -662,9 +669,11 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     registerProfileFetchOfflineHandler(() => {
       enterOfflineRef.current('profile-fetch-timeout')
     })
+    registerConnectivityStatusForReads(() => statusRef.current as ServerReadConnectivityStatus)
     return () => {
       registerConnectivityFailureHandler(null)
       registerProfileFetchOfflineHandler(null)
+      registerConnectivityStatusForReads(null)
     }
   }, [])
 

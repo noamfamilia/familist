@@ -72,6 +72,11 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useToast } from '@/components/ui/Toast'
 import { createUserMutationGate } from '@/lib/userMutationGate'
 import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
+import {
+  canFetchFromServer,
+  captureReadFlightGeneration,
+  shouldDiscardReadFlightResult,
+} from '@/lib/data/serverReadPolicy'
 import { markListViewedLocally } from '@/lib/data/listActivity'
 import { useListSyncErrorToast } from '@/hooks/useListSyncErrorToast'
 
@@ -599,6 +604,7 @@ export function useList(listId: string) {
   const fetchList = useCallback(async (options?: { staleCheckVersion?: number | null }) => {
     const staleCheck = options?.staleCheckVersion
     let staleDiscarded = false
+    let connectivityDiscarded = false
     let listMirrorLockHeld = false
 
     if (!userId || !listId) {
@@ -613,55 +619,30 @@ export function useList(listId: string) {
       return
     }
 
-    if (connectivityStatus === 'recovering') {
-      appendOfflineNavDiagnostic(`[fetchList] skip reason=recovering listId=${listId}`)
-      return
-    }
-
-    if (fetchingRef.current) {
-      appendOfflineNavDiagnostic(`[fetchList] skipped listId=${listId} (already fetching)`)
-      return
-    }
-    if (
-      !(await waitForListMirrorLock(listId, LIST_MIRROR_SESSION_OWNER, { maxWaitMs: 5_000, pollMs: 80 }))
-    ) {
-      appendOfflineNavDiagnostic(`[fetchList] deferred — list mirror lock busy listId=${listId}`)
-      queueMicrotask(() => void fetchList(options))
-      return
-    }
-    listMirrorLockHeld = true
-    const fetchT0 = performance.now()
-    let serverDetailLogged = false
-    let parallelT0 = 0
-    let rpcDurationMs = 0
-    let prefsDurationMs: number | null = null
-    perfLog('fetchList start', { listId })
-    let listCount = 0
-    let itemCountResult = 0
-    let fetchErr: string | undefined
-    fetchingRef.current = true
-    setIsFetching(true)
-    setFetchTimedOut(false)
-
-    appendOfflineNavDiagnostic(
-      `[fetchList] start listId=${listId} navigator.onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0} hadCachedListRow=${getCachedList(userId, listId)?.list ? 1 : 0}`,
-    )
-
-    // Set timeout for fetch
-    if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
-    fetchTimeoutRef.current = setTimeout(() => {
-      if (fetchingRef.current) {
-        setFetchTimedOut(true)
+    // Not online: hydrate from Dexie + L1 only (may run while a stale server read is still in flight).
+    if (!canFetchFromServer(connectivityStatus)) {
+      const ownedFetch = !fetchingRef.current
+      if (ownedFetch) {
+        fetchingRef.current = true
+        setIsFetching(true)
+        setFetchTimedOut(false)
       }
-    }, FETCH_TIMEOUT_MS)
-
-    setError(null)
-
-    // Offline: never hit Supabase for list detail — hydrate from Dexie + L1 cache only so route
-    // transitions do not require a network round-trip for application data (Next may still fetch
-    // RSC flight for the segment; that is separate from this hook).
-    if (connectivityStatus === 'offline') {
-      appendOfflineNavDiagnostic(`[fetchList] dexie-only (offline) listId=${listId}`)
+      setError(null)
+      appendOfflineNavDiagnostic(
+        `[fetchList] dexie-only status=${connectivityStatus} listId=${listId} ownedFetch=${ownedFetch ? 1 : 0}`,
+      )
+      if (
+        !(await waitForListMirrorLock(listId, LIST_MIRROR_SESSION_OWNER, { maxWaitMs: 5_000, pollMs: 80 }))
+      ) {
+        if (ownedFetch) {
+          fetchingRef.current = false
+          setIsFetching(false)
+        }
+        appendOfflineNavDiagnostic(`[fetchList] dexie deferred — mirror lock busy listId=${listId}`)
+        queueMicrotask(() => void fetchList(options))
+        return
+      }
+      listMirrorLockHeld = true
       let hadList = false
       try {
         await warmListData(userId, listId)
@@ -695,16 +676,14 @@ export function useList(listId: string) {
           await releaseListMirrorLock(listId, LIST_MIRROR_SESSION_OWNER)
           listMirrorLockHeld = false
         }
-        if (fetchTimeoutRef.current) {
-          clearTimeout(fetchTimeoutRef.current)
-          fetchTimeoutRef.current = null
+        if (ownedFetch) {
+          setFetchTimedOut(false)
+          setLoading(false)
+          setIsFetching(false)
+          setHasCompletedInitialFetch(true)
+          fetchingRef.current = false
+          setItemsUntilReconnectReconciled(null)
         }
-        setFetchTimedOut(false)
-        setLoading(false)
-        setIsFetching(false)
-        setHasCompletedInitialFetch(true)
-        fetchingRef.current = false
-        setItemsUntilReconnectReconciled(null)
         appendOfflineNavDiagnostic(
           `[fetchList] dexie-only finished listId=${listId} hadList=${hadList ? 1 : 0}`,
         )
@@ -712,7 +691,46 @@ export function useList(listId: string) {
       return
     }
 
+    if (fetchingRef.current) {
+      appendOfflineNavDiagnostic(`[fetchList] skipped listId=${listId} (already fetching)`)
+      return
+    }
+    if (
+      !(await waitForListMirrorLock(listId, LIST_MIRROR_SESSION_OWNER, { maxWaitMs: 5_000, pollMs: 80 }))
+    ) {
+      appendOfflineNavDiagnostic(`[fetchList] deferred — list mirror lock busy listId=${listId}`)
+      queueMicrotask(() => void fetchList(options))
+      return
+    }
+    listMirrorLockHeld = true
+    const fetchT0 = performance.now()
+    let serverDetailLogged = false
+    let parallelT0 = 0
+    let rpcDurationMs = 0
+    let prefsDurationMs: number | null = null
+    perfLog('fetchList start', { listId })
+    let listCount = 0
+    let itemCountResult = 0
+    let fetchErr: string | undefined
+    fetchingRef.current = true
+    setIsFetching(true)
+    setFetchTimedOut(false)
+
+    appendOfflineNavDiagnostic(
+      `[fetchList] start listId=${listId} navigator.onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0} hadCachedListRow=${getCachedList(userId, listId)?.list ? 1 : 0}`,
+    )
+
+    if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
+    fetchTimeoutRef.current = setTimeout(() => {
+      if (fetchingRef.current) {
+        setFetchTimedOut(true)
+      }
+    }, FETCH_TIMEOUT_MS)
+
+    setError(null)
+
     beginServerWork()
+    const readFlightGen = captureReadFlightGeneration()
     let serverOutcome: ServerWorkOutcome = 'success'
     try {
       appendOfflineNavDiagnostic(
@@ -788,6 +806,21 @@ export function useList(listId: string) {
         rpcDurationMs,
         prefsDurationMs,
       })
+
+      if (shouldDiscardReadFlightResult(readFlightGen)) {
+        connectivityDiscarded = true
+        appendOfflineNavDiagnostic(
+          `[fetchList] connectivity-discard listId=${listId} status=${connectivityStatusRef.current}`,
+        )
+        logServerRoundTrip({
+          description: `Fetched list ${formatQuotedListName(data?.list?.name, listId)} (${data?.items?.length ?? 0} items, ${data?.members?.length ?? 0} members)`,
+          ok: true,
+          durationMs: rpcDurationMs,
+          respondsTo: 'Open list · get_list_data (discarded: not online)',
+        })
+        serverOutcome = 'success'
+        return
+      }
 
       const staleNow = staleCheck != null && staleCheck !== mutationVersionRef.current
       const listTitleForLog = formatQuotedListName(data?.list?.name, listId)
@@ -962,7 +995,7 @@ export function useList(listId: string) {
       serverOutcome = 'success'
     } catch (err) {
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
-      if (serverOutcome === 'connectivity_failure' && connectivityStatus === 'online') {
+      if (serverOutcome === 'connectivity_failure' && connectivityStatusRef.current === 'online') {
         reportConnectivityFailure('fetchList-connectivity-error')
       }
       fetchErr = rpcFailureMessage(err)
@@ -993,6 +1026,7 @@ export function useList(listId: string) {
         itemCount: itemCountResult,
         error: fetchErr,
         staleDiscarded,
+        connectivityDiscarded,
         listId,
       })
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
@@ -1006,6 +1040,11 @@ export function useList(listId: string) {
       if (staleDiscarded) {
         queueMicrotask(() => {
           scheduleRealtimeFetchRef.current(0)
+        })
+      }
+      if (connectivityDiscarded && !canFetchFromServer(connectivityStatusRef.current)) {
+        queueMicrotask(() => {
+          void fetchList()
         })
       }
       appendOfflineNavDiagnostic(

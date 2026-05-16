@@ -28,6 +28,11 @@ import {
 import { enqueueListMirrorJobs } from '@/lib/data/listMirror'
 import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
 import {
+  canFetchFromServer,
+  captureReadFlightGeneration,
+  shouldDiscardReadFlightResult,
+} from '@/lib/data/serverReadPolicy'
+import {
   clearSyncQueueForList,
   enqueueSyncQueueRecord,
   listQueueParent,
@@ -195,6 +200,10 @@ export function useLists() {
     swControlled,
     offlineAssetsReady,
   } = useConnectivity()
+  const connectivityStatusRef = useRef(connectivityStatus)
+  useEffect(() => {
+    connectivityStatusRef.current = connectivityStatus
+  }, [connectivityStatus])
   const mutationGate = useMemo(() => createUserMutationGate(), [])
   const tryBeginMutation = useCallback((): boolean => {
     const browserOffline = typeof navigator !== 'undefined' && !navigator.onLine
@@ -317,15 +326,12 @@ export function useLists() {
 
   const fetchLists = useCallback(async (options?: { staleCheckVersion?: number | null }) => {
     const staleCheck = options?.staleCheckVersion
+    const readStatus = connectivityStatusRef.current
     let staleDiscarded = false
+    let connectivityDiscarded = false
     appendMutationDiagnostic(
-      `[fetchLists.debug] start userId=${userId ?? 'null'} staleCheck=${staleCheck == null ? 'null' : String(staleCheck)} mutationVersion=${catalogMutationVersionRef.current}`,
+      `[fetchLists.debug] start userId=${userId ?? 'null'} staleCheck=${staleCheck == null ? 'null' : String(staleCheck)} mutationVersion=${catalogMutationVersionRef.current} connectivity=${readStatus}`,
     )
-
-    if (connectivityStatus === 'recovering') {
-      appendMutationDiagnostic('[fetchLists.debug] skip reason=recovering')
-      return
-    }
 
     if (!userId) {
       perfLog('fetchLists start', { note: 'no user' })
@@ -333,6 +339,35 @@ export function useLists() {
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
       perfLog('fetchLists end', { durationMs: 0, listCount: 0 })
+      return
+    }
+
+    if (!canFetchFromServer(readStatus)) {
+      appendMutationDiagnostic(`[fetchLists.debug] dexie-only status=${readStatus}`)
+      const fetchT0 = performance.now()
+      fetchingRef.current = true
+      setIsFetching(true)
+      setFetchTimedOut(false)
+      setError(null)
+      setLastFetchError(null)
+      if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
+      fetchTimeoutRef.current = null
+      try {
+        await warmListsCatalog(userId)
+        hasInitialDataRef.current = true
+      } finally {
+        perfLog('fetchLists end', {
+          durationMs: Math.round(performance.now() - fetchT0),
+          note: 'dexie-only',
+          connectivity: readStatus,
+        })
+        setIsFetching(false)
+        setHasCompletedInitialFetch(true)
+        fetchingRef.current = false
+        if (staleCheck != null) {
+          catalogRealtimeScheduleCaptureVersionRef.current = null
+        }
+      }
       return
     }
 
@@ -357,6 +392,7 @@ export function useLists() {
     setLastFetchError(null)
 
     beginServerWork()
+    const readFlightGen = captureReadFlightGeneration()
     let serverOutcome: ServerWorkOutcome = 'success'
     const listsRpcT0 = performance.now()
     try {
@@ -365,6 +401,22 @@ export function useLists() {
       appendMutationDiagnostic(`[fetchLists.debug] rpc rows=${Array.isArray(data) ? data.length : 0}`)
 
       if (rpcError) throw rpcError
+
+      if (shouldDiscardReadFlightResult(readFlightGen)) {
+        connectivityDiscarded = true
+        const n = Array.isArray(data) ? data.length : 0
+        appendMutationDiagnostic(
+          `[fetchLists.debug] connectivity-discard rows=${n} status=${connectivityStatusRef.current}`,
+        )
+        logServerRoundTrip({
+          description: `Fetched list catalog (${n} lists)`,
+          ok: true,
+          durationMs: performance.now() - listsRpcT0,
+          respondsTo: 'Home lists refresh (discarded: not online)',
+        })
+        serverOutcome = 'success'
+        return
+      }
 
       if (staleCheck != null && staleCheck !== catalogMutationVersionRef.current) {
         staleDiscarded = true
@@ -434,7 +486,7 @@ export function useLists() {
       })
     } catch (err) {
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
-      if (serverOutcome === 'connectivity_failure' && connectivityStatus === 'online') {
+      if (serverOutcome === 'connectivity_failure' && connectivityStatusRef.current === 'online') {
         reportConnectivityFailure('fetchLists-connectivity-error')
       }
       fetchErr = (err as Error).message
@@ -455,6 +507,7 @@ export function useLists() {
         appVersion: APP_VERSION,
         error: fetchErr,
         staleDiscarded,
+        connectivityDiscarded,
       })
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setIsFetching(false)
@@ -468,8 +521,13 @@ export function useLists() {
           requestListsCatalogRealtimeFlush(0)
         })
       }
+      if (connectivityDiscarded && !canFetchFromServer(connectivityStatusRef.current)) {
+        queueMicrotask(() => {
+          void warmListsCatalog(userId)
+        })
+      }
     }
-  }, [beginServerWork, connectivityStatus, endServerWork, userId])
+  }, [beginServerWork, endServerWork, userId])
 
   const isInitialSyncing = isFetching && !hasCompletedInitialFetch && lists.length > 0
 

@@ -4,6 +4,11 @@ import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
 import { upsertListDataPayloadFromMirror } from '@/lib/data/serverDexieParity'
+import {
+  canFetchFromServerNow,
+  captureReadFlightGeneration,
+  shouldDiscardReadFlightResult,
+} from '@/lib/data/serverReadPolicy'
 import { releaseListMirrorLock, waitForListMirrorLock } from '@/lib/data/listMirrorLock'
 
 const supabase = createClient()
@@ -120,6 +125,10 @@ export async function runListMirrorJob(
   listId: string,
   options?: { bypassVersionGate?: boolean },
 ): Promise<boolean> {
+  if (!canFetchFromServerNow()) {
+    appendMutationDiagnostic(`[list-mirror] skip not online listId=${listId}`)
+    return false
+  }
   const owner = LIST_MIRROR_SESSION_OWNER
   const acquired = await waitForListMirrorLock(listId, owner, { maxWaitMs: 5_000, pollMs: 100 })
   if (!acquired) {
@@ -160,8 +169,19 @@ export async function runListMirrorJob(
       `[list-mirror] fetch get_list_data listId=${listId} list.version=${list.version} lastMirrored=${lastMirrored} bypass=${bypass ? 1 : 0}`,
     )
     rpcT0 = performance.now()
+    const readFlightGen = captureReadFlightGeneration()
     const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
     if (error) throw error
+    if (shouldDiscardReadFlightResult(readFlightGen)) {
+      appendMutationDiagnostic(`[list-mirror] connectivity-discard listId=${listId}`)
+      logServerRoundTrip({
+        description: `Fetched list ${formatQuotedListName(list.name, listId)} (background cache)`,
+        ok: true,
+        durationMs: performance.now() - rpcT0,
+        respondsTo: 'Background list mirror (discarded: not online)',
+      })
+      return false
+    }
     if (!data?.list) {
       appendMutationDiagnostic(`[list-mirror] skip empty payload listId=${listId}`)
       logServerRoundTrip({
