@@ -8,6 +8,7 @@ export async function updateSyncQueueProcessingDetail(rowId: string, detail: str
 }
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
+import { bumpListReconcileGenerationsForEnqueue } from '@/lib/data/listReconcilePolicy'
 
 /** True when a sync_queue row is scoped to `listId` (parent, entity id, or payload.list_id). */
 export function syncQueueRowTouchesListId(row: DbSyncQueueRow, listId: string): boolean {
@@ -391,6 +392,14 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
         payload: mergedPayload,
         status: existing.status,
       })
+      bumpListReconcileGenerationsForEnqueue({
+        parent1_type: input.parent1_type ?? existing.parent1_type,
+        parent1_id: input.parent1_id ?? existing.parent1_id,
+        entity: input.entity,
+        entity_id: input.entity_id,
+        kind: 'patch',
+        payload: mergedPayload as Record<string, unknown>,
+      })
       return
     }
   }
@@ -421,6 +430,14 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
     entity_id: input.entity_id,
     payload: input.payload,
     status,
+  })
+  bumpListReconcileGenerationsForEnqueue({
+    parent1_type: input.parent1_type,
+    parent1_id: input.parent1_id,
+    entity: input.entity,
+    entity_id: input.entity_id,
+    kind: input.kind,
+    payload: input.payload as Record<string, unknown>,
   })
 }
 

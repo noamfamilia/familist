@@ -77,6 +77,12 @@ import {
   captureReadFlightGeneration,
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
+import {
+  bumpListReconcileGeneration,
+  captureListReconcileGeneration,
+  shouldDiscardListReconcileResult,
+} from '@/lib/data/listReconcilePolicy'
+import { collectPendingMemberIdsForList } from '@/lib/data/pendingQueueMembers'
 import { markListViewedLocally } from '@/lib/data/listActivity'
 import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { useListSyncErrorToast } from '@/hooks/useListSyncErrorToast'
@@ -371,6 +377,10 @@ export function useList(listId: string) {
   const pendingRealtimeRef = useRef(false)
   /** Bumped at the start of every mutation that optimistically changes list data a delayed `fetchList` could overwrite. */
   const mutationVersionRef = useRef(0)
+  const bumpListMutationGeneration = useCallback(() => {
+    mutationVersionRef.current += 1
+    if (listId) bumpListReconcileGeneration(listId, 'local-mutation')
+  }, [listId])
   /** First mutation version captured when a debounced realtime fetch is scheduled; preserved across reschedules until that fetch completes. */
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
@@ -734,6 +744,7 @@ export function useList(listId: string) {
 
     beginServerWork()
     const readFlightGen = captureReadFlightGeneration()
+    const listDetailReconcileGen = captureListReconcileGeneration(listId)
     let serverOutcome: ServerWorkOutcome = 'success'
     try {
       appendOfflineNavDiagnostic(
@@ -773,9 +784,10 @@ export function useList(listId: string) {
       })()
 
       const prefsPromise = (async () => {
+        const prefsReconcileGen = captureListReconcileGeneration(listId)
         if (!willFetchPrefs) {
           perfLog('fetchList list_users prefs skip', { listId, reason: 'already_fetched' })
-          return { listUserData: null }
+          return { listUserData: null, prefsReconcileGen }
         }
         perfLog('fetchList list_users prefs start', { listId })
         appendOfflineNavDiagnostic(`[db-read] target=supabase table=list_users action=start listId=${listId}`)
@@ -787,7 +799,7 @@ export function useList(listId: string) {
             'member_filter, item_text_width, last_viewed_members, last_viewed, item_name_font_step, sum_scope',
           )
           .eq('list_id', listId)
-          .eq('user_id', userId)
+          .eq('user_id', scopedUserId)
           .single()
         prefsDurationMs = Math.round(performance.now() - prefsT0)
         perfLog('fetchList list_users prefs end', {
@@ -798,10 +810,13 @@ export function useList(listId: string) {
         appendOfflineNavDiagnostic(
           `[db-read] target=supabase table=list_users action=end listId=${listId} durationMs=${prefsDurationMs ?? 'n/a'} hasRow=${listUserData ? 1 : 0}`,
         )
-        return { listUserData }
+        return { listUserData, prefsReconcileGen }
       })()
 
-      const [{ data, rpcError }, { listUserData }] = await Promise.all([rpcPromise, prefsPromise])
+      const [{ data, rpcError }, { listUserData, prefsReconcileGen }] = await Promise.all([
+        rpcPromise,
+        prefsPromise,
+      ])
       pulseServerWorkProgress()
       perfLog('fetchList parallel await', {
         listId,
@@ -825,14 +840,21 @@ export function useList(listId: string) {
         return
       }
 
-      const staleNow = staleCheck != null && staleCheck !== mutationVersionRef.current
+      const detailStaleByMutation =
+        staleCheck != null && staleCheck !== mutationVersionRef.current
+      const detailStaleByReconcile = shouldDiscardListReconcileResult(listId, listDetailReconcileGen)
+      const detailStale = detailStaleByMutation || detailStaleByReconcile
+      const prefsStale =
+        willFetchPrefs && shouldDiscardListReconcileResult(listId, prefsReconcileGen)
       const listTitleForLog = formatQuotedListName(data?.list?.name, listId)
       logServerRoundTrip({
         description: `Fetched list ${listTitleForLog} (${data?.items?.length ?? 0} items, ${data?.members?.length ?? 0} members)`,
         ok: !rpcError && !!(data?.list),
         durationMs: rpcDurationMs,
-        respondsTo: staleNow
-          ? 'Open list · get_list_data (discarded: newer local edits)'
+        respondsTo: detailStale
+          ? detailStaleByReconcile
+            ? 'Open list · get_list_data (discarded: newer list reconcile)'
+            : 'Open list · get_list_data (discarded: newer local edits)'
           : 'Open list · get_list_data',
         failure: rpcError?.message ?? (!data?.list && !rpcError ? 'Missing list payload' : undefined),
       })
@@ -841,8 +863,8 @@ export function useList(listId: string) {
           description: `Fetched list preferences for ${listTitleForLog}`,
           ok: true,
           durationMs: prefsDurationMs ?? 0,
-          respondsTo: staleNow
-            ? 'Open list · list_users (page may discard)'
+          respondsTo: prefsStale
+            ? 'Open list · list_users (discarded: newer list reconcile)'
             : 'Open list · list_users',
         })
       }
@@ -876,100 +898,104 @@ export function useList(listId: string) {
         throw new Error('List not found')
       }
 
-      if (staleNow) {
+      if (detailStale && prefsStale) {
         staleDiscarded = true
         perfLog('fetchList stale_discard', {
           listId,
           rpcDurationMs,
           capturedVersion: staleCheck,
           mutationVersion: mutationVersionRef.current,
+          detailReconcileGen: listDetailReconcileGen,
+          prefsReconcileGen,
         })
         return
       }
 
-      const serverMembers = (data.members || []).filter((m) => !isTombstoned(m.deleted_at ?? null))
-      const nextItems = normalizeItemsCategory(
-        (data.items || []).filter((i) => !isTombstoned(i.deleted_at ?? null)),
-      )
-      const differsFromDexie = await serverListDetailDiffersFromDexie(userId, listId, {
-        list: data.list,
-        items: nextItems,
-        members: serverMembers,
-      })
-      appendMutationDiagnostic(
-        `[fetchList] get_list_data vs_dexie listId=${listId} diff=${differsFromDexie ? 1 : 0} items=${nextItems.length} members=${serverMembers.length}`,
-      )
+      if (detailStale) {
+        staleDiscarded = true
+        perfLog('fetchList detail_discard', {
+          listId,
+          rpcDurationMs,
+          detailReconcileGen: listDetailReconcileGen,
+        })
+      }
 
-      // Mark that we have access
       hadAccessRef.current = true
-      useListDataStore.getState().setList((prev) => replaceListPreservingClientMirror(prev, data.list))
-      const pendingMutations = await db.sync_queue
-        .filter(
-          (m) =>
-            (m.parent1_type === 'list' && m.parent1_id === listId) ||
-            String((m.payload as { list_id?: string }).list_id ?? '') === listId,
+
+      if (!detailStale) {
+        const serverMembers = (data.members || []).filter((m) => !isTombstoned(m.deleted_at ?? null))
+        const nextItems = normalizeItemsCategory(
+          (data.items || []).filter((i) => !isTombstoned(i.deleted_at ?? null)),
         )
-        .toArray()
-      const pendingCreates: Array<{ itemKey: string; payload: Record<string, unknown> }> = []
-      for (const m of pendingMutations) {
-        if (m.kind === 'create' && m.entity === 'item') {
-          pendingCreates.push({ itemKey: m.entity_id, payload: m.payload as Record<string, unknown> })
-        }
-        if (m.kind === 'rpc') {
-          const p = m.payload as { method?: string; items?: Array<Record<string, unknown> & { id?: string }> }
-          if (p.method === 'bulkAddListItems' && Array.isArray(p.items)) {
-            for (const it of p.items) {
-              if (it.id) pendingCreates.push({ itemKey: it.id, payload: it })
+        const differsFromDexie = await serverListDetailDiffersFromDexie(scopedUserId, listId, {
+          list: data.list,
+          items: nextItems,
+          members: serverMembers,
+        })
+        appendMutationDiagnostic(
+          `[fetchList] get_list_data vs_dexie listId=${listId} diff=${differsFromDexie ? 1 : 0} items=${nextItems.length} members=${serverMembers.length}`,
+        )
+
+        useListDataStore.getState().setList((prev) => replaceListPreservingClientMirror(prev, data.list))
+        const pendingMutations = await db.sync_queue
+          .filter(
+            (m) =>
+              (m.parent1_type === 'list' && m.parent1_id === listId) ||
+              String((m.payload as { list_id?: string }).list_id ?? '') === listId,
+          )
+          .toArray()
+        const pendingCreates: Array<{ itemKey: string; payload: Record<string, unknown> }> = []
+        for (const m of pendingMutations) {
+          if (m.kind === 'create' && m.entity === 'item') {
+            pendingCreates.push({ itemKey: m.entity_id, payload: m.payload as Record<string, unknown> })
+          }
+          if (m.kind === 'rpc') {
+            const p = m.payload as { method?: string; items?: Array<Record<string, unknown> & { id?: string }> }
+            if (p.method === 'bulkAddListItems' && Array.isArray(p.items)) {
+              for (const it of p.items) {
+                if (it.id) pendingCreates.push({ itemKey: it.id, payload: it })
+              }
             }
           }
         }
+        const pendingMemberIds = collectPendingMemberIdsForList(pendingMutations)
+
+        let mergedItemsForCache = nextItems
+        let mergedMembersForCache = serverMembers
+
+        useListDataStore.getState().setItems((prev) => {
+          mergedItemsForCache = mergePendingItemCreatesIntoServerItems(nextItems, prev, pendingCreates)
+          return mergedItemsForCache
+        })
+        useListDataStore.getState().setMembers((prev) => {
+          mergedMembersForCache = mergePendingMembersIntoServerMembers(serverMembers, prev, pendingMemberIds)
+          return mergedMembersForCache
+        })
+        setCategoryNames(parseCategoryNames(data.list.category_names))
+        setCategoryOrder(parseCategoryOrder(data.list.category_order))
+        hasInitialDataRef.current = true
+
+        setCachedList(scopedUserId, listId, {
+          list: data.list,
+          items: mergedItemsForCache,
+          members: mergedMembersForCache,
+        })
+        await upsertListDataPayloadFromServer(scopedUserId, listId, {
+          list: data.list,
+          items: mergedItemsForCache,
+          members: mergedMembersForCache,
+        })
+        await setLastMirroredListDetailVersion(listId, data.list.version ?? 1, data.list.last_content_update ?? null)
+        listCount = 1
+        itemCountResult = mergedItemsForCache.length
       }
-      const pendingMemberIds = new Set<string>()
-      for (const m of pendingMutations) {
-        if (m.entity !== 'member') continue
-        if (m.kind === 'create') {
-          const id = String((m.payload as { id?: string }).id ?? m.entity_id)
-          if (id) pendingMemberIds.add(id)
-          continue
-        }
-        if (m.kind === 'patch') {
-          const memberId = String((m.payload as { memberId?: string }).memberId ?? m.entity_id ?? '')
-          if (memberId) pendingMemberIds.add(memberId)
-        }
+
+      if (prefsStale) {
+        staleDiscarded = true
       }
 
-      let mergedItemsForCache = nextItems
-      let mergedMembersForCache = serverMembers
-
-      useListDataStore.getState().setItems((prev) => {
-        mergedItemsForCache = mergePendingItemCreatesIntoServerItems(nextItems, prev, pendingCreates)
-        return mergedItemsForCache
-      })
-      useListDataStore.getState().setMembers((prev) => {
-        mergedMembersForCache = mergePendingMembersIntoServerMembers(serverMembers, prev, pendingMemberIds)
-        return mergedMembersForCache
-      })
-      setCategoryNames(parseCategoryNames(data.list.category_names))
-      setCategoryOrder(parseCategoryOrder(data.list.category_order))
-      hasInitialDataRef.current = true
-
-      // Cache the list data for instant load next time
-      setCachedList(userId, listId, {
-        list: data.list,
-        items: mergedItemsForCache,
-        members: mergedMembersForCache,
-      })
-      await upsertListDataPayloadFromServer(userId, listId, {
-        list: data.list,
-        items: mergedItemsForCache,
-        members: mergedMembersForCache,
-      })
-      await setLastMirroredListDetailVersion(listId, data.list.version ?? 1, data.list.last_content_update ?? null)
-      listCount = 1
-      itemCountResult = mergedItemsForCache.length
-
-      if (listUserData) {
-        void upsertListPrefsFromServer(userId, listId, listUserData)
+      if (listUserData && !prefsStale) {
+        void upsertListPrefsFromServer(scopedUserId, listId, listUserData)
         const serverFilter = VALID_MEMBER_FILTERS.includes(listUserData.member_filter as MemberFilter)
           ? listUserData.member_filter as MemberFilter
           : 'all' as MemberFilter
@@ -1303,7 +1329,7 @@ export function useList(listId: string) {
         id,
         sort_order: sortOrder,
       })
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 2000
       await markCurrentListViewed(t)
       persistListSnapshotToDetailCache(mutationUserId, listId)
@@ -1341,7 +1367,7 @@ export function useList(listId: string) {
       return { error: { message: blockedMutationMessage() }, inserted: 0 }
     }
     try {
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
       const cat = normalizeItemCategory(category)
       const t = isoNow()
@@ -1491,7 +1517,7 @@ export function useList(listId: string) {
         archiveUndoToastIdRef.current = toastId
       }
 
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       const skipMs = persistedUpdates.category !== undefined ? 4500 : 2000
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + skipMs)
       await markCurrentListViewed(nowIso)
@@ -1523,7 +1549,7 @@ export function useList(listId: string) {
     try {
       useListDataStore.getState().setItems((prev) => prev.filter((i) => i.id !== itemId))
       await softDeleteItemMutation(mutationUserId, listId, itemId)
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 2000
       delete desiredArchivedByItemRef.current[itemId]
       await markCurrentListViewed()
@@ -1571,7 +1597,7 @@ export function useList(listId: string) {
         name,
         sort_order: sortOrder,
       })
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 2000
       await markCurrentListViewed(t)
       return { data: { id: memberId, creator: creatorNickname ? { nickname: creatorNickname } : null }, error: null }
@@ -1619,7 +1645,7 @@ export function useList(listId: string) {
               },
         ),
       )
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 2000
       await db.transaction('rw', db.members, db.lists, db.sync_queue, db.list_users, async () => {
         const memberPatch: Record<string, unknown> = { updated_at: nowIso }
@@ -1670,7 +1696,7 @@ export function useList(listId: string) {
           return { ...item, memberStates: rest }
         }),
       )
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 2000
       await db.transaction('rw', [db.members, db.item_member_state, db.lists, db.sync_queue, db.list_users], async () => {
         const memberRow = await db.members.get(memberId)
@@ -1755,7 +1781,7 @@ export function useList(listId: string) {
             status: 'queued',
           })
         })
-        mutationVersionRef.current += 1
+        bumpListMutationGeneration()
         skipRealtimeUntilRef.current = Date.now() + 2000
         await markCurrentListViewed(nowIso)
         return { error: null, newMemberId: memberId }
@@ -1823,7 +1849,7 @@ export function useList(listId: string) {
         member_id: memberId,
         state: optimisticState,
       })
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 2000
       await markCurrentListViewed(t)
       return { error: null }
@@ -1882,7 +1908,7 @@ export function useList(listId: string) {
         member_id: memberId,
         state: optimisticState,
       })
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 2000
       await markCurrentListViewed(t)
       return { data: optimisticState.quantity, error: null }
@@ -1906,7 +1932,7 @@ export function useList(listId: string) {
     useListDataStore.getState().beginLocalListPersistence()
     try {
       useListDataStore.getState().setItems((prev) => prev.filter((i) => !archivedIds.has(i.id)))
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 3000
       await bulkSoftDeleteArchivedItemsMutation(listId, [...archivedIds])
       await markCurrentListViewed()
@@ -1941,7 +1967,7 @@ export function useList(listId: string) {
             : i,
         ),
       )
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 3000
       await db.transaction('rw', [db.items, db.lists, db.sync_queue, db.list_users], async () => {
         for (const itemId of archivedIds) {
@@ -1989,7 +2015,7 @@ export function useList(listId: string) {
     useListDataStore.getState().beginLocalListPersistence()
     try {
       useListDataStore.getState().setItems(reorderedWithTs)
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
       const itemIds = reorderedItems.map((item) => item.id)
       await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
@@ -2286,7 +2312,7 @@ export function useList(listId: string) {
         ? [...useListDataStore.getState().items]
         : null
 
-    mutationVersionRef.current += 1
+    bumpListMutationGeneration()
     categoryListMirrorSuppressCountRef.current++
     try {
       setCategoryNames({ ...EMPTY_CATEGORY_NAMES, ...names })
@@ -2466,7 +2492,7 @@ export function useList(listId: string) {
         updated_at: now,
         creator: creatorFromProfile,
       }
-      mutationVersionRef.current += 1
+      bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 2000
       useListDataStore.getState().setMembers((prev) => [optimisticTarget, ...prev])
 

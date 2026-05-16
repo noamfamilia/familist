@@ -58,6 +58,20 @@ export function isOutboundRowPending(row: DbSyncQueueRow): boolean {
   return row.status === 'queued' || row.status === 'failed' || row.status === 'processing'
 }
 
+/** True when another outbound row (not `excludeRowId`) is still pending for `listId`. */
+export function hasOtherPendingOutboundForList(
+  queue: readonly DbSyncQueueRow[],
+  listId: string,
+  excludeRowId?: string,
+): boolean {
+  return queue.some(
+    (r) =>
+      r.id !== excludeRowId &&
+      isOutboundRowPending(r) &&
+      listIdsTouchingOutboundRow(r).includes(listId),
+  )
+}
+
 /** Matches outbound drain lock recovery in `useSyncStore`. */
 export const OUTBOUND_SYNC_LOCK_STALE_MS = 60_000
 

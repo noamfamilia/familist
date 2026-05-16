@@ -4,6 +4,10 @@ import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { serverListDetailDiffersFromDexie } from '@/lib/data/listDetailServerDexieDiff'
 import { upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
 import {
+  captureListReconcileGeneration,
+  shouldDiscardListReconcileResult,
+} from '@/lib/data/listReconcilePolicy'
+import {
   canFetchFromServerNow,
   captureReadFlightGeneration,
   shouldDiscardReadFlightResult,
@@ -52,10 +56,15 @@ export async function prefetchListDetailsFromServer(
   for (const listId of listIds) {
     try {
       appendMutationDiagnostic(`[get_list_data] prefetch start listId=${listId}`)
+      const listReconcileGen = captureListReconcileGeneration(listId)
       const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
       if (shouldDiscardReadFlightResult(readFlightGen)) {
         appendMutationDiagnostic(`[get_list_data] prefetch connectivity-discard listId=${listId}`)
         return
+      }
+      if (shouldDiscardListReconcileResult(listId, listReconcileGen)) {
+        appendMutationDiagnostic(`[get_list_data] prefetch reconcile-discard listId=${listId}`)
+        continue
       }
       if (error || !data?.list) {
         appendMutationDiagnostic(

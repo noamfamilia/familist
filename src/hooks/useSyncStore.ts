@@ -16,6 +16,12 @@ import { OUTBOUND_CONNECTIVITY_QUEUE_DETAIL } from '@/lib/outboundConnectivityQu
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useToast } from '@/components/ui/Toast'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
+import { bumpListReconcileGeneration } from '@/lib/data/listReconcilePolicy'
+import {
+  flushQuiescentListVerification,
+  shouldDeferOutboundVerify,
+  shouldSkipListDetailVerifyForOutboundRow,
+} from '@/lib/data/listQuiescentVerify'
 import { getActiveCacheUserId } from '@/lib/cache'
 import {
   blockedOutboundDependencyReason,
@@ -371,20 +377,27 @@ export function useSyncStore(): SyncStoreState {
       const userId = resolveSyncUserId((row.payload as { user_id?: unknown })?.user_id)
       if (!userId) return true
 
+      const queue = await db.sync_queue.toArray()
+      if (shouldDeferOutboundVerify(row, queue)) {
+        appendMutationDiagnostic(
+          `[sync-verify] deferred row=${row.id} kind=${row.kind}/${row.entity}`,
+        )
+        return true
+      }
+
+      const skipListDetail = shouldSkipListDetailVerifyForOutboundRow(row)
+
       await updateSyncQueueProcessingDetail(row.id, outboundProgressCatalogWaiting())
       await syncLists(userId, 'Post-mutation verification: list catalog')
       await updateSyncQueueProcessingDetail(row.id, outboundProgressCatalogReceived())
 
-      const listId = rowListIdForSync(row)
-      if (listId && !isVirtualUserListKey(listId)) {
-        const pl = row.payload as { method?: unknown }
-        const skipListDetail =
-          (row.kind === 'rpc' && String(pl?.method ?? '') === 'leaveList') || row.kind === 'patch'
-        if (!skipListDetail) {
-          await updateSyncQueueProcessingDetail(row.id, await outboundProgressListDetailWaiting(listId))
-          await syncListDetail(userId, listId, 'Post-mutation verification: list detail')
-          await updateSyncQueueProcessingDetail(row.id, await outboundProgressListDetailReceived(listId))
-        }
+      const touchedListIds = listIdsTouchingOutboundRow(row).filter((id) => !isVirtualUserListKey(id))
+      for (const listId of touchedListIds) {
+        if (skipListDetail) continue
+        bumpListReconcileGeneration(listId, 'post-verify-start')
+        await updateSyncQueueProcessingDetail(row.id, await outboundProgressListDetailWaiting(listId))
+        await syncListDetail(userId, listId, 'Post-mutation verification: list detail')
+        await updateSyncQueueProcessingDetail(row.id, await outboundProgressListDetailReceived(listId))
       }
       return true
     },
@@ -1194,6 +1207,14 @@ export function useSyncStore(): SyncStoreState {
             await executeOutboundRow(claimed)
             await clearListSyncErrorMessages(listIdsTouchingOutboundRow(claimed))
             await db.sync_queue.delete(claimed.id)
+            if (syncUserId) {
+              const flushedListIds = listIdsTouchingOutboundRow(claimed).filter(
+                (id) => !isVirtualUserListKey(id),
+              )
+              for (const listId of flushedListIds) {
+                await flushQuiescentListVerification(syncUserId, listId)
+              }
+            }
           } catch (error) {
             const message = normalizeErrorMessage(error)
             appendMutationDiagnostic(

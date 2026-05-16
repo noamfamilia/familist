@@ -5,6 +5,10 @@ import {
 } from '@/lib/data/serverDexieParity'
 import { setLastMirroredListDetailVersion } from '@/lib/data/listMirror'
 import {
+  captureListReconcileGeneration,
+  shouldDiscardListReconcileResult,
+} from '@/lib/data/listReconcilePolicy'
+import {
   canFetchFromServerNow,
   captureReadFlightGeneration,
   shouldDiscardReadFlightResult,
@@ -44,11 +48,22 @@ export async function syncLists(userId: string, respondsTo: string) {
 export async function syncListDetail(userId: string, listId: string, respondsTo: string) {
   if (!canFetchFromServerNow()) return
   const readFlightGen = captureReadFlightGeneration()
+  const listReconcileGen = captureListReconcileGeneration(listId)
   const t0 = performance.now()
   try {
     const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
     if (error) throw error
     if (shouldDiscardReadFlightResult(readFlightGen)) return
+    if (shouldDiscardListReconcileResult(listId, listReconcileGen)) {
+      const title = formatQuotedListName(data?.list?.name, listId)
+      logServerRoundTrip({
+        description: `Fetched list ${title} (${data?.items?.length ?? 0} items, ${data?.members?.length ?? 0} members)`,
+        ok: true,
+        durationMs: performance.now() - t0,
+        respondsTo: `${respondsTo} (discarded: newer list reconcile)`,
+      })
+      return
+    }
     const list = data?.list ?? null
     const items = data?.items ?? []
     const members = data?.members ?? []

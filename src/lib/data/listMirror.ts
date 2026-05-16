@@ -5,6 +5,10 @@ import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
 import { upsertListDataPayloadFromMirror } from '@/lib/data/serverDexieParity'
 import {
+  captureListReconcileGeneration,
+  shouldDiscardListReconcileResult,
+} from '@/lib/data/listReconcilePolicy'
+import {
   canFetchFromServerNow,
   captureReadFlightGeneration,
   shouldDiscardReadFlightResult,
@@ -170,6 +174,7 @@ export async function runListMirrorJob(
     )
     rpcT0 = performance.now()
     const readFlightGen = captureReadFlightGeneration()
+    const listReconcileGen = captureListReconcileGeneration(listId)
     const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
     if (error) throw error
     if (shouldDiscardReadFlightResult(readFlightGen)) {
@@ -179,6 +184,16 @@ export async function runListMirrorJob(
         ok: true,
         durationMs: performance.now() - rpcT0,
         respondsTo: 'Background list mirror (discarded: not online)',
+      })
+      return false
+    }
+    if (shouldDiscardListReconcileResult(listId, listReconcileGen)) {
+      appendMutationDiagnostic(`[list-mirror] reconcile-discard listId=${listId}`)
+      logServerRoundTrip({
+        description: `Fetched list ${formatQuotedListName(list.name, listId)} (background cache)`,
+        ok: true,
+        durationMs: performance.now() - rpcT0,
+        respondsTo: 'Background list mirror (discarded: newer list reconcile)',
       })
       return false
     }
