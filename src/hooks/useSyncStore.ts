@@ -18,7 +18,7 @@ import { useToast } from '@/components/ui/Toast'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
 import { bumpListReconcileGeneration } from '@/lib/data/listReconcilePolicy'
 import {
-  flushQuiescentListVerification,
+  maybeFlushQuiescentForListIds,
   shouldDeferOutboundVerify,
   shouldSkipListDetailVerifyForOutboundRow,
 } from '@/lib/data/listQuiescentVerify'
@@ -1204,6 +1204,7 @@ export function useSyncStore(): SyncStoreState {
           }
 
           try {
+            const queueBeforeDelete = await db.sync_queue.toArray()
             await executeOutboundRow(claimed)
             await clearListSyncErrorMessages(listIdsTouchingOutboundRow(claimed))
             await db.sync_queue.delete(claimed.id)
@@ -1211,9 +1212,12 @@ export function useSyncStore(): SyncStoreState {
               const flushedListIds = listIdsTouchingOutboundRow(claimed).filter(
                 (id) => !isVirtualUserListKey(id),
               )
-              for (const listId of flushedListIds) {
-                await flushQuiescentListVerification(syncUserId, listId)
-              }
+              await maybeFlushQuiescentForListIds(
+                syncUserId,
+                flushedListIds,
+                claimed,
+                queueBeforeDelete,
+              )
             }
           } catch (error) {
             const message = normalizeErrorMessage(error)
@@ -1241,8 +1245,15 @@ export function useSyncStore(): SyncStoreState {
                 await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, false)
               }
               await db.sync_queue.delete(claimed.id)
-              const terminalListIds = listIdsTouchingOutboundRow(claimed)
+              const terminalListIds = listIdsTouchingOutboundRow(claimed).filter(
+                (id) => !isVirtualUserListKey(id),
+              )
               await setListSyncErrorMessages(terminalListIds, message)
+              if (syncUserId && terminalListIds.length > 0) {
+                await maybeFlushQuiescentForListIds(syncUserId, terminalListIds, null, [], {
+                  force: true,
+                })
+              }
               setLastError(message)
               continue
             }
