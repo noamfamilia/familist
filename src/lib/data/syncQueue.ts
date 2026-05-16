@@ -176,7 +176,6 @@ export async function listHasOnlyLocalCreationIntent(listId: string): Promise<bo
     if (r.kind !== 'rpc') continue
     const pl = r.payload as { method?: string; duplicate_id?: string; imported_id?: string }
     const method = String(pl.method ?? '')
-    if (method === 'duplicateList' && String(pl.duplicate_id ?? '') === listId) return true
     if (method === 'importList' && String(pl.imported_id ?? '') === listId) return true
   }
   return false
@@ -484,8 +483,8 @@ export function describeSyncQueueRow(row: DbSyncQueueRow): string {
         return 'Joining list…'
       case 'leaveList':
         return 'Leaving list…'
-      case 'duplicateList':
-        return 'Duplicating list…'
+      case 'bulkAddStates':
+        return 'Copying members and shopping progress…'
       case 'importList':
         return 'Importing list…'
       case 'ownMember':

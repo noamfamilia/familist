@@ -65,7 +65,7 @@ export async function initialOutboundProgressMessage(row: DbSyncQueueRow): Promi
       bulkPatchListLabels: 'Sending a batch label update to the server…',
       joinListByToken: 'Sending “join list” to the server…',
       leaveList: `Sending “leave list” to the server for ${lt}…`,
-      duplicateList: `Sending “duplicate list” to the server (${lt})…`,
+      bulkAddStates: `Sending members and shopping progress to the server for list ${lt}…`,
       ownMember: 'Sending “claim member slot” to the server…',
       importList: 'Sending “import list” to the server…',
       generateShareToken: `Sending “create share link” to the server for ${lt}…`,

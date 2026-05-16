@@ -512,6 +512,14 @@ export function useSyncStore(): SyncStoreState {
           name?: string
           label?: string
           client_created_at?: string
+          category_names?: string | null
+          category_order?: string | null
+          comment?: string | null
+          member_filter?: string | null
+          item_text_width?: string | null
+          item_name_font_step?: number | null
+          sum_scope?: string | null
+          show_targets?: boolean | null
         }
         const t =
           typeof payload.client_created_at === 'string' ? payload.client_created_at : isoNow()
@@ -521,7 +529,19 @@ export function useSyncStore(): SyncStoreState {
           p_name: payload.name ?? '',
           p_label: payload.label ?? '',
           p_client_created_at: t,
-        })
+          p_category_names: payload.category_names ?? undefined,
+          p_category_order: payload.category_order ?? undefined,
+          p_comment: payload.comment ?? undefined,
+          p_member_filter: payload.member_filter ?? undefined,
+          p_item_text_width: payload.item_text_width ?? undefined,
+          p_item_name_font_step:
+            typeof payload.item_name_font_step === 'number'
+              ? payload.item_name_font_step
+              : undefined,
+          p_sum_scope: payload.sum_scope ?? undefined,
+          p_show_targets:
+            typeof payload.show_targets === 'boolean' ? payload.show_targets : undefined,
+        } as never)
         if (error) throw error
         const env = createListData as CreateListRpcEnvelope | null
         if (env?.display_name_changed && env.list && listIdForCreate) {
@@ -967,39 +987,20 @@ export function useSyncStore(): SyncStoreState {
           const { error } = await supabase.rpc('leave_list', { p_list_id: lid } as never)
           if (error) throw error
           await cleanupDexieAfterListServerDeleted(lid)
-        } else if (method === 'duplicateList') {
-          const sourceListId = String(payload.source_list_id ?? '')
-          const dupId = String(payload.duplicate_id ?? '')
-          const newName = String(payload.new_name ?? '')
-          const pLabel = String(payload.label ?? '')
-          const plDup = payload as Record<string, unknown>
-          const dupClientCreated =
-            typeof plDup.client_created_at === 'string' ? plDup.client_created_at : isoNow()
-          if (!sourceListId || !dupId) throw new Error('duplicateList missing source_list_id/duplicate_id')
-          appendMutationDiagnostic(`[sync->server] duplicateList source=${sourceListId} dup=${dupId}`)
-          const { data, error } = await supabase.rpc('duplicate_list', {
-            p_source_list_id: sourceListId,
-            p_id: dupId,
-            p_new_name: newName,
-            p_label: pLabel,
-            p_client_created_at: dupClientCreated,
+        } else if (method === 'bulkAddStates') {
+          const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
+          const members = Array.isArray(payload.members) ? payload.members : []
+          const states = Array.isArray(payload.states) ? payload.states : []
+          if (!rpcListId) throw new Error('bulkAddStates missing list_id')
+          appendMutationDiagnostic(
+            `[sync->server] bulkAddStates listId=${rpcListId} members=${members.length} states=${states.length}`,
+          )
+          const { error } = await supabase.rpc('bulk_add_states', {
+            p_list_id: rpcListId,
+            p_members: members as never,
+            p_states: states as never,
           })
           if (error) throw error
-          const uid = resolveSyncUserId(payload.user_id)
-          if (!uid) throw new Error('duplicateList missing user_id')
-          if (data?.list) {
-            const rawItems = (data.items ?? []) as ItemWithState[]
-            const items = rawItems.map((item) => ({
-              ...item,
-              category: normalizeItemCategory(item.category),
-            }))
-            const members = (data.members ?? []) as MemberWithCreator[]
-            await upsertListDataPayloadFromServer(uid, dupId, {
-              list: data.list as List,
-              items,
-              members,
-            })
-          }
         } else if (method === 'ownMember') {
           const memberId = String(payload.member_id ?? '')
           if (!memberId) throw new Error('ownMember missing member_id')

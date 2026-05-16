@@ -74,7 +74,7 @@ export async function describeOutboundSyncRow(row: DbSyncQueueRow): Promise<stri
       bulkPatchListLabels: 'Batch update list labels',
       joinListByToken: 'Join list by invite token',
       leaveList: `Leave list ${lt}`,
-      duplicateList: `Duplicate list ${lt}`,
+      bulkAddStates: `Copy members and progress for list ${lt}`,
       ownMember: 'Claim member slot',
       importList: `Import list ${formatQuotedListName(String(pl.p_name ?? ''), String(pl.imported_id ?? ''))}`,
       generateShareToken: `Generate share link for ${lt}`,

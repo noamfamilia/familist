@@ -59,7 +59,7 @@ export function isTerminalOutboundCreateOrJoinIntent(row: DbSyncQueueRow): boole
   }
   if (row.kind === 'rpc') {
     const method = String((row.payload as { method?: string }).method ?? '')
-    return method === 'duplicateList' || method === 'importList' || method === 'joinListByToken'
+    return method === 'importList' || method === 'joinListByToken'
   }
   return false
 }
@@ -159,12 +159,6 @@ export async function scrubAfterTerminalOutboundFailure(
     if (row.kind === 'rpc') {
       const pl = row.payload as { method?: string; duplicate_id?: string; imported_id?: string }
       const method = String(pl.method ?? '')
-      if (method === 'duplicateList') {
-        const dupId = String(pl.duplicate_id ?? '')
-        if (dupId) await cleanupDexieAfterListServerDeleted(dupId)
-        appendMutationDiagnostic(`[sync] scrub duplicateList removed listId=${dupId || 'n/a'}`)
-        return
-      }
       if (method === 'importList') {
         const importedId = String(pl.imported_id ?? '')
         if (importedId) await cleanupDexieAfterListServerDeleted(importedId)

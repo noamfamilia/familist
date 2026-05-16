@@ -57,6 +57,10 @@ import {
   listCatalogSortOrderForVisualIndex,
   nextListCatalogSortOrderFromMembershipRows,
 } from '@/lib/data/listCatalogSort'
+import {
+  DuplicateListError,
+  duplicateListLocalFirst,
+} from '@/lib/data/duplicateListLocal'
 
 const supabase = createClient()
 
@@ -962,98 +966,35 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-    const catDup0 = useListsCatalogStore.getState()
-    const sourceList = catDup0.lists.find((l) => l.id === listId)
-    const duplicateId = crypto.randomUUID()
-    const now = new Date().toISOString()
-    const sync = syncFieldsForLocalInsert()
-    const existingMembershipsDup = await db.list_users.where('user_id').equals(mutationUserId).toArray()
-    const nextSortDup = nextListCatalogSortOrderFromMembershipRows(existingMembershipsDup, duplicateId)
-    const optimisticList: ListWithRole = {
-      id: duplicateId,
-      name: newName,
-      owner_id: mutationUserId,
-      visibility: 'private',
-      archived: false,
-      comment: null,
-      category_names: sourceList?.category_names ?? null,
-      category_order: sourceList?.category_order ?? null,
-      join_token: null,
-      join_role_granted: 'editor',
-      join_expires_at: null,
-      join_revoked_at: null,
-      join_use_count: 0,
-      ...sync,
-      updated_at: now,
-      last_content_update: now,
-      role: 'owner',
-      userArchived: false,
-      memberCount: sourceList?.memberCount ?? 0,
-      activeItemCount: sourceList?.activeItemCount || 0,
-      archivedItemCount: sourceList?.archivedItemCount ?? 0,
-      sumScope: 'none',
-      label: label || '',
-      last_viewed: now,
-      sort_order: nextSortDup,
-    }
-
-    catalogMutationVersionRef.current += 1
-    catalogSkipRealtimeUntilRef.current = Date.now() + 2000
-    const catDup = useListsCatalogStore.getState()
-    catDup.beginLocalCatalogPersistence()
-    try {
-      catDup.setCatalogLists((prev) => [optimisticList, ...prev])
+      catalogMutationVersionRef.current += 1
+      catalogSkipRealtimeUntilRef.current = Date.now() + 2000
+      const catDup = useListsCatalogStore.getState()
+      catDup.beginLocalCatalogPersistence()
+      let optimisticList: ListWithRole | null = null
       try {
-        await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-          await db.lists.put({
-            ...extractListRowFields(optimisticList),
-            cached_at: Date.now(),
-            app_version: APP_VERSION,
-          })
-          await db.list_users.put({
-            id: crypto.randomUUID(),
-            list_id: duplicateId,
-            user_id: mutationUserId,
-            role: 'owner',
-            archived: false,
-            sort_order: nextSortDup,
-            ...syncFieldsForLocalInsert(),
-            member_filter: 'all',
-            item_text_width: 'auto',
-            label: label || '',
-            last_viewed_members: null,
-            last_viewed: now,
-            show_targets: false,
-            item_name_font_step: 3,
-            sum_scope: 'none',
-            sync_error: false,
-          })
-          await enqueueSyncQueueRecord({
-            entity: 'list',
-            entity_id: newBatchEntityId(),
-            kind: 'rpc',
-            payload: {
-              method: 'duplicateList',
-              user_id: mutationUserId,
-              source_list_id: listId,
-              duplicate_id: duplicateId,
-              new_name: newName,
-              label: label || '',
-              client_created_at: sync.client_created_at,
-            },
-            ...listQueueParent(duplicateId),
-            status: 'queued',
-          })
+        const result = await duplicateListLocalFirst({
+          sourceListId: listId,
+          newName,
+          label,
+          mutationUserId,
         })
+        optimisticList = result.optimisticList
+        catDup.setCatalogLists((prev) => [optimisticList!, ...prev])
+        appendMutationDiagnostic(
+          `[mutation:list.duplicate] local:ok source=${listId} dup=${result.duplicateId} items=${optimisticList.activeItemCount} archived=${optimisticList.archivedItemCount}`,
+        )
+        return { data: optimisticList, error: null }
       } catch (e) {
-        catDup.setCatalogLists((prev) => prev.filter((list) => list.id !== duplicateId))
-        return { error: e instanceof Error ? e : new Error('Failed to queue duplicate list') }
+        if (e instanceof DuplicateListError) {
+          return { error: new Error(e.userMessage) }
+        }
+        if (optimisticList) {
+          catDup.setCatalogLists((prev) => prev.filter((list) => list.id !== optimisticList!.id))
+        }
+        return { error: e instanceof Error ? e : new Error('Failed to duplicate list') }
+      } finally {
+        catDup.endLocalCatalogPersistence()
       }
-    } finally {
-      catDup.endLocalCatalogPersistence()
-    }
-
-    return { data: optimisticList, error: null }
     } finally {
       mutationGate.end()
     }

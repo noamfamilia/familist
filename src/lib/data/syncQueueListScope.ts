@@ -39,14 +39,11 @@ export function listIdsTouchingOutboundRow(row: DbSyncQueueRow): string[] {
       for (const u of pl.updates as Array<{ list_id?: unknown }>) pushRealListId(ids, u.list_id)
     }
     if (method === 'patchListUser') pushRealListId(ids, pl.id)
-    if (method === 'duplicateList') {
-      pushRealListId(ids, pl.source_list_id)
-      pushRealListId(ids, pl.duplicate_id)
-    }
     if (method === 'importList') pushRealListId(ids, pl.imported_id)
     if (method === 'leaveList') pushRealListId(ids, pl.list_id)
     if (method === 'reorderListItems') pushRealListId(ids, pl.list_id)
     if (method === 'bulkAddListItems') pushRealListId(ids, pl.list_id)
+    if (method === 'bulkAddStates') pushRealListId(ids, pl.list_id)
     if (method === 'seedItemMemberStateForMember') pushRealListId(ids, pl.list_id)
     if (method === 'deleteArchivedItems' || method === 'restoreArchivedItems') pushRealListId(ids, pl.list_id)
     if (method === 'generateShareToken' || method === 'revokeShareToken' || method === 'removeUsersFromList') {
@@ -127,6 +124,20 @@ function pendingListCreateForId(
       r.entity === 'list' &&
       r.entity_id === listId,
   )
+}
+
+function pendingBulkAddListItemsForList(
+  queue: readonly DbSyncQueueRow[],
+  excludeRowId: string,
+  listId: string,
+): boolean {
+  if (!listId || listId.startsWith('user:')) return false
+  return queue.some((r) => {
+    if (r.id === excludeRowId || !isOutboundRowPending(r)) return false
+    if (r.kind !== 'rpc') return false
+    const pl = r.payload as { method?: unknown; list_id?: unknown }
+    return String(pl.method ?? '') === 'bulkAddListItems' && String(pl.list_id ?? '') === listId
+  })
 }
 
 function pendingEntityCreateForId(
@@ -234,6 +245,14 @@ export function blockedOutboundDependencyReason(row: DbSyncQueueRow, queue: read
       const lid = typeof pl.id === 'string' ? pl.id : ''
       if (lid && pendingListCreateForId(queue, ex, lid)) {
         return `Waiting for list create (${shortId(lid)}) before patchListUser.`
+      }
+    } else if (method === 'bulkAddStates') {
+      const lid = typeof pl.list_id === 'string' ? pl.list_id : ''
+      if (lid && pendingListCreateForId(queue, ex, lid)) {
+        return `Waiting for list create (${shortId(lid)}) before bulkAddStates.`
+      }
+      if (lid && pendingBulkAddListItemsForList(queue, ex, lid)) {
+        return `Waiting for bulk item copy (${shortId(lid)}) before bulkAddStates.`
       }
     }
   }

@@ -295,6 +295,14 @@ export interface Database {
           p_name: string
           p_label?: string
           p_client_created_at?: string
+          p_category_names?: string | null
+          p_category_order?: string | null
+          p_comment?: string | null
+          p_member_filter?: string | null
+          p_item_text_width?: string | null
+          p_item_name_font_step?: number | null
+          p_sum_scope?: string | null
+          p_show_targets?: boolean | null
         }
         /** `{ list, display_name_changed, requested_name }` — `list` is the persisted row. */
         Returns: Json
@@ -381,6 +389,15 @@ export interface Database {
           p_item_ids?: string[]
         }
         /** `{ inserted_count, line_text_changes }` — `line_text_changes` is an array of `{ item_id, requested_text, text }`. */
+        Returns: Json
+      }
+      bulk_add_states: {
+        Args: {
+          p_list_id: string
+          p_members?: Json
+          p_states?: Json
+        }
+        /** `{ members_upserted, states_upserted }` */
         Returns: Json
       }
       upsert_item_sync: {
