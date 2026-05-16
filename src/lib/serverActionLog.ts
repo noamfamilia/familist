@@ -4,6 +4,7 @@
  */
 
 import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
+import { recordServerSessionRoundTrip } from '@/lib/serverSessionLog'
 import { emitServerRoundTripLine } from '@/lib/startupPerfLog'
 
 export function truncateForLog(s: string, max = 160): string {
@@ -32,6 +33,7 @@ export type ServerRoundTripInput = {
 }
 
 export function logServerRoundTrip(input: ServerRoundTripInput): void {
+  recordServerSessionRoundTrip(input)
   if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
   const respond = input.respondsTo ? ` · ${truncateForLog(input.respondsTo, 120)}` : ''
   const fail =

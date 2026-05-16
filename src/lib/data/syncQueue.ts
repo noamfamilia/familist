@@ -157,6 +157,31 @@ export async function deleteOutboundQueueRowsTouchingList(listId: string): Promi
   await db.sync_queue.filter((r) => syncQueueRowTouchesListId(r, listId)).delete()
 }
 
+/**
+ * List was created only on-device (create / duplicate / import RPC) and never synced —
+ * deleting it should net-zero the outbound queue (no server delete).
+ */
+export async function listHasOnlyLocalCreationIntent(listId: string): Promise<boolean> {
+  if (
+    (await db.sync_queue
+      .where('[entity+entity_id]')
+      .equals(['list', listId])
+      .filter((r) => r.kind === 'create')
+      .count()) > 0
+  ) {
+    return true
+  }
+  const touching = await db.sync_queue.filter((r) => syncQueueRowTouchesListId(r, listId)).toArray()
+  for (const r of touching) {
+    if (r.kind !== 'rpc') continue
+    const pl = r.payload as { method?: string; duplicate_id?: string; imported_id?: string }
+    const method = String(pl.method ?? '')
+    if (method === 'duplicateList' && String(pl.duplicate_id ?? '') === listId) return true
+    if (method === 'importList' && String(pl.imported_id ?? '') === listId) return true
+  }
+  return false
+}
+
 /** Remove all outbound work scoped to a list (prevents ghost sync after delete/leave). */
 export async function clearSyncQueueForList(listId: string): Promise<void> {
   await deleteOutboundQueueRowsTouchingList(listId)
@@ -219,6 +244,20 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
      * these `sync_queue` operations stay in that transaction — including `deleteOutboundQueueRowsTouchingList`
      * for list deletes (full prune + IMS removal for that list) immediately before inserting the delete row.
      */
+    if (input.entity === 'list' && (await listHasOnlyLocalCreationIntent(input.entity_id))) {
+      await deleteOutboundQueueRowsTouchingList(input.entity_id)
+      await clearListUserSyncErrorsForEnqueueRow({
+        parent1_type: input.parent1_type,
+        parent1_id: input.parent1_id,
+        kind: 'delete',
+        entity: input.entity,
+        entity_id: input.entity_id,
+        payload: input.payload,
+        status,
+      })
+      return
+    }
+
     const hasPendingCreateSameKey =
       (await db.sync_queue
         .where('[entity+entity_id]')
