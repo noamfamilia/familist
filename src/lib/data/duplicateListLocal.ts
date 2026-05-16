@@ -31,6 +31,8 @@ export type DuplicateListLocalInput = {
   newName: string
   label?: string
   mutationUserId: string
+  /** Shown in member menu as Owner; falls back to Dexie `profiles` when omitted. */
+  duplicatorNickname?: string | null
 }
 
 export type DuplicateListLocalResult = {
@@ -48,8 +50,20 @@ function countItemBuckets(items: readonly { archived?: boolean | null }[]) {
   return { active, archived }
 }
 
+async function resolveDuplicatorCreator(
+  mutationUserId: string,
+  duplicatorNickname?: string | null,
+): Promise<{ nickname: string } | null> {
+  const fromInput = duplicatorNickname?.trim()
+  if (fromInput) return { nickname: fromInput }
+  const profile = await db.profiles.get(mutationUserId)
+  const fromDexie = profile?.nickname?.trim()
+  if (fromDexie) return { nickname: fromDexie }
+  return null
+}
+
 export async function duplicateListLocalFirst(input: DuplicateListLocalInput): Promise<DuplicateListLocalResult> {
-  const { sourceListId, newName, label, mutationUserId } = input
+  const { sourceListId, newName, label, mutationUserId, duplicatorNickname } = input
   const trimmedName = newName.trim()
   if (!trimmedName) {
     throw new DuplicateListError('List name is required', 'List name is required')
@@ -114,6 +128,8 @@ export async function duplicateListLocalFirst(input: DuplicateListLocalInput): P
     bulkItemPayloads.push({ ...row })
   }
 
+  const memberCreator = await resolveDuplicatorCreator(mutationUserId, duplicatorNickname)
+
   const clonedMembers: DbMemberRow[] = []
   const bulkMemberPayloads: Record<string, unknown>[] = []
 
@@ -136,10 +152,10 @@ export async function duplicateListLocalFirst(input: DuplicateListLocalInput): P
         last_synced_at: src.last_synced_at ?? null,
       }),
       updated_at: now,
-      creator: null,
+      creator: memberCreator,
     }
     const normalized = normalizeServerSyncableFields(base as unknown as Record<string, unknown>)
-    const row = { ...base, ...normalized } as DbMemberRow
+    const row = { ...base, ...normalized, creator: memberCreator } as DbMemberRow
     clonedMembers.push(row)
     bulkMemberPayloads.push({
       id: row.id,

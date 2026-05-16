@@ -175,7 +175,7 @@ async function softDeleteListInDexie(
 }
 
 export function useLists() {
-  const { user, loading: authLoading, bootstrapUserId } = useAuth()
+  const { user, profile, loading: authLoading, bootstrapUserId } = useAuth()
   const lists = useListsCatalogStore(useShallow((s) => s.lists))
   const listsCatalogStatus = useListsCatalogStore((s) => s.listsCatalogStatus)
   const [isFetching, setIsFetching] = useState(true)
@@ -977,6 +977,7 @@ export function useLists() {
           newName,
           label,
           mutationUserId,
+          duplicatorNickname: profile?.nickname ?? null,
         })
         optimisticList = result.optimisticList
         catDup.setCatalogLists((prev) => [optimisticList!, ...prev])
