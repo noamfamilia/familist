@@ -154,6 +154,33 @@ function pendingBulkAddListItemsForList(
   })
 }
 
+function pendingBulkAddStatesForList(
+  queue: readonly DbSyncQueueRow[],
+  excludeRowId: string,
+  listId: string,
+): boolean {
+  if (!listId || listId.startsWith('user:')) return false
+  return queue.some((r) => {
+    if (r.id === excludeRowId || !isOutboundRowPending(r)) return false
+    if (r.kind !== 'rpc') return false
+    const pl = r.payload as { method?: unknown; list_id?: unknown }
+    return String(pl.method ?? '') === 'bulkAddStates' && String(pl.list_id ?? '') === listId
+  })
+}
+
+/** Rows that establish a duplicated/imported list on the server (must not block each other). */
+function isListBootstrapOutboundRow(row: DbSyncQueueRow, listId: string): boolean {
+  if (!listId || listId.startsWith('user:')) return false
+  if (row.kind === 'create' && row.entity === 'list' && row.entity_id === listId) return true
+  if (row.kind === 'rpc') {
+    const pl = row.payload as { method?: unknown; list_id?: unknown }
+    if (String(pl.list_id ?? '') !== listId) return false
+    const method = String(pl.method ?? '')
+    return method === 'bulkAddListItems' || method === 'bulkAddStates'
+  }
+  return false
+}
+
 function pendingEntityCreateForId(
   queue: readonly DbSyncQueueRow[],
   excludeRowId: string,
@@ -204,6 +231,14 @@ export function blockedOutboundDependencyReason(row: DbSyncQueueRow, queue: read
   for (const lid of listIdsTouchingOutboundRow(row)) {
     if (pendingListCreateForId(queue, ex, lid)) {
       return `Waiting for list create (${shortId(lid)}) to finish on the server first.`
+    }
+    if (!isListBootstrapOutboundRow(row, lid)) {
+      if (pendingBulkAddListItemsForList(queue, ex, lid)) {
+        return `Waiting for bulk item copy (${shortId(lid)}) before other list edits.`
+      }
+      if (pendingBulkAddStatesForList(queue, ex, lid)) {
+        return `Waiting for members and progress copy (${shortId(lid)}) before other list edits.`
+      }
     }
   }
 

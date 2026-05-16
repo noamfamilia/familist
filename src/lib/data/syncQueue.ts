@@ -363,7 +363,8 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
     !shouldAppendOnly(input.entity, input.entity_id, input.kind)
 
   if (mergePatch) {
-    const mergeableStatuses: readonly SyncQueueStatus[] = ['queued', 'processing']
+    /** Merge only before send; in-flight (`processing`) rows must finish before a new patch row runs. */
+    const mergeableStatuses: readonly SyncQueueStatus[] = ['queued', 'failed']
     const matches = await db.sync_queue
       .where('[entity+entity_id]')
       .equals([input.entity, input.entity_id])

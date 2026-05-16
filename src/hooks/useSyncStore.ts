@@ -674,7 +674,8 @@ export function useSyncStore(): SyncStoreState {
         })
         if (error) throw error
       } else if (row.kind === 'patch' && row.entity === 'item') {
-        const payload = row.payload as {
+        const fresh = (await db.sync_queue.get(row.id)) ?? row
+        const payload = fresh.payload as {
           id?: string
           [key: string]: unknown
         }
@@ -702,7 +703,8 @@ export function useSyncStore(): SyncStoreState {
           )
         }
       } else if (row.kind === 'patch' && row.entity === 'list') {
-        const payload = row.payload as {
+        const fresh = (await db.sync_queue.get(row.id)) ?? row
+        const payload = fresh.payload as {
           id?: string
           [key: string]: unknown
         }
@@ -723,7 +725,8 @@ export function useSyncStore(): SyncStoreState {
           await mergeDedupedListNameFromPatchRpc(id, (listPatchRpcData ?? {}) as ApplyListPatchRpcEnvelope, showInfoToast)
         }
       } else if (row.kind === 'patch' && row.entity === 'member') {
-        const payload = row.payload as {
+        const fresh = (await db.sync_queue.get(row.id)) ?? row
+        const payload = fresh.payload as {
           memberId?: string
           name?: string
           is_public?: boolean
