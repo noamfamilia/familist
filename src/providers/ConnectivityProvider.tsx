@@ -17,7 +17,11 @@ import {
 import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
-import { connectivityProbeDelayForStep } from '@/lib/connectivityBackoff'
+import {
+  connectivityProbeDelayForStep,
+  MAX_PROBE_BACKOFF_STEP,
+  POST_ONLINE_PROBE_DELAY_MS,
+} from '@/lib/connectivityBackoff'
 import { scheduleOutboundSyncKick } from '@/lib/outboundSyncKick'
 import {
   OFFLINE_ACTIONS_DISABLED_MSG,
@@ -50,7 +54,7 @@ const OFFLINE_BANNER_DEBOUNCE_MS = 3_000
 /** Online heartbeat + offline backoff probes (see recovery health 10s). */
 const REACHABILITY_PROBE_TIMEOUT_MS = 5_000
 const ONLINE_HEARTBEAT_INTERVAL_MS = 15_000
-/** Minimum time the recovering (cloud-only) icon stays visible before going online. */
+/** Minimum time the recovering icon stays visible after health succeeds, before going online. */
 const RECOVERY_MIN_VISIBLE_MS = 1_000
 const PWA_ENABLED = process.env.NEXT_PUBLIC_PWA_ENABLED === 'true'
 
@@ -383,9 +387,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const probeStepRef = useRef(0)
   const consecutiveProbeFailuresRef = useRef(0)
   const lastNetworkSuccessAtRef = useRef(Date.now())
-  /** After `window` `online` (or tab visible while browser reports online), next probe runs in 1s; then 5/10/20/30/60 on failures. */
+  /** After `window` `online` (or tab visible while browser reports online), next probe uses POST_ONLINE_PROBE_DELAY_MS. */
   const useNextProbeDelay1sRef = useRef(false)
-  /** While true, first probe failure after a 1s post-online schedule must not advance backoff step (next wait stays 5s). */
+  /** While true, first probe failure after post-online schedule must not advance backoff step (next wait stays 1s). */
   const skipNextProbeStepIncrementRef = useRef(false)
   const scheduleNextProbeRef = useRef<() => void>(() => {})
 
@@ -473,7 +477,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     )
 
     void (async () => {
-      await sleep(RECOVERY_MIN_VISIBLE_MS)
       if (activeRecoveryFlightIdRef.current !== flightId) return
       if (abortController.signal.aborted) return
 
@@ -483,9 +486,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         enterOfflineRef.current('recovery-health-timeout')
       }, RECOVERY_HEALTH_TIMEOUT_MS)
 
-      appendOfflineNavDiagnostic(
-        `[recovery-health] fetch after minVisibleMs=${RECOVERY_MIN_VISIBLE_MS} flightId=${flightId}`,
-      )
+      appendOfflineNavDiagnostic(`[recovery-health] fetch flightId=${flightId}`)
       const result = await runRecoveryHealthCheck(flightId, abortController.signal)
       if (activeRecoveryFlightIdRef.current !== flightId) return
 
@@ -528,9 +529,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       useNextProbeDelay1sRef.current = false
       skipNextProbeStepIncrementRef.current = true
     }
-    const delay = use1s ? 1000 : connectivityProbeDelayForStep(probeStepRef.current)
+    const delay = use1s ? POST_ONLINE_PROBE_DELAY_MS : connectivityProbeDelayForStep(probeStepRef.current)
     appendOfflineNavDiagnostic(
-      `[probe] schedule status=${statusRef.current} delayMs=${delay} step=${probeStepRef.current} source=${use1s ? 'post-online-1s' : 'backoff'}`,
+      `[probe] schedule status=${statusRef.current} delayMs=${delay} step=${probeStepRef.current} source=${use1s ? 'post-online-fast' : 'backoff'}`,
     )
     probeTimeoutRef.current = setTimeout(() => {
       void (async () => {
@@ -562,7 +563,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           if (skipNextProbeStepIncrementRef.current) {
             skipNextProbeStepIncrementRef.current = false
           } else {
-            probeStepRef.current = Math.min(probeStepRef.current + 1, 2)
+            probeStepRef.current = Math.min(probeStepRef.current + 1, MAX_PROBE_BACKOFF_STEP)
           }
           scheduleNextProbeRef.current()
           return
