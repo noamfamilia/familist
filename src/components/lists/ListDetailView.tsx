@@ -608,11 +608,13 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const [showWidthBoundaryGuide, setShowWidthBoundaryGuide] = useState(false)
   const widthBoundaryGuideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const shareSettingsBlocked = !online
+
   useEffect(() => {
-    if (isOfflineActionsDisabled && showShareModal) {
+    if (shareSettingsBlocked && showShareModal) {
       setShowShareModal(false)
     }
-  }, [isOfflineActionsDisabled, showShareModal])
+  }, [shareSettingsBlocked, showShareModal])
 
   const hideWidthBoundaryGuide = useCallback(() => {
     if (widthBoundaryGuideTimeoutRef.current) {
@@ -953,13 +955,19 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         {list && list.owner_id === user?.id && (
           <button
             type="button"
-            disabled={isOfflineActionsDisabled}
+            disabled={shareSettingsBlocked}
             onClick={() => {
-              if (isOfflineActionsDisabled) return
+              if (shareSettingsBlocked) return
               setShowShareModal(true)
             }}
-            className={`text-teal ${isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
-            aria-label={isOfflineActionsDisabled ? 'Share settings (unavailable offline)' : 'Share settings'}
+            className={`text-teal ${shareSettingsBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
+            aria-label={
+              shareSettingsBlocked
+                ? isRecovering
+                  ? 'Share settings (unavailable while reconnecting)'
+                  : 'Share settings (unavailable offline)'
+                : 'Share settings'
+            }
             data-tour="share-settings"
           >
             <ShareCardIcon className="w-[30px] h-[30px]" emphasized />
