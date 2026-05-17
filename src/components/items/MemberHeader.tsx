@@ -1081,7 +1081,7 @@ export function MemberHeader({
                 >
                   Owner: {memberMenuDisplayMember.creator?.nickname || 'Unknown'}
                   <br />
-                  <span className="text-xs text-cyan">Click to grab ownership!</span>
+                  <span className="text-xs text-cyan">Click to own it</span>
                 </button>
               ) : (
                 <div className="px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 cursor-default">
