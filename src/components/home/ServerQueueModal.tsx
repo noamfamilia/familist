@@ -162,15 +162,6 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
         </p>
       ) : null}
 
-      <div className="mt-2 flex shrink-0 justify-end">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-white touch-manipulation hover:opacity-90"
-        >
-          Close
-        </button>
-      </div>
     </Modal>
   )
 }
