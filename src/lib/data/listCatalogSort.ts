@@ -46,6 +46,15 @@ export function listCatalogSortOrderForVisualIndex(visualIndex: number, listCoun
   return listCount - 1 - visualIndex
 }
 
+/** Mirror catalog rows with `sort_order` matching visual order (index 0 = top). */
+export function withListCatalogSortOrders(orderedLists: readonly ListWithRole[]): ListWithRole[] {
+  const n = orderedLists.length
+  return orderedLists.map((list, index) => ({
+    ...list,
+    sort_order: listCatalogSortOrderForVisualIndex(index, n),
+  }))
+}
+
 /** Insert a list into the catalog mirror and sort (larger `sort_order` nearer top). */
 export function prependListToCatalogSorted(
   lists: readonly ListWithRole[],

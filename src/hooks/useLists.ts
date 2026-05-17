@@ -60,6 +60,7 @@ import {
   listCatalogSortOrderForVisualIndex,
   nextListCatalogSortOrderFromMembershipRows,
   prependListToCatalogSorted,
+  withListCatalogSortOrders,
 } from '@/lib/data/listCatalogSort'
 import {
   DuplicateListError,
@@ -1134,10 +1135,11 @@ export function useLists() {
     catalogMutationVersionRef.current += 1
     catalogSkipRealtimeUntilRef.current = Date.now() + 2000
     const catOrd = useListsCatalogStore.getState()
+    const listsWithSortOrder = withListCatalogSortOrders(reorderedLists)
     catOrd.beginLocalCatalogPersistence()
     try {
-      catOrd.setCatalogLists(reorderedLists)
-      await persistListOrder(reorderedLists)
+      catOrd.setCatalogLists(listsWithSortOrder)
+      await persistListOrder(listsWithSortOrder)
     } finally {
       catOrd.endLocalCatalogPersistence()
     }
