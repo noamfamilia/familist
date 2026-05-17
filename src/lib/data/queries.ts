@@ -215,6 +215,22 @@ export function reconcileUserListsSummaryRowsWithPendingCatalogQueue(
         (x): x is string => typeof x === 'string' && x.length > 0,
       )
       if (list_ids.length > 0) next = applyReorder(list_ids, next)
+    } else if (method === 'bulkPatchListLabels') {
+      const updates = (Array.isArray(pl.updates) ? pl.updates : []).filter(
+        (u): u is { list_id: string; label: string } =>
+          !!u &&
+          typeof u === 'object' &&
+          typeof (u as { list_id?: unknown }).list_id === 'string' &&
+          typeof (u as { label?: unknown }).label === 'string',
+      )
+      if (updates.length > 0) {
+        const byListId = new Map(updates.map((u) => [u.list_id, u.label]))
+        next = next.map((row) => {
+          const label = byListId.get(row.id)
+          if (label === undefined) return row
+          return { ...row, label }
+        })
+      }
     }
   }
 

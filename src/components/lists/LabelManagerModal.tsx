@@ -7,6 +7,8 @@ import type { ListWithRole } from '@/lib/supabase/types'
 
 const UNLABELED_KEY = '__unlabeled__'
 
+const applyHistoryListClass = 'space-y-1 text-xs text-gray-600 dark:text-gray-400'
+
 type TriValue = boolean | 'indeterminate'
 
 function TriCheckbox({
@@ -46,7 +48,9 @@ export interface LabelManagerModalProps {
   /** merged labels for destination picker (DB + local), sorted */
   mergedLabels: string[]
   /** Single user action: applies many label updates under one mutation lock */
-  applyListLabelsBatch: (changes: Array<{ listId: string; label: string }>) => Promise<{ error: Error | null }>
+  applyListLabelsBatch: (
+    changes: Array<{ listId: string; label: string }>,
+  ) => Promise<{ error: Error | null; historyLines?: string[] }>
   onAddLocalLabel: (label: string) => void
   onError: (message: string) => void
 }
@@ -72,6 +76,7 @@ export function LabelManagerModal({
   const addDestPopoverRef = useRef<HTMLDivElement>(null)
   const addDestInputRef = useRef<HTMLInputElement>(null)
   const [applying, setApplying] = useState(false)
+  const [applyHistory, setApplyHistory] = useState<string[]>([])
   const [sessionCreatedLabels, setSessionCreatedLabels] = useState<string[]>([])
   const prevModalOpenRef = useRef(false)
   const scopeRows = useMemo(() => {
@@ -160,6 +165,7 @@ export function LabelManagerModal({
     setAddingDestLabel(false)
     setNewDestLabelText('')
     setSessionCreatedLabels([])
+    setApplyHistory([])
   }, [isOpen])
 
   useEffect(() => {
@@ -258,6 +264,7 @@ export function LabelManagerModal({
 
   const handleModalClose = () => {
     flushSessionLocals()
+    setApplyHistory([])
     onClose()
   }
 
@@ -335,12 +342,15 @@ export function LabelManagerModal({
         changes.push({ listId: id, label: next })
       }
       if (changes.length > 0) {
-        const { error } = await applyListLabelsBatch(changes)
+        const { error, historyLines } = await applyListLabelsBatch(changes)
         if (error) {
           const detail = error.message?.trim() || 'Unknown error'
           onError(`Could not update labels: ${detail}`)
           setApplying(false)
           return
+        }
+        if (historyLines && historyLines.length > 0) {
+          setApplyHistory((prev) => [...prev, ...historyLines])
         }
       }
       registerVacatedLabelsAsLocal(listsSnapshot, selectedIds, next)
@@ -619,8 +629,19 @@ export function LabelManagerModal({
             )}
           </button>
         </div>
+
+        {applyHistory.length > 0 ? (
+          <ul className={`pt-2 ${applyHistoryListClass}`} aria-label="Applied label changes">
+            {applyHistory.map((line, i) => (
+              <li key={`${i}-${line}`} className="break-words">
+                {line}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         </div>
       </div>
     </Modal>
   )
 }
+

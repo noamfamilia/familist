@@ -43,6 +43,15 @@ import {
   reorderListUsersOutboxKey,
   userQueueParent,
 } from '@/lib/data/syncQueue'
+import {
+  applyCoalescedLabelChanges,
+  finalizeCoalescedLabelOutbound,
+  hasProcessingLabelOutbound,
+  LABEL_CHANGES_SYNC_WAIT_MSG,
+  normalizeCatalogLabel,
+  bulkPatchListLabelsOutboxKey,
+  type LabelEdit,
+} from '@/lib/data/outboundLabelCoalesce'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { validateImportSheetRowTextsUnique } from '@/lib/data/localItemTextUniqueness'
 import { validateListNameForOwner } from '@/lib/data/localListMemberNameUniqueness'
@@ -1027,30 +1036,53 @@ export function useLists() {
     }
   }
 
+  const enqueueLabelEditsInTransaction = async (
+    edits: readonly LabelEdit[],
+    listNameById: ReadonlyMap<string, string>,
+  ): Promise<string[]> => {
+    if (!mutationUserId) return []
+    const result = await applyCoalescedLabelChanges(mutationUserId, edits, listNameById)
+    await finalizeCoalescedLabelOutbound(mutationUserId, result.action)
+    if (result.action === 'enqueue') {
+      await enqueueSyncQueueRecord({
+        entity: CATALOG_RPC_COALESCE_ENTITY,
+        entity_id: bulkPatchListLabelsOutboxKey(mutationUserId),
+        kind: 'rpc',
+        payload: result.payload,
+        ...userQueueParent(mutationUserId),
+        status: 'queued',
+      })
+    }
+    return result.historyLines
+  }
+
   const persistListLabelOnly = async (listId: string, label: string) => {
+    if (!mutationUserId) return { error: new Error('Not authenticated') }
+    if (await hasProcessingLabelOutbound(mutationUserId)) {
+      return { error: new Error(LABEL_CHANGES_SYNC_WAIT_MSG) }
+    }
+    const catLbl = useListsCatalogStore.getState()
+    const list = catLbl.lists.find((l) => l.id === listId)
+    const baseline = normalizeCatalogLabel(list?.label)
+    const target = normalizeCatalogLabel(label)
+    if (baseline === target) return { error: null }
+
     catalogMutationVersionRef.current += 1
     catalogSkipRealtimeUntilRef.current = Date.now() + 2000
-    const catLbl = useListsCatalogStore.getState()
     catLbl.beginLocalCatalogPersistence()
     try {
-      catLbl.setCatalogLists((prev) => prev.map((list) => (list.id === listId ? { ...list, label } : list)))
+      catLbl.setCatalogLists((prev) => prev.map((l) => (l.id === listId ? { ...l, label: target } : l)))
 
       await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
         const row = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
-        if (row) await db.list_users.update(row.id, { label })
-        await enqueueSyncQueueRecord({
-          entity: CATALOG_RPC_COALESCE_ENTITY,
-          entity_id: patchListUserOutboxKey(listId, mutationUserId),
-          kind: 'rpc',
-          payload: { method: 'patchListUser', id: listId, user_id: mutationUserId, label },
-          ...listQueueParent(listId),
-          status: 'queued',
-        })
+        if (row) await db.list_users.update(row.id, { label: target })
+        const listNameById = new Map(catLbl.lists.map((l) => [l.id, l.name]))
+        await enqueueLabelEditsInTransaction([{ listId, baseline, target }], listNameById)
       })
     } finally {
       catLbl.endLocalCatalogPersistence()
     }
-    appendMutationDiagnostic(`[mutation:list.label] local:queued listId=${listId} label="${label}" server:queued`)
+    appendMutationDiagnostic(`[mutation:list.label] local:queued listId=${listId} label="${target}" server:queued`)
     return { error: null }
   }
 
@@ -1067,16 +1099,36 @@ export function useLists() {
   }
 
   const applyListLabelsBatch = async (changes: Array<{ listId: string; label: string }>) => {
-    if (!mutationUserId) return { error: new Error('Not authenticated') }
+    if (!mutationUserId) return { error: new Error('Not authenticated'), historyLines: [] as string[] }
+    if (await hasProcessingLabelOutbound(mutationUserId)) {
+      return { error: new Error(LABEL_CHANGES_SYNC_WAIT_MSG), historyLines: [] }
+    }
     if (!tryBeginMutation()) {
-      return { error: new Error(blockedMutationMessage()) }
+      return { error: new Error(blockedMutationMessage()), historyLines: [] }
     }
     try {
-      const nextLabelById = new Map(changes.map((c) => [c.listId, c.label]))
+      const catBatch = useListsCatalogStore.getState()
+      const listsSnapshot = catBatch.lists
+      const listNameById = new Map(listsSnapshot.map((l) => [l.id, l.name]))
+      const edits: LabelEdit[] = []
+      const nextLabelById = new Map<string, string>()
+      for (const { listId, label } of changes) {
+        const list = listsSnapshot.find((l) => l.id === listId)
+        if (!list) continue
+        const baseline = normalizeCatalogLabel(list.label)
+        const target = normalizeCatalogLabel(label)
+        if (baseline === target) continue
+        edits.push({ listId, baseline, target })
+        nextLabelById.set(listId, target)
+      }
+      if (edits.length === 0) {
+        return { error: null, historyLines: [] }
+      }
+
       catalogMutationVersionRef.current += 1
       catalogSkipRealtimeUntilRef.current = Date.now() + 2000
-      const catBatch = useListsCatalogStore.getState()
       catBatch.beginLocalCatalogPersistence()
+      let historyLines: string[] = []
       try {
         catBatch.setCatalogLists((prev) =>
           prev.map((list) =>
@@ -1085,29 +1137,19 @@ export function useLists() {
         )
 
         await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
-          for (const { listId, label } of changes) {
+          for (const { listId, target } of edits.map((e) => ({ listId: e.listId, target: e.target }))) {
             const row = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
-            if (row) await db.list_users.update(row.id, { label })
+            if (row) await db.list_users.update(row.id, { label: target })
           }
-          await enqueueSyncQueueRecord({
-            entity: 'list',
-            entity_id: newBatchEntityId(),
-            kind: 'rpc',
-            payload: {
-              method: 'bulkPatchListLabels',
-              updates: changes.map((c) => ({ list_id: c.listId, label: c.label })),
-            },
-            ...userQueueParent(mutationUserId),
-            status: 'queued',
-          })
+          historyLines = await enqueueLabelEditsInTransaction(edits, listNameById)
         })
       } finally {
         catBatch.endLocalCatalogPersistence()
       }
       appendMutationDiagnostic(
-        `[mutation:list.label.batch] local:queued count=${changes.length} server:queued`,
+        `[mutation:list.label.batch] local:queued count=${edits.length} server:queued`,
       )
-      return { error: null }
+      return { error: null, historyLines }
     } finally {
       mutationGate.end()
     }
