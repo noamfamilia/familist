@@ -38,14 +38,23 @@ function formatSessionTimeWithMs(ts: number): string {
   }
 }
 
-function formatPendingQueueText(rows: RowDisplay[]): string {
-  if (rows.length === 0) return 'Nothing is waiting to sync.'
-  return rows
-    .map((row, i) => {
-      const head = `${i + 1}. ${row.description}`
-      return row.statusLine ? `${head}\n   ${row.statusLine}` : head
-    })
-    .join('\n\n')
+const pendingStatusSublineClass = 'text-xs text-gray-500 dark:text-gray-500'
+
+function formatPendingQueueText(
+  rows: RowDisplay[],
+  connectivityStatus: 'online' | 'recovering' | 'offline',
+): string {
+  const lines: string[] = [`connectivity: ${connectivityStatus}`]
+  if (rows.length === 0) {
+    lines.push('Nothing is waiting to sync.')
+    return lines.join('\n')
+  }
+  const showPerItemStatus = connectivityStatus === 'online'
+  for (const [i, row] of rows.entries()) {
+    const head = `${i + 1}. ${row.description}`
+    lines.push(showPerItemStatus && row.statusLine ? `${head}\n   ${row.statusLine}` : head)
+  }
+  return lines.join('\n\n')
 }
 
 function formatServerActivityCopyLine(e: ServerSessionEntry): string {
@@ -91,7 +100,11 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
     }
   }, [rows, connectivityStatus])
 
-  const pendingQueueText = useMemo(() => formatPendingQueueText(displayRows), [displayRows])
+  const showPerItemQueueStatus = connectivityStatus === 'online'
+  const pendingQueueText = useMemo(
+    () => formatPendingQueueText(displayRows, connectivityStatus),
+    [displayRows, connectivityStatus],
+  )
   const serverActivityCopyText = useMemo(
     () => formatServerActivityCopyText(serverSessionEntries),
     [serverSessionEntries, serverLogRevision],
@@ -133,6 +146,7 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
               Copy
             </button>
           </div>
+          <p className={pendingStatusSublineClass}>connectivity: {connectivityStatus}</p>
           {displayRows.length === 0 ? (
             <p className="text-sm text-gray-800 dark:text-gray-200">Nothing is waiting to sync.</p>
           ) : (
@@ -142,8 +156,8 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
                   <span className="font-medium text-gray-800 dark:text-gray-200">
                     {i + 1}. {row.description}
                   </span>
-                  {row.statusLine ? (
-                    <div className="mt-0.5 whitespace-pre-wrap text-gray-500 dark:text-gray-500">
+                  {showPerItemQueueStatus && row.statusLine ? (
+                    <div className={`mt-0.5 whitespace-pre-wrap ${pendingStatusSublineClass}`}>
                       {row.statusLine}
                     </div>
                   ) : null}
