@@ -18,6 +18,7 @@ export function listCardModelEqual(a: ListWithRole, b: ListWithRole): boolean {
     (a.label || '') === (b.label || '') &&
     a.role === b.role &&
     a.userArchived === b.userArchived &&
+    (a.userArchivedAt ?? null) === (b.userArchivedAt ?? null) &&
     (a.sort_order ?? null) === (b.sort_order ?? null) &&
     a.archived === b.archived &&
     (a.comment ?? '') === (b.comment ?? '') &&

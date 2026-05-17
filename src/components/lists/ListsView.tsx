@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { compareListsCatalogSortOrder } from '@/lib/data/listCatalogSort'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -149,9 +150,19 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     return matchesViewMode && matchesSearch && matchesLabel
   })
 
-  // Separate active and archived lists
-  const activeLists = filteredLists.filter(list => !list.userArchived)
-  const archivedLists = filteredLists.filter(list => list.userArchived)
+  const activeLists = useMemo(
+    () => [...filteredLists.filter((list) => !list.userArchived)].sort(compareListsCatalogSortOrder),
+    [filteredLists],
+  )
+  const archivedLists = useMemo(
+    () =>
+      [...filteredLists.filter((list) => list.userArchived)].sort((a, b) => {
+        const aTime = a.userArchivedAt ? new Date(a.userArchivedAt).getTime() : 0
+        const bTime = b.userArchivedAt ? new Date(b.userArchivedAt).getTime() : 0
+        return bTime - aTime
+      }),
+    [filteredLists],
+  )
   
   // Get all owned list names (including archived) for duplicate name checking
   const ownedListNames = lists.filter(l => l.role === 'owner').map(l => l.name)

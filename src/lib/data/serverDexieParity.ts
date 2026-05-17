@@ -174,7 +174,7 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
       )
       const incomingIds = new Set(rowsReconciled.map((row) => row.id))
       for (const row of rowsReconciled) {
-        const { role, userArchived, sort_order, sumScope, label } = row
+        const { role, userArchived, userArchivedAt, sort_order, sumScope, label } = row
         const existingList = await db.lists.get(row.id)
         const listSync = normalizeServerSyncableFields(row as unknown as Record<string, unknown>)
         await db.lists.put(
@@ -217,6 +217,7 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
             user_id: userId,
             role,
             archived: userArchived,
+            archived_at: userArchivedAt ?? null,
             sort_order: resolvedSortOrder,
             client_created_at: existingListUser?.client_created_at ?? isoNow(),
             server_created_at: existingListUser?.server_created_at ?? row.server_created_at,
@@ -429,6 +430,7 @@ export async function upsertListPrefsFromServer(
       user_id: userId,
       role: existingByComposite?.role ?? 'viewer',
       archived: existingByComposite?.archived ?? false,
+      archived_at: existingByComposite?.archived_at ?? null,
       sort_order: existingByComposite?.sort_order ?? null,
       client_created_at: existingByComposite?.client_created_at ?? isoNow(),
       server_created_at: existingByComposite?.server_created_at ?? null,

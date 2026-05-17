@@ -914,11 +914,12 @@ export function useSyncStore(): SyncStoreState {
           const id = String(payload.id ?? '')
           const patchUserId = String(payload.user_id ?? '')
           if (!id || !patchUserId) throw new Error('patchListUser missing id/user_id')
+          const plWide = payload as Record<string, unknown>
           const patch: Record<string, unknown> = {}
           if (payload.archived !== undefined) patch.archived = payload.archived
+          if (plWide.archived_at !== undefined) patch.archived_at = plWide.archived_at
           if (payload.sort_order !== undefined) patch.sort_order = payload.sort_order
           if (payload.label !== undefined) patch.label = payload.label
-          const plWide = payload as Record<string, unknown>
           if (plWide.member_filter !== undefined) patch.member_filter = plWide.member_filter
           if (plWide.item_text_width !== undefined) patch.item_text_width = plWide.item_text_width
           if (plWide.sum_scope !== undefined) patch.sum_scope = plWide.sum_scope

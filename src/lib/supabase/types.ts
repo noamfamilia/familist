@@ -125,6 +125,7 @@ export interface Database {
           user_id: string
           role: 'owner' | 'editor' | 'viewer'
           archived: boolean
+          archived_at: string | null
           sort_order: number | null
           member_filter: string | null
           item_text_width: string | null
@@ -140,6 +141,7 @@ export interface Database {
           user_id: string
           role?: 'owner' | 'editor' | 'viewer'
           archived?: boolean
+          archived_at?: string | null
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: string | null
@@ -155,6 +157,7 @@ export interface Database {
           user_id?: string
           role?: 'owner' | 'editor' | 'viewer'
           archived?: boolean
+          archived_at?: string | null
           sort_order?: number | null
           member_filter?: string | null
           item_text_width?: string | null
@@ -328,6 +331,7 @@ export interface Database {
           last_synced_at: string | null
           role: 'owner' | 'editor' | 'viewer'
           userArchived: boolean
+          userArchivedAt: string | null
           sort_order: number | null
           last_viewed: string | null
           sumScope?: 'none' | 'all' | 'active' | 'archived'
@@ -521,6 +525,8 @@ export type MemberWithCreator = Member & {
 export type ListWithRole = List & {
   role: 'owner' | 'editor' | 'viewer'
   userArchived: boolean
+  /** Per-user archive time (`list_users.archived_at`); used for archived section sort on home. */
+  userArchivedAt?: string | null
   sort_order?: number | null
   memberCount?: number
   activeItemCount?: number

@@ -322,21 +322,6 @@ export function useLists() {
     return null
   }
 
-  const moveListBetweenSections = (currentLists: ListWithRole[], listId: string, archived: boolean) => {
-    const targetList = currentLists.find(list => list.id === listId)
-    if (!targetList) return currentLists
-
-    const remainingLists = currentLists.filter(list => list.id !== listId)
-    const activeLists = remainingLists.filter(list => !list.userArchived)
-    const archivedLists = remainingLists.filter(list => list.userArchived)
-    const updatedList = { ...targetList, userArchived: archived }
-
-    if (archived) {
-      return [...activeLists, updatedList, ...archivedLists]
-    }
-    return [updatedList, ...activeLists, ...archivedLists]
-  }
-
   const fetchLists = useCallback(async (options?: { staleCheckVersion?: number | null }) => {
     const staleCheck = options?.staleCheckVersion
     const readStatus = connectivityStatusRef.current
@@ -472,6 +457,7 @@ export function useLists() {
         last_content_update: item.last_content_update ?? item.updated_at,
         role: item.role,
         userArchived: item.userArchived,
+        userArchivedAt: item.userArchivedAt ?? null,
         sort_order: item.sort_order ?? null,
         last_viewed: item.last_viewed ?? null,
         memberCount: 0,
@@ -621,6 +607,7 @@ export function useLists() {
       last_content_update: now,
       role: 'owner',
       userArchived: false,
+      userArchivedAt: null,
       memberCount: 0,
       activeItemCount: 0,
       archivedItemCount: 0,
@@ -647,6 +634,7 @@ export function useLists() {
           user_id: mutationUserId,
           role: 'owner',
           archived: false,
+          archived_at: null,
           sort_order: nextSort,
           ...syncFieldsForLocalInsert(),
           member_filter: 'all',
@@ -774,12 +762,19 @@ export function useLists() {
     appendMutationDiagnostic(`[mutation:list.user_state] local:start listId=${listId}`)
     const cat = useListsCatalogStore.getState()
     const previousLists = cat.lists
-    const nextLists =
+    const archiveFields =
       updates.archived !== undefined
-        ? moveListBetweenSections(cat.lists, listId, updates.archived)
-        : cat.lists.map((list) =>
-            list.id === listId ? { ...list, userArchived: updates.archived ?? list.userArchived } : list,
-          )
+        ? updates.archived
+          ? { userArchived: true as const, userArchivedAt: new Date().toISOString() }
+          : { userArchived: false as const, userArchivedAt: null }
+        : null
+    const nextLists = archiveFields
+      ? cat.lists.map((list) => (list.id === listId ? { ...list, ...archiveFields } : list))
+      : cat.lists.map((list) =>
+          list.id === listId && updates.sort_order !== undefined
+            ? { ...list, sort_order: updates.sort_order }
+            : list,
+        )
 
     catalogMutationVersionRef.current += 1
     catalogSkipRealtimeUntilRef.current = Date.now() + 2000
@@ -792,7 +787,9 @@ export function useLists() {
           const row = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
           if (row) {
             await db.list_users.update(row.id, {
-              ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
+              ...(archiveFields
+                ? { archived: archiveFields.userArchived, archived_at: archiveFields.userArchivedAt }
+                : {}),
               ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
             })
           }
@@ -804,40 +801,15 @@ export function useLists() {
               method: 'patchListUser',
               id: listId,
               user_id: mutationUserId,
-              ...(updates.archived !== undefined ? { archived: updates.archived } : {}),
+              ...(archiveFields
+                ? { archived: archiveFields.userArchived, archived_at: archiveFields.userArchivedAt }
+                : {}),
               ...(updates.sort_order !== undefined ? { sort_order: updates.sort_order } : {}),
             },
             ...listQueueParent(listId),
             status: 'queued',
             updated_at: queueTs,
           })
-
-          // Archive/unarchive reorders the catalog; apply every membership `sort_order` in the same txn
-          // so Dexie liveQuery never emits with stale sort_order (was jumping restored list to the end).
-          if (updates.archived !== undefined) {
-            const orderedIds = nextLists.map((l) => l.id)
-            appendMutationDiagnostic(
-              `[mutation:list.user_state.reorder] userId=${mutationUserId} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')}`,
-            )
-            const n = nextLists.length
-            for (const [index, list] of nextLists.entries()) {
-              const lu = await db.list_users.where('[list_id+user_id]').equals([list.id, mutationUserId]).first()
-              if (lu) await db.list_users.update(lu.id, { sort_order: listCatalogSortOrderForVisualIndex(index, n) })
-            }
-            await enqueueSyncQueueRecord({
-              entity: CATALOG_RPC_COALESCE_ENTITY,
-              entity_id: reorderListUsersOutboxKey(mutationUserId),
-              kind: 'rpc',
-              payload: {
-                method: 'reorderListUsers',
-                user_id: mutationUserId,
-                list_ids: orderedIds,
-              },
-              ...userQueueParent(mutationUserId),
-              status: 'queued',
-              updated_at: queueTs + 1,
-            })
-          }
         })
       } catch (e) {
         cat.setCatalogLists(previousLists)
