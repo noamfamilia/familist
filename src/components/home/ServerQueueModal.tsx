@@ -63,8 +63,7 @@ function formatServerActivityCopyText(entries: readonly ServerSessionEntry[]): s
 const actionBtnClass =
   'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 touch-manipulation hover:bg-gray-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-200 dark:hover:bg-neutral-700'
 
-const preBlockClass =
-  'w-full rounded-lg border border-gray-200 bg-white p-3 font-mono text-xs leading-relaxed text-gray-800 whitespace-pre-wrap break-words dark:border-neutral-600 dark:bg-neutral-900 dark:text-gray-100'
+const detailListClass = 'space-y-1 text-xs text-gray-600 dark:text-gray-400'
 
 export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { status: connectivityStatus } = useConnectivity()
@@ -132,10 +131,27 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
               Copy
             </button>
           </div>
-          <pre className={preBlockClass} aria-label="Pending queue">
-            {pendingQueueText}
-          </pre>
+          {displayRows.length === 0 ? (
+            <p className="text-sm text-gray-800 dark:text-gray-200">Nothing is waiting to sync.</p>
+          ) : (
+            <ul className={detailListClass} aria-label="Pending queue">
+              {displayRows.map((row, i) => (
+                <li key={row.id} className="break-words">
+                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                    {i + 1}. {row.description}
+                  </span>
+                  {row.statusLine ? (
+                    <div className="mt-0.5 whitespace-pre-wrap text-gray-500 dark:text-gray-500">
+                      {row.statusLine}
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
+
+        <hr className="border-gray-200 dark:border-neutral-600" aria-hidden />
 
         <section className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -164,7 +180,7 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
             </div>
           )}
           {serverActivityNewestFirst.length > 0 ? (
-            <ul className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-400">
+            <ul className={`mt-2 ${detailListClass}`}>
               {serverActivityNewestFirst.map((e, i) => (
                 <li key={`${e.ts}-${i}`} className="break-words">
                   <span className="tabular-nums text-gray-400 dark:text-gray-500">
