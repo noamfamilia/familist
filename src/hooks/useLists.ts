@@ -61,6 +61,8 @@ import {
   DuplicateListError,
   duplicateListLocalFirst,
 } from '@/lib/data/duplicateListLocal'
+import { ImportListError, importListLocalFirst } from '@/lib/data/importListLocalFirst'
+import type { SheetImportItemRow } from '@/lib/sheetImport/parseSheetCsv'
 
 const supabase = createClient()
 
@@ -1011,103 +1013,38 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-    const importedId = crypto.randomUUID()
-    const now = new Date().toISOString()
-    const sync = syncFieldsForLocalInsert()
-    const itemCount = Array.isArray(rows) ? rows.length : 0
-    const existingMembershipsImp = await db.list_users.where('user_id').equals(mutationUserId).toArray()
-    const nextSortImp = nextListCatalogSortOrderFromMembershipRows(existingMembershipsImp, importedId)
-    const optimisticList: ListWithRole = {
-      id: importedId,
-      name,
-      owner_id: mutationUserId,
-      visibility: 'private',
-      archived: false,
-      comment: null,
-      category_names: categoryNames || null,
-      category_order: null,
-      join_token: null,
-      join_role_granted: 'editor',
-      join_expires_at: null,
-      join_revoked_at: null,
-      join_use_count: 0,
-      ...sync,
-      updated_at: now,
-      last_content_update: now,
-      role: 'owner',
-      userArchived: false,
-      memberCount: hasTargets ? 1 : 0,
-      activeItemCount: itemCount,
-      archivedItemCount: 0,
-      sumScope: 'none',
-      label: label || '',
-      last_viewed: now,
-      sort_order: nextSortImp,
-    }
-
-    catalogMutationVersionRef.current += 1
-    catalogSkipRealtimeUntilRef.current = Date.now() + 2000
-    const catImp = useListsCatalogStore.getState()
-    catImp.beginLocalCatalogPersistence()
-    try {
-      catImp.setCatalogLists((prev) => [optimisticList, ...prev])
+      const sheetRows = Array.isArray(rows) ? (rows as SheetImportItemRow[]) : []
+      catalogMutationVersionRef.current += 1
+      catalogSkipRealtimeUntilRef.current = Date.now() + 2000
+      const catImp = useListsCatalogStore.getState()
+      catImp.beginLocalCatalogPersistence()
+      let optimisticList: ListWithRole | null = null
       try {
-        await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
-          await db.lists.put({
-            ...extractListRowFields(optimisticList),
-            cached_at: Date.now(),
-            app_version: APP_VERSION,
-          })
-          await db.list_users.put({
-            id: crypto.randomUUID(),
-            list_id: importedId,
-            user_id: mutationUserId,
-            role: 'owner',
-            archived: false,
-            sort_order: nextSortImp,
-            ...syncFieldsForLocalInsert(),
-            member_filter: 'all',
-            item_text_width: 'auto',
-            label: label || '',
-            last_viewed_members: null,
-            last_viewed: now,
-            show_targets: false,
-            item_name_font_step: 3,
-            sum_scope: 'none',
-            sync_error: false,
-          })
-          await enqueueSyncQueueRecord({
-            entity: 'list',
-            entity_id: newBatchEntityId(),
-            kind: 'rpc',
-            payload: {
-              method: 'importList',
-              user_id: mutationUserId,
-              imported_id: importedId,
-              p_name: name,
-              p_label: label || '',
-              p_category_names: categoryNames || '{}',
-              p_rows: (rows ?? []) as unknown as Json,
-              p_has_targets: hasTargets || false,
-              p_client_created_at: sync.client_created_at,
-            },
-            ...listQueueParent(importedId),
-            status: 'queued',
-          })
+        const result = await importListLocalFirst({
+          name,
+          label,
+          categoryNamesJson: categoryNames,
+          rows: sheetRows,
+          hasTargets: hasTargets ?? false,
+          mutationUserId,
         })
+        optimisticList = result.optimisticList
+        catImp.setCatalogLists((prev) => [optimisticList!, ...prev])
+        appendMutationDiagnostic(
+          `[mutation:list.import] local:ok id=${result.importedId} items=${optimisticList.activeItemCount} targets=${hasTargets ? 1 : 0}`,
+        )
+        return { data: optimisticList, error: null }
       } catch (e) {
-        catImp.setCatalogLists((prev) => prev.filter((list) => list.id !== importedId))
-        return { error: e instanceof Error ? e : new Error('Failed to queue import') }
+        if (e instanceof ImportListError) {
+          return { error: new Error(e.userMessage) }
+        }
+        if (optimisticList) {
+          catImp.setCatalogLists((prev) => prev.filter((list) => list.id !== optimisticList!.id))
+        }
+        return { error: e instanceof Error ? e : new Error('Failed to import list') }
+      } finally {
+        catImp.endLocalCatalogPersistence()
       }
-    } finally {
-      catImp.endLocalCatalogPersistence()
-    }
-
-    void fetchLists()
-    window.setTimeout(() => void fetchLists(), 800)
-    window.setTimeout(() => void fetchLists(), 2500)
-
-    return { data: optimisticList, error: null }
     } finally {
       mutationGate.end()
     }

@@ -1,6 +1,6 @@
 import type { CategoryNames } from '@/lib/supabase/types'
 
-/** One row ready for `import_list` RPC */
+/** One row ready for local-first sheet import sync */
 export type SheetImportItemRow = {
   text: string
   sort_order: number

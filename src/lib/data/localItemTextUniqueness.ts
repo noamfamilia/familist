@@ -96,7 +96,7 @@ export async function validateBulkItemLinesUniqueness(
   return { ok: true }
 }
 
-/** Google Sheet / `import_list` payload: duplicate non-empty item texts in the same import fail entirely. */
+/** Google Sheet import: duplicate non-empty item texts in the same import fail entirely. */
 export function validateImportSheetRowTextsUnique(rows: unknown): { ok: true } | { ok: false; message: string } {
   if (rows == null) return { ok: true }
   if (!Array.isArray(rows)) return { ok: true }
