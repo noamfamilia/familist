@@ -38,7 +38,14 @@ import {
   resolveServerWorkOutcomeFromThrown,
   type ServerWorkOutcome,
 } from '@/lib/connectivityErrors'
-import { clearSyncQueueForList, enqueueSyncQueueRecord, listQueueParent, newBatchEntityId } from '@/lib/data/syncQueue'
+import {
+  CATALOG_RPC_COALESCE_ENTITY,
+  clearSyncQueueForList,
+  enqueueSyncQueueRecord,
+  listQueueParent,
+  newBatchEntityId,
+  patchListUserOutboxKey,
+} from '@/lib/data/syncQueue'
 import {
   isoNow,
   isTombstoned,
@@ -2070,8 +2077,8 @@ export function useList(listId: string) {
               if (!lu) throw new Error('Missing list_users row')
               await db.list_users.update(lu.id, luPatch as never)
               await enqueueSyncQueueRecord({
-                entity: 'list',
-                entity_id: newBatchEntityId(),
+                entity: CATALOG_RPC_COALESCE_ENTITY,
+                entity_id: patchListUserOutboxKey(listId, mutationUserId),
                 kind: 'rpc',
                 payload: {
                   method: 'patchListUser',
@@ -2202,8 +2209,8 @@ export function useList(listId: string) {
           if (!lu) throw new Error('Missing list_users row')
           await db.list_users.update(lu.id, luPatch as never)
           await enqueueSyncQueueRecord({
-            entity: 'list',
-            entity_id: newBatchEntityId(),
+            entity: CATALOG_RPC_COALESCE_ENTITY,
+            entity_id: patchListUserOutboxKey(listId, mutationUserId),
             kind: 'rpc',
             payload: {
               method: 'patchListUser',
@@ -2264,8 +2271,8 @@ export function useList(listId: string) {
             if (!lu) throw new Error('Missing list_users row')
             await db.list_users.update(lu.id, { sum_scope: next })
             await enqueueSyncQueueRecord({
-              entity: 'list',
-              entity_id: newBatchEntityId(),
+              entity: CATALOG_RPC_COALESCE_ENTITY,
+              entity_id: patchListUserOutboxKey(listId, mutationUserId),
               kind: 'rpc',
               payload: {
                 method: 'patchListUser',

@@ -9,6 +9,12 @@ export async function updateSyncQueueProcessingDetail(rowId: string, detail: str
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
 import { bumpListReconcileGenerationsForEnqueue } from '@/lib/data/listReconcilePolicy'
+import {
+  catalogRpcPayloadMatchesScope,
+  mergeCatalogRpcPayload,
+  resolveCatalogRpcCoalesceTarget,
+  type CatalogRpcCoalesceMethod,
+} from '@/lib/data/outboundCatalogRpcCoalesce'
 
 /** True when a sync_queue row is scoped to `listId` (parent, entity id, or payload.list_id). */
 export function syncQueueRowTouchesListId(row: DbSyncQueueRow, listId: string): boolean {
@@ -97,6 +103,12 @@ export function memberProfileOutboxKey(memberId: string) {
 export function newBatchEntityId(): string {
   return `batch:${crypto.randomUUID()}`
 }
+
+export {
+  patchListUserOutboxKey,
+  reorderListUsersOutboxKey,
+  CATALOG_RPC_COALESCE_ENTITY,
+} from '@/lib/data/outboundCatalogRpcCoalesce'
 
 export function listQueueParent(listId: string): Pick<
   DbSyncQueueRow,
@@ -408,6 +420,85 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
         payload: mergedPayload as Record<string, unknown>,
       })
       return
+    }
+  }
+
+  if (input.kind === 'rpc') {
+    const incomingPayload = input.payload as Record<string, unknown>
+    const coalesceTarget = resolveCatalogRpcCoalesceTarget(incomingPayload)
+    if (coalesceTarget) {
+      const { method, entity, entity_id } = coalesceTarget
+      const mergeableStatuses: readonly SyncQueueStatus[] = ['queued', 'failed']
+
+      const primaryMatches = await db.sync_queue
+        .where('[entity+entity_id]')
+        .equals([entity, entity_id])
+        .filter(
+          (r) =>
+            r.kind === 'rpc' &&
+            mergeableStatuses.includes(r.status) &&
+            catalogRpcPayloadMatchesScope(r.payload as Record<string, unknown>, method, entity_id),
+        )
+        .toArray()
+
+      const legacyMatches = await db.sync_queue
+        .filter(
+          (r) =>
+            r.kind === 'rpc' &&
+            mergeableStatuses.includes(r.status) &&
+            r.entity_id.startsWith('batch:') &&
+            catalogRpcPayloadMatchesScope(r.payload as Record<string, unknown>, method, entity_id),
+        )
+        .toArray()
+
+      const candidates = [...primaryMatches, ...legacyMatches]
+      const existing =
+        candidates.length === 0
+          ? undefined
+          : candidates.reduce((a, b) => (a.updated_at >= b.updated_at ? a : b))
+
+      if (existing) {
+        const mergedPayload = mergeCatalogRpcPayload(
+          method as CatalogRpcCoalesceMethod,
+          existing.payload as Record<string, unknown>,
+          incomingPayload,
+        )
+        await db.sync_queue.update(existing.id, {
+          entity,
+          entity_id,
+          payload: mergedPayload,
+          updated_at: ts,
+          next_retry_at: null,
+          parent1_type: input.parent1_type ?? existing.parent1_type,
+          parent1_id: input.parent1_id ?? existing.parent1_id,
+          parent2_type: input.parent2_type ?? existing.parent2_type,
+          parent2_id: input.parent2_id ?? existing.parent2_id,
+          processing_detail: null,
+        })
+        for (const dup of candidates) {
+          if (dup.id !== existing.id) await db.sync_queue.delete(dup.id)
+        }
+        await clearListUserSyncErrorsForEnqueueRow({
+          parent1_type: input.parent1_type ?? existing.parent1_type,
+          parent1_id: input.parent1_id ?? existing.parent1_id,
+          kind: 'rpc',
+          entity,
+          entity_id,
+          payload: mergedPayload,
+          status: existing.status,
+        })
+        bumpListReconcileGenerationsForEnqueue({
+          parent1_type: input.parent1_type ?? existing.parent1_type,
+          parent1_id: input.parent1_id ?? existing.parent1_id,
+          entity,
+          entity_id,
+          kind: 'rpc',
+          payload: mergedPayload,
+        })
+        return
+      }
+
+      input = { ...input, entity, entity_id }
     }
   }
 

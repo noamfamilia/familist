@@ -37,7 +37,10 @@ import {
   clearSyncQueueForList,
   enqueueSyncQueueRecord,
   listQueueParent,
+  CATALOG_RPC_COALESCE_ENTITY,
   newBatchEntityId,
+  patchListUserOutboxKey,
+  reorderListUsersOutboxKey,
   userQueueParent,
 } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
@@ -304,8 +307,8 @@ export function useLists() {
         if (row) await db.list_users.update(row.id, { sort_order: listCatalogSortOrderForVisualIndex(index, n) })
       }
       await enqueueSyncQueueRecord({
-        entity: 'list',
-        entity_id: newBatchEntityId(),
+        entity: CATALOG_RPC_COALESCE_ENTITY,
+        entity_id: reorderListUsersOutboxKey(mutationUserId),
         kind: 'rpc',
         payload: {
           method: 'reorderListUsers',
@@ -794,8 +797,8 @@ export function useLists() {
             })
           }
           await enqueueSyncQueueRecord({
-            entity: 'list',
-            entity_id: newBatchEntityId(),
+            entity: CATALOG_RPC_COALESCE_ENTITY,
+            entity_id: patchListUserOutboxKey(listId, mutationUserId),
             kind: 'rpc',
             payload: {
               method: 'patchListUser',
@@ -822,8 +825,8 @@ export function useLists() {
               if (lu) await db.list_users.update(lu.id, { sort_order: listCatalogSortOrderForVisualIndex(index, n) })
             }
             await enqueueSyncQueueRecord({
-              entity: 'list',
-              entity_id: newBatchEntityId(),
+              entity: CATALOG_RPC_COALESCE_ENTITY,
+              entity_id: reorderListUsersOutboxKey(mutationUserId),
               kind: 'rpc',
               payload: {
                 method: 'reorderListUsers',
@@ -1063,8 +1066,8 @@ export function useLists() {
         const row = await db.list_users.where('[list_id+user_id]').equals([listId, mutationUserId]).first()
         if (row) await db.list_users.update(row.id, { label })
         await enqueueSyncQueueRecord({
-          entity: 'list',
-          entity_id: newBatchEntityId(),
+          entity: CATALOG_RPC_COALESCE_ENTITY,
+          entity_id: patchListUserOutboxKey(listId, mutationUserId),
           kind: 'rpc',
           payload: { method: 'patchListUser', id: listId, user_id: mutationUserId, label },
           ...listQueueParent(listId),
