@@ -57,7 +57,7 @@ function formatServerActivityCopyLine(e: ServerSessionEntry): string {
 
 function formatServerActivityCopyText(entries: readonly ServerSessionEntry[]): string {
   if (entries.length === 0) return 'No server requests yet.'
-  return [...entries].reverse().map(formatServerActivityCopyLine).join('\n')
+  return entries.map(formatServerActivityCopyLine).join('\n')
 }
 
 const actionBtnClass =
@@ -96,11 +96,6 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
     () => formatServerActivityCopyText(serverSessionEntries),
     [serverSessionEntries, serverLogRevision],
   )
-  const serverActivityNewestFirst = useMemo(
-    () => [...serverSessionEntries].reverse(),
-    [serverSessionEntries, serverLogRevision],
-  )
-
   const flashCopyHint = (label: string) => {
     setCopyHint(label)
     window.setTimeout(() => setCopyHint(null), 1500)
@@ -179,9 +174,9 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
               </p>
             </div>
           )}
-          {serverActivityNewestFirst.length > 0 ? (
+          {serverSessionEntries.length > 0 ? (
             <ul className={`mt-2 ${detailListClass}`}>
-              {serverActivityNewestFirst.map((e, i) => (
+              {serverSessionEntries.map((e, i) => (
                 <li key={`${e.ts}-${i}`} className="break-words">
                   <span className="tabular-nums text-gray-400 dark:text-gray-500">
                     {formatSessionTimeWithMs(e.ts)}
