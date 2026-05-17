@@ -14,6 +14,7 @@ import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
 import { runLocalDexieGc } from '@/lib/data/localDexieGc'
 import { reportServerDexieParityDiagnostics, upsertProfileFromServer } from '@/lib/data/serverDexieParity'
+import { enqueueProfilePatch, pickQueueableProfilePatch } from '@/lib/data/profileOutboundQueue'
 import { readProfileFromDexie } from '@/lib/profileDexieHydrate'
 import {
   canFetchFromServerNow,
@@ -599,22 +600,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: new Error('Not authenticated') }
     }
 
-    const prev = profile
-    const merged = prev ? ({ ...prev, ...updates } as Profile) : null
-    setProfile(merged)
-
-    const { error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', user.id)
-
-    if (error) {
-      setProfile(prev)
-    } else if (merged) {
-      void upsertProfileFromServer(merged)
+    const patch = pickQueueableProfilePatch(updates)
+    if (Object.keys(patch).length === 0) {
+      return { error: null }
     }
 
-    return { error: error as Error | null }
+    const prev = profile
+    const merged = prev ? ({ ...prev, ...patch } as Profile) : null
+    if (!merged) {
+      return { error: new Error('Profile not loaded') }
+    }
+
+    setProfile(merged)
+    await upsertProfileFromServer(merged)
+
+    try {
+      await enqueueProfilePatch(user.id, patch)
+      return { error: null }
+    } catch (error) {
+      setProfile(prev)
+      if (prev) {
+        void upsertProfileFromServer(prev)
+      }
+      return { error: error instanceof Error ? error : new Error(String(error)) }
+    }
   }
 
   const resetPassword = async (email: string) => {

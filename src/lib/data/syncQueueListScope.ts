@@ -1,4 +1,5 @@
 import type { DbSyncQueueRow } from '@/lib/db'
+import { hasPendingProfileOutbound, isProfileOutboundRow } from '@/lib/data/profileOutboundQueue'
 
 function pushRealListId(ids: Set<string>, id: unknown) {
   if (typeof id !== 'string' || id.length === 0 || id.startsWith('user:')) return
@@ -228,6 +229,10 @@ function shortId(id: string): string {
 export function blockedOutboundDependencyReason(row: DbSyncQueueRow, queue: readonly DbSyncQueueRow[]): string | null {
   const ex = row.id
 
+  if (!isProfileOutboundRow(row) && hasPendingProfileOutbound(queue, ex)) {
+    return 'Waiting for profile changes to sync before other changes.'
+  }
+
   for (const lid of listIdsTouchingOutboundRow(row)) {
     if (pendingListCreateForId(queue, ex, lid)) {
       return `Waiting for list create (${shortId(lid)}) to finish on the server first.`
@@ -315,6 +320,18 @@ export function blockedOutboundDependencyReason(row: DbSyncQueueRow, queue: read
  */
 export function isBlockedByPendingDependencies(row: DbSyncQueueRow, queue: readonly DbSyncQueueRow[]): boolean {
   return blockedOutboundDependencyReason(row, queue) != null
+}
+
+/** Prefer profile patches so they drain before list-scoped work even when `updated_at` is newer. */
+export function pickNextEligibleOutboundRow(
+  eligible: readonly DbSyncQueueRow[],
+): DbSyncQueueRow | undefined {
+  if (eligible.length === 0) return undefined
+  const profileRows = eligible.filter(isProfileOutboundRow)
+  if (profileRows.length > 0) {
+    return [...profileRows].sort((a, b) => a.updated_at - b.updated_at)[0]
+  }
+  return [...eligible].sort((a, b) => a.updated_at - b.updated_at)[0]
 }
 
 export function countPendingOutboundForList(queue: readonly DbSyncQueueRow[], listId: string): number {

@@ -62,6 +62,12 @@ export async function describeOutboundSyncRow(row: DbSyncQueueRow): Promise<stri
     const lid = primary ?? String(pl.list_id ?? '')
     return `Save item state on list ${await listTitle(lid)}`
   }
+  if (row.kind === 'patch' && row.entity === 'profile') {
+    if (pl.label_filter !== undefined) return 'Update home label filter'
+    if (pl.theme !== undefined) return 'Update theme preference'
+    if (pl.nickname !== undefined) return 'Update profile nickname'
+    return 'Update profile settings'
+  }
 
   if (row.kind === 'rpc' && method) {
     const lid = primary ?? String(pl.list_id ?? '')

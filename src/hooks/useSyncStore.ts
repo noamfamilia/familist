@@ -30,7 +30,11 @@ import {
   isOutboundRowEligibleForSync,
   listIdsTouchingOutboundRow,
   OUTBOUND_SYNC_LOCK_STALE_MS,
+  pickNextEligibleOutboundRow,
 } from '@/lib/data/syncQueueListScope'
+import { pickQueueableProfilePatch } from '@/lib/data/profileOutboundQueue'
+import { upsertProfileFromServer } from '@/lib/data/serverDexieParity'
+import { readProfileFromDexie } from '@/lib/profileDexieHydrate'
 import { refreshOutboundReadQuietState } from '@/lib/data/outboundReadQuiet'
 import { scrubAfterTerminalOutboundFailure } from '@/lib/data/outboundTerminalScrub'
 import { applyListUserSyncErrorForListIds } from '@/lib/data/listUserSyncStatus'
@@ -782,6 +786,20 @@ export function useSyncStore(): SyncStoreState {
           (updateMemberRpcData ?? {}) as UpsertMemberRpcEnvelope,
           showInfoToast,
         )
+      } else if (row.kind === 'patch' && row.entity === 'profile') {
+        const fresh = (await db.sync_queue.get(row.id)) ?? row
+        const userId = String(fresh.entity_id ?? '')
+        if (!userId) throw new Error('patch profile missing user id')
+        const patch = pickQueueableProfilePatch(
+          fresh.payload as Partial<{ label_filter?: string; theme?: 'light' | 'dark'; nickname?: string | null }>,
+        )
+        if (Object.keys(patch).length === 0) throw new Error('patch profile empty')
+        const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
+        if (error) throw error
+        const local = await readProfileFromDexie(userId)
+        if (local) {
+          await upsertProfileFromServer({ ...local, ...patch })
+        }
       } else if (row.kind === 'rpc') {
         const payload = row.payload as {
           method?: string
@@ -1190,7 +1208,7 @@ export function useSyncStore(): SyncStoreState {
             }
           }
 
-          const next = eligible[0]
+          const next = pickNextEligibleOutboundRow(eligible)
           if (!next) break
 
           const claimed = await tryClaimSyncRow(next.id)

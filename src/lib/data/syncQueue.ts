@@ -123,7 +123,13 @@ export function userQueueParent(userId: string): Pick<
 }
 
 function isPatchMergeEntity(entity: SyncQueueEntity): boolean {
-  return entity === 'item' || entity === 'member' || entity === 'item_member_state' || entity === 'list'
+  return (
+    entity === 'item' ||
+    entity === 'member' ||
+    entity === 'item_member_state' ||
+    entity === 'list' ||
+    entity === 'profile'
+  )
 }
 
 function shouldAppendOnly(entity: SyncQueueEntity, entityId: string, kind: SyncQueueKind): boolean {

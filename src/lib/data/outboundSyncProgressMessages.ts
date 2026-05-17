@@ -53,6 +53,12 @@ export async function initialOutboundProgressMessage(row: DbSyncQueueRow): Promi
     const lid = primary ?? String(pl.list_id ?? '')
     return `Sending checkmarks, quantities, or assignments to the server on list ${await listDisplayName(lid || null)}…`
   }
+  if (row.kind === 'patch' && row.entity === 'profile') {
+    if (pl.label_filter !== undefined) return 'Sending label filter preference to the server…'
+    if (pl.theme !== undefined) return 'Sending theme preference to the server…'
+    if (pl.nickname !== undefined) return 'Sending profile nickname to the server…'
+    return 'Sending profile settings to the server…'
+  }
 
   if (row.kind === 'rpc' && method) {
     const lid = primary ?? String(pl.list_id ?? '')

@@ -205,11 +205,11 @@ function HomeContent() {
       const effective = cached ?? serverLabel
       setSelectedLabel(effective)
       setCachedLabelFilter(effective, cacheUserId)
-      if (user && effective !== serverLabel && !isOfflineActionsDisabled) {
+      if (user && effective !== serverLabel) {
         void updateProfile({ label_filter: effective })
       }
     }
-  }, [profile, user, bootstrapUserId, isOfflineActionsDisabled, updateProfile])
+  }, [profile, user, bootstrapUserId, updateProfile])
 
   useEffect(() => {
     if (isCreating) {
@@ -321,11 +321,11 @@ function HomeContent() {
       const cacheUserId = user?.id ?? bootstrapUserId ?? undefined
       setSelectedLabel(label)
       setCachedLabelFilter(label, cacheUserId)
-      if (user && !isOfflineActionsDisabled) {
+      if (user) {
         void updateProfile({ label_filter: label })
       }
     },
-    [bootstrapUserId, isOfflineActionsDisabled, updateProfile, user],
+    [bootstrapUserId, updateProfile, user],
   )
 
   const handleLabelsChange = useCallback((labels: string[]) => {
