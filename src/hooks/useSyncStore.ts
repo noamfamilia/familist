@@ -31,6 +31,7 @@ import {
   listIdsTouchingOutboundRow,
   OUTBOUND_SYNC_LOCK_STALE_MS,
 } from '@/lib/data/syncQueueListScope'
+import { refreshOutboundReadQuietState } from '@/lib/data/outboundReadQuiet'
 import { scrubAfterTerminalOutboundFailure } from '@/lib/data/outboundTerminalScrub'
 import { applyListUserSyncErrorForListIds } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages, setListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
@@ -356,6 +357,14 @@ type SyncStoreState = {
 export function useSyncStore(): SyncStoreState {
   const allRows = useLiveQuery(async () => db.sync_queue.orderBy('updated_at').toArray(), [], [])
   const rows = useMemo(() => allRows ?? [], [allRows])
+  const hadPendingOutboundRef = useRef(false)
+  useLayoutEffect(() => {
+    const { hasPendingOutbound } = refreshOutboundReadQuietState(rows, {
+      hadPendingOutbound: hadPendingOutboundRef.current,
+    })
+    hadPendingOutboundRef.current = hasPendingOutbound
+  }, [rows])
+
   const { status } = useConnectivity()
   const statusRef = useRef(status)
   useEffect(() => {

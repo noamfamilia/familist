@@ -14,6 +14,7 @@ import {
   getListsCatalogFetchHandler,
   registerListsCatalogRealtimeSchedule,
 } from '@/lib/data/listsCatalogRealtimeBridge'
+import { outboundQuietListIdsRef } from '@/lib/data/outboundReadQuiet'
 import {
   extractListIdsFromCatalogRealtimePayload,
   prefetchListDetailsFromServer,
@@ -81,7 +82,8 @@ export function ListsCatalogRealtimeProvider({ children }: { children: ReactNode
           return
         }
         const cap = catalogRealtimeScheduleCaptureVersionRef.current
-        const dirtyIds = [...realtimeDirtyListIdsRef.current]
+        const quiet = outboundQuietListIdsRef.current
+        const dirtyIds = [...realtimeDirtyListIdsRef.current].filter((id) => !quiet.has(id))
         realtimeDirtyListIdsRef.current.clear()
         const uid = userId
         void (async () => {

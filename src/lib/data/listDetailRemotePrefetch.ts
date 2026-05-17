@@ -12,7 +12,9 @@ import {
   captureReadFlightGeneration,
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
+import { shouldDeferServerReadsForOutboundList } from '@/lib/data/outboundReadQuiet'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
+import { db } from '@/lib/db'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
 import type { ItemWithState, List, MemberWithCreator } from '@/lib/supabase/types'
 
@@ -53,8 +55,14 @@ export async function prefetchListDetailsFromServer(
   const listIds = [...new Set(rawListIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
   if (listIds.length === 0) return
 
+  const outboundQueue = await db.sync_queue.toArray()
+
   for (const listId of listIds) {
     try {
+      if (shouldDeferServerReadsForOutboundList(listId, outboundQueue)) {
+        appendMutationDiagnostic(`[get_list_data] prefetch skip outbound quiet listId=${listId}`)
+        continue
+      }
       appendMutationDiagnostic(`[get_list_data] prefetch start listId=${listId}`)
       const listReconcileGen = captureListReconcileGeneration(listId)
       const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })

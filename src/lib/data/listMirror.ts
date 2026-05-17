@@ -13,6 +13,7 @@ import {
   captureReadFlightGeneration,
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
+import { shouldDeferServerReadsForOutboundList } from '@/lib/data/outboundReadQuiet'
 import { releaseListMirrorLock, waitForListMirrorLock } from '@/lib/data/listMirrorLock'
 
 const supabase = createClient()
@@ -81,7 +82,10 @@ export async function getListMirrorPriorityListId(): Promise<string | null> {
 
 /** Merge list ids into the Dexie-backed mirror queue (deduped). */
 export async function enqueueListMirrorJobs(listIds: string[]): Promise<void> {
-  const unique = [...new Set(listIds.filter((id) => id && id.length > 0))]
+  const queue = await db.sync_queue.toArray()
+  const unique = [...new Set(listIds.filter((id) => id && id.length > 0))].filter(
+    (id) => !shouldDeferServerReadsForOutboundList(id, queue),
+  )
   if (unique.length === 0) return
   await db.transaction('rw', db.meta, async () => {
     const row = await db.meta.get(LIST_MIRROR_QUEUE_META_ID)
@@ -131,6 +135,11 @@ export async function runListMirrorJob(
 ): Promise<boolean> {
   if (!canFetchFromServerNow()) {
     appendMutationDiagnostic(`[list-mirror] skip not online listId=${listId}`)
+    return false
+  }
+  const outboundQueue = await db.sync_queue.toArray()
+  if (shouldDeferServerReadsForOutboundList(listId, outboundQueue)) {
+    appendMutationDiagnostic(`[list-mirror] skip outbound quiet listId=${listId}`)
     return false
   }
   const owner = LIST_MIRROR_SESSION_OWNER
@@ -261,6 +270,10 @@ export async function drainListMirrorQueueOnce(userId: string): Promise<{ proces
   const ordered = sortQueueWithPriority(raw, priority)
   const head = ordered[0]
   if (!head) return { processed: 0, succeeded: false }
+  const outboundQueue = await db.sync_queue.toArray()
+  if (shouldDeferServerReadsForOutboundList(head, outboundQueue)) {
+    return { processed: 0, succeeded: false }
+  }
   const succeeded = await runListMirrorJob(userId, head)
   await popListMirrorQueueHead(head)
   return { processed: 1, succeeded }
