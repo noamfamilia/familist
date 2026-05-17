@@ -750,12 +750,12 @@ export function useLists() {
       const cat = useListsCatalogStore.getState()
       cat.beginLocalCatalogPersistence()
       try {
-        await softDeleteListInDexie(userId, listId)
         cat.setCatalogLists((prev) => prev.filter((list) => list.id !== listId))
+        removeCachedList(userId, listId)
+        await softDeleteListInDexie(userId, listId)
       } finally {
         cat.endLocalCatalogPersistence()
       }
-      removeCachedList(userId, listId)
       appendMutationDiagnostic(`[mutation:list.delete] local:queued-soft-delete listId=${listId} server:queued`)
       return { error: null }
     } finally {
