@@ -205,6 +205,32 @@ function readBulkLineTextChanges(
   return out
 }
 
+async function applyBulkLineTextChanges(
+  rpcListId: string,
+  changes: Array<{ item_id: string; requested_text: string; text: string }>,
+  showInfoToast: (message: string) => void,
+): Promise<void> {
+  if (changes.length === 0) return
+  const nowIso = isoNow()
+  for (const ch of changes) {
+    await db.items.update(ch.item_id, { text: ch.text, updated_at: nowIso })
+  }
+  const { activeListId, setItems } = useListDataStore.getState()
+  if (activeListId === rpcListId) {
+    setItems((prev) =>
+      prev.map((i) => {
+        const ch = changes.find((c) => c.item_id === i.id)
+        return ch ? { ...i, text: ch.text, updated_at: nowIso } : i
+      }),
+    )
+  }
+  showInfoToast(
+    changes.length === 1
+      ? `Item renamed to avoid a name collision (“${changes[0]!.text.length > 40 ? `${changes[0]!.text.slice(0, 37)}…` : changes[0]!.text}”).`
+      : `${changes.length} items renamed to avoid name collisions.`,
+  )
+}
+
 /** Best-effort names from Dexie for sync diagnostics (e.g. bulk label RPC failures). */
 async function localListNamesForIds(ids: string[]): Promise<string> {
   if (ids.length === 0) return ''
@@ -799,7 +825,7 @@ export function useSyncStore(): SyncStoreState {
             `[sync->server] bulkAddListItems payload listId=${rpcListId} lines=${lines.length} items=${itemRows.length}`,
           )
           if (rpcListId && itemRows.length > 0) {
-            let bulkItemRenameCount = 0
+            const pItems: Record<string, unknown>[] = []
             for (const raw of itemRows) {
               const it = raw as {
                 id?: string
@@ -837,37 +863,17 @@ export function useSyncStore(): SyncStoreState {
                 updated_at: typeof it.updated_at === 'string' ? it.updated_at : t,
               }
               const sync = normalizeServerSyncableFields(baseRow as Record<string, unknown>)
-              const pItem = { ...baseRow, ...sync } as Record<string, unknown>
-              const { data: rowRpcData, error } = await supabase.rpc('upsert_item_sync', {
-                p_item: pItem as never,
-              })
-              if (error) throw error
-              const env = rowRpcData as UpsertItemRpcEnvelope | null
-              if (env?.display_name_changed && env.item) {
-                const newText = typeof env.item.text === 'string' ? env.item.text : String(env.item.text ?? '')
-                const serverUpdatedAt =
-                  typeof env.item.updated_at === 'string' ? env.item.updated_at : isoNow()
-                if (newText) {
-                  await db.items.update(id, { text: newText, updated_at: serverUpdatedAt })
-                  const { activeListId, setItems } = useListDataStore.getState()
-                  if (activeListId === rpcListId) {
-                    setItems((prev) =>
-                      prev.map((i) =>
-                        i.id === id ? { ...i, text: newText, updated_at: serverUpdatedAt } : i,
-                      ),
-                    )
-                  }
-                  bulkItemRenameCount += 1
-                }
-              }
+              pItems.push({ ...baseRow, ...sync })
             }
-            if (bulkItemRenameCount > 0) {
-              showInfoToast(
-                bulkItemRenameCount === 1
-                  ? 'Item renamed to avoid a name collision.'
-                  : `${bulkItemRenameCount} items renamed to avoid name collisions.`,
-              )
-            }
+            appendMutationDiagnostic(
+              `[sync->server] bulk_upsert_items_sync listId=${rpcListId} count=${pItems.length}`,
+            )
+            const { data: bulkUpsertData, error } = await supabase.rpc('bulk_upsert_items_sync', {
+              p_list_id: rpcListId,
+              p_items: pItems as never,
+            })
+            if (error) throw error
+            await applyBulkLineTextChanges(rpcListId, readBulkLineTextChanges(bulkUpsertData), showInfoToast)
           } else if (rpcListId && lines.length > 0) {
             const { data: bulkData, error } = await supabase.rpc('bulk_add_list_items', {
               p_list_id: rpcListId,
@@ -875,27 +881,7 @@ export function useSyncStore(): SyncStoreState {
               p_lines: lines,
             } as never)
             if (error) throw error
-            const changes = readBulkLineTextChanges(bulkData)
-            if (changes.length > 0) {
-              const nowIso = isoNow()
-              for (const ch of changes) {
-                await db.items.update(ch.item_id, { text: ch.text, updated_at: nowIso })
-              }
-              const { activeListId, setItems } = useListDataStore.getState()
-              if (activeListId === rpcListId) {
-                setItems((prev) =>
-                  prev.map((i) => {
-                    const ch = changes.find((c) => c.item_id === i.id)
-                    return ch ? { ...i, text: ch.text, updated_at: nowIso } : i
-                  }),
-                )
-              }
-              showInfoToast(
-                changes.length === 1
-                  ? `Item renamed to avoid a name collision (“${changes[0]!.text.length > 40 ? `${changes[0]!.text.slice(0, 37)}…` : changes[0]!.text}”).`
-                  : `${changes.length} items renamed to avoid name collisions.`,
-              )
-            }
+            await applyBulkLineTextChanges(rpcListId, readBulkLineTextChanges(bulkData), showInfoToast)
           }
         } else if (method === 'patchListUser') {
           const id = String(payload.id ?? '')

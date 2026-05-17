@@ -405,6 +405,11 @@ export interface Database {
         /** `{ item, display_name_changed, requested_text }` */
         Returns: Json
       }
+      bulk_upsert_items_sync: {
+        Args: { p_list_id: string; p_items: Json }
+        /** `{ inserted_count, line_text_changes: [{ item_id, requested_text, text }] }` */
+        Returns: Json
+      }
       bulk_update_list_labels: {
         Args: { p_updates: Json }
         Returns: void
