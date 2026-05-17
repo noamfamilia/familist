@@ -57,3 +57,8 @@ export function subscribeServerSessionLog(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
+
+export function clearServerSessionLog(): void {
+  entries.length = 0
+  notify()
+}

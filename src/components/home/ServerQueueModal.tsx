@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '@/components/ui/Modal'
-import { db, type DbSyncQueueRow } from '@/lib/db'
+import { db } from '@/lib/db'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
 import { outboundQueueRowStatusLine } from '@/lib/data/outboundQueueStatus'
 import { useServerSessionLog } from '@/hooks/useServerSessionLog'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
+import { copyTextToClipboard } from '@/lib/clipboard'
+import { clearServerSessionLog } from '@/lib/serverSessionLog'
 
 type RowDisplay = {
   id: string
@@ -23,11 +25,50 @@ function formatSessionTime(ts: number): string {
   }
 }
 
+function formatPendingQueueText(rows: RowDisplay[]): string {
+  if (rows.length === 0) return 'Nothing is waiting to sync.'
+  return rows
+    .map((row, i) => {
+      const head = `${i + 1}. ${row.description}`
+      return row.statusLine ? `${head}\n   ${row.statusLine}` : head
+    })
+    .join('\n\n')
+}
+
+function formatHistoryQueueText(
+  entries: ReadonlyArray<{
+    ts: number
+    description: string
+    ok: boolean
+    durationMs: number
+    respondsTo?: string
+  }>,
+): string {
+  if (entries.length === 0) return 'No server requests this session.'
+  return [...entries]
+    .reverse()
+    .map((e) => {
+      const time = formatSessionTime(e.ts)
+      const status = e.ok ? 'ok' : 'fail'
+      const ms = Math.max(0, Math.round(e.durationMs))
+      const tail = e.respondsTo ? ` · ${e.respondsTo}` : ''
+      return `${time} ${status} ${ms}ms — ${e.description}${tail}`
+    })
+    .join('\n')
+}
+
+const actionBtnClass =
+  'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 touch-manipulation hover:bg-gray-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-200 dark:hover:bg-neutral-700'
+
+const textareaClass =
+  'min-h-[7rem] w-full flex-1 resize-none rounded-lg border border-gray-200 bg-white p-3 font-mono text-xs leading-relaxed text-gray-800 dark:border-neutral-600 dark:bg-neutral-900 dark:text-gray-100'
+
 export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { status: connectivityStatus } = useConnectivity()
-  const { entries: serverSessionEntries, summary: serverSessionSummary } = useServerSessionLog()
+  const { entries: serverSessionEntries } = useServerSessionLog()
   const rows = useLiveQuery(() => db.sync_queue.orderBy('updated_at').toArray(), [], []) ?? []
   const [displayRows, setDisplayRows] = useState<RowDisplay[]>([])
+  const [copyHint, setCopyHint] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -47,67 +88,81 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
     }
   }, [rows, connectivityStatus])
 
-  const recentServerEntries = serverSessionEntries.slice(-12).reverse()
+  const pendingQueueText = useMemo(() => formatPendingQueueText(displayRows), [displayRows])
+  const historyQueueText = useMemo(() => formatHistoryQueueText(serverSessionEntries), [serverSessionEntries])
+
+  const flashCopyHint = (label: string) => {
+    setCopyHint(label)
+    window.setTimeout(() => setCopyHint(null), 1500)
+  }
+
+  const copyPending = async () => {
+    await copyTextToClipboard(pendingQueueText)
+    flashCopyHint('Pending queue copied')
+  }
+
+  const copyHistory = async () => {
+    await copyTextToClipboard(historyQueueText)
+    flashCopyHint('History copied')
+  }
+
+  const clearHistory = () => {
+    clearServerSessionLog()
+    flashCopyHint('History cleared')
+  }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Server queue" size="md">
-      <section className="mb-4 rounded-lg border border-gray-200 bg-gray-50/80 p-3 dark:border-neutral-600 dark:bg-neutral-900/60">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-          Server activity this session
-        </h3>
-        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-          {serverSessionSummary.total === 0 ? (
-            <>No server requests since this page was opened or refreshed.</>
-          ) : (
-            <>
-              <span className="font-medium">{serverSessionSummary.total}</span> request
-              {serverSessionSummary.total === 1 ? '' : 's'} —{' '}
-              <span className="text-teal">{serverSessionSummary.ok} ok</span>
-              {serverSessionSummary.fail > 0 ? (
-                <>
-                  , <span className="text-red-500">{serverSessionSummary.fail} failed</span>
-                </>
-              ) : null}
-            </>
-          )}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Server queue"
+      size="lg"
+      contentClassName="flex max-h-[min(85vh,40rem)] flex-col"
+    >
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <section className="flex min-h-0 flex-1 flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Pending queue:</h3>
+            <button type="button" onClick={() => void copyPending()} className={actionBtnClass}>
+              Copy
+            </button>
+          </div>
+          <textarea
+            readOnly
+            value={pendingQueueText}
+            aria-label="Pending queue"
+            className={textareaClass}
+          />
+        </section>
+
+        <section className="flex min-h-0 flex-1 flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">History queue:</h3>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void copyHistory()} className={actionBtnClass}>
+                Copy
+              </button>
+              <button type="button" onClick={clearHistory} className={actionBtnClass}>
+                Clear
+              </button>
+            </div>
+          </div>
+          <textarea
+            readOnly
+            value={historyQueueText}
+            aria-label="History queue"
+            className={textareaClass}
+          />
+        </section>
+      </div>
+
+      {copyHint ? (
+        <p className="text-center text-xs text-teal" role="status">
+          {copyHint}
         </p>
-        {recentServerEntries.length > 0 ? (
-          <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto text-xs text-gray-600 dark:text-gray-400">
-            {recentServerEntries.map((e, i) => (
-              <li key={`${e.ts}-${i}`} className="break-words">
-                <span className="tabular-nums text-gray-400 dark:text-gray-500">{formatSessionTime(e.ts)}</span>{' '}
-                <span className={e.ok ? 'text-teal' : 'text-red-500'}>{e.ok ? 'ok' : 'fail'}</span>{' '}
-                <span className="tabular-nums">{Math.max(0, Math.round(e.durationMs))}ms</span> — {e.description}
-                {e.respondsTo ? (
-                  <span className="text-gray-400 dark:text-gray-500"> · {e.respondsTo}</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
-      <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-        Changes you make are saved on this device first, then sent to the server in order. If you are offline, items
-        stay here until you are back online.
-      </p>
-      {displayRows.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400 py-2">Nothing is waiting to sync.</p>
-      ) : (
-        <ul className="max-h-[min(60vh,28rem)] space-y-0 overflow-y-auto pr-1 -mr-1">
-          {displayRows.map((row, i) => (
-            <li
-              key={row.id}
-              className={`py-3 ${i > 0 ? 'border-t border-gray-200 dark:border-neutral-600' : ''}`}
-            >
-              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{row.description}</div>
-              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
-                {row.statusLine}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="mt-4 flex justify-end">
+      ) : null}
+
+      <div className="mt-2 flex shrink-0 justify-end">
         <button
           type="button"
           onClick={onClose}
