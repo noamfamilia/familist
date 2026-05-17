@@ -117,7 +117,14 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Server queue" size="lg">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Server queue"
+      size="lg"
+      contentClassName="!max-w-lg max-sm:!max-w-none"
+      fullScreenMobile
+    >
       <div className="flex flex-col gap-4">
         <section className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
