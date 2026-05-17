@@ -56,6 +56,7 @@ import Dexie from 'dexie'
 import {
   listCatalogSortOrderForVisualIndex,
   nextListCatalogSortOrderFromMembershipRows,
+  prependListToCatalogSorted,
 } from '@/lib/data/listCatalogSort'
 import {
   DuplicateListError,
@@ -630,7 +631,7 @@ export function useLists() {
     catalogSkipRealtimeUntilRef.current = Date.now() + 2000
     cat.beginLocalCatalogPersistence()
     try {
-      cat.setCatalogLists((prev) => [optimisticList, ...prev])
+      cat.setCatalogLists((prev) => prependListToCatalogSorted(prev, optimisticList))
       await db.transaction('rw', db.lists, db.list_users, db.sync_queue, async () => {
         await db.lists.put({
           ...extractListRowFields(optimisticList),
@@ -982,7 +983,7 @@ export function useLists() {
           duplicatorNickname: profile?.nickname ?? null,
         })
         optimisticList = result.optimisticList
-        catDup.setCatalogLists((prev) => [optimisticList!, ...prev])
+        catDup.setCatalogLists((prev) => prependListToCatalogSorted(prev, optimisticList!))
         appendMutationDiagnostic(
           `[mutation:list.duplicate] local:ok source=${listId} dup=${result.duplicateId} items=${optimisticList.activeItemCount} archived=${optimisticList.archivedItemCount}`,
         )
@@ -1029,7 +1030,7 @@ export function useLists() {
           mutationUserId,
         })
         optimisticList = result.optimisticList
-        catImp.setCatalogLists((prev) => [optimisticList!, ...prev])
+        catImp.setCatalogLists((prev) => prependListToCatalogSorted(prev, optimisticList!))
         appendMutationDiagnostic(
           `[mutation:list.import] local:ok id=${result.importedId} items=${optimisticList.activeItemCount} targets=${hasTargets ? 1 : 0}`,
         )

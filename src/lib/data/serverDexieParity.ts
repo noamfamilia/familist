@@ -162,6 +162,16 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
     async () => {
       const queue = await loadPendingOutboundQueueSnapshot()
       const rowsReconciled = reconcileUserListsSummaryRowsWithPendingCatalogQueue(rows, queue, userId)
+      const pendingListCreateIds = new Set(
+        queue
+          .filter(
+            (r) =>
+              r.kind === 'create' &&
+              r.entity === 'list' &&
+              (r.status === 'queued' || r.status === 'processing' || r.status === 'failed'),
+          )
+          .map((r) => r.entity_id),
+      )
       const incomingIds = new Set(rowsReconciled.map((row) => row.id))
       for (const row of rowsReconciled) {
         const { role, userArchived, sort_order, sumScope, label } = row
@@ -194,6 +204,12 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
           }),
         )
         const existingListUser = await db.list_users.where('[list_id+user_id]').equals([row.id, userId]).first()
+        const resolvedSortOrder =
+          pendingListCreateIds.has(row.id) &&
+          typeof existingListUser?.sort_order === 'number' &&
+          Number.isFinite(existingListUser.sort_order)
+            ? existingListUser.sort_order
+            : (sort_order ?? null)
         await db.list_users.put(
           withLastSyncedNow({
             id: existingListUser?.id ?? crypto.randomUUID(),
@@ -201,7 +217,7 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
             user_id: userId,
             role,
             archived: userArchived,
-            sort_order: sort_order ?? null,
+            sort_order: resolvedSortOrder,
             client_created_at: existingListUser?.client_created_at ?? isoNow(),
             server_created_at: existingListUser?.server_created_at ?? row.server_created_at,
             deleted_at: existingListUser?.deleted_at ?? null,

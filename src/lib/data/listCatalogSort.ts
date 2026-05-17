@@ -45,3 +45,11 @@ export function nextListCatalogSortOrderFromMembershipRows(
 export function listCatalogSortOrderForVisualIndex(visualIndex: number, listCount: number): number {
   return listCount - 1 - visualIndex
 }
+
+/** Insert a list into the catalog mirror and sort (larger `sort_order` nearer top). */
+export function prependListToCatalogSorted(
+  lists: readonly ListWithRole[],
+  list: ListWithRole,
+): ListWithRole[] {
+  return [...lists, list].sort(compareListsCatalogSortOrder)
+}
