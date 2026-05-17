@@ -68,7 +68,8 @@ const preBlockClass =
 
 export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { status: connectivityStatus } = useConnectivity()
-  const { entries: serverSessionEntries, summary: serverSessionSummary } = useServerSessionLog()
+  const { entries: serverSessionEntries, summary: serverSessionSummary, revision: serverLogRevision } =
+    useServerSessionLog()
   const rows = useLiveQuery(() => db.sync_queue.orderBy('updated_at').toArray(), [], []) ?? []
   const [displayRows, setDisplayRows] = useState<RowDisplay[]>([])
   const [copyHint, setCopyHint] = useState<string | null>(null)
@@ -94,11 +95,11 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
   const pendingQueueText = useMemo(() => formatPendingQueueText(displayRows), [displayRows])
   const serverActivityCopyText = useMemo(
     () => formatServerActivityCopyText(serverSessionEntries),
-    [serverSessionEntries],
+    [serverSessionEntries, serverLogRevision],
   )
   const serverActivityNewestFirst = useMemo(
     () => [...serverSessionEntries].reverse(),
-    [serverSessionEntries],
+    [serverSessionEntries, serverLogRevision],
   )
 
   const flashCopyHint = (label: string) => {
@@ -148,24 +149,22 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
               </button>
             </div>
           </div>
-          <p className="text-sm text-gray-800 dark:text-gray-200">
-            {serverSessionSummary.total === 0 ? (
-              <>No server requests yet.</>
-            ) : (
-              <>
-                <span className="font-medium">{serverSessionSummary.total}</span> request
-                {serverSessionSummary.total === 1 ? '' : 's'} —{' '}
-                <span className="text-teal">{serverSessionSummary.ok} ok</span>
-                {serverSessionSummary.fail > 0 ? (
-                  <>
-                    , <span className="text-red-500">{serverSessionSummary.fail} failed</span>
-                  </>
-                ) : null}
-              </>
-            )}
-          </p>
+          {serverSessionSummary.total === 0 ? (
+            <p className="text-sm text-gray-800 dark:text-gray-200">No server requests yet.</p>
+          ) : (
+            <div className="space-y-1 text-sm text-gray-800 dark:text-gray-200">
+              <p>
+                requests succeeded -{' '}
+                <span className="font-medium tabular-nums text-teal">{serverSessionSummary.ok}</span>
+              </p>
+              <p>
+                requests failed -{' '}
+                <span className="font-medium tabular-nums text-red-500">{serverSessionSummary.fail}</span>
+              </p>
+            </div>
+          )}
           {serverActivityNewestFirst.length > 0 ? (
-            <ul className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+            <ul className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-400">
               {serverActivityNewestFirst.map((e, i) => (
                 <li key={`${e.ts}-${i}`} className="break-words">
                   <span className="tabular-nums text-gray-400 dark:text-gray-500">

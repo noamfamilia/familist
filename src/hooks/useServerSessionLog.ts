@@ -14,7 +14,9 @@ export function useServerSessionLog() {
 
   void tick
   return {
-    entries: getServerSessionEntries(),
+    /** Fresh array each notify so consumers’ `useMemo` deps see updates. */
+    entries: [...getServerSessionEntries()],
     summary: getServerSessionSummary(),
+    revision: tick,
   }
 }
