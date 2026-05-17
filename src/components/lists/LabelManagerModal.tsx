@@ -251,10 +251,7 @@ export function LabelManagerModal({
   }, [selectedIds.size, destination, wouldChangeCount])
 
   const canApply =
-    !applying &&
-    selectedIds.size > 0 &&
-    destination !== 'unset' &&
-    wouldChangeCount > 0
+    selectedIds.size > 0 && destination !== 'unset' && wouldChangeCount > 0
 
   const flushSessionLocals = useCallback(() => {
     for (const lab of sessionCreatedLabels) {
@@ -328,7 +325,7 @@ export function LabelManagerModal({
   }, [destDropdownOpen, addingDestLabel])
 
   const handleApply = async (closeAfter: boolean) => {
-    if (!canApply || targetLabelString === null) return
+    if (applying || !canApply || targetLabelString === null) return
     const listsSnapshot = lists
     const next = targetLabelString
     setApplying(true)
@@ -392,17 +389,14 @@ export function LabelManagerModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={() => {
-        if (applying) return
-        handleModalClose()
-      }}
+      onClose={handleModalClose}
       title="Label manager"
       size="lg"
       contentClassName="!max-w-lg max-sm:!max-w-none"
       fullScreenMobile
     >
-      <div className="relative min-h-[200px] text-left" aria-busy={applying}>
-        <div className="space-y-6" {...(applying ? { inert: true } : {})}>
+      <div className="relative min-h-[200px] text-left">
+        <div className="space-y-6">
         {/* 1. Filter by labels */}
         <section>
           <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Filter lists by labels</h3>
@@ -594,12 +588,7 @@ export function LabelManagerModal({
           <button
             type="button"
             onClick={handleModalClose}
-            disabled={applying}
-            className={`px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] disabled:cursor-default ${
-              applying
-                ? 'cursor-not-allowed text-white/75 bg-gray-400/50 dark:bg-gray-500/50'
-                : 'text-white bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-600'
-            }`}
+            className="px-4 py-2 text-sm font-medium rounded-lg min-w-[4.5rem] text-white bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-600"
           >
             Close
           </button>
@@ -612,9 +601,11 @@ export function LabelManagerModal({
               void handleApply(false)
             }}
             className={`inline-flex min-h-[2.5rem] min-w-[4.5rem] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
-              canApply && !applying
-                ? 'text-white bg-teal hover:opacity-80'
-                : 'text-white/75 bg-teal/35 cursor-not-allowed'
+              applying
+                ? 'cursor-wait text-white bg-teal'
+                : canApply
+                  ? 'text-white bg-teal hover:opacity-80'
+                  : 'text-white/75 bg-teal/35 cursor-not-allowed'
             }`}
           >
             {applying ? (
