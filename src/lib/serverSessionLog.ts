@@ -1,6 +1,6 @@
 /**
- * In-memory server I/O log for the current tab session (cleared on full page refresh).
- * Used by the Server queue modal; independent of the diagnostics panel flag.
+ * In-memory server I/O log for the Server queue modal (not persisted).
+ * Cleared only via the modal Clear control; not reset on navigation or refresh by app code.
  */
 
 import type { ServerRoundTripInput } from '@/lib/serverActionLog'
