@@ -65,7 +65,7 @@ import {
   outboundProgressTouchListViewedReceived,
   outboundProgressTouchListViewedWaiting,
 } from '@/lib/data/outboundSyncProgressMessages'
-import { logServerRoundTrip } from '@/lib/serverActionLog'
+import { formatSyncQueueRespondsTo, logServerRoundTrip } from '@/lib/serverActionLog'
 import {
   normalizeItemCategory,
   type ItemWithState,
@@ -451,7 +451,7 @@ export function useSyncStore(): SyncStoreState {
     async (row: DbSyncQueueRow): Promise<void> => {
       const t0 = performance.now()
       const description = await describeOutboundSyncRow(row)
-      const respondsTo = `Sync queue · ${row.kind}/${row.entity}`
+      const syncQueueRespondsTo = (durationMs: number) => formatSyncQueueRespondsTo(row, durationMs)
       appendMutationDiagnostic(
         `[sync->server] send kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
       )
@@ -500,11 +500,12 @@ export function useSyncStore(): SyncStoreState {
         appendMutationDiagnostic(
           `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
         )
+        const durationMs = performance.now() - t0
         logServerRoundTrip({
           description,
           ok: true,
-          durationMs: performance.now() - t0,
-          respondsTo,
+          durationMs,
+          respondsTo: syncQueueRespondsTo(durationMs),
         })
         return
       }
@@ -1123,11 +1124,12 @@ export function useSyncStore(): SyncStoreState {
       appendMutationDiagnostic(
         `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
       )
+      const durationMs = performance.now() - t0
       logServerRoundTrip({
         description,
         ok: true,
-        durationMs: performance.now() - t0,
-        respondsTo,
+        durationMs,
+        respondsTo: syncQueueRespondsTo(durationMs),
       })
       } catch (err) {
         if (row.kind === 'rpc') {
@@ -1140,11 +1142,12 @@ export function useSyncStore(): SyncStoreState {
             )
           }
         }
+        const durationMs = performance.now() - t0
         logServerRoundTrip({
           description,
           ok: false,
-          durationMs: performance.now() - t0,
-          respondsTo,
+          durationMs,
+          respondsTo: syncQueueRespondsTo(durationMs),
           failure: err,
         })
         throw err

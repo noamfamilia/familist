@@ -32,6 +32,19 @@ export type ServerRoundTripInput = {
   failure?: unknown
 }
 
+/** `respondsTo` for outbound sync_queue completion lines (includes queue # and wall duration). */
+export function formatSyncQueueRespondsTo(
+  row: { kind: string; entity: string; display_index?: number },
+  durationMs: number,
+): string {
+  const base = `Sync queue · ${row.kind}/${row.entity}`
+  const queueIndex = row.display_index
+  if (typeof queueIndex !== 'number' || queueIndex <= 0) return base
+  const sec = Math.max(0, durationMs) / 1000
+  const secLabel = sec < 1 ? sec.toFixed(2) : sec < 10 ? sec.toFixed(1) : String(Math.round(sec))
+  return `${base} · duration from queue #${queueIndex} is ${secLabel}sec`
+}
+
 export function logServerRoundTrip(input: ServerRoundTripInput): void {
   recordServerSessionRoundTrip(input)
   if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
