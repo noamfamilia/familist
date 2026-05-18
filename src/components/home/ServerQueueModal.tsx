@@ -29,18 +29,18 @@ type RowDisplay = {
 const PENDING_QUEUE_TITLE = 'Pending queue:'
 const SERVER_ACTIVITY_TITLE = 'Server activity'
 
-const queueIndexClass = 'text-gray-900 dark:text-gray-100'
-const queueActionClass = 'text-gray-900 dark:text-gray-100'
-const queueMetaClass = 'text-gray-500 dark:text-gray-500'
+const rowIndexClass = 'text-gray-900 dark:text-gray-100'
+const rowActionClass = 'text-gray-900 dark:text-gray-100'
+const rowMetaClass = 'text-gray-500 dark:text-gray-500'
 
-function queueStatusClass(tone: OutboundQueueStatusTone): string {
+function rowStatusClass(tone: OutboundQueueStatusTone): string {
   if (tone === 'success') return 'text-green-600 dark:text-green-500'
   if (tone === 'failure') return 'text-red-500 dark:text-red-500'
   return 'text-gray-500 dark:text-gray-500'
 }
 
 /** Local time without milliseconds (e.g. 08:40:50). */
-function formatQueueTime(ts: number): string {
+function formatRowTime(ts: number): string {
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleTimeString(undefined, {
@@ -50,31 +50,21 @@ function formatQueueTime(ts: number): string {
   })
 }
 
-/** Local time with milliseconds (e.g. 08:40:50.571). */
-function formatSessionTimeWithMs(ts: number): string {
-  const d = new Date(ts)
-  if (Number.isNaN(d.getTime())) return ''
-  try {
-    return d.toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      fractionalSecondDigits: 3,
-    })
-  } catch {
-    const base = d.toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-    return `${base}.${String(d.getMilliseconds()).padStart(3, '0')}`
-  }
-}
-
 function formatPendingQueueRowPlain(row: RowDisplay): string {
-  const time = formatQueueTime(row.updatedAt)
+  const time = formatRowTime(row.updatedAt)
   const head = `${row.displayIndex}. ${row.description} ${row.statusLabel} ${time}`
   return row.detailTail ? `${head} · ${row.detailTail}` : head
+}
+
+function serverActivityStatus(e: ServerSessionEntry): { label: string; tone: OutboundQueueStatusTone } {
+  return e.ok ? { label: 'ok', tone: 'success' } : { label: 'fail', tone: 'failure' }
+}
+
+function formatServerActivityRowPlain(e: ServerSessionEntry): string {
+  const { label } = serverActivityStatus(e)
+  const time = formatRowTime(e.ts)
+  const head = `${e.index}. ${e.description} ${label} ${time}`
+  return e.respondsTo ? `${head} · ${e.respondsTo}` : head
 }
 
 function formatPendingQueueSection(
@@ -93,13 +83,6 @@ function formatPendingQueueSection(
   return lines.join('\n')
 }
 
-function formatServerActivityLine(e: ServerSessionEntry): string {
-  const time = formatSessionTimeWithMs(e.ts)
-  const status = e.ok ? 'ok' : 'fail'
-  const tail = e.respondsTo ? ` · ${e.respondsTo}` : ''
-  return `${e.index}. ${time} ${status} — ${e.description}${tail}`
-}
-
 function formatServerActivitySection(entries: readonly ServerSessionEntry[]): string {
   const lines: string[] = [SERVER_ACTIVITY_TITLE]
   if (entries.length === 0) {
@@ -107,7 +90,7 @@ function formatServerActivitySection(entries: readonly ServerSessionEntry[]): st
     return lines.join('\n')
   }
   for (const e of entries) {
-    lines.push(formatServerActivityLine(e))
+    lines.push(formatServerActivityRowPlain(e))
   }
   return lines.join('\n')
 }
@@ -126,23 +109,63 @@ const actionBtnClass =
 const detailListClass = 'space-y-1 text-xs text-gray-600 dark:text-gray-400'
 const sectionRuleClass = 'border-gray-200 dark:border-neutral-600'
 
-function PendingQueueRow({ row }: { row: RowDisplay }) {
-  const time = formatQueueTime(row.updatedAt)
+function QueueModalRow({
+  index,
+  description,
+  statusLabel,
+  statusTone,
+  time,
+  detailTail,
+}: {
+  index: number
+  description: string
+  statusLabel: string
+  statusTone: OutboundQueueStatusTone
+  time: string
+  detailTail?: string
+}) {
   return (
     <li className="break-words leading-relaxed">
-      <span className={queueIndexClass}>{row.displayIndex}. </span>
-      <span className={queueActionClass}>{row.description}</span>
+      <span className={rowIndexClass}>{index}. </span>
+      <span className={rowActionClass}>{description}</span>
       {' '}
-      <span className={queueStatusClass(row.statusTone)}>{row.statusLabel}</span>
+      <span className={rowStatusClass(statusTone)}>{statusLabel}</span>
       {' '}
-      <span className={`tabular-nums ${queueMetaClass}`}>{time}</span>
-      {row.detailTail ? (
+      <span className={`tabular-nums ${rowMetaClass}`}>{time}</span>
+      {detailTail ? (
         <>
           {' '}
-          <span className={queueMetaClass}>· {row.detailTail}</span>
+          <span className={rowMetaClass}>· {detailTail}</span>
         </>
       ) : null}
     </li>
+  )
+}
+
+function PendingQueueRow({ row }: { row: RowDisplay }) {
+  return (
+    <QueueModalRow
+      index={row.displayIndex}
+      description={row.description}
+      statusLabel={row.statusLabel}
+      statusTone={row.statusTone}
+      time={formatRowTime(row.updatedAt)}
+      detailTail={row.detailTail || undefined}
+    />
+  )
+}
+
+function ServerActivityRow({ entry }: { entry: ServerSessionEntry }) {
+  const { label, tone } = serverActivityStatus(entry)
+  return (
+    <QueueModalRow
+      index={entry.index}
+      description={entry.description}
+      statusLabel={label}
+      statusTone={tone}
+      time={formatRowTime(entry.ts)}
+      detailTail={entry.respondsTo}
+    />
   )
 }
 
@@ -227,7 +250,7 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
 
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{PENDING_QUEUE_TITLE}</h3>
-          <p className={`text-xs ${queueMetaClass}`}>connectivity: {connectivityStatus}</p>
+          <p className={`text-xs ${rowMetaClass}`}>connectivity: {connectivityStatus}</p>
           {sortedDisplayRows.length === 0 ? (
             <p className="text-sm text-gray-800 dark:text-gray-200">Nothing is waiting to sync.</p>
           ) : (
@@ -258,19 +281,9 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
             </div>
           )}
           {serverSessionEntries.length > 0 ? (
-            <ul className={`mt-2 ${detailListClass}`}>
+            <ul className={`mt-2 ${detailListClass}`} aria-label="Server activity">
               {serverSessionEntries.map((e) => (
-                <li key={`${e.index}-${e.ts}`} className="break-words">
-                  <span className="tabular-nums text-gray-400 dark:text-gray-500">
-                    {e.index}. {formatSessionTimeWithMs(e.ts)}
-                  </span>{' '}
-                  <span className={e.ok ? 'text-teal' : 'text-red-500'}>{e.ok ? 'ok' : 'fail'}</span>
-                  {' — '}
-                  {e.description}
-                  {e.respondsTo ? (
-                    <span className="text-gray-400 dark:text-gray-500"> · {e.respondsTo}</span>
-                  ) : null}
-                </li>
+                <ServerActivityRow key={`${e.index}-${e.ts}`} entry={e} />
               ))}
             </ul>
           ) : null}
