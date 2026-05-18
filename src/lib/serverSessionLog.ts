@@ -6,6 +6,8 @@
 import type { ServerRoundTripInput } from '@/lib/serverActionLog'
 
 export type ServerSessionEntry = {
+  /** 1-based index in the Server activity section (stable until cleared or refresh). */
+  index: number
   ts: number
   description: string
   ok: boolean
@@ -16,6 +18,11 @@ export type ServerSessionEntry = {
 const SESSION_CAP = 200
 const entries: ServerSessionEntry[] = []
 const listeners = new Set<() => void>()
+let nextActivityIndex = 0
+
+export function resetServerActivityIndexCounter(): void {
+  nextActivityIndex = 0
+}
 
 function notify(): void {
   for (const fn of listeners) {
@@ -28,7 +35,9 @@ function notify(): void {
 }
 
 export function recordServerSessionRoundTrip(input: ServerRoundTripInput): void {
+  nextActivityIndex += 1
   entries.push({
+    index: nextActivityIndex,
     ts: Date.now(),
     description: input.description,
     ok: input.ok,
@@ -60,5 +69,6 @@ export function subscribeServerSessionLog(listener: () => void): () => void {
 
 export function clearServerSessionLog(): void {
   entries.length = 0
+  resetServerActivityIndexCounter()
   notify()
 }

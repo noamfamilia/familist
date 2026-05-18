@@ -6,18 +6,22 @@ import { Modal } from '@/components/ui/Modal'
 import { db, type SyncQueueStatus } from '@/lib/db'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
 import { outboundQueueRowStatusLine } from '@/lib/data/outboundQueueStatus'
-import { clearCompletedOutboundQueueRows } from '@/lib/data/syncQueue'
+import { clearServerQueueModalState } from '@/lib/serverQueueModalState'
 import { useServerSessionLog } from '@/hooks/useServerSessionLog'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { copyTextToClipboard } from '@/lib/clipboard'
-import { clearServerSessionLog, type ServerSessionEntry } from '@/lib/serverSessionLog'
+import type { ServerSessionEntry } from '@/lib/serverSessionLog'
 
 type RowDisplay = {
   id: string
+  displayIndex: number
   description: string
   statusLine: string
   status: SyncQueueStatus
 }
+
+const PENDING_QUEUE_TITLE = 'Pending queue:'
+const SERVER_ACTIVITY_TITLE = 'Server activity'
 
 /** Local time with milliseconds (e.g. 08:40:50.571). */
 function formatSessionTimeWithMs(ts: number): string {
@@ -42,39 +46,60 @@ function formatSessionTimeWithMs(ts: number): string {
 
 const pendingStatusSublineClass = 'text-xs text-gray-500 dark:text-gray-500'
 
-function formatPendingQueueText(
+function queueRowLabel(displayIndex: number): string {
+  return displayIndex > 0 ? `${displayIndex}. ` : ''
+}
+
+function formatPendingQueueSection(
   rows: RowDisplay[],
   connectivityStatus: 'online' | 'recovering' | 'offline',
 ): string {
-  const lines: string[] = [`connectivity: ${connectivityStatus}`]
+  const lines: string[] = [PENDING_QUEUE_TITLE, `connectivity: ${connectivityStatus}`]
   if (rows.length === 0) {
     lines.push('Nothing is waiting to sync.')
     return lines.join('\n')
   }
   const showPerItemStatus = connectivityStatus === 'online'
-  for (const [i, row] of rows.entries()) {
-    const head = `${i + 1}. ${row.description}`
+  const sorted = [...rows].sort((a, b) => a.displayIndex - b.displayIndex || a.id.localeCompare(b.id))
+  for (const row of sorted) {
+    const head = `${queueRowLabel(row.displayIndex)}${row.description}`
     lines.push(showPerItemStatus && row.statusLine ? `${head}\n   ${row.statusLine}` : head)
   }
-  return lines.join('\n\n')
+  return lines.join('\n')
 }
 
-function formatServerActivityCopyLine(e: ServerSessionEntry): string {
+function formatServerActivityLine(e: ServerSessionEntry): string {
   const time = formatSessionTimeWithMs(e.ts)
   const status = e.ok ? 'ok' : 'fail'
   const tail = e.respondsTo ? ` · ${e.respondsTo}` : ''
-  return `${time} ${status} — ${e.description}${tail}`
+  return `${e.index}. ${time} ${status} — ${e.description}${tail}`
 }
 
-function formatServerActivityCopyText(entries: readonly ServerSessionEntry[]): string {
-  if (entries.length === 0) return 'No server requests yet.'
-  return entries.map(formatServerActivityCopyLine).join('\n')
+function formatServerActivitySection(entries: readonly ServerSessionEntry[]): string {
+  const lines: string[] = [SERVER_ACTIVITY_TITLE]
+  if (entries.length === 0) {
+    lines.push('No server requests yet.')
+    return lines.join('\n')
+  }
+  for (const e of entries) {
+    lines.push(formatServerActivityLine(e))
+  }
+  return lines.join('\n')
+}
+
+function formatFullServerQueueModalCopy(
+  pendingRows: RowDisplay[],
+  connectivityStatus: 'online' | 'recovering' | 'offline',
+  serverEntries: readonly ServerSessionEntry[],
+): string {
+  return `${formatPendingQueueSection(pendingRows, connectivityStatus)}\n\n${formatServerActivitySection(serverEntries)}`
 }
 
 const actionBtnClass =
   'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 touch-manipulation hover:bg-gray-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-200 dark:hover:bg-neutral-700'
 
 const detailListClass = 'space-y-1 text-xs text-gray-600 dark:text-gray-400'
+const sectionRuleClass = 'border-gray-200 dark:border-neutral-600'
 
 export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { status: connectivityStatus } = useConnectivity()
@@ -84,15 +109,14 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
   const [displayRows, setDisplayRows] = useState<RowDisplay[]>([])
   const [copyHint, setCopyHint] = useState<string | null>(null)
 
-  const hasCompletedRows = rows.some((r) => r.status === 'completed')
-
   useEffect(() => {
     let cancelled = false
     const now = Date.now()
     void (async () => {
       const next = await Promise.all(
-        rows.map(async (r) => ({
+        rows.map(async (r, i) => ({
           id: r.id,
+          displayIndex: typeof r.display_index === 'number' && r.display_index > 0 ? r.display_index : i + 1,
           description: await describeOutboundSyncRow(r),
           statusLine: outboundQueueRowStatusLine(r, rows, { now, connectivityStatus }),
           status: r.status,
@@ -105,38 +129,30 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
     }
   }, [rows, connectivityStatus])
 
+  const sortedDisplayRows = useMemo(
+    () => [...displayRows].sort((a, b) => a.displayIndex - b.displayIndex || a.id.localeCompare(b.id)),
+    [displayRows],
+  )
+
   const showPerItemQueueStatus = connectivityStatus === 'online'
-  const pendingQueueText = useMemo(
-    () => formatPendingQueueText(displayRows, connectivityStatus),
-    [displayRows, connectivityStatus],
+  const fullCopyText = useMemo(
+    () => formatFullServerQueueModalCopy(sortedDisplayRows, connectivityStatus, serverSessionEntries),
+    [sortedDisplayRows, connectivityStatus, serverSessionEntries, serverLogRevision],
   )
-  const serverActivityCopyText = useMemo(
-    () => formatServerActivityCopyText(serverSessionEntries),
-    [serverSessionEntries, serverLogRevision],
-  )
+
   const flashCopyHint = (label: string) => {
     setCopyHint(label)
     window.setTimeout(() => setCopyHint(null), 1500)
   }
 
-  const copyPending = async () => {
-    await copyTextToClipboard(pendingQueueText)
-    flashCopyHint('Pending queue copied')
+  const copyAll = async () => {
+    await copyTextToClipboard(fullCopyText)
+    flashCopyHint('Copied')
   }
 
-  const copyServerActivity = async () => {
-    await copyTextToClipboard(serverActivityCopyText)
-    flashCopyHint('Server activity copied')
-  }
-
-  const clearServerActivity = () => {
-    clearServerSessionLog()
-    flashCopyHint('Server activity cleared')
-  }
-
-  const clearCompletedQueue = async () => {
-    const n = await clearCompletedOutboundQueueRows()
-    flashCopyHint(n > 0 ? `Cleared ${n} completed item${n === 1 ? '' : 's'}` : 'No completed items to clear')
+  const clearAll = async () => {
+    await clearServerQueueModalState()
+    flashCopyHint('Cleared')
   }
 
   return (
@@ -147,31 +163,27 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
       size="lg"
       contentClassName="!max-w-lg max-sm:!max-w-none"
       fullScreenMobile
-      headerActions={
-        <button
-          type="button"
-          onClick={() => void clearCompletedQueue()}
-          className={actionBtnClass}
-          disabled={!hasCompletedRows}
-        >
-          Clear
-        </button>
-      }
     >
       <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={() => void copyAll()} className={actionBtnClass}>
+            Copy
+          </button>
+          <button type="button" onClick={() => void clearAll()} className={actionBtnClass}>
+            Clear
+          </button>
+        </div>
+
+        <hr className={sectionRuleClass} aria-hidden />
+
         <section className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Pending queue:</h3>
-            <button type="button" onClick={() => void copyPending()} className={actionBtnClass}>
-              Copy
-            </button>
-          </div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{PENDING_QUEUE_TITLE}</h3>
           <p className={pendingStatusSublineClass}>connectivity: {connectivityStatus}</p>
-          {displayRows.length === 0 ? (
+          {sortedDisplayRows.length === 0 ? (
             <p className="text-sm text-gray-800 dark:text-gray-200">Nothing is waiting to sync.</p>
           ) : (
             <ul className={detailListClass} aria-label="Pending queue">
-              {displayRows.map((row, i) => (
+              {sortedDisplayRows.map((row) => (
                 <li key={row.id} className="break-words">
                   <span
                     className={
@@ -180,7 +192,8 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
                         : 'font-medium text-gray-800 dark:text-gray-200'
                     }
                   >
-                    {i + 1}. {row.description}
+                    {queueRowLabel(row.displayIndex)}
+                    {row.description}
                   </span>
                   {(showPerItemQueueStatus || row.status === 'completed') && row.statusLine ? (
                     <div
@@ -197,20 +210,10 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
           )}
         </section>
 
-        <hr className="border-gray-200 dark:border-neutral-600" aria-hidden />
+        <hr className={sectionRuleClass} aria-hidden />
 
         <section className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Server activity</h3>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => void copyServerActivity()} className={actionBtnClass}>
-                Copy
-              </button>
-              <button type="button" onClick={clearServerActivity} className={actionBtnClass}>
-                Clear
-              </button>
-            </div>
-          </div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{SERVER_ACTIVITY_TITLE}</h3>
           {serverSessionSummary.total === 0 ? (
             <p className="text-sm text-gray-800 dark:text-gray-200">No server requests yet.</p>
           ) : (
@@ -227,10 +230,10 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
           )}
           {serverSessionEntries.length > 0 ? (
             <ul className={`mt-2 ${detailListClass}`}>
-              {serverSessionEntries.map((e, i) => (
-                <li key={`${e.ts}-${i}`} className="break-words">
+              {serverSessionEntries.map((e) => (
+                <li key={`${e.index}-${e.ts}`} className="break-words">
                   <span className="tabular-nums text-gray-400 dark:text-gray-500">
-                    {formatSessionTimeWithMs(e.ts)}
+                    {e.index}. {formatSessionTimeWithMs(e.ts)}
                   </span>{' '}
                   <span className={e.ok ? 'text-teal' : 'text-red-500'}>{e.ok ? 'ok' : 'fail'}</span>
                   {' — '}

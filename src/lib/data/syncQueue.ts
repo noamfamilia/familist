@@ -1,11 +1,6 @@
 import { getActiveCacheUserId } from '@/lib/cache'
 import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind, type SyncQueueStatus } from '@/lib/db'
-
-/** Live progress line while a row is `processing` (Server queue UI, diagnostics). */
-export async function updateSyncQueueProcessingDetail(rowId: string, detail: string | null): Promise<void> {
-  const now = Date.now()
-  await db.sync_queue.update(rowId, { processing_detail: detail, updated_at: now })
-}
+import { allocateQueueDisplayIndex } from '@/lib/serverQueueModalState'
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
 import { bumpListReconcileGenerationsForEnqueue } from '@/lib/data/listReconcilePolicy'
@@ -20,6 +15,12 @@ import {
   mergeBulkLabelPayload,
   resolveBulkLabelCoalesceTarget,
 } from '@/lib/data/outboundLabelCoalesce'
+
+/** Live progress line while a row is `processing` (Server queue UI, diagnostics). */
+export async function updateSyncQueueProcessingDetail(rowId: string, detail: string | null): Promise<void> {
+  const now = Date.now()
+  await db.sync_queue.update(rowId, { processing_detail: detail, updated_at: now })
+}
 
 /** True when a sync_queue row is scoped to `listId` (parent, entity id, or payload.list_id). */
 export function syncQueueRowTouchesListId(row: DbSyncQueueRow, listId: string): boolean {
@@ -331,6 +332,7 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
         next_retry_at,
         updated_at: ts,
         processing_detail: null,
+        display_index: allocateQueueDisplayIndex(),
       })
       await clearListUserSyncErrorsForEnqueueRow({
         parent1_type: input.parent1_type,
@@ -369,6 +371,7 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
       next_retry_at,
       updated_at: ts,
       processing_detail: null,
+      display_index: allocateQueueDisplayIndex(),
     })
     await clearListUserSyncErrorsForEnqueueRow({
       parent1_type: input.parent1_type,
@@ -609,6 +612,7 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
     next_retry_at,
     updated_at: ts,
     processing_detail: null,
+    display_index: allocateQueueDisplayIndex(),
   })
   await clearListUserSyncErrorsForEnqueueRow({
     parent1_type: input.parent1_type,
@@ -726,18 +730,6 @@ export async function markOutboundRowCompleted(rowId: string): Promise<void> {
     next_retry_at: null,
     updated_at: now,
   })
-}
-
-/** Remove completed outbound rows from Dexie (Server queue modal Clear). */
-export async function clearCompletedOutboundQueueRows(): Promise<number> {
-  const completed = await db.sync_queue.filter((r) => r.status === 'completed').toArray()
-  if (completed.length === 0) return 0
-  await db.transaction('rw', db.sync_queue, async () => {
-    for (const r of completed) {
-      await db.sync_queue.delete(r.id)
-    }
-  })
-  return completed.length
 }
 
 /** Resolve when outbound processing finishes the row (`completed` / deleted) or it ends in `failed`. */

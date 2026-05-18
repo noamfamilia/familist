@@ -82,6 +82,8 @@ export type DbSyncQueueRow = {
   updated_at: number
   /** When status is `processing`, optional UI copy for which sub-step is running (Dexie-only). */
   processing_detail?: string | null
+  /** Stable label in the Server queue modal (#N); assigned at enqueue, survives completed → clear row. */
+  display_index?: number
 }
 
 export type DbOfflineRouteMarkerRow = {
