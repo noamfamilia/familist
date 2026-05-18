@@ -3,9 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '@/components/ui/Modal'
-import { db, type SyncQueueStatus } from '@/lib/db'
+import { db } from '@/lib/db'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
-import { outboundQueueRowStatusLine } from '@/lib/data/outboundQueueStatus'
+import {
+  outboundQueueRowDetailTail,
+  outboundQueueRowStatusLabel,
+  type OutboundQueueStatusTone,
+} from '@/lib/data/outboundQueueStatus'
 import { clearServerQueueModalState } from '@/lib/serverQueueModalState'
 import { useServerSessionLog } from '@/hooks/useServerSessionLog'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
@@ -16,12 +20,35 @@ type RowDisplay = {
   id: string
   displayIndex: number
   description: string
-  statusLine: string
-  status: SyncQueueStatus
+  statusLabel: string
+  statusTone: OutboundQueueStatusTone
+  detailTail: string
+  updatedAt: number
 }
 
 const PENDING_QUEUE_TITLE = 'Pending queue:'
 const SERVER_ACTIVITY_TITLE = 'Server activity'
+
+const queueIndexClass = 'text-gray-900 dark:text-gray-100'
+const queueActionClass = 'text-gray-900 dark:text-gray-100'
+const queueMetaClass = 'text-gray-500 dark:text-gray-500'
+
+function queueStatusClass(tone: OutboundQueueStatusTone): string {
+  if (tone === 'success') return 'text-green-600 dark:text-green-500'
+  if (tone === 'failure') return 'text-red-500 dark:text-red-500'
+  return 'text-gray-500 dark:text-gray-500'
+}
+
+/** Local time without milliseconds (e.g. 08:40:50). */
+function formatQueueTime(ts: number): string {
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
 
 /** Local time with milliseconds (e.g. 08:40:50.571). */
 function formatSessionTimeWithMs(ts: number): string {
@@ -44,10 +71,10 @@ function formatSessionTimeWithMs(ts: number): string {
   }
 }
 
-const pendingStatusSublineClass = 'text-xs text-gray-500 dark:text-gray-500'
-
-function queueRowLabel(displayIndex: number): string {
-  return displayIndex > 0 ? `${displayIndex}. ` : ''
+function formatPendingQueueRowPlain(row: RowDisplay): string {
+  const time = formatQueueTime(row.updatedAt)
+  const head = `${row.displayIndex}. ${row.description} ${row.statusLabel} ${time}`
+  return row.detailTail ? `${head} · ${row.detailTail}` : head
 }
 
 function formatPendingQueueSection(
@@ -59,11 +86,9 @@ function formatPendingQueueSection(
     lines.push('Nothing is waiting to sync.')
     return lines.join('\n')
   }
-  const showPerItemStatus = connectivityStatus === 'online'
   const sorted = [...rows].sort((a, b) => a.displayIndex - b.displayIndex || a.id.localeCompare(b.id))
   for (const row of sorted) {
-    const head = `${queueRowLabel(row.displayIndex)}${row.description}`
-    lines.push(showPerItemStatus && row.statusLine ? `${head}\n   ${row.statusLine}` : head)
+    lines.push(formatPendingQueueRowPlain(row))
   }
   return lines.join('\n')
 }
@@ -101,6 +126,26 @@ const actionBtnClass =
 const detailListClass = 'space-y-1 text-xs text-gray-600 dark:text-gray-400'
 const sectionRuleClass = 'border-gray-200 dark:border-neutral-600'
 
+function PendingQueueRow({ row }: { row: RowDisplay }) {
+  const time = formatQueueTime(row.updatedAt)
+  return (
+    <li className="break-words leading-relaxed">
+      <span className={queueIndexClass}>{row.displayIndex}. </span>
+      <span className={queueActionClass}>{row.description}</span>
+      {' '}
+      <span className={queueStatusClass(row.statusTone)}>{row.statusLabel}</span>
+      {' '}
+      <span className={`tabular-nums ${queueMetaClass}`}>{time}</span>
+      {row.detailTail ? (
+        <>
+          {' '}
+          <span className={queueMetaClass}>· {row.detailTail}</span>
+        </>
+      ) : null}
+    </li>
+  )
+}
+
 export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { status: connectivityStatus } = useConnectivity()
   const { entries: serverSessionEntries, summary: serverSessionSummary, revision: serverLogRevision } =
@@ -114,13 +159,18 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
     const now = Date.now()
     void (async () => {
       const next = await Promise.all(
-        rows.map(async (r, i) => ({
-          id: r.id,
-          displayIndex: typeof r.display_index === 'number' && r.display_index > 0 ? r.display_index : i + 1,
-          description: await describeOutboundSyncRow(r),
-          statusLine: outboundQueueRowStatusLine(r, rows, { now, connectivityStatus }),
-          status: r.status,
-        })),
+        rows.map(async (r, i) => {
+          const { label, tone } = outboundQueueRowStatusLabel(r)
+          return {
+            id: r.id,
+            displayIndex: typeof r.display_index === 'number' && r.display_index > 0 ? r.display_index : i + 1,
+            description: await describeOutboundSyncRow(r),
+            statusLabel: label,
+            statusTone: tone,
+            detailTail: outboundQueueRowDetailTail(r, rows, { now, connectivityStatus }),
+            updatedAt: r.updated_at,
+          }
+        }),
       )
       if (!cancelled) setDisplayRows(next)
     })()
@@ -134,7 +184,6 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
     [displayRows],
   )
 
-  const showPerItemQueueStatus = connectivityStatus === 'online'
   const fullCopyText = useMemo(
     () => formatFullServerQueueModalCopy(sortedDisplayRows, connectivityStatus, serverSessionEntries),
     [sortedDisplayRows, connectivityStatus, serverSessionEntries, serverLogRevision],
@@ -178,33 +227,13 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
 
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{PENDING_QUEUE_TITLE}</h3>
-          <p className={pendingStatusSublineClass}>connectivity: {connectivityStatus}</p>
+          <p className={`text-xs ${queueMetaClass}`}>connectivity: {connectivityStatus}</p>
           {sortedDisplayRows.length === 0 ? (
             <p className="text-sm text-gray-800 dark:text-gray-200">Nothing is waiting to sync.</p>
           ) : (
             <ul className={detailListClass} aria-label="Pending queue">
               {sortedDisplayRows.map((row) => (
-                <li key={row.id} className="break-words">
-                  <span
-                    className={
-                      row.status === 'completed'
-                        ? 'font-medium text-teal'
-                        : 'font-medium text-gray-800 dark:text-gray-200'
-                    }
-                  >
-                    {queueRowLabel(row.displayIndex)}
-                    {row.description}
-                  </span>
-                  {(showPerItemQueueStatus || row.status === 'completed') && row.statusLine ? (
-                    <div
-                      className={`mt-0.5 whitespace-pre-wrap ${
-                        row.status === 'completed' ? 'text-teal' : pendingStatusSublineClass
-                      }`}
-                    >
-                      {row.statusLine}
-                    </div>
-                  ) : null}
-                </li>
+                <PendingQueueRow key={row.id} row={row} />
               ))}
             </ul>
           )}

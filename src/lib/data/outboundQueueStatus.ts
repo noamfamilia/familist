@@ -63,6 +63,37 @@ function resolveWaitingMessage(
   return 'Waiting to send.'
 }
 
+export type OutboundQueueStatusTone = 'success' | 'failure' | 'neutral'
+
+/** Short status word for pending-queue row styling (Completed / Failed / …). */
+export function outboundQueueRowStatusLabel(row: DbSyncQueueRow): {
+  label: string
+  tone: OutboundQueueStatusTone
+} {
+  switch (row.status) {
+    case 'completed':
+      return { label: 'Completed', tone: 'success' }
+    case 'failed':
+      return { label: 'Failed', tone: 'failure' }
+    case 'processing':
+      return { label: 'Processing', tone: 'neutral' }
+    case 'queued':
+      return { label: 'Queued', tone: 'neutral' }
+    default:
+      return { label: row.status, tone: 'neutral' }
+  }
+}
+
+/** Gray tail after status + time (waiting detail, attempts, errors); empty when completed. */
+export function outboundQueueRowDetailTail(
+  row: DbSyncQueueRow,
+  queue: readonly DbSyncQueueRow[],
+  ctx: OutboundQueueStatusContext = {},
+): string {
+  if (row.status === 'completed') return ''
+  return outboundQueueRowStatusLine(row, queue, ctx)
+}
+
 /**
  * Human-readable status for a row in the Server queue modal (connectivity, dependencies, FIFO, retries).
  */
