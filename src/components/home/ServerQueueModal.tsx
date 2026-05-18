@@ -171,8 +171,7 @@ function ServerActivityRow({ entry }: { entry: ServerSessionEntry }) {
 
 export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { status: connectivityStatus } = useConnectivity()
-  const { entries: serverSessionEntries, summary: serverSessionSummary, revision: serverLogRevision } =
-    useServerSessionLog()
+  const { entries: serverSessionEntries, revision: serverLogRevision } = useServerSessionLog()
   const rows = useLiveQuery(() => db.sync_queue.orderBy('updated_at').toArray(), [], []) ?? []
   const [displayRows, setDisplayRows] = useState<RowDisplay[]>([])
   const [copyHint, setCopyHint] = useState<string | null>(null)
@@ -266,27 +265,15 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
 
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{SERVER_ACTIVITY_TITLE}</h3>
-          {serverSessionSummary.total === 0 ? (
+          {serverSessionEntries.length === 0 ? (
             <p className="text-sm text-gray-800 dark:text-gray-200">No server requests yet.</p>
           ) : (
-            <div className="space-y-1 text-sm text-gray-800 dark:text-gray-200">
-              <p>
-                requests succeeded -{' '}
-                <span className="font-medium tabular-nums text-teal">{serverSessionSummary.ok}</span>
-              </p>
-              <p>
-                requests failed -{' '}
-                <span className="font-medium tabular-nums text-red-500">{serverSessionSummary.fail}</span>
-              </p>
-            </div>
-          )}
-          {serverSessionEntries.length > 0 ? (
-            <ul className={`mt-2 ${detailListClass}`} aria-label="Server activity">
+            <ul className={detailListClass} aria-label="Server activity">
               {serverSessionEntries.map((e) => (
                 <ServerActivityRow key={`${e.index}-${e.ts}`} entry={e} />
               ))}
             </ul>
-          ) : null}
+          )}
         </section>
       </div>
 
