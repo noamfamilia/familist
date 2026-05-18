@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { popHomeListHistoryEntry } from '@/lib/navigation/backToHome'
 import { isLikelyListId, LIST_QUERY_PARAM, stripListQueryFromHref } from '@/lib/navigation/listQuery'
 import { useActiveListUiStore } from '@/stores/activeListUiStore'
 import { useAuth } from '@/providers/AuthProvider'
@@ -376,6 +377,7 @@ function HomeContent() {
   }, [router, searchParams, setActiveListId])
 
   const closeListModal = useCallback(() => {
+    if (popHomeListHistoryEntry()) return
     setActiveListId(null)
   }, [setActiveListId])
 
@@ -747,7 +749,7 @@ function HomeContent() {
       />
 
       {activeListId ? (
-        <ListDetailHomeOverlay key={activeListId} listId={activeListId} onClose={closeListModal} />
+        <ListDetailHomeOverlay listId={activeListId} onClose={closeListModal} />
       ) : null}
 
       <Modal

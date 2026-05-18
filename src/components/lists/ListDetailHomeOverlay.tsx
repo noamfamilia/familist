@@ -5,10 +5,7 @@ import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import { popBodyScrollLock, pushBodyScrollLock } from '@/lib/bodyScrollLock'
-
-function pathSearchHash(): string {
-  return `${window.location.pathname}${window.location.search}${window.location.hash}`
-}
+import { syncHomeListHistoryPath } from '@/lib/navigation/backToHome'
 
 const ListDetailView = dynamic(
   () => import('./ListDetailView').then((m) => ({ default: m.ListDetailView })),
@@ -28,8 +25,8 @@ export type ListDetailHomeOverlayProps = {
  * overlay backdrop scrolls (same idea as the full page before `2b7e918`). On small viewports,
  * horizontal overflow is allowed so wide member rows can be panned; `sm+` keeps horizontal clip on the backdrop.
  *
- * URL bar is synced with `history.pushState` to `/list/[id]` while open and back to the prior
- * path on close. Home `popstate` clears `activeListId` when the user leaves that URL via Back.
+ * URL bar is synced to `/list/[id]` via one `pushState` per open session; switching lists uses
+ * `replaceState`. UI close pops that entry (`popHomeListHistoryEntry`); system Back uses `popstate`.
  */
 export function ListDetailHomeOverlay({ listId, onClose }: ListDetailHomeOverlayProps) {
   const mounted = useHasMounted()
@@ -40,17 +37,7 @@ export function ListDetailHomeOverlay({ listId, onClose }: ListDetailHomeOverlay
   }, [])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const base = pathSearchHash()
-    const listPath = `/list/${listId}`
-    window.history.pushState({ familistHomeList: listId }, '', listPath)
-
-    return () => {
-      const cur = pathSearchHash()
-      if (cur !== base) {
-        window.history.pushState({}, '', base)
-      }
-    }
+    syncHomeListHistoryPath(listId)
   }, [listId])
 
   useEffect(() => {
