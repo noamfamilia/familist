@@ -50,7 +50,8 @@ export type SyncQueueKind = 'create' | 'patch' | 'delete' | 'rpc'
  *   lock freshness, and universal dependency ordering (`isBlockedByPendingDependencies` in `syncQueueListScope`). New rows default here.
  * - **processing** — Worker claimed the row (`tryClaimSyncRow`), is running `executeOutboundRow` (Supabase RPC/table writes).
  *   Optional **`processing_detail`** is human-readable progress while this row is active (see `useSyncStore`).
- *   On success the row is **deleted**. On failure → **failed** or connectivity retry → back to **queued** with delay.
+ *   On success the row becomes **completed** (shown in the Server queue modal until cleared). On failure → **failed**
+ *   or connectivity retry → back to **queued** with delay.
  * - **failed** — Non-connectivity error or verification failure; `last_error` set, `attempt_count` bumped,
  *   `next_retry_at` from **exponential backoff** (HTTP 429 / 5xx only) or **linear** backoff otherwise.
  *   **Terminal** logical errors (any explicit HTTP status except **429** and **5xx**, or structured Postgres/PostgREST `code`) **drop** the row
@@ -59,7 +60,7 @@ export type SyncQueueKind = 'create' | 'patch' | 'delete' | 'rpc'
  * **Consumers:** `useSyncStore` (drain), `buildListsCatalogFromDexie` / `useListsQuery` / `countPendingOutboundForList` (per-list `pending_items`),
  * `outboundDeletePending` in serverDexieParity, `waitForSyncQueueRowCompletion`, `versionCheck` prune, dev Diagnostics.
  */
-export type SyncQueueStatus = 'queued' | 'processing' | 'failed'
+export type SyncQueueStatus = 'queued' | 'processing' | 'failed' | 'completed'
 
 export type DbSyncQueueRow = {
   id: Uuid

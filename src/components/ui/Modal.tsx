@@ -14,6 +14,8 @@ interface ModalProps {
   contentClassName?: string
   /** Edge-to-edge on small screens; touch scroll inside, scrollbars hidden */
   fullScreenMobile?: boolean
+  /** Rendered in the top bar immediately left of the close control (e.g. modal-level Clear). */
+  headerActions?: React.ReactNode
 }
 
 export function Modal({
@@ -26,6 +28,7 @@ export function Modal({
   hideClose = false,
   contentClassName = '',
   fullScreenMobile = false,
+  headerActions,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
@@ -103,6 +106,12 @@ export function Modal({
       </h2>
     )
 
+  const headerActionsSlot = headerActions ? (
+    <div className="absolute top-3 right-12 z-20 flex items-center gap-2 sm:top-4 sm:right-14">
+      {headerActions}
+    </div>
+  ) : null
+
   const closeBtn = !hideClose && (
     <button
       type="button"
@@ -139,6 +148,7 @@ export function Modal({
       />
 
       <div ref={modalRef} tabIndex={-1} className={panelClass}>
+        {headerActionsSlot}
         {closeBtn}
         {fullScreenMobile ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden max-sm:min-h-0 sm:contents">

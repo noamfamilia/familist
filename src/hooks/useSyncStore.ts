@@ -46,7 +46,11 @@ import {
   cleanupDexieAfterListServerDeleted,
   cleanupDexieAfterMemberServerDeleted,
 } from '@/lib/data/shadowDeleteDexieCleanup'
-import { resetFailedSyncQueueRows, updateSyncQueueProcessingDetail } from '@/lib/data/syncQueue'
+import {
+  markOutboundRowCompleted,
+  resetFailedSyncQueueRows,
+  updateSyncQueueProcessingDetail,
+} from '@/lib/data/syncQueue'
 import { subscribeOutboundSyncKick } from '@/lib/outboundSyncKick'
 import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
@@ -1224,7 +1228,7 @@ export function useSyncStore(): SyncStoreState {
             const queueBeforeDelete = await db.sync_queue.toArray()
             await executeOutboundRow(claimed)
             await clearListSyncErrorMessages(listIdsTouchingOutboundRow(claimed))
-            await db.sync_queue.delete(claimed.id)
+            await markOutboundRowCompleted(claimed.id)
             if (syncUserId) {
               const flushedListIds = listIdsTouchingOutboundRow(claimed).filter(
                 (id) => !isVirtualUserListKey(id),

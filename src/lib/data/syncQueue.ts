@@ -715,7 +715,32 @@ export function describeSyncQueueRow(row: DbSyncQueueRow): string {
 }
 
 /** Reset all failed outbound rows so the sync worker can pick them up again. */
-/** Resolve when outbound processing removes the row (success) or it ends in `failed` (rejection). */
+/** Mark a successfully synced outbound row as completed (kept for Server queue modal until cleared). */
+export async function markOutboundRowCompleted(rowId: string): Promise<void> {
+  const now = Date.now()
+  await db.sync_queue.update(rowId, {
+    status: 'completed',
+    locked_at: null,
+    processing_detail: null,
+    last_error: null,
+    next_retry_at: null,
+    updated_at: now,
+  })
+}
+
+/** Remove completed outbound rows from Dexie (Server queue modal Clear). */
+export async function clearCompletedOutboundQueueRows(): Promise<number> {
+  const completed = await db.sync_queue.filter((r) => r.status === 'completed').toArray()
+  if (completed.length === 0) return 0
+  await db.transaction('rw', db.sync_queue, async () => {
+    for (const r of completed) {
+      await db.sync_queue.delete(r.id)
+    }
+  })
+  return completed.length
+}
+
+/** Resolve when outbound processing finishes the row (`completed` / deleted) or it ends in `failed`. */
 export async function waitForSyncQueueRowCompletion(
   rowId: string,
   options?: { timeoutMs?: number; pollMs?: number },
@@ -725,13 +750,13 @@ export async function waitForSyncQueueRowCompletion(
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const row = await db.sync_queue.get(rowId)
-    if (!row) return { ok: true }
+    if (!row || row.status === 'completed') return { ok: true }
     if (row.status === 'failed')
       return { ok: false, code: 'failed', message: row.last_error ?? 'Sync failed' }
     await new Promise((r) => setTimeout(r, pollMs))
   }
   const still = await db.sync_queue.get(rowId)
-  if (!still) return { ok: true }
+  if (!still || still.status === 'completed') return { ok: true }
   return { ok: false, code: 'timeout', message: 'Sync timed out' }
 }
 

@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '@/components/ui/Modal'
-import { db } from '@/lib/db'
+import { db, type SyncQueueStatus } from '@/lib/db'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
 import { outboundQueueRowStatusLine } from '@/lib/data/outboundQueueStatus'
+import { clearCompletedOutboundQueueRows } from '@/lib/data/syncQueue'
 import { useServerSessionLog } from '@/hooks/useServerSessionLog'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { copyTextToClipboard } from '@/lib/clipboard'
@@ -15,6 +16,7 @@ type RowDisplay = {
   id: string
   description: string
   statusLine: string
+  status: SyncQueueStatus
 }
 
 /** Local time with milliseconds (e.g. 08:40:50.571). */
@@ -82,6 +84,8 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
   const [displayRows, setDisplayRows] = useState<RowDisplay[]>([])
   const [copyHint, setCopyHint] = useState<string | null>(null)
 
+  const hasCompletedRows = rows.some((r) => r.status === 'completed')
+
   useEffect(() => {
     let cancelled = false
     const now = Date.now()
@@ -91,6 +95,7 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
           id: r.id,
           description: await describeOutboundSyncRow(r),
           statusLine: outboundQueueRowStatusLine(r, rows, { now, connectivityStatus }),
+          status: r.status,
         })),
       )
       if (!cancelled) setDisplayRows(next)
@@ -129,6 +134,11 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
     flashCopyHint('Server activity cleared')
   }
 
+  const clearCompletedQueue = async () => {
+    const n = await clearCompletedOutboundQueueRows()
+    flashCopyHint(n > 0 ? `Cleared ${n} completed item${n === 1 ? '' : 's'}` : 'No completed items to clear')
+  }
+
   return (
     <Modal
       isOpen={isOpen}
@@ -137,6 +147,16 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
       size="lg"
       contentClassName="!max-w-lg max-sm:!max-w-none"
       fullScreenMobile
+      headerActions={
+        <button
+          type="button"
+          onClick={() => void clearCompletedQueue()}
+          className={actionBtnClass}
+          disabled={!hasCompletedRows}
+        >
+          Clear
+        </button>
+      }
     >
       <div className="flex flex-col gap-4">
         <section className="flex flex-col gap-2">
@@ -153,11 +173,21 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
             <ul className={detailListClass} aria-label="Pending queue">
               {displayRows.map((row, i) => (
                 <li key={row.id} className="break-words">
-                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                  <span
+                    className={
+                      row.status === 'completed'
+                        ? 'font-medium text-teal'
+                        : 'font-medium text-gray-800 dark:text-gray-200'
+                    }
+                  >
                     {i + 1}. {row.description}
                   </span>
-                  {showPerItemQueueStatus && row.statusLine ? (
-                    <div className={`mt-0.5 whitespace-pre-wrap ${pendingStatusSublineClass}`}>
+                  {(showPerItemQueueStatus || row.status === 'completed') && row.statusLine ? (
+                    <div
+                      className={`mt-0.5 whitespace-pre-wrap ${
+                        row.status === 'completed' ? 'text-teal' : pendingStatusSublineClass
+                      }`}
+                    >
                       {row.statusLine}
                     </div>
                   ) : null}

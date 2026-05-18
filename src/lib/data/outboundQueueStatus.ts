@@ -74,6 +74,10 @@ export function outboundQueueRowStatusLine(
   const now = ctx.now ?? Date.now()
   const parts: string[] = []
 
+  if (row.status === 'completed') {
+    return 'Completed'
+  }
+
   if (row.status === 'processing') {
     const detail = row.processing_detail?.trim()
     parts.push(detail && detail.length > 0 ? detail : 'Sending this change to the server…')
