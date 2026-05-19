@@ -7,11 +7,11 @@ export function MigrationOverlay() {
       role="alertdialog"
       aria-busy="true"
       aria-live="polite"
-      aria-label="Saving your lists to your account"
+      aria-label="Migrating your lists to your account"
     >
       <div className="h-10 w-10 animate-spin rounded-full border-2 border-teal border-t-transparent" />
       <p className="text-center text-sm font-medium text-gray-700 dark:text-gray-200">
-        Saving your lists to your account…
+        Migrating your lists to your account…
       </p>
     </div>
   )

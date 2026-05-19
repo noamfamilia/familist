@@ -23,7 +23,7 @@ import {
   registerServerReadsAllowed,
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
-import { migrateGuestToUser } from '@/lib/data/guestToUserMigration'
+import { countGuestOwnedLists, migrateGuestToUser } from '@/lib/data/guestToUserMigration'
 import {
   clearStoredGuestId,
   ensureGuestId,
@@ -35,6 +35,7 @@ import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
+import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
 
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 
@@ -67,6 +68,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const PROFILE_FETCH_STARTUP_TIMEOUT_MS = 2_000
 const PROFILE_FETCH_TIMEOUT_MESSAGE = 'profile fetch timeout'
 const AUTH_RECOVERY_ONCE_KEY = 'familist_auth_recovery_done_once'
+const PENDING_SIGNUP_MIGRATION_KEY = 'familist_pending_signup_migration'
+
+type GuestMigrationPromptState = {
+  guestId: string
+  userId: string
+  listCount: number
+}
 
 function errorMessageOf(err: unknown): string {
   if (err instanceof Error) return err.message
@@ -165,6 +173,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const guestIdRef = useRef<string | null>(null)
   const bootstrapUserIdRef = useRef<string | null>(null)
   const profileFetchGenRef = useRef(0)
+  const guestMigrationChoiceRef = useRef<((migrate: boolean) => void) | null>(null)
+  const lastAppliedUserIdRef = useRef<string | null>(null)
+  const signUpActivationHandledRef = useRef<string | null>(null)
+  const [guestMigrationPrompt, setGuestMigrationPrompt] = useState<GuestMigrationPromptState | null>(null)
   const sessionMode: SessionMode = user ? 'authenticated' : 'guest'
   const isGuest = sessionMode === 'guest'
   const activeActorId = resolveActiveUserId(user?.id, guestId, bootstrapUserId)
@@ -222,23 +234,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setBootstrapUserId(gid)
     setUser(null)
     setProfile(null)
+    lastAppliedUserIdRef.current = null
+    signUpActivationHandledRef.current = null
     profileFetchGenRef.current++
     setProfileFetchPhase('idle')
     clearActiveCacheUserId()
     if (options?.signedOut) setSignedOutToGuest(true)
   }, [])
 
-  const runGuestMigrationIfNeeded = useCallback(async (nextUser: User): Promise<void> => {
-    const fromGuest = getStoredGuestId()
-    if (!fromGuest || !isGuestId(fromGuest) || fromGuest === nextUser.id) return
+  const runGuestMigration = useCallback(async (guestId: string, userId: string): Promise<void> => {
     setIsMigrating(true)
     try {
-      await migrateGuestToUser(fromGuest, nextUser.id)
+      await migrateGuestToUser(guestId, userId)
       clearStoredGuestId()
       bumpReadDiscardGeneration('guest-migration')
     } finally {
       if (mountedRef.current) setIsMigrating(false)
     }
+  }, [])
+
+  const promptGuestMigrationChoice = useCallback((guestId: string, userId: string, listCount: number) => {
+    return new Promise<boolean>((resolve) => {
+      guestMigrationChoiceRef.current = resolve
+      setGuestMigrationPrompt({ guestId, userId, listCount })
+    })
+  }, [])
+
+  const handleGuestMigrationMigrate = useCallback(() => {
+    setGuestMigrationPrompt(null)
+    guestMigrationChoiceRef.current?.(true)
+    guestMigrationChoiceRef.current = null
+  }, [])
+
+  const handleGuestMigrationSkip = useCallback(() => {
+    setGuestMigrationPrompt(null)
+    guestMigrationChoiceRef.current?.(false)
+    guestMigrationChoiceRef.current = null
   }, [])
 
   const hydrateProfileFromDexie = useCallback(async (userId: string) => {
@@ -425,10 +456,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [fetchProfile],
   )
 
-  const activateAuthenticatedUser = useCallback(
+  const activateAuthenticatedUserCore = useCallback(
     async (nextUser: User, source: string) => {
-      await runGuestMigrationIfNeeded(nextUser)
       if (!mountedRef.current) return
+      lastAppliedUserIdRef.current = nextUser.id
       perfLog('auth activateAuthenticatedUser', { source, userId: nextUser.id })
       setUser(nextUser)
       setActiveCacheUserId(nextUser.id)
@@ -437,14 +468,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       void hydrateProfileFromDexie(nextUser.id)
       scheduleStartupProfileFetch(nextUser.id)
     },
-    [hydrateProfileFromDexie, runGuestMigrationIfNeeded, scheduleStartupProfileFetch],
+    [hydrateProfileFromDexie, scheduleStartupProfileFetch],
+  )
+
+  const consumePendingSignUpMigration = useCallback((): boolean => {
+    if (typeof window === 'undefined') return false
+    try {
+      if (sessionStorage.getItem(PENDING_SIGNUP_MIGRATION_KEY) !== '1') return false
+      sessionStorage.removeItem(PENDING_SIGNUP_MIGRATION_KEY)
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
+  const markPendingSignUpMigration = useCallback(() => {
+    if (typeof window === 'undefined') return
+    try {
+      sessionStorage.setItem(PENDING_SIGNUP_MIGRATION_KEY, '1')
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const clearPendingSignUpMigration = useCallback(() => {
+    if (typeof window === 'undefined') return
+    try {
+      sessionStorage.removeItem(PENDING_SIGNUP_MIGRATION_KEY)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const completeSignUpWithOptionalGuestMigration = useCallback(
+    async (nextUser: User, source: string) => {
+      clearPendingSignUpMigration()
+      if (signUpActivationHandledRef.current === nextUser.id) {
+        await activateAuthenticatedUserCore(nextUser, source)
+        return
+      }
+      signUpActivationHandledRef.current = nextUser.id
+
+      const guestId = getStoredGuestId()
+      if (guestId && isGuestId(guestId) && guestId !== nextUser.id) {
+        const listCount = await countGuestOwnedLists(guestId)
+        if (listCount > 0) {
+          const shouldMigrate = await promptGuestMigrationChoice(guestId, nextUser.id, listCount)
+          if (shouldMigrate) {
+            await runGuestMigration(guestId, nextUser.id)
+          }
+        }
+      }
+      await activateAuthenticatedUserCore(nextUser, source)
+    },
+    [activateAuthenticatedUserCore, clearPendingSignUpMigration, promptGuestMigrationChoice, runGuestMigration],
   )
 
   useEffect(() => {
     let mounted = true
     let subscription: { unsubscribe: () => void } | null = null
     const hydratedFromGetSessionRef = { current: false }
-    const lastAppliedUserIdRef = { current: null as string | null }
 
     const applySessionUserCore = async (
       nextUser: User | null,
@@ -455,11 +538,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       perfLog('auth applySessionUser', { source, hasUser: !!nextUser, userId: nextUser?.id ?? null })
       lastAppliedUserIdRef.current = nextUser?.id ?? null
       if (nextUser) {
-        await activateAuthenticatedUser(nextUser, source)
+        if (consumePendingSignUpMigration()) {
+          await completeSignUpWithOptionalGuestMigration(nextUser, source)
+        } else {
+          await activateAuthenticatedUserCore(nextUser, source)
+        }
         return
       }
       enterGuestMode({
-        freshGuest: options?.signedOut === true,
+        freshGuest: false,
         signedOut: options?.signedOut === true,
       })
     }
@@ -613,7 +700,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription?.unsubscribe()
     }
   }, [
-    activateAuthenticatedUser,
+    activateAuthenticatedUserCore,
+    completeSignUpWithOptionalGuestMigration,
+    consumePendingSignUpMigration,
     enterGuestMode,
     hardRecoverInvalidRefreshToken,
     supabase.auth,
@@ -638,7 +727,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       )
 
       if (!result.error && result.data?.user) {
-        await activateAuthenticatedUser(result.data.user, 'signIn')
+        clearPendingSignUpMigration()
+        await activateAuthenticatedUserCore(result.data.user, 'signIn')
       }
 
       return { error: result.error }
@@ -657,12 +747,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     })
 
-    // If sign up successful and user is returned (no email confirmation required)
-    if (!error && data?.user && data.session) {
-      await activateAuthenticatedUser(data.user, 'signUp')
+    if (!error && data?.user) {
+      markPendingSignUpMigration()
     }
 
-    // Email confirmation is needed if signup succeeded but no session was returned
+    if (!error && data?.user && data.session) {
+      await completeSignUpWithOptionalGuestMigration(data.user, 'signUp')
+    }
+
     const needsEmailConfirmation = !error && data?.user && !data.session
 
     return { error: error as Error | null, needsEmailConfirmation: !!needsEmailConfirmation }
@@ -676,7 +768,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: error as Error }
     }
 
-    enterGuestMode({ freshGuest: true, signedOut: true })
+    enterGuestMode({ freshGuest: false, signedOut: true })
     return { error: null }
   }
 
@@ -747,6 +839,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updatePassword,
       }}
     >
+      {guestMigrationPrompt ? (
+        <GuestMigrateConfirmModal
+          isOpen
+          listCount={guestMigrationPrompt.listCount}
+          onMigrate={handleGuestMigrationMigrate}
+          onSkip={handleGuestMigrationSkip}
+        />
+      ) : null}
       {isMigrating ? <MigrationOverlay /> : null}
       {children}
     </AuthContext.Provider>

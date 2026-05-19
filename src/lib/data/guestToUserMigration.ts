@@ -65,6 +65,12 @@ function migrateGuestLocalStorageKeys(guestId: string, userId: string): void {
   }
 }
 
+/** Lists owned by the guest (catalog items to offer for migration on sign-up). */
+export async function countGuestOwnedLists(guestId: string): Promise<number> {
+  if (!isGuestId(guestId)) return 0
+  return db.lists.where('owner_id').equals(guestId).count()
+}
+
 export async function countGuestScopedRows(guestId: string): Promise<number> {
   const [lists, listUsers, members, queue] = await Promise.all([
     db.lists.where('owner_id').equals(guestId).count(),
