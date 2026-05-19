@@ -4,7 +4,7 @@ import Dexie from 'dexie'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type DbItemMemberStateRow, type DbListRow, type DbSyncQueueRow, type SyncQueueStatus } from '@/lib/db'
 import { isoNow, isTombstoned, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
-import { countPendingOutboundForList } from '@/lib/data/syncQueueListScope'
+import { countPendingOutboundForList, isOutboundRowPending } from '@/lib/data/syncQueueListScope'
 import {
   collectLatestPendingItemMemberStatePatchesForList,
   syncQueueRowTouchesListId,
@@ -414,5 +414,9 @@ export function useListDetailQuery(userId: string | null | undefined, listId: st
 }
 
 export function useSyncQueueBadge() {
-  return useLiveQuery(async () => db.sync_queue.count(), [], 0)
+  return useLiveQuery(
+    async () => db.sync_queue.filter((r) => isOutboundRowPending(r)).count(),
+    [],
+    0,
+  )
 }
