@@ -9,11 +9,12 @@ import { useAuth } from '@/providers/AuthProvider'
 interface AuthModalProps {
   isOpen: boolean
   onClose: () => void
+  initialMode?: 'signIn' | 'signUp'
 }
 
-export function AuthModal({ isOpen, onClose }: AuthModalProps) {
+export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModalProps) {
   const { signIn, signUp, resetPassword } = useAuth()
-  const [mode, setMode] = useState<'signIn' | 'signUp' | 'forgotPassword'>('signIn')
+  const [mode, setMode] = useState<'signIn' | 'signUp' | 'forgotPassword'>(initialMode)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -23,6 +24,10 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [nickname, setNickname] = useState('')
+
+  useEffect(() => {
+    if (isOpen) setMode(initialMode)
+  }, [isOpen, initialMode])
 
   const resetForm = () => {
     setEmail('')

@@ -24,8 +24,15 @@ export function getConnectivityStatusForReads(): ConnectivityStatus {
   return readStatusGetter?.() ?? 'online'
 }
 
+let serverReadsAllowedGetter: () => boolean = () => true
+
+/** Registered from AuthProvider — false while in local guest mode. */
+export function registerServerReadsAllowed(fn: (() => boolean) | null): void {
+  serverReadsAllowedGetter = fn ?? (() => true)
+}
+
 export function canFetchFromServerNow(): boolean {
-  return canFetchFromServer(getConnectivityStatusForReads())
+  return canFetchFromServer(getConnectivityStatusForReads()) && serverReadsAllowedGetter()
 }
 
 /** Bumped on offline / recovering so stale in-flight read results are not applied. */

@@ -43,8 +43,8 @@ interface JoinedUser {
 type JoinedUsersRpcResult = Database['public']['Functions']['get_list_joined_users']['Returns']
 
 export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }: ShareModalProps) {
-  const { user, bootstrapUserId } = useAuth()
-  const syncActorUserId = resolveCatalogMutationUserId(user?.id, bootstrapUserId) ?? ''
+  const { user, guestId, bootstrapUserId, isGuest } = useAuth()
+  const syncActorUserId = resolveCatalogMutationUserId(user?.id, guestId, bootstrapUserId) ?? ''
   const { success, error: showError } = useToast()
   const [visibility, setVisibility] = useState<'private' | 'link'>(list.visibility)
   const [token, setToken] = useState<string>('')
@@ -419,6 +419,16 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
     } finally {
       setLoading(false)
     }
+  }
+
+  if (isGuest) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Share lists" size="sm">
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Sign up to share lists and invite family and friends.
+        </p>
+      </Modal>
+    )
   }
 
   return (

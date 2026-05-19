@@ -86,7 +86,19 @@ function browserPathSearchHash(): string {
 function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, profile, loading, bootstrapUserId, profileFetchPhase, updateProfile } = useAuth()
+  const {
+    user,
+    profile,
+    loading,
+    bootstrapUserId,
+    activeActorId,
+    guestId,
+    isGuest,
+    displayName,
+    profileFetchPhase,
+    updateProfile,
+  } = useAuth()
+  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'signUp'>('signIn')
   const {
     offlineAssetsReady,
     online,
@@ -138,7 +150,7 @@ function HomeContent() {
   useEffect(() => {
     const profileLoading = profileFetchPhase === 'loading'
     const authReady = !loading
-    const effectiveUserId = user?.id ?? (loading ? bootstrapUserId : null)
+    const effectiveUserId = activeActorId
     const shouldRenderListsView = !!effectiveUserId
     let reasonIfNot = ''
     if (!shouldRenderListsView) {
@@ -398,9 +410,9 @@ function HomeContent() {
     return () => window.removeEventListener('popstate', onPopState, true)
   }, [activeListId])
 
-  const effectiveUserId = user?.id ?? bootstrapUserId
+  const effectiveUserId = activeActorId
   const showListsShell = !!effectiveUserId
-  const sessionRestoring = !user && !!bootstrapUserId
+  const sessionRestoring = !user && !!bootstrapUserId && !isGuest
   const profileMenuNeedsSession = sessionRestoring
   const homeGateLogPrevRef = useRef<string>('')
   useEffect(() => {
@@ -442,6 +454,24 @@ function HomeContent() {
             >
               <ThemedImage src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
             </button>
+            <p className="text-sm leading-tight max-w-[140px] truncate">
+              <span className="text-gray-500 dark:text-gray-400">Hello, </span>
+              <span className={isGuest ? 'text-gray-400 dark:text-gray-500' : 'font-medium text-gray-800 dark:text-gray-100'}>
+                {displayName}
+              </span>
+            </p>
+            {isGuest ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthModalMode('signIn')
+                  setShowAuthModal(true)
+                }}
+                className="text-sm text-teal font-medium hover:opacity-80 whitespace-nowrap"
+              >
+                Sign in
+              </button>
+            ) : null}
             <OutboundQueueIndicator />
             {isOffline || isRecovering ? (
               <OfflineIcon
@@ -470,7 +500,7 @@ function HomeContent() {
                     setShowProfile(true)
                   }}
                 >
-                  Profile settings
+                  {isGuest ? 'Account' : 'Profile settings'}
                 </button>
                 <button
                   type="button"
@@ -494,30 +524,32 @@ function HomeContent() {
                 >
                   {themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}
                 </button>
-                <button
-                  type="button"
-                  disabled={isOffline || profileMenuNeedsSession}
-                  className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
-                    isOffline || profileMenuNeedsSession
-                      ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
-                      : 'text-gray-900 dark:text-gray-100'
-                  }`}
-                  role="menuitem"
-                  onClick={() => {
-                    if (isOffline || profileMenuNeedsSession) return
-                    setProfileMenuOpen(false)
-                    setShowImport(true)
-                  }}
-                  title={
-                    profileMenuNeedsSession
-                      ? 'Restoring session…'
-                      : isOffline
-                        ? 'Requires an internet connection'
-                        : undefined
-                  }
-                >
-                  Import from Google Sheet
-                </button>
+                {!isGuest ? (
+                  <button
+                    type="button"
+                    disabled={isOffline || profileMenuNeedsSession}
+                    className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
+                      isOffline || profileMenuNeedsSession
+                        ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
+                        : 'text-gray-900 dark:text-gray-100'
+                    }`}
+                    role="menuitem"
+                    onClick={() => {
+                      if (isOffline || profileMenuNeedsSession) return
+                      setProfileMenuOpen(false)
+                      setShowImport(true)
+                    }}
+                    title={
+                      profileMenuNeedsSession
+                        ? 'Restoring session…'
+                        : isOffline
+                          ? 'Requires an internet connection'
+                          : undefined
+                    }
+                  >
+                    Import from Google Sheet
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   role="menuitem"
@@ -542,17 +574,19 @@ function HomeContent() {
                 >
                   User feedback
                 </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                  onClick={() => {
-                    setProfileMenuOpen(false)
-                    setShowServerQueue(true)
-                  }}
-                >
-                  Server queue
-                </button>
+                {!isGuest ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                    onClick={() => {
+                      setProfileMenuOpen(false)
+                      setShowServerQueue(true)
+                    }}
+                  >
+                    Server queue
+                  </button>
+                ) : null}
               </div>
             )}
           </div>
@@ -739,6 +773,7 @@ function HomeContent() {
       {showAuthModal && !user ? (
         <AuthModal
           isOpen
+          initialMode={authModalMode}
           onClose={() => setShowAuthModal(false)}
         />
       ) : null}
@@ -746,6 +781,14 @@ function HomeContent() {
       <ProfileModal
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
+        onRequestSignIn={() => {
+          setAuthModalMode('signIn')
+          setShowAuthModal(true)
+        }}
+        onRequestSignUp={() => {
+          setAuthModalMode('signUp')
+          setShowAuthModal(true)
+        }}
       />
 
       {activeListId ? (
@@ -778,7 +821,7 @@ function HomeContent() {
             type="button"
             disabled={!feedbackText.trim() || submittingFeedback}
             onClick={async () => {
-              const feedbackUserId = resolveCatalogMutationUserId(user?.id, bootstrapUserId)
+              const feedbackUserId = resolveCatalogMutationUserId(user?.id, guestId, bootstrapUserId)
               if (!feedbackText.trim() || !feedbackUserId) return
               setSubmittingFeedback(true)
               try {

@@ -191,7 +191,7 @@ async function softDeleteListInDexie(
 }
 
 export function useLists() {
-  const { user, profile, loading: authLoading, bootstrapUserId } = useAuth()
+  const { user, profile, loading: authLoading, activeActorId, guestId, bootstrapUserId } = useAuth()
   const lists = useListsCatalogStore(useShallow((s) => s.lists))
   const listsCatalogStatus = useListsCatalogStore((s) => s.listsCatalogStatus)
   const [isFetching, setIsFetching] = useState(true)
@@ -205,9 +205,9 @@ export function useLists() {
   const pendingSaveOpsRef = useRef(0)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hasInitialDataRef = useRef(false)
-  const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
-  /** Owner id for catalog mutations while session user is still null (offline bootstrap). */
-  const mutationUserId = resolveCatalogMutationUserId(user?.id, bootstrapUserId)
+  const userId = activeActorId
+  /** Owner id for catalog mutations (authenticated user or local guest). */
+  const mutationUserId = resolveCatalogMutationUserId(user?.id, guestId, bootstrapUserId)
   useEffect(() => {
     reportServerDexieParityDiagnostics()
   }, [])

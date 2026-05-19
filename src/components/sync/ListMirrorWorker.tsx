@@ -13,9 +13,9 @@ import { runOneTimeReconcileAfterDexieSchemaBelow10Upgrade } from '@/lib/data/ve
  * respecting per-list locks shared with `useList` `fetchList`.
  */
 export function ListMirrorWorker() {
-  const { user, loading, bootstrapUserId } = useAuth()
+  const { user } = useAuth()
   const { status } = useConnectivity()
-  const userId = user?.id ?? (loading ? bootstrapUserId : null)
+  const userId = user?.id ?? null
 
   const queueLen = useLiveQuery(
     async () => {

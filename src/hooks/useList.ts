@@ -325,10 +325,10 @@ function persistListSnapshotToDetailCache(userId: string, listId: string) {
 }
 
 export function useList(listId: string) {
-  const { user, profile, loading: authLoading, bootstrapUserId } = useAuth()
+  const { user, profile, loading: authLoading, activeActorId, guestId, bootstrapUserId } = useAuth()
   const cached = getCachedList(undefined, listId)
-  const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
-  const mutationUserId = resolveCatalogMutationUserId(user?.id, bootstrapUserId)
+  const userId = activeActorId
+  const mutationUserId = resolveCatalogMutationUserId(user?.id, guestId, bootstrapUserId)
   const scopedUserId = userId ?? mutationUserId
 
   const list = useListDataStore((s) => s.list)

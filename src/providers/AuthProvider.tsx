@@ -17,10 +17,24 @@ import { reportServerDexieParityDiagnostics, upsertProfileFromServer } from '@/l
 import { enqueueProfilePatch, pickQueueableProfilePatch } from '@/lib/data/profileOutboundQueue'
 import { readProfileFromDexie } from '@/lib/profileDexieHydrate'
 import {
+  bumpReadDiscardGeneration,
   canFetchFromServerNow,
   captureReadFlightGeneration,
+  registerServerReadsAllowed,
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
+import { migrateGuestToUser } from '@/lib/data/guestToUserMigration'
+import {
+  clearStoredGuestId,
+  ensureGuestId,
+  getStoredGuestId,
+  isGuestId,
+  rotateGuestId,
+} from '@/lib/guestSession'
+import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
+import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
+import { resolveAuthDisplayName } from '@/lib/authDisplayName'
+import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 
@@ -28,8 +42,17 @@ interface AuthContextType {
   user: User | null
   profile: Profile | null
   loading: boolean
-  /** Last active_cache_user id while session is still resolving; drives list hydration before user is set. */
+  /** Active actor id: authenticated user or local guest. */
   bootstrapUserId: string | null
+  guestId: string | null
+  sessionMode: SessionMode
+  isGuest: boolean
+  isMigrating: boolean
+  /** Shown once after sign-out when returning to guest mode. */
+  signedOutToGuest: boolean
+  clearSignedOutToGuest: () => void
+  displayName: string
+  activeActorId: string | null
   profileFetchPhase: ProfileFetchPhase
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
@@ -80,6 +103,7 @@ async function clearAuthAndAppStorage(): Promise<void> {
         k.startsWith('label_filter_') ||
         k.startsWith('tutorial_') ||
         k === 'active_cache_user' ||
+        k === 'familist_guest_id' ||
         k === 'familist_connectivity_status' ||
         k === 'pending_invite_token' ||
         k === 'pwa-install-dismissed'
@@ -128,15 +152,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [guestId, setGuestId] = useState<string | null>(null)
   const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(null)
+  const [isMigrating, setIsMigrating] = useState(false)
+  const [signedOutToGuest, setSignedOutToGuest] = useState(false)
   const [profileFetchPhase, setProfileFetchPhase] = useState<ProfileFetchPhase>('idle')
   const supabase = createClient()
   const { setTheme } = useTheme()
 
   const mountedRef = useRef(true)
   const userRef = useRef<User | null>(null)
+  const guestIdRef = useRef<string | null>(null)
   const bootstrapUserIdRef = useRef<string | null>(null)
   const profileFetchGenRef = useRef(0)
+  const sessionMode: SessionMode = user ? 'authenticated' : 'guest'
+  const isGuest = sessionMode === 'guest'
+  const activeActorId = resolveActiveUserId(user?.id, guestId, bootstrapUserId)
+  const displayName = isGuest ? 'Guest' : resolveAuthDisplayName(user, profile)
   useEffect(() => {
     reportServerDexieParityDiagnostics()
     scheduleAfterFirstPaint(() => {
@@ -159,6 +191,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     bootstrapUserIdRef.current = bootstrapUserId
   }, [bootstrapUserId])
 
+  useEffect(() => {
+    guestIdRef.current = guestId
+  }, [guestId])
+
+  useEffect(() => {
+    registerSessionModeGetter(() => (userRef.current ? 'authenticated' : 'guest'))
+    registerServerReadsAllowed(() => userRef.current != null)
+    return () => {
+      registerSessionModeGetter(null)
+      registerServerReadsAllowed(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const gid = ensureGuestId()
+    setGuestId(gid)
+    const cachedAuth = getActiveCacheUserId()
+    if (cachedAuth && !isGuestId(cachedAuth)) {
+      setBootstrapUserId(cachedAuth)
+    } else if (!userRef.current) {
+      setBootstrapUserId(gid)
+    }
+  }, [])
+
+  const enterGuestMode = useCallback((options?: { freshGuest?: boolean; signedOut?: boolean }) => {
+    const gid = options?.freshGuest ? rotateGuestId() : ensureGuestId()
+    setGuestId(gid)
+    setBootstrapUserId(gid)
+    setUser(null)
+    setProfile(null)
+    profileFetchGenRef.current++
+    setProfileFetchPhase('idle')
+    clearActiveCacheUserId()
+    if (options?.signedOut) setSignedOutToGuest(true)
+  }, [])
+
+  const runGuestMigrationIfNeeded = useCallback(async (nextUser: User): Promise<void> => {
+    const fromGuest = getStoredGuestId()
+    if (!fromGuest || !isGuestId(fromGuest) || fromGuest === nextUser.id) return
+    setIsMigrating(true)
+    try {
+      await migrateGuestToUser(fromGuest, nextUser.id)
+      clearStoredGuestId()
+      bumpReadDiscardGeneration('guest-migration')
+    } finally {
+      if (mountedRef.current) setIsMigrating(false)
+    }
+  }, [])
+
   const hydrateProfileFromDexie = useCallback(async (userId: string) => {
     try {
       const hydrated = await readProfileFromDexie(userId)
@@ -171,15 +253,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // best-effort local hydrate
     }
   }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const cachedUserId = getActiveCacheUserId()
-    if (cachedUserId) {
-      setBootstrapUserId(cachedUserId)
-      void hydrateProfileFromDexie(cachedUserId)
-    }
-  }, [hydrateProfileFromDexie])
 
   const fetchProfile = useCallback(async (userId: string) => {
     const t0 = performance.now()
@@ -281,11 +354,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } finally {
         profileFetchGenRef.current++
+        clearStoredGuestId()
+        rotateGuestId()
         setUser(null)
         setProfile(null)
-        setBootstrapUserId(null)
-        clearActiveCacheUserId()
         setProfileFetchPhase('idle')
+        enterGuestMode({ freshGuest: true })
         setLoading(false)
         perfLog('auth/recovery end', { source })
         if (typeof window !== 'undefined') {
@@ -293,7 +367,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [supabase.auth],
+    [enterGuestMode, supabase.auth],
   )
 
   const scheduleStartupProfileFetch = useCallback(
@@ -351,31 +425,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [fetchProfile],
   )
 
+  const activateAuthenticatedUser = useCallback(
+    async (nextUser: User, source: string) => {
+      await runGuestMigrationIfNeeded(nextUser)
+      if (!mountedRef.current) return
+      perfLog('auth activateAuthenticatedUser', { source, userId: nextUser.id })
+      setUser(nextUser)
+      setActiveCacheUserId(nextUser.id)
+      setBootstrapUserId(nextUser.id)
+      setSignedOutToGuest(false)
+      void hydrateProfileFromDexie(nextUser.id)
+      scheduleStartupProfileFetch(nextUser.id)
+    },
+    [hydrateProfileFromDexie, runGuestMigrationIfNeeded, scheduleStartupProfileFetch],
+  )
+
   useEffect(() => {
     let mounted = true
     let subscription: { unsubscribe: () => void } | null = null
     const hydratedFromGetSessionRef = { current: false }
     const lastAppliedUserIdRef = { current: null as string | null }
 
-    const applySessionUserCore = (nextUser: User | null, source: string) => {
+    const applySessionUserCore = async (
+      nextUser: User | null,
+      source: string,
+      options?: { signedOut?: boolean },
+    ) => {
       if (!mounted) return
       perfLog('auth applySessionUser', { source, hasUser: !!nextUser, userId: nextUser?.id ?? null })
-      perfLog('auth setUser before', { source, nextUserId: nextUser?.id ?? null })
-      setUser(nextUser)
-      perfLog('auth setUser after dispatch', { source, nextUserId: nextUser?.id ?? null })
       lastAppliedUserIdRef.current = nextUser?.id ?? null
       if (nextUser) {
-        setActiveCacheUserId(nextUser.id)
-        setBootstrapUserId(nextUser.id)
-        void hydrateProfileFromDexie(nextUser.id)
-        scheduleStartupProfileFetch(nextUser.id)
-      } else {
-        profileFetchGenRef.current++
-        setProfile(null)
-        setBootstrapUserId(null)
-        clearActiveCacheUserId()
-        setProfileFetchPhase('idle')
+        await activateAuthenticatedUser(nextUser, source)
+        return
       }
+      enterGuestMode({
+        freshGuest: options?.signedOut === true,
+        signedOut: options?.signedOut === true,
+      })
     }
 
     void (async () => {
@@ -434,7 +520,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           hasUser: !!nextUser,
           userId: nextUser?.id ?? null,
         })
-        applySessionUserCore(nextUser, 'getSession')
+        await applySessionUserCore(nextUser, 'getSession')
         perfLog('auth/getSession applySessionUser end', {
           hasUser: !!nextUser,
           userId: nextUser?.id ?? null,
@@ -486,7 +572,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             hasSession: !!session,
             note: 'initial_session_differs_reapplying',
           })
-          applySessionUserCore(nextUser, 'onAuthStateChange')
+          void applySessionUserCore(nextUser, 'onAuthStateChange')
           return
         }
 
@@ -503,8 +589,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
+        if (event === 'SIGNED_OUT') {
+          perfLog('auth onAuthStateChange', { event, hasSession: false })
+          void applySessionUserCore(null, 'onAuthStateChange', { signedOut: true })
+          if (mounted) setLoading(false)
+          return
+        }
+
         perfLog('auth onAuthStateChange', { event, hasSession: !!session })
-        applySessionUserCore(nextUser, 'onAuthStateChange')
+        void applySessionUserCore(nextUser, 'onAuthStateChange')
         if (mounted) {
           perfLog('auth onAuthStateChange setLoading(false) before')
           setLoading(false)
@@ -519,7 +612,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false
       subscription?.unsubscribe()
     }
-  }, [hardRecoverInvalidRefreshToken, hydrateProfileFromDexie, scheduleStartupProfileFetch, supabase.auth])
+  }, [
+    activateAuthenticatedUser,
+    enterGuestMode,
+    hardRecoverInvalidRefreshToken,
+    supabase.auth,
+  ])
 
   useEffect(() => {
     const t = profile?.theme
@@ -540,12 +638,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       )
 
       if (!result.error && result.data?.user) {
-        // Update local state directly (no cross-tab sync)
-        setUser(result.data.user)
-        setActiveCacheUserId(result.data.user.id)
-        setBootstrapUserId(result.data.user.id)
-        void hydrateProfileFromDexie(result.data.user.id)
-        scheduleStartupProfileFetch(result.data.user.id)
+        await activateAuthenticatedUser(result.data.user, 'signIn')
       }
 
       return { error: result.error }
@@ -566,11 +659,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // If sign up successful and user is returned (no email confirmation required)
     if (!error && data?.user && data.session) {
-      setUser(data.user)
-      setActiveCacheUserId(data.user.id)
-      setBootstrapUserId(data.user.id)
-      void hydrateProfileFromDexie(data.user.id)
-      scheduleStartupProfileFetch(data.user.id)
+      await activateAuthenticatedUser(data.user, 'signUp')
     }
 
     // Email confirmation is needed if signup succeeded but no session was returned
@@ -587,11 +676,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: error as Error }
     }
 
-    setUser(null)
-    setProfile(null)
-    setBootstrapUserId(null)
-    clearActiveCacheUserId()
-    setProfileFetchPhase('idle')
+    enterGuestMode({ freshGuest: true, signedOut: true })
     return { error: null }
   }
 
@@ -645,6 +730,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         loading,
         bootstrapUserId,
+        guestId,
+        sessionMode,
+        isGuest,
+        isMigrating,
+        signedOutToGuest,
+        clearSignedOutToGuest: () => setSignedOutToGuest(false),
+        displayName,
+        activeActorId,
         profileFetchPhase,
         signIn,
         signUp,
@@ -654,6 +747,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updatePassword,
       }}
     >
+      {isMigrating ? <MigrationOverlay /> : null}
       {children}
     </AuthContext.Provider>
   )

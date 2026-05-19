@@ -239,7 +239,8 @@ export interface ListDetailViewProps {
 export function ListDetailView({ listId, surface, onRequestClose }: ListDetailViewProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { user, loading: authLoading, bootstrapUserId, profile, profileFetchPhase } = useAuth()
+  const { user, loading: authLoading, activeActorId, bootstrapUserId, profile, profileFetchPhase, isGuest } =
+    useAuth()
 
   useLayoutEffect(() => {
     perfLog('main page mounted', { route: 'list', listId })
@@ -346,11 +347,11 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   useEffect(() => {
     const profileLoading = profileFetchPhase === 'loading'
     const authReady = !authLoading
-    const effectiveUserId = user?.id ?? (authLoading ? bootstrapUserId : null)
-    const showListShell = !(authLoading && !bootstrapUserId) && !loading
+    const effectiveUserId = activeActorId
+    const showListShell = !(authLoading && !activeActorId) && !loading
     const shouldRenderListBody = !!list && showListShell
     let reasonIfNot = ''
-    if (authLoading && !bootstrapUserId) reasonIfNot = 'auth.loading_no_bootstrapUserId'
+      if (authLoading && !activeActorId) reasonIfNot = 'auth.loading_no_activeActorId'
     else if (loading) reasonIfNot = 'useList.loading'
     else if (!list) reasonIfNot = '!list'
     else reasonIfNot = 'ok'
@@ -404,7 +405,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }, [listId])
 
   useLayoutEffect(() => {
-    const uid = user?.id ?? bootstrapUserId
+    const uid = activeActorId
     const tReadStart = performance.now()
     appendOfflineNavDiagnostic(`[list-page-mount] listId=${listId} effectiveUserId=${uid ?? 'null'}`)
     appendOfflineNavDiagnostic(
@@ -427,7 +428,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   useEffect(() => {
     const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
-    const cacheUserId = user?.id ?? bootstrapUserId ?? undefined
+    const cacheUserId = activeActorId ?? undefined
     const hasCachedListData = cachedListDataExists(listId, cacheUserId)
     const routeReady = normalOfflineRouteReady(listId, cacheUserId)
     const offlineNavAllowed =
@@ -477,7 +478,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   ])
 
   useEffect(() => {
-    const uid = user?.id ?? bootstrapUserId ?? null
+    const uid = activeActorId ?? null
     if (!uid) return
     if (typeof window === 'undefined') return
     const onDedicatedListRoute = pathname === `/list/${listId}`
@@ -608,7 +609,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const [showWidthBoundaryGuide, setShowWidthBoundaryGuide] = useState(false)
   const widthBoundaryGuideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const shareSettingsBlocked = !online
+  const shareSettingsBlocked = !online || isGuest
 
   useEffect(() => {
     if (shareSettingsBlocked && showShareModal) {
@@ -683,7 +684,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const blockOnListData =
     listDataStatus !== 'ready' && !list && !error
 
-  const effectiveUserIdForMirror = user?.id ?? bootstrapUserId
+  const effectiveUserIdForMirror = user?.id ?? null
   const blockUntilSessionMirrorReady =
     !!list &&
     !accessDenied &&
@@ -695,7 +696,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const blockListShell =
     (!hasMounted && !mirrorPrimedForPaint) ||
-    (authLoading && !bootstrapUserId) ||
+    (authLoading && !activeActorId) ||
     loading ||
     blockOnListData ||
     blockUntilSessionMirrorReady

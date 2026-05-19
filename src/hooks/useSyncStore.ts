@@ -4,6 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type DbSyncQueueRow } from '@/lib/db'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
+import { canOutboundSyncNow } from '@/lib/sessionPolicy'
+import { isGuestId } from '@/lib/guestSession'
 import { createClient } from '@/lib/supabase/client'
 import {
   isLikelyConnectivityError,
@@ -405,8 +407,13 @@ export function useSyncStore(): SyncStoreState {
   }, [])
 
   const resolveSyncUserId = useCallback((payloadUserId?: unknown): string | null => {
-    if (typeof payloadUserId === 'string' && payloadUserId) return payloadUserId
-    return getActiveCacheUserId()
+    if (typeof payloadUserId === 'string' && payloadUserId) {
+      if (isGuestId(payloadUserId)) return null
+      return payloadUserId
+    }
+    const cached = getActiveCacheUserId()
+    if (cached && isGuestId(cached)) return null
+    return cached
   }, [])
 
   const isVirtualUserListKey = (listId: string): boolean => listId.startsWith('user:')
@@ -445,6 +452,10 @@ export function useSyncStore(): SyncStoreState {
 
   const executeOutboundRow = useCallback(
     async (row: DbSyncQueueRow): Promise<void> => {
+      const payloadUser = (row.payload as { user_id?: unknown })?.user_id
+      if (typeof payloadUser === 'string' && isGuestId(payloadUser)) {
+        throw new Error('Refusing outbound sync for guest user id')
+      }
       const t0 = performance.now()
       const description = await describeOutboundSyncRow(row)
       const syncQueueRespondsTo = (durationMs: number) => formatSyncQueueRespondsTo(row, durationMs)
@@ -1169,7 +1180,7 @@ export function useSyncStore(): SyncStoreState {
   }, [needsBackoffWake, rows.length, status])
 
   useEffect(() => {
-    if (status !== 'online') return
+    if (!canOutboundSyncNow()) return
     if (rows.length === 0) return
     if (drainingRef.current) return
 
@@ -1182,7 +1193,7 @@ export function useSyncStore(): SyncStoreState {
       drainingRef.current = true
       setIsDraining(true)
       try {
-        while (!cancelled && statusRef.current === 'online') {
+        while (!cancelled && canOutboundSyncNow()) {
           const tick = Date.now()
           const batch = await db.sync_queue.orderBy('updated_at').toArray()
           const eligible = batch

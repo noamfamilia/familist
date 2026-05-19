@@ -29,9 +29,9 @@ const supabase = createClient()
  * signed-in session so navigation away from `/` does not tear down postgres listeners.
  */
 export function ListsCatalogRealtimeProvider({ children }: { children: ReactNode }) {
-  const { user, loading: authLoading, bootstrapUserId } = useAuth()
+  const { user } = useAuth()
   const { status: connectivityStatus } = useConnectivity()
-  const userId = user?.id ?? (authLoading ? bootstrapUserId : null)
+  const userId = user?.id ?? null
 
   const connectivityStatusRef = useRef(connectivityStatus)
   useEffect(() => {

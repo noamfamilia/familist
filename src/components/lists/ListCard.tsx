@@ -141,8 +141,8 @@ function ListCardInner({
   const { error: showError } = useToast()
   const setActiveListId = useActiveListUiStore((s) => s.setActiveListId)
   const listDetailHref = useMemo(() => `/list/${list.id}`, [list.id])
-  const { user, loading: authLoading, bootstrapUserId } = useAuth()
-  const navigateUserId = user?.id ?? (authLoading ? bootstrapUserId : null)
+  const { user, activeActorId, isGuest } = useAuth()
+  const navigateUserId = activeActorId
   const navigatorOnLine = useSyncExternalStore(
     subscribeNavigatorOnline,
     getNavigatorOnlineSnapshot,

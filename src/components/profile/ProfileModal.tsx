@@ -9,15 +9,19 @@ import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 import { ThemedImage } from '@/components/ui/ThemedImage'
 import { Modal } from '@/components/ui/Modal'
 import { APP_VERSION } from '@/lib/appVersion'
+import { useTheme } from 'next-themes'
 
 interface ProfileModalProps {
   isOpen: boolean
   onClose: () => void
+  onRequestSignIn?: () => void
+  onRequestSignUp?: () => void
 }
 
-export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
-  const { user, profile, signOut, updateProfile } = useAuth()
+export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp }: ProfileModalProps) {
+  const { user, profile, isGuest, signedOutToGuest, clearSignedOutToGuest, signOut, updateProfile } = useAuth()
   const { success, error: showError } = useToast()
+  const { resolvedTheme, setTheme } = useTheme()
   const [error, setError] = useState('')
   const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
   const [isEditingNickname, setIsEditingNickname] = useState(false)
@@ -31,8 +35,9 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     if (!isOpen) {
       setIsEditingNickname(false)
       setError('')
+      if (signedOutToGuest) clearSignedOutToGuest()
     }
-  }, [isOpen])
+  }, [isOpen, signedOutToGuest, clearSignedOutToGuest])
 
   const handleSaveNickname = () => {
     if (!editNickname.trim() || editNickname === displayNickname) {
@@ -54,6 +59,35 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       return
     }
     onClose()
+  }
+
+  if (!isOpen) return null
+
+  if (isGuest) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Guest mode" contentClassName="!overflow-visible">
+        <div className="space-y-4">
+          {signedOutToGuest ? (
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Signed out. You&apos;re browsing as a guest again.
+            </p>
+          ) : null}
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-100">You&apos;re using guest mode</p>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Sign up to share lists and join family and friends across devices.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button className="w-full" onClick={() => { onClose(); onRequestSignUp?.() }}>Sign up</Button>
+            <Button variant="secondary" className="w-full" onClick={() => { onClose(); onRequestSignIn?.() }}>Sign in</Button>
+          </div>
+          <Button variant="secondary" className="w-full" onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}>
+            {resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </Button>
+          <InstallAppButton />
+          <div className="text-center text-xs text-gray-400 dark:text-gray-500">v{APP_VERSION}</div>
+        </div>
+      </Modal>
+    )
   }
 
   if (!user) return null
