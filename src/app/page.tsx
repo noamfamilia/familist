@@ -454,12 +454,22 @@ function HomeContent() {
             >
               <ThemedImage src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
             </button>
-            <p className="text-sm leading-tight max-w-[140px] truncate">
+            <button
+              type="button"
+              onClick={() => {
+                if (profileMenuNeedsSession) return
+                setProfileMenuOpen(false)
+                setShowProfile(true)
+              }}
+              disabled={profileMenuNeedsSession}
+              className="text-sm leading-tight max-w-[140px] truncate text-left hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label={isGuest ? 'Account' : 'Profile settings'}
+            >
               <span className="text-gray-500 dark:text-gray-400">Hello, </span>
               <span className={isGuest ? 'text-gray-400 dark:text-gray-500' : 'font-medium text-gray-800 dark:text-gray-100'}>
                 {displayName}
               </span>
-            </p>
+            </button>
             {isGuest ? (
               <button
                 type="button"
