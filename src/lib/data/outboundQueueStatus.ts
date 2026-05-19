@@ -84,13 +84,30 @@ export function outboundQueueRowStatusLabel(row: DbSyncQueueRow): {
   }
 }
 
-/** Gray tail after status + time (waiting detail, attempts, errors); empty when completed. */
+/** Gray tail after status + time (waiting detail, attempts, errors). */
 export function outboundQueueRowDetailTail(
   row: DbSyncQueueRow,
   queue: readonly DbSyncQueueRow[],
   ctx: OutboundQueueStatusContext = {},
 ): string {
-  if (row.status === 'completed') return ''
+  const now = ctx.now ?? Date.now()
+
+  if (row.status === 'failed') {
+    const parts: string[] = []
+    const err = row.last_error?.trim()
+    if (err) parts.push(err)
+    if (row.attempt_count > 0) {
+      parts.push(`${row.attempt_count} failed attempt${row.attempt_count === 1 ? '' : 's'}`)
+    }
+    const wait = resolveWaitingMessage(row, queue, ctx, now)
+    if (wait && wait !== err) parts.push(wait)
+    const nr = row.next_retry_at
+    if (nr != null && nr > now) {
+      parts.push(`Next try: ${new Date(nr).toLocaleString()}`)
+    }
+    return parts.join(' · ')
+  }
+
   return outboundQueueRowStatusLine(row, queue, ctx)
 }
 

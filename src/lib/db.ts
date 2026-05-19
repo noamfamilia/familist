@@ -50,7 +50,7 @@ export type SyncQueueKind = 'create' | 'patch' | 'delete' | 'rpc'
  *   lock freshness, and universal dependency ordering (`isBlockedByPendingDependencies` in `syncQueueListScope`). New rows default here.
  * - **processing** — Worker claimed the row (`tryClaimSyncRow`), is running `executeOutboundRow` (Supabase RPC/table writes).
  *   Optional **`processing_detail`** is human-readable progress while this row is active (see `useSyncStore`).
- *   On success the row becomes **completed** (shown in the Server queue modal until cleared). On failure → **failed**
+ *   On success the row is **removed** from the queue. On failure → **failed** (retried until terminal or cleared).
  *   or connectivity retry → back to **queued** with delay.
  * - **failed** — Non-connectivity error or verification failure; `last_error` set, `attempt_count` bumped,
  *   `next_retry_at` from **exponential backoff** (HTTP 429 / 5xx only) or **linear** backoff otherwise.
@@ -82,7 +82,7 @@ export type DbSyncQueueRow = {
   updated_at: number
   /** When status is `processing`, optional UI copy for which sub-step is running (Dexie-only). */
   processing_detail?: string | null
-  /** Stable label in the Server queue modal (#N); assigned at enqueue, survives completed → clear row. */
+  /** Stable label in the Server queue modal (#N); assigned at enqueue; counter resets on Clear or app refresh only. */
   display_index?: number
 }
 

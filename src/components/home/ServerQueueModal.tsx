@@ -10,6 +10,7 @@ import {
   outboundQueueRowStatusLabel,
   type OutboundQueueStatusTone,
 } from '@/lib/data/outboundQueueStatus'
+import { isOutboundRowPending } from '@/lib/data/syncQueueListScope'
 import { clearServerQueueModalState } from '@/lib/serverQueueModalState'
 import { useServerSessionLog } from '@/hooks/useServerSessionLog'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
@@ -180,16 +181,22 @@ export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose
     let cancelled = false
     const now = Date.now()
     void (async () => {
+      const queueSnapshot = rows
+      const pendingOnly = queueSnapshot.filter((r) => isOutboundRowPending(r))
       const next = await Promise.all(
-        rows.map(async (r, i) => {
+        pendingOnly.map(async (r, i) => {
           const { label, tone } = outboundQueueRowStatusLabel(r)
           return {
             id: r.id,
-            displayIndex: typeof r.display_index === 'number' && r.display_index > 0 ? r.display_index : i + 1,
+            displayIndex:
+              typeof r.display_index === 'number' && r.display_index > 0 ? r.display_index : i + 1,
             description: await describeOutboundSyncRow(r),
             statusLabel: label,
             statusTone: tone,
-            detailTail: outboundQueueRowDetailTail(r, rows, { now, connectivityStatus }),
+            detailTail: outboundQueueRowDetailTail(r, queueSnapshot, {
+              now,
+              connectivityStatus,
+            }),
             updatedAt: r.updated_at,
           }
         }),
