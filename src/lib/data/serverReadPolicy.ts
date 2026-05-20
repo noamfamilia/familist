@@ -31,8 +31,12 @@ export function registerServerReadsAllowed(fn: (() => boolean) | null): void {
   serverReadsAllowedGetter = fn ?? (() => true)
 }
 
+export function isServerSessionActive(): boolean {
+  return serverReadsAllowedGetter()
+}
+
 export function canFetchFromServerNow(): boolean {
-  return canFetchFromServer(getConnectivityStatusForReads()) && serverReadsAllowedGetter()
+  return canFetchFromServer(getConnectivityStatusForReads()) && isServerSessionActive()
 }
 
 /** Bumped on offline / recovering so stale in-flight read results are not applied. */

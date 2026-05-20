@@ -23,6 +23,7 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
   const { success, error: showError } = useToast()
   const { resolvedTheme, setTheme } = useTheme()
   const [error, setError] = useState('')
+  const [signingOut, setSigningOut] = useState(false)
   const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
   const [isEditingNickname, setIsEditingNickname] = useState(false)
   const [editNickname, setEditNickname] = useState(displayNickname)
@@ -52,13 +53,19 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
   }
 
   const handleSignOut = async () => {
+    if (signingOut) return
     setError('')
-    const { error: outErr } = await signOut()
-    if (outErr) {
-      setError(outErr.message || 'Failed to sign out')
-      return
+    setSigningOut(true)
+    try {
+      const { error: outErr } = await signOut()
+      if (outErr) {
+        setError(outErr.message || 'Failed to sign out')
+        return
+      }
+      onClose()
+    } finally {
+      setSigningOut(false)
     }
-    onClose()
   }
 
   if (!isOpen) return null
@@ -141,7 +148,13 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
 
         <InstallAppButton />
 
-        <Button variant="danger" className="w-full mt-2" onClick={() => void handleSignOut()}>
+        <Button
+          variant="danger"
+          className="w-full mt-2"
+          loading={signingOut}
+          disabled={signingOut}
+          onClick={() => void handleSignOut()}
+        >
           Sign Out
         </Button>
 

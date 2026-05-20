@@ -48,11 +48,8 @@ import {
   cleanupDexieAfterListServerDeleted,
   cleanupDexieAfterMemberServerDeleted,
 } from '@/lib/data/shadowDeleteDexieCleanup'
-import {
-  resetFailedSyncQueueRows,
-  syncQueueRowHasGuestScope,
-  updateSyncQueueProcessingDetail,
-} from '@/lib/data/syncQueue'
+import { resetFailedSyncQueueRows, updateSyncQueueProcessingDetail } from '@/lib/data/syncQueue'
+import { getGuestOwnedListIdSet, isGuestOutboundQueueRow } from '@/lib/data/syncQueueUserScope'
 import { subscribeOutboundSyncKick } from '@/lib/outboundSyncKick'
 import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
@@ -456,7 +453,8 @@ export function useSyncStore(): SyncStoreState {
 
   const executeOutboundRow = useCallback(
     async (row: DbSyncQueueRow): Promise<void> => {
-      if (syncQueueRowHasGuestScope(row)) {
+      const guestOwnedListIds = await getGuestOwnedListIdSet()
+      if (isGuestOutboundQueueRow(row, guestOwnedListIds)) {
         return
       }
       const t0 = performance.now()
@@ -1198,6 +1196,7 @@ export function useSyncStore(): SyncStoreState {
       try {
         while (!cancelled && canOutboundSyncNow()) {
           const tick = Date.now()
+          const guestOwnedListIds = await getGuestOwnedListIdSet()
           const batch = await db.sync_queue.orderBy('updated_at').toArray()
           const eligible = batch
             .filter((r) => isEligibleForSync(r, tick, batch))
@@ -1232,7 +1231,7 @@ export function useSyncStore(): SyncStoreState {
           const claimed = await tryClaimSyncRow(next.id)
           if (!claimed) continue
 
-          if (syncQueueRowHasGuestScope(claimed)) {
+          if (isGuestOutboundQueueRow(claimed, guestOwnedListIds)) {
             appendMutationDiagnostic(
               `[sync] discard guest-scoped row id=${claimed.id} kind=${claimed.kind}/${claimed.entity}`,
             )

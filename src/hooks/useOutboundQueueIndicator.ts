@@ -9,9 +9,9 @@ import { useSyncQueueBadge } from '@/lib/data/queries'
 export const OUTBOUND_QUEUE_INDICATOR_THRESHOLD = 6
 
 export function useOutboundQueueIndicator() {
-  const { isGuest } = useAuth()
+  const { isGuest, user } = useAuth()
   const { isOffline, isRecovering } = useConnectivity()
-  const queueCount = useSyncQueueBadge() ?? 0
+  const queueCount = useSyncQueueBadge(user?.id) ?? 0
   const latchedRef = useRef(false)
   const [latched, setLatched] = useState(false)
 

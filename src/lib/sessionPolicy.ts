@@ -1,4 +1,4 @@
-import { getConnectivityStatusForReads } from '@/lib/data/serverReadPolicy'
+import { getConnectivityStatusForReads, isServerSessionActive } from '@/lib/data/serverReadPolicy'
 
 export type SessionMode = 'guest' | 'authenticated'
 
@@ -18,7 +18,11 @@ export function isAuthenticatedSession(): boolean {
 }
 
 export function canOutboundSyncNow(): boolean {
-  return isAuthenticatedSession() && getConnectivityStatusForReads() === 'online'
+  return (
+    isAuthenticatedSession() &&
+    isServerSessionActive() &&
+    getConnectivityStatusForReads() === 'online'
+  )
 }
 
 /** Shown when a signed-out guest attempts join/share or other account-only server actions. */

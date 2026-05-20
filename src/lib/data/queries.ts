@@ -5,6 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type DbItemMemberStateRow, type DbListRow, type DbSyncQueueRow, type SyncQueueStatus } from '@/lib/db'
 import { isoNow, isTombstoned, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { countPendingOutboundForList, isOutboundRowPending } from '@/lib/data/syncQueueListScope'
+import { countPendingOutboundForUser } from '@/lib/data/syncQueueUserScope'
 import {
   collectLatestPendingItemMemberStatePatchesForList,
   syncQueueRowTouchesListId,
@@ -413,10 +414,13 @@ export function useListDetailQuery(userId: string | null | undefined, listId: st
   }, [listId, userId])
 }
 
-export function useSyncQueueBadge() {
+export function useSyncQueueBadge(userId: string | null | undefined) {
   return useLiveQuery(
-    async () => db.sync_queue.filter((r) => isOutboundRowPending(r)).count(),
-    [],
+    async () => {
+      if (!userId) return 0
+      return countPendingOutboundForUser(userId)
+    },
+    [userId],
     0,
   )
 }
