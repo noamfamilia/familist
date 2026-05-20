@@ -48,7 +48,11 @@ import {
   cleanupDexieAfterListServerDeleted,
   cleanupDexieAfterMemberServerDeleted,
 } from '@/lib/data/shadowDeleteDexieCleanup'
-import { resetFailedSyncQueueRows, updateSyncQueueProcessingDetail } from '@/lib/data/syncQueue'
+import {
+  resetFailedSyncQueueRows,
+  syncQueueRowHasGuestScope,
+  updateSyncQueueProcessingDetail,
+} from '@/lib/data/syncQueue'
 import { subscribeOutboundSyncKick } from '@/lib/outboundSyncKick'
 import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
@@ -452,9 +456,8 @@ export function useSyncStore(): SyncStoreState {
 
   const executeOutboundRow = useCallback(
     async (row: DbSyncQueueRow): Promise<void> => {
-      const payloadUser = (row.payload as { user_id?: unknown })?.user_id
-      if (typeof payloadUser === 'string' && isGuestId(payloadUser)) {
-        throw new Error('Refusing outbound sync for guest user id')
+      if (syncQueueRowHasGuestScope(row)) {
+        return
       }
       const t0 = performance.now()
       const description = await describeOutboundSyncRow(row)
@@ -1228,6 +1231,14 @@ export function useSyncStore(): SyncStoreState {
 
           const claimed = await tryClaimSyncRow(next.id)
           if (!claimed) continue
+
+          if (syncQueueRowHasGuestScope(claimed)) {
+            appendMutationDiagnostic(
+              `[sync] discard guest-scoped row id=${claimed.id} kind=${claimed.kind}/${claimed.entity}`,
+            )
+            await db.sync_queue.delete(claimed.id)
+            continue
+          }
 
           const syncUserId = getActiveCacheUserId()
           if (syncUserId) {

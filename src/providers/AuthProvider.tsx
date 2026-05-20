@@ -33,6 +33,8 @@ import {
 } from '@/lib/guestSession'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
+import { discardGuestOutboundQueueRows } from '@/lib/data/syncQueue'
+import { bootstrapListsCatalogSession } from '@/stores/listsCatalogStore'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
@@ -472,6 +474,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mountedRef.current) return
       lastAppliedUserIdRef.current = nextUser.id
       perfLog('auth activateAuthenticatedUser', { source, userId: nextUser.id })
+      const discardedGuestQueue = await discardGuestOutboundQueueRows()
+      if (discardedGuestQueue > 0) {
+        perfLog('auth/discarded-guest-outbound-queue', { count: discardedGuestQueue })
+      }
       userRef.current = nextUser
       setUser(nextUser)
       setActiveCacheUserId(nextUser.id)
@@ -781,7 +787,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: error as Error }
     }
 
+    const gid = ensureGuestId()
     enterGuestMode({ freshGuest: false, signedOut: true })
+    await bootstrapListsCatalogSession(gid)
     return { error: null }
   }
 

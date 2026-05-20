@@ -1,5 +1,6 @@
 import { getActiveCacheUserId } from '@/lib/cache'
 import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind, type SyncQueueStatus } from '@/lib/db'
+import { isGuestId } from '@/lib/guestSession'
 import { allocateQueueDisplayIndex } from '@/lib/serverQueueModalState'
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
@@ -769,4 +770,22 @@ export async function resetFailedSyncQueueRows(): Promise<void> {
       })
     }
   })
+}
+
+/** True when a queue row only applies to local guest mode (must not run after sign-in). */
+export function syncQueueRowHasGuestScope(row: DbSyncQueueRow): boolean {
+  const payloadUid = (row.payload as { user_id?: unknown })?.user_id
+  if (typeof payloadUid === 'string' && isGuestId(payloadUid)) return true
+  if (row.parent1_type === 'user' && isGuestId(row.parent1_id)) return true
+  if (row.parent2_type === 'user' && isGuestId(row.parent2_id)) return true
+  return false
+}
+
+/** Drop guest-scoped outbound rows when switching to an authenticated session (sign-in without migration). */
+export async function discardGuestOutboundQueueRows(): Promise<number> {
+  const rows = await db.sync_queue.toArray()
+  const guestRows = rows.filter(syncQueueRowHasGuestScope)
+  if (guestRows.length === 0) return 0
+  await db.sync_queue.bulkDelete(guestRows.map((r) => r.id))
+  return guestRows.length
 }
