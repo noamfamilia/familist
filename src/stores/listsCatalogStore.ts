@@ -4,7 +4,6 @@ import { liveQuery } from 'dexie'
 import { create } from 'zustand'
 import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 import { getCachedLists } from '@/lib/cache'
-import { signOutTrace } from '@/lib/debug/signOutCatalogDebug'
 import { buildListsCatalogFromDexie } from '@/lib/data/queries'
 import type { ListWithRole } from '@/lib/supabase/types'
 
@@ -29,16 +28,6 @@ type ListsCatalogActions = {
   endLocalCatalogPersistence: () => void
 }
 
-function traceStoreSet(note: string, userId: string | null, listsLen: number, status: ListsCatalogStatus) {
-  signOutTrace('store:setState', {
-    note,
-    resolvedUserId: userId,
-    directActiveUserId: userId,
-    directStatus: status,
-    directListsLen: listsLen,
-  })
-}
-
 export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActions>((set, get) => ({
   activeUserId: null,
   listsCatalogStatus: 'idle',
@@ -47,15 +36,12 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
   catalogSessionEpoch: 0,
 
   clearListsCatalog: () =>
-    set((s) => {
-      traceStoreSet('clearListsCatalog', null, 0, 'idle')
-      return {
-        activeUserId: null,
-        listsCatalogStatus: 'idle',
-        lists: [],
-        catalogSessionEpoch: s.catalogSessionEpoch + 1,
-      }
-    }),
+    set((s) => ({
+      activeUserId: null,
+      listsCatalogStatus: 'idle',
+      lists: [],
+      catalogSessionEpoch: s.catalogSessionEpoch + 1,
+    })),
 
   beginHomeSession: (userId, cachedLists) => {
     const incoming = cachedLists ? [...cachedLists] : []
@@ -63,27 +49,14 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
 
     if (st.activeUserId === userId) {
       if (st.lists.length > 0 && incoming.length === 0) {
-        signOutTrace('beginHomeSession', {
-          note: 'idempotent keep lists',
-          resolvedUserId: userId,
-          directListsLen: st.lists.length,
-          directEpoch: st.catalogSessionEpoch,
-        })
         return st.catalogSessionEpoch
       }
       if (st.lists.length > 0) {
-        signOutTrace('beginHomeSession', {
-          note: 'idempotent same actor has lists',
-          resolvedUserId: userId,
-          directListsLen: st.lists.length,
-        })
         return st.catalogSessionEpoch
       }
       if (incoming.length > 0) {
         const lists = [...incoming]
         set({ lists, listsCatalogStatus: 'ready' })
-        traceStoreSet('beginHomeSession hydrate cache', userId, lists.length, 'ready')
-        signOutTrace('beginHomeSession', { note: 'hydrate from cache', resolvedUserId: userId, directListsLen: lists.length })
         return st.catalogSessionEpoch
       }
       if (st.listsCatalogStatus === 'loading') {
@@ -102,13 +75,6 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
         catalogSessionEpoch: nextEpoch,
       }
     })
-    traceStoreSet('beginHomeSession new actor', userId, lists.length, lists.length > 0 ? 'ready' : 'loading')
-    signOutTrace('beginHomeSession', {
-      note: 'new actor session',
-      resolvedUserId: userId,
-      directListsLen: lists.length,
-      directEpoch: nextEpoch,
-    })
     return nextEpoch
   },
 
@@ -117,7 +83,6 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
     if (st.activeUserId !== userId) return
     const nextLists = [...lists]
     set({ lists: nextLists, listsCatalogStatus: 'ready' })
-    traceStoreSet('applyWarmResult', userId, nextLists.length, 'ready')
   },
 
   applyL2BridgePayload: (userId, lists) => {
@@ -129,7 +94,6 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
       lists: nextLists,
       ...(st.listsCatalogStatus !== 'ready' ? { listsCatalogStatus: 'ready' as const } : {}),
     })
-    traceStoreSet('applyL2BridgePayload', userId, nextLists.length, 'ready')
   },
 
   setCatalogLists: (updater) =>

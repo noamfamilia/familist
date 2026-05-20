@@ -8,7 +8,6 @@ import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedLists, setCachedLists, setCachedList, removeCachedList } from '@/lib/cache'
 import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { db } from '@/lib/db'
-import { bumpUseListsRenderCount, getUseListsRenderCount, signOutTrace } from '@/lib/debug/signOutCatalogDebug'
 import {
   bootstrapListsCatalogSession,
   subscribeListsCatalogL2Bridge,
@@ -199,7 +198,6 @@ export function useLists() {
     useAuth()
   const selectedActiveUserId = useListsCatalogStore((s) => s.activeUserId)
   const selectedStatus = useListsCatalogStore((s) => s.listsCatalogStatus)
-  const selectedEpoch = useListsCatalogStore((s) => s.catalogSessionEpoch)
   const selectedLists = useListsCatalogStore((s) => s.lists)
   const [isFetching, setIsFetching] = useState(true)
   const [hasCompletedInitialFetch, setHasCompletedInitialFetch] = useState(false)
@@ -219,38 +217,6 @@ export function useLists() {
     () => (catalogMatchesActor ? selectedLists : []),
     [catalogMatchesActor, selectedLists],
   )
-  const actorMismatch = Boolean(userId && selectedActiveUserId && selectedActiveUserId !== userId)
-
-  const tracePayload = useMemo(
-    () => ({
-      authUserId: user?.id ?? null,
-      guestId,
-      bootstrapUserId,
-      resolvedUserId: userId,
-      selectedActiveUserId,
-      selectedStatus,
-      selectedListsLen: selectedLists.length,
-      selectedEpoch,
-      actorListsLen: actorLists.length,
-      first3ListIds: actorLists.slice(0, 3).map((l) => l.id),
-    }),
-    [
-      user?.id,
-      guestId,
-      bootstrapUserId,
-      userId,
-      selectedActiveUserId,
-      selectedStatus,
-      selectedLists.length,
-      selectedEpoch,
-      actorLists,
-    ],
-  )
-
-  signOutTrace('useLists:render', {
-    ...tracePayload,
-    renderCountUseLists: bumpUseListsRenderCount(),
-  })
   /** Owner id for catalog mutations (authenticated user or local guest). */
   const mutationUserId = resolveCatalogMutationUserId(user?.id, guestId, bootstrapUserId)
   useEffect(() => {
@@ -314,19 +280,6 @@ export function useLists() {
     const previousActiveUserId = store.activeUserId
     const cachedLists = getCachedLists(userId)?.lists || []
 
-    signOutTrace('useLists:effect', {
-      authUserId: user?.id ?? null,
-      guestId,
-      bootstrapUserId,
-      resolvedUserId: userId,
-      selectedActiveUserId: store.activeUserId,
-      selectedStatus: store.listsCatalogStatus,
-      selectedListsLen: store.lists.length,
-      note: actorChanged ? 'actor changed → bootstrap' : 'warm only',
-      actorChanged,
-      cachedListsLen: cachedLists.length,
-    })
-
     perfLog('localStorage read end', {
       durationMs: Math.round(performance.now() - lsT0),
       bytesOrItemCount: cachedLists.length,
@@ -349,24 +302,13 @@ export function useLists() {
         await warmListsCatalog(userId, epoch, 'useLists-actor-effect')
       }
       if (cancelled || catalogActorEffectGenRef.current !== effectGen) {
-        signOutTrace('useLists:effect', { note: 'cancelled or superseded', effectGen })
         return
       }
       hasInitialDataRef.current = useListsCatalogStore.getState().lists.length > 0
-      const st = useListsCatalogStore.getState()
-      signOutTrace('useLists:effect', {
-        note: 'async complete',
-        effectGen,
-        resolvedUserId: userId,
-        selectedActiveUserId: st.activeUserId,
-        selectedListsLen: st.lists.length,
-        selectedStatus: st.listsCatalogStatus,
-      })
     })()
 
     const unsub = subscribeListsCatalogL2Bridge(userId)
     return () => {
-      signOutTrace('useLists:effect', { note: 'cleanup', effectGen })
       cancelled = true
       unsub()
     }
@@ -1327,24 +1269,6 @@ export function useLists() {
     if (!catalogMatchesActor) return true
     return Boolean(actorLists.length === 0 && selectedStatus === 'loading')
   }, [userId, catalogMatchesActor, actorLists.length, selectedStatus, error])
-
-  const emptyState = !loading && actorLists.length === 0
-
-  useEffect(() => {
-    if (!actorMismatch || selectedLists.length === 0) return
-    console.warn(
-      `[useLists] stale cross-actor catalog: userId=${userId} selectedActiveUserId=${selectedActiveUserId} selectedLen=${selectedLists.length}`,
-    )
-  }, [actorMismatch, userId, selectedActiveUserId, selectedLists.length])
-
-  useEffect(() => {
-    signOutTrace('useLists:return', {
-      ...tracePayload,
-      loading,
-      emptyState,
-      renderCountUseLists: getUseListsRenderCount(),
-    })
-  }, [tracePayload, loading, emptyState])
 
   return {
     lists: actorLists,

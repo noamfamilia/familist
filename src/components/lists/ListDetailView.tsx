@@ -24,7 +24,6 @@ import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useToast } from '@/components/ui/Toast'
-import { GUEST_JOIN_SHARE_BLOCKED_MSG } from '@/lib/sessionPolicy'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import {
   OFFLINE_ACTIONS_DISABLED_MSG,
@@ -233,7 +232,7 @@ export type ListDetailSurface = 'page' | 'home_modal'
 export interface ListDetailViewProps {
   listId: string
   surface: ListDetailSurface
-  /** When `surface === 'home_modal'`, used for “Back to lists” instead of `history.back`. */
+  /** When `surface === 'home_modal'`, used for “Back” instead of `history.back`. */
   onRequestClose?: () => void
 }
 
@@ -607,16 +606,19 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const addItemInFlightRef = useRef(false)
   const addItemWrapperRef = useRef<HTMLDivElement>(null)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [showGuestShareSignInModal, setShowGuestShareSignInModal] = useState(false)
   const [showWidthBoundaryGuide, setShowWidthBoundaryGuide] = useState(false)
   const widthBoundaryGuideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const shareSettingsBlocked = !online || isGuest
+  const shareSettingsOfflineBlocked = !online
 
   useEffect(() => {
-    if (shareSettingsBlocked && showShareModal) {
+    if (shareSettingsOfflineBlocked && showShareModal) {
       setShowShareModal(false)
     }
-  }, [shareSettingsBlocked, showShareModal])
+  }, [shareSettingsOfflineBlocked, showShareModal])
+
+  const isListOwner = Boolean(list?.owner_id && list.owner_id === activeActorId)
 
   const hideWidthBoundaryGuide = useCallback(() => {
     if (widthBoundaryGuideTimeoutRef.current) {
@@ -724,9 +726,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               </Button>
               <button
                 onClick={handleBackToLists}
-                className="text-primary dark:text-gray-100 hover:underline block"
+                className="text-teal hover:opacity-80 block text-sm sm:text-base"
               >
-                ← Back to lists
+                ← Back
               </button>
             </div>
           </>
@@ -735,9 +737,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             <p className="text-center text-gray-500 dark:text-gray-400">List not found or deleted</p>
             <button
               onClick={handleBackToLists}
-              className="mt-4 text-primary dark:text-gray-100 hover:underline block mx-auto"
+              className="mt-4 text-teal hover:opacity-80 block mx-auto text-sm sm:text-base"
             >
-              ← Back to lists
+              ← Back
             </button>
           </>
         )}
@@ -940,10 +942,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           <button
             type="button"
             onClick={handleBackToLists}
-            className="h-8 flex items-center text-primary dark:text-gray-100 hover:underline text-sm sm:text-base"
-            aria-label="Go back to all lists"
+            className="h-8 flex items-center text-teal hover:opacity-80 text-sm sm:text-base"
+            aria-label="Go back"
           >
-            <span>← Back to lists</span>
+            <span>← Back</span>
           </button>
           <OutboundQueueIndicator />
           {isOffline || isRecovering ? (
@@ -954,21 +956,21 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             />
           ) : null}
         </div>
-        {list && list.owner_id === user?.id && (
+        {isListOwner && (
           <button
             type="button"
-            disabled={shareSettingsBlocked}
+            disabled={shareSettingsOfflineBlocked}
             onClick={() => {
               if (isGuest) {
-                showError(GUEST_JOIN_SHARE_BLOCKED_MSG)
+                setShowGuestShareSignInModal(true)
                 return
               }
-              if (shareSettingsBlocked) return
+              if (shareSettingsOfflineBlocked) return
               setShowShareModal(true)
             }}
-            className={`text-teal ${shareSettingsBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
+            className={`text-teal ${shareSettingsOfflineBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
             aria-label={
-              shareSettingsBlocked
+              shareSettingsOfflineBlocked
                 ? isRecovering
                   ? 'Share settings (unavailable while reconnecting)'
                   : 'Share settings (unavailable offline)'
@@ -1343,7 +1345,26 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         </div>
       </Modal>
 
-      {list && list.owner_id === user?.id && (
+      <Modal
+        isOpen={showGuestShareSignInModal}
+        onClose={() => setShowGuestShareSignInModal(false)}
+        title="Sign in required"
+        size="sm"
+        hideClose
+      >
+        <p className="text-center text-gray-700 dark:text-gray-300 leading-relaxed mb-6">
+          You need to sign-in to share and join lists
+        </p>
+        <button
+          type="button"
+          onClick={() => setShowGuestShareSignInModal(false)}
+          className="w-full px-4 py-2.5 text-base font-medium text-white bg-red-500 rounded-lg hover:bg-red-600"
+        >
+          Dismiss
+        </button>
+      </Modal>
+
+      {isListOwner && !isGuest && list && (
         <ShareModal
           isOpen={showShareModal}
           onClose={() => setShowShareModal(false)}

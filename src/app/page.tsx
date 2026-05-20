@@ -30,8 +30,6 @@ import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueI
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import { useShallow } from 'zustand/react/shallow'
-import { registerPageShellGate, useSignOutCatalogDebugStore } from '@/lib/debug/signOutCatalogDebug'
-
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
 })
@@ -95,7 +93,6 @@ function HomeContent() {
     activeActorId,
     guestId,
     isGuest,
-    displayName,
     profileFetchPhase,
     updateProfile,
     updateActorProfile,
@@ -449,7 +446,6 @@ function HomeContent() {
     if (snapshot === homeGateLogPrevRef.current) return
     homeGateLogPrevRef.current = snapshot
     log.info('GATE', 'HomeContent', payload)
-    registerPageShellGate(payload)
   }, [
     internetReachable,
     loading,
@@ -489,24 +485,22 @@ function HomeContent() {
             >
               <ThemedImage src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (profileMenuNeedsSession) return
-                setProfileMenuOpen(false)
-                if (isGuest) {
+            {isGuest ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (profileMenuNeedsSession) return
+                  setProfileMenuOpen(false)
                   setAuthModalMode('signIn')
                   setShowAuthModal(true)
-                } else {
-                  setShowProfile(true)
-                }
-              }}
-              disabled={profileMenuNeedsSession}
-              className="text-sm text-teal font-medium hover:opacity-80 max-w-[140px] truncate text-left whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label={isGuest ? 'Sign in' : 'Profile settings'}
-            >
-              Hello, {displayName}
-            </button>
+                }}
+                disabled={profileMenuNeedsSession}
+                className="text-sm text-teal font-medium hover:opacity-80 max-w-[140px] truncate text-left whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Sign in"
+              >
+                Guest
+              </button>
+            ) : null}
             <OutboundQueueIndicator />
             {isOffline || isRecovering ? (
               <OfflineIcon
@@ -520,23 +514,44 @@ function HomeContent() {
                 className={`absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${profileMenuAnim.menuClassName}`}
                 role="menu"
               >
-                <button
-                  type="button"
-                  disabled={profileMenuNeedsSession}
-                  className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
-                    profileMenuNeedsSession
-                      ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
-                      : 'text-gray-900 dark:text-gray-100'
-                  }`}
-                  role="menuitem"
-                  onClick={() => {
-                    if (profileMenuNeedsSession) return
-                    setProfileMenuOpen(false)
-                    setShowProfile(true)
-                  }}
-                >
-                  {isGuest ? 'Account' : 'Profile settings'}
-                </button>
+                {isGuest ? (
+                  <button
+                    type="button"
+                    disabled={profileMenuNeedsSession}
+                    className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
+                      profileMenuNeedsSession
+                        ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
+                        : 'text-gray-900 dark:text-gray-100'
+                    }`}
+                    role="menuitem"
+                    onClick={() => {
+                      if (profileMenuNeedsSession) return
+                      setProfileMenuOpen(false)
+                      setAuthModalMode('signIn')
+                      setShowAuthModal(true)
+                    }}
+                  >
+                    Sign-in
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={profileMenuNeedsSession}
+                    className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
+                      profileMenuNeedsSession
+                        ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
+                        : 'text-gray-900 dark:text-gray-100'
+                    }`}
+                    role="menuitem"
+                    onClick={() => {
+                      if (profileMenuNeedsSession) return
+                      setProfileMenuOpen(false)
+                      setShowProfile(true)
+                    }}
+                  >
+                    Profile settings
+                  </button>
+                )}
                 <button
                   type="button"
                   className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
@@ -606,17 +621,6 @@ function HomeContent() {
                   }}
                 >
                   User feedback
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                  onClick={() => {
-                    setProfileMenuOpen(false)
-                    useSignOutCatalogDebugStore.getState().openModal()
-                  }}
-                >
-                  Sign-out catalog debug
                 </button>
                 {!isGuest ? (
                   <button

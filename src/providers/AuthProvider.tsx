@@ -37,13 +37,6 @@ import { discardGuestOutboundQueueRows } from '@/lib/data/syncQueue'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
-import {
-  schedulePostSignOutDelayedSnapshots,
-  signOutTrace,
-  useSignOutCatalogDebugStore,
-} from '@/lib/debug/signOutCatalogDebug'
-import { SignOutCatalogDebugModal } from '@/components/debug/SignOutCatalogDebugModal'
-
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 
 interface AuthContextType {
@@ -248,8 +241,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const hydrateProfileFromDexie = useCallback(async (userId: string) => {
+    try {
+      const hydrated = await readProfileFromDexie(userId)
+      if (!hydrated || !mountedRef.current) return
+      const activeId = userRef.current?.id ?? bootstrapUserIdRef.current ?? getActiveCacheUserId()
+      if (activeId !== userId) return
+      setProfile(hydrated)
+      perfLog('auth/hydrateProfileFromDexie', { userId })
+    } catch {
+      // best-effort local hydrate
+    }
+  }, [])
+
   const enterGuestMode = useCallback((options?: { freshGuest?: boolean; signedOut?: boolean }) => {
-    const previousUserId = userRef.current?.id ?? null
     const gid = options?.freshGuest ? rotateGuestId() : ensureGuestId()
 
     if (
@@ -257,22 +262,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userRef.current === null &&
       lastEnterGuestModeGidRef.current === gid
     ) {
-      signOutTrace('enterGuestMode', {
-        guestId: gid,
-        note: 'idempotent skip (already guest, same gid)',
-        signedOut: options?.signedOut ?? false,
-      })
       if (options?.signedOut) setSignedOutToGuest(true)
       return
     }
-
-    signOutTrace('enterGuestMode', {
-      guestId: gid,
-      authUserId: previousUserId,
-      note: 'before state updates',
-      freshGuest: options?.freshGuest ?? false,
-      signedOut: options?.signedOut ?? false,
-    })
 
     guestIdRef.current = gid
     bootstrapUserIdRef.current = gid
@@ -289,26 +281,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     bumpReadDiscardGeneration('enter-guest-mode')
     if (options?.signedOut) setSignedOutToGuest(true)
     lastEnterGuestModeGidRef.current = gid
-    void (async () => {
-      try {
-        const hydrated = await readProfileFromDexie(gid)
-        if (!hydrated || !mountedRef.current) return
-        const activeId = userRef.current?.id ?? bootstrapUserIdRef.current
-        if (activeId !== gid) return
-        setProfile(hydrated)
-        perfLog('auth/hydrateProfileFromDexie', { userId: gid, source: 'enterGuestMode' })
-      } catch {
-        // best-effort
-      }
-    })()
-
-    signOutTrace('enterGuestMode', {
-      guestId: gid,
-      bootstrapUserId: gid,
-      resolvedUserId: gid,
-      note: 'after state updates',
-    })
-  }, [])
+    void hydrateProfileFromDexie(gid)
+  }, [hydrateProfileFromDexie])
 
   const runGuestMigration = useCallback(async (guestId: string, userId: string): Promise<void> => {
     setIsMigrating(true)
@@ -338,19 +312,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setGuestMigrationPrompt(null)
     guestMigrationChoiceRef.current?.(false)
     guestMigrationChoiceRef.current = null
-  }, [])
-
-  const hydrateProfileFromDexie = useCallback(async (userId: string) => {
-    try {
-      const hydrated = await readProfileFromDexie(userId)
-      if (!hydrated || !mountedRef.current) return
-      const activeId = userRef.current?.id ?? bootstrapUserIdRef.current ?? getActiveCacheUserId()
-      if (activeId !== userId) return
-      setProfile(hydrated)
-      perfLog('auth/hydrateProfileFromDexie', { userId })
-    } catch {
-      // best-effort local hydrate
-    }
   }, [])
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -620,10 +581,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return
       }
-      signOutTrace('auth:signed_out', {
-        guestId: ensureGuestId(),
-        note: `applySessionUserCore → enterGuestMode (${source})`,
-      })
       enterGuestMode({
         freshGuest: false,
         signedOut: options?.signedOut === true,
@@ -757,10 +714,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (event === 'SIGNED_OUT') {
           perfLog('auth onAuthStateChange', { event, hasSession: false })
-          signOutTrace('auth:signed_out', {
-            guestId: ensureGuestId(),
-            note: 'onAuthStateChange SIGNED_OUT',
-          })
           void applySessionUserCore(null, 'onAuthStateChange', { signedOut: true })
           if (mounted) setLoading(false)
           return
@@ -844,29 +797,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    useSignOutCatalogDebugStore.getState().beginSession('--- sign-out catalog debug session ---')
-
-    signOutTrace('signOut:start', {
-      authUserId: userRef.current?.id ?? user?.id ?? null,
-    })
-
     const { error } = await supabase.auth.signOut()
-
-    signOutTrace('auth:signed_out', {
-      authUserId: null,
-      note: error ? `supabase signOut error: ${error.message}` : 'supabase.auth.signOut ok',
-    })
-
     if (error) {
       console.error('Sign out error:', error)
       return { error: error as Error }
     }
-
-    const gid = ensureGuestId()
     enterGuestMode({ freshGuest: false, signedOut: true })
-
-    schedulePostSignOutDelayedSnapshots(gid)
-
     return { error: null }
   }
 
@@ -973,7 +909,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         />
       ) : null}
       {isMigrating ? <MigrationOverlay /> : null}
-      <SignOutCatalogDebugModal />
       {children}
     </AuthContext.Provider>
   )

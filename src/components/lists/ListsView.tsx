@@ -18,7 +18,6 @@ import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useAuth } from '@/providers/AuthProvider'
-import { bumpListsViewRenderCount, signOutTrace } from '@/lib/debug/signOutCatalogDebug'
 import { formatJoinListInviteErrorForUser } from '@/lib/joinListInviteErrorMessage'
 import { fetchFailureToastMessage } from '@/lib/fetchToastPolicy'
 import { GUEST_JOIN_SHARE_BLOCKED_MSG } from '@/lib/sessionPolicy'
@@ -69,7 +68,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     isOfflineActionsDisabled,
     mutationUserId,
   } = useLists()
-  const { user, activeActorId, guestId, loading: authLoading, bootstrapUserId, isGuest } = useAuth()
+  const { user, guestId, loading: authLoading, bootstrapUserId, isGuest } = useAuth()
   /** `inviteToken:userId` after a successful join so we do not enqueue twice. */
   const inviteJoinSucceededKeyRef = useRef<string | null>(null)
   
@@ -168,23 +167,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   const showEmptyState = lists.length === 0 && !loading
   const showSpinnerInsteadOfCards = loading
   const visibleCardCount = activeLists.length + archivedLists.length
-
-  const uiMode: 'spinner' | 'empty' | 'cards' =
-    showSpinnerInsteadOfCards ? 'spinner' : showEmptyState ? 'empty' : 'cards'
-
-  signOutTrace('ListsView:render', {
-    authUserId: user?.id ?? null,
-    guestId,
-    bootstrapUserId,
-    resolvedUserId: activeActorId,
-    actorListsLen: lists.length,
-    loading,
-    listsViewRenderedCardsLen: visibleCardCount,
-    note: `filtered=${filteredLists.length} active=${activeLists.length}`,
-    uiMode,
-    first3ListIds: lists.slice(0, 3).map((l) => l.id),
-    renderCountListsView: bumpListsViewRenderCount(),
-  })
 
   // Get all owned list names (including archived) for duplicate name checking
   const ownedListNames = lists.filter(l => l.role === 'owner').map(l => l.name)
