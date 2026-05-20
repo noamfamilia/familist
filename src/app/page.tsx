@@ -93,6 +93,7 @@ function HomeContent() {
     activeActorId,
     guestId,
     isGuest,
+    sessionRestoring,
     profileFetchPhase,
     updateProfile,
     updateActorProfile,
@@ -215,7 +216,7 @@ function HomeContent() {
       )
     }
 
-    const profileActorId = user?.id ?? (isGuest ? bootstrapUserId : null)
+    const profileActorId = user?.id ?? (isGuest ? bootstrapUserId : activeActorId)
     if (!profile || profileActorId !== activeActorId) return
 
     const serverLabel = profile.label_filter ?? 'Any'
@@ -423,7 +424,6 @@ function HomeContent() {
 
   const effectiveUserId = activeActorId
   const showListsShell = !!effectiveUserId
-  const sessionRestoring = !user && !!bootstrapUserId && !isGuest
   const profileMenuNeedsSession = sessionRestoring
   const homeGateLogPrevRef = useRef<string>('')
   useEffect(() => {
@@ -457,6 +457,7 @@ function HomeContent() {
     guestId,
     bootstrapUserId,
     isGuest,
+    sessionRestoring,
   ])
 
   if (!hasMounted || (loading && !effectiveUserId)) {

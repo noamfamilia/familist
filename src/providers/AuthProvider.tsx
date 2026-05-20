@@ -31,6 +31,7 @@ import {
   isGuestId,
   rotateGuestId,
 } from '@/lib/guestSession'
+import { getCachedAuthenticatedUserId } from '@/lib/authBootstrap'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
 import { discardGuestOutboundQueueRows } from '@/lib/data/syncQueue'
@@ -48,6 +49,8 @@ interface AuthContextType {
   guestId: string | null
   sessionMode: SessionMode
   isGuest: boolean
+  /** True while getSession hydrates and we already know the last signed-in user id. */
+  sessionRestoring: boolean
   isMigrating: boolean
   /** Shown once after sign-out when returning to guest mode. */
   signedOutToGuest: boolean
@@ -189,10 +192,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** Skip duplicate enterGuestMode(same gid) when signOut + SIGNED_OUT both fire. */
   const lastEnterGuestModeGidRef = useRef<string | null>(null)
   const [guestMigrationPrompt, setGuestMigrationPrompt] = useState<GuestMigrationPromptState | null>(null)
-  const sessionMode: SessionMode = user ? 'authenticated' : 'guest'
+  const cachedAuthUserId = getCachedAuthenticatedUserId(bootstrapUserId)
+  const sessionRestoring = loading && !user && cachedAuthUserId != null
+  const sessionMode: SessionMode = user || sessionRestoring ? 'authenticated' : 'guest'
   const isGuest = sessionMode === 'guest'
   const activeActorId = resolveActiveUserId(user?.id, guestId, bootstrapUserId)
-  const displayName = isGuest ? 'Guest' : resolveAuthDisplayName(user, profile)
+  const displayName =
+    sessionRestoring ? '' : isGuest ? 'Guest' : resolveAuthDisplayName(user, profile)
   useEffect(() => {
     reportServerDexieParityDiagnostics()
     scheduleAfterFirstPaint(() => {
@@ -219,7 +225,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     guestIdRef.current = guestId
   }, [guestId])
 
-  registerSessionModeGetter(() => (userRef.current ? 'authenticated' : 'guest'))
+  registerSessionModeGetter(() => {
+    if (userRef.current) return 'authenticated'
+    const boot = bootstrapUserIdRef.current
+    if (getCachedAuthenticatedUserId(boot)) return 'authenticated'
+    return 'guest'
+  })
   registerServerReadsAllowed(() => userRef.current != null)
 
   useEffect(() => {
@@ -234,8 +245,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const gid = ensureGuestId()
     setGuestId(gid)
     const cachedAuth = getActiveCacheUserId()
-    if (cachedAuth && !isGuestId(cachedAuth) && userRef.current) {
-      setBootstrapUserId(cachedAuth)
+    if (cachedAuth && !isGuestId(cachedAuth)) {
+      if (!userRef.current) setBootstrapUserId(cachedAuth)
     } else if (!userRef.current) {
       setBootstrapUserId(gid)
     }
@@ -885,6 +896,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         guestId,
         sessionMode,
         isGuest,
+        sessionRestoring,
         isMigrating,
         signedOutToGuest,
         clearSignedOutToGuest: () => setSignedOutToGuest(false),
