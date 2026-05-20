@@ -261,6 +261,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   
   const {
     list,
+    mirroredListUserRow,
     items,
     members,
     listDataStatus,
@@ -618,7 +619,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     }
   }, [shareSettingsOfflineBlocked, showShareModal])
 
-  const isListOwner = Boolean(list?.owner_id && list.owner_id === activeActorId)
+  const isListOwner =
+    mirroredListUserRow?.role === 'owner' ||
+    Boolean(list?.owner_id && list.owner_id === activeActorId)
 
   const hideWidthBoundaryGuide = useCallback(() => {
     if (widthBoundaryGuideTimeoutRef.current) {

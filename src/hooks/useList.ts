@@ -2574,6 +2574,7 @@ export function useList(listId: string) {
 
   return {
     list,
+    mirroredListUserRow,
     items: itemsForUi,
     members,
     listDataStatus,

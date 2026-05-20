@@ -34,6 +34,7 @@ import {
 import { getCachedAuthenticatedUserId } from '@/lib/authBootstrap'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
+import { reconcileGuestDexieAfterSignOut } from '@/lib/data/guestCatalogReconcile'
 import { discardGuestOutboundQueueRows } from '@/lib/data/syncQueue'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
@@ -265,7 +266,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const enterGuestMode = useCallback((options?: { freshGuest?: boolean; signedOut?: boolean }) => {
+  const enterGuestMode = useCallback(
+    async (options?: {
+      freshGuest?: boolean
+      signedOut?: boolean
+      formerAuthUserId?: string | null
+    }) => {
     const gid = options?.freshGuest ? rotateGuestId() : ensureGuestId()
 
     if (
@@ -275,6 +281,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ) {
       if (options?.signedOut) setSignedOutToGuest(true)
       return
+    }
+
+    if (options?.signedOut && options.formerAuthUserId) {
+      await reconcileGuestDexieAfterSignOut(gid, options.formerAuthUserId)
     }
 
     guestIdRef.current = gid
@@ -430,7 +440,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null)
         setProfile(null)
         setProfileFetchPhase('idle')
-        enterGuestMode({ freshGuest: true })
+        void enterGuestMode({ freshGuest: true })
         setLoading(false)
         perfLog('auth/recovery end', { source })
         if (typeof window !== 'undefined') {
@@ -592,9 +602,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return
       }
-      enterGuestMode({
+      const formerAuthUserId = userRef.current?.id ?? lastAppliedUserIdRef.current
+      await enterGuestMode({
         freshGuest: false,
         signedOut: options?.signedOut === true,
+        formerAuthUserId,
       })
     }
 
@@ -808,12 +820,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    const formerAuthUserId = userRef.current?.id ?? null
     const { error } = await supabase.auth.signOut()
     if (error) {
       console.error('Sign out error:', error)
       return { error: error as Error }
     }
-    enterGuestMode({ freshGuest: false, signedOut: true })
+    await enterGuestMode({
+      freshGuest: false,
+      signedOut: true,
+      formerAuthUserId,
+    })
     return { error: null }
   }
 
