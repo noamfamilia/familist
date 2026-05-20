@@ -3,6 +3,7 @@
  * Verbose UI/perf logs live in startupPerfLog; this is the compact server I/O trace.
  */
 
+import { markActivationServerResponse } from '@/lib/activationServerProgress'
 import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 import { recordServerSessionRoundTrip } from '@/lib/serverSessionLog'
 import { emitServerRoundTripLine } from '@/lib/startupPerfLog'
@@ -46,6 +47,7 @@ export function formatSyncQueueRespondsTo(
 }
 
 export function logServerRoundTrip(input: ServerRoundTripInput): void {
+  markActivationServerResponse()
   recordServerSessionRoundTrip(input)
   if (!DIAGNOSTICS_DATA_COLLECTION_ENABLED) return
   const respond = input.respondsTo ? ` · ${truncateForLog(input.respondsTo, 120)}` : ''

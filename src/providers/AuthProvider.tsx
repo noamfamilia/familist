@@ -7,6 +7,7 @@ import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import { clearActiveCacheUserId, getActiveCacheUserId, getCachedLists, setActiveCacheUserId } from '@/lib/cache'
 import { db } from '@/lib/db'
+import { beginActivationServerProgressWindow, hasActivationServerResponse } from '@/lib/activationServerProgress'
 import { notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
 import { log, perfLog } from '@/lib/startupPerfLog'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
@@ -488,13 +489,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (cachedProfile) {
                 setProfile(cachedProfile)
               }
+              const hadOtherServerResponse = hasActivationServerResponse()
               log.warn('AUTH', 'fetchProfile timeout; proceeding with cached profile', {
                 userId,
                 gen,
                 timeoutMs: PROFILE_FETCH_STARTUP_TIMEOUT_MS,
                 hadCachedProfile: !!cachedProfile,
+                hadOtherServerResponse,
               })
-              notifyProfileFetchTimedOut()
+              if (!hadOtherServerResponse) {
+                notifyProfileFetchTimedOut()
+              }
               setProfileFetchPhase('timeout')
             } else if (profileFetchGenRef.current === gen) {
               setProfileFetchPhase('error')
@@ -511,6 +516,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mountedRef.current) return
       lastAppliedUserIdRef.current = nextUser.id
       perfLog('auth activateAuthenticatedUser', { source, userId: nextUser.id })
+      beginActivationServerProgressWindow()
       const discardedGuestQueue = await discardGuestOutboundQueueRows()
       if (discardedGuestQueue > 0) {
         perfLog('auth/discarded-guest-outbound-queue', { count: discardedGuestQueue })

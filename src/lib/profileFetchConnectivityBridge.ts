@@ -1,6 +1,6 @@
 /**
- * Lets AuthProvider call Connectivity's enterOffline when profile fetch exceeds the startup timeout,
- * without importing React context (Auth wraps Connectivity).
+ * Lets AuthProvider call Connectivity's enterOffline when profile fetch exceeds the startup timeout
+ * and no other server round-trip completed since activation, without importing React context.
  */
 
 let enterOfflineOnProfileTimeout: (() => void) | null = null
