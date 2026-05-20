@@ -98,6 +98,7 @@ function HomeContent() {
     displayName,
     profileFetchPhase,
     updateProfile,
+    updateActorProfile,
   } = useAuth()
   const [authModalMode, setAuthModalMode] = useState<'signIn' | 'signUp'>('signIn')
   const {
@@ -125,7 +126,7 @@ function HomeContent() {
   const [themeMounted, setThemeMounted] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
   const [selectedLabel, setSelectedLabel] = useState('Any')
-  const labelSyncedRef = useRef(false)
+  const lastHomeActorRef = useRef<string | null>(null)
   const [labelDropdownOpen, setLabelDropdownOpen] = useState(false)
   const [availableLabels, setAvailableLabels] = useState<string[]>([])
   const labelDropdownRef = useRef<HTMLDivElement>(null)
@@ -195,35 +196,49 @@ function HomeContent() {
     setThemeMounted(true)
   }, [])
 
+  /** Re-apply per-actor home preferences when auth actor changes (sign-in / sign-out). */
   useEffect(() => {
-    const cachedLabel = getCachedLabelFilter()
-    if (cachedLabel !== null) {
-      setSelectedLabel(cachedLabel)
+    if (!activeActorId) {
+      lastHomeActorRef.current = null
+      setSelectedLabel('Any')
       return
     }
-    if (profile?.label_filter) {
-      setSelectedLabel(profile.label_filter)
-    }
-  // Intentionally run once after mount to avoid SSR/client init drift.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
-  useEffect(() => {
-    if (profile && !labelSyncedRef.current) {
-      labelSyncedRef.current = true
-      const serverLabel = profile.label_filter ?? 'Any'
-      const cacheUserId = user?.id ?? bootstrapUserId ?? undefined
-      const cachedRaw = getCachedLabelFilter(cacheUserId)
-      const cached =
-        cachedRaw !== null && cachedRaw !== undefined && cachedRaw !== '' ? cachedRaw : null
-      const effective = cached ?? serverLabel
-      setSelectedLabel(effective)
-      setCachedLabelFilter(effective, cacheUserId)
-      if (user && effective !== serverLabel) {
-        void updateProfile({ label_filter: effective })
-      }
+    const actorChanged = lastHomeActorRef.current !== activeActorId
+    if (actorChanged) {
+      lastHomeActorRef.current = activeActorId
+      setLocalLabels([])
+      setPreCreateFilter(null)
+      setIsCreating(false)
+      setLabelDropdownOpen(false)
+      setActiveListId(null)
+      const cached = getCachedLabelFilter(activeActorId)
+      setSelectedLabel(
+        cached !== null && cached !== undefined && cached !== '' ? cached : 'Any',
+      )
     }
-  }, [profile, user, bootstrapUserId, updateProfile])
+
+    const profileActorId = user?.id ?? (isGuest ? bootstrapUserId : null)
+    if (!profile || profileActorId !== activeActorId) return
+
+    const serverLabel = profile.label_filter ?? 'Any'
+    const cachedRaw = getCachedLabelFilter(activeActorId)
+    const effective =
+      cachedRaw !== null && cachedRaw !== undefined && cachedRaw !== '' ? cachedRaw : serverLabel
+    setSelectedLabel(effective)
+    setCachedLabelFilter(effective, activeActorId)
+    if (user && effective !== serverLabel) {
+      void updateProfile({ label_filter: effective })
+    }
+  }, [
+    activeActorId,
+    profile,
+    user,
+    bootstrapUserId,
+    isGuest,
+    updateProfile,
+    setActiveListId,
+  ])
 
   useEffect(() => {
     if (isCreating) {
@@ -334,12 +349,10 @@ function HomeContent() {
     (label: string) => {
       const cacheUserId = user?.id ?? bootstrapUserId ?? undefined
       setSelectedLabel(label)
-      setCachedLabelFilter(label, cacheUserId)
-      if (user) {
-        void updateProfile({ label_filter: label })
-      }
+      if (cacheUserId) setCachedLabelFilter(label, cacheUserId)
+      void updateActorProfile({ label_filter: label })
     },
-    [bootstrapUserId, updateProfile, user],
+    [bootstrapUserId, updateActorProfile, user],
   )
 
   const handleLabelsChange = useCallback((labels: string[]) => {
@@ -534,14 +547,12 @@ function HomeContent() {
                     const next: 'light' | 'dark' = prev === 'dark' ? 'light' : 'dark'
                     setProfileMenuOpen(false)
                     setTheme(next)
-                    if (user) {
-                      void updateProfile({ theme: next }).then(({ error: themeErr }) => {
-                        if (themeErr) {
-                          setTheme(prev)
-                          showError(themeErr.message || 'Could not save theme')
-                        }
-                      })
-                    }
+                    void updateActorProfile({ theme: next }).then(({ error: themeErr }) => {
+                      if (themeErr) {
+                        setTheme(prev)
+                        showError(themeErr.message || 'Could not save theme')
+                      }
+                    })
                   }}
                 >
                   {themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}

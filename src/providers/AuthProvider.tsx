@@ -15,7 +15,7 @@ import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
 import { runLocalDexieGc } from '@/lib/data/localDexieGc'
 import { reportServerDexieParityDiagnostics, upsertProfileFromServer } from '@/lib/data/serverDexieParity'
 import { enqueueProfilePatch, pickQueueableProfilePatch } from '@/lib/data/profileOutboundQueue'
-import { readProfileFromDexie } from '@/lib/profileDexieHydrate'
+import { readProfileFromDexie, upsertLocalProfilePatch } from '@/lib/profileDexieHydrate'
 import {
   bumpReadDiscardGeneration,
   canFetchFromServerNow,
@@ -66,6 +66,8 @@ interface AuthContextType {
   signUp: (email: string, password: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
   signOut: () => Promise<{ error: Error | null }>
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
+  /** Auth → server queue; guest → Dexie profile row only. */
+  updateActorProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   resetPassword: (email: string) => Promise<{ error: Error | null }>
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>
 }
@@ -272,6 +274,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signedOut: options?.signedOut ?? false,
     })
 
+    guestIdRef.current = gid
+    bootstrapUserIdRef.current = gid
     setGuestId(gid)
     setBootstrapUserId(gid)
     userRef.current = null
@@ -281,10 +285,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUpActivationHandledRef.current = null
     profileFetchGenRef.current++
     setProfileFetchPhase('idle')
-    clearActiveCacheUserId()
+    setActiveCacheUserId(gid)
     bumpReadDiscardGeneration('enter-guest-mode')
     if (options?.signedOut) setSignedOutToGuest(true)
     lastEnterGuestModeGidRef.current = gid
+    void (async () => {
+      try {
+        const hydrated = await readProfileFromDexie(gid)
+        if (!hydrated || !mountedRef.current) return
+        const activeId = userRef.current?.id ?? bootstrapUserIdRef.current
+        if (activeId !== gid) return
+        setProfile(hydrated)
+        perfLog('auth/hydrateProfileFromDexie', { userId: gid, source: 'enterGuestMode' })
+      } catch {
+        // best-effort
+      }
+    })()
 
     signOutTrace('enterGuestMode', {
       guestId: gid,
@@ -846,11 +862,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: error as Error }
     }
 
+    const gid = ensureGuestId()
     enterGuestMode({ freshGuest: false, signedOut: true })
 
     schedulePostSignOutDelayedSnapshots(gid)
 
     return { error: null }
+  }
+
+  const updateActorProfile = async (updates: Partial<Profile>) => {
+    const actorId = userRef.current?.id ?? bootstrapUserIdRef.current
+    if (!actorId) {
+      return { error: new Error('Not authenticated') }
+    }
+    if (userRef.current) {
+      return updateProfile(updates)
+    }
+    if (!isGuestId(actorId)) {
+      return { error: new Error('Not authenticated') }
+    }
+    const patch = pickQueueableProfilePatch(updates)
+    if (Object.keys(patch).length === 0) {
+      return { error: null }
+    }
+    try {
+      const merged = await upsertLocalProfilePatch(actorId, patch)
+      if (mountedRef.current && bootstrapUserIdRef.current === actorId) {
+        setProfile(merged)
+      }
+      return { error: null }
+    } catch (error) {
+      return { error: error instanceof Error ? error : new Error(String(error)) }
+    }
   }
 
   const updateProfile = async (updates: Partial<Profile>) => {
@@ -916,6 +959,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signOut,
         updateProfile,
+        updateActorProfile,
         resetPassword,
         updatePassword,
       }}
