@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
+import { useAuth } from '@/providers/AuthProvider'
 import { useSyncQueueBadge } from '@/lib/data/queries'
 
 /** Show indicator after outbound queue exceeds this; hide only when count returns to 0. */
 export const OUTBOUND_QUEUE_INDICATOR_THRESHOLD = 6
 
 export function useOutboundQueueIndicator() {
+  const { isGuest } = useAuth()
   const { isOffline, isRecovering } = useConnectivity()
   const queueCount = useSyncQueueBadge() ?? 0
   const latchedRef = useRef(false)
@@ -23,7 +25,8 @@ export function useOutboundQueueIndicator() {
     setLatched(latchedRef.current)
   }, [queueCount])
 
-  const shouldShow = latched && queueCount > 0 && !isOffline && !isRecovering
+  const shouldShow =
+    !isGuest && latched && queueCount > 0 && !isOffline && !isRecovering
 
   return { shouldShow, queueCount }
 }
