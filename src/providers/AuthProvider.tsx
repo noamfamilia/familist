@@ -38,6 +38,13 @@ import { bootstrapListsCatalogSession } from '@/stores/listsCatalogStore'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
+import {
+  catalogStoreSnapshot,
+  logDexieGuestCatalogSnapshot,
+  signOutCatalogDebugLog,
+  useSignOutCatalogDebugStore,
+} from '@/lib/debug/signOutCatalogDebug'
+import { SignOutCatalogDebugModal } from '@/components/debug/SignOutCatalogDebugModal'
 
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 
@@ -240,7 +247,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const enterGuestMode = useCallback((options?: { freshGuest?: boolean; signedOut?: boolean }) => {
+    const previousUserId = userRef.current?.id ?? null
     const gid = options?.freshGuest ? rotateGuestId() : ensureGuestId()
+    const lsGuestBefore = typeof window !== 'undefined' ? localStorage.getItem('familist_guest_id') : null
+
+    signOutCatalogDebugLog('enterGuestMode', 'before state updates', {
+      freshGuest: options?.freshGuest ?? false,
+      signedOut: options?.signedOut ?? false,
+      gidSelected: gid,
+      previousUserRefId: previousUserId,
+      localStorage_familist_guest_id_before: lsGuestBefore,
+      catalogStoreBefore: catalogStoreSnapshot(),
+    })
+
     setGuestId(gid)
     setBootstrapUserId(gid)
     userRef.current = null
@@ -253,6 +272,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearActiveCacheUserId()
     bumpReadDiscardGeneration('enter-guest-mode')
     if (options?.signedOut) setSignedOutToGuest(true)
+
+    signOutCatalogDebugLog('enterGuestMode', 'after state updates', {
+      gid,
+      newGuestIdState: gid,
+      newBootstrapUserId: gid,
+      active_cache_user_cleared: true,
+      userRefNowNull: userRef.current === null,
+      localStorage_familist_guest_id_after:
+        typeof window !== 'undefined' ? localStorage.getItem('familist_guest_id') : null,
+      catalogStoreAfter: catalogStoreSnapshot(),
+    })
   }, [])
 
   const runGuestMigration = useCallback(async (guestId: string, userId: string): Promise<void> => {
@@ -564,6 +594,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return
       }
+      signOutCatalogDebugLog('applySessionUserCore', 'calling enterGuestMode (no user)', {
+        source,
+        signedOut: options?.signedOut === true,
+        gid: ensureGuestId(),
+      })
       enterGuestMode({
         freshGuest: false,
         signedOut: options?.signedOut === true,
@@ -697,7 +732,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (event === 'SIGNED_OUT') {
           perfLog('auth onAuthStateChange', { event, hasSession: false })
+          signOutCatalogDebugLog('onAuthStateChange', 'SIGNED_OUT received', {
+            timestamp: new Date().toISOString(),
+            willCallApplySessionUserCore: true,
+            willCallEnterGuestModeAgain: true,
+            gidBeforeApply: ensureGuestId(),
+            localStorage_familist_guest_id: getStoredGuestId(),
+          })
           void applySessionUserCore(null, 'onAuthStateChange', { signedOut: true })
+          signOutCatalogDebugLog('onAuthStateChange', 'SIGNED_OUT after applySessionUserCore dispatch', {
+            gidAfterApply: ensureGuestId(),
+            catalogStore: catalogStoreSnapshot(),
+          })
           if (mounted) setLoading(false)
           return
         }
@@ -780,7 +826,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    useSignOutCatalogDebugStore.getState().beginSession('--- sign-out catalog debug session ---')
+
+    signOutCatalogDebugLog('signOut', 'before supabase.auth.signOut()', {
+      userRefId: userRef.current?.id ?? null,
+      reactUserId: user?.id ?? null,
+      catalogStore: catalogStoreSnapshot(),
+    })
+
     const { error } = await supabase.auth.signOut()
+
+    signOutCatalogDebugLog('signOut', 'after supabase.auth.signOut()', {
+      error: error?.message ?? null,
+    })
 
     if (error) {
       console.error('Sign out error:', error)
@@ -788,8 +846,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const gid = ensureGuestId()
+    const lsGuestId = getStoredGuestId()
+
+    signOutCatalogDebugLog('signOut', 'before enterGuestMode({ signedOut: true })', {
+      gidFromEnsureGuestId: gid,
+      localStorage_familist_guest_id: lsGuestId,
+      willCallBootstrapListsCatalogSession: true,
+      bootstrapSource: 'signOut',
+    })
+
     enterGuestMode({ freshGuest: false, signedOut: true })
-    await bootstrapListsCatalogSession(gid)
+
+    signOutCatalogDebugLog('signOut', 'after enterGuestMode, before await bootstrapListsCatalogSession', {
+      gid,
+      catalogStore: catalogStoreSnapshot(),
+    })
+
+    await bootstrapListsCatalogSession(gid, 'signOut')
+
+    signOutCatalogDebugLog('signOut', 'after await bootstrapListsCatalogSession(signOut)', {
+      gid,
+      catalogStore: catalogStoreSnapshot(),
+    })
+
+    await logDexieGuestCatalogSnapshot(gid, 'signOut-end')
+
+    signOutCatalogDebugLog('signOut', 'signOut() complete — check useLists actor effect for 2nd bootstrap', {
+      gid,
+      catalogStore: catalogStoreSnapshot(),
+    })
+
     return { error: null }
   }
 
@@ -869,6 +955,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         />
       ) : null}
       {isMigrating ? <MigrationOverlay /> : null}
+      <SignOutCatalogDebugModal />
       {children}
     </AuthContext.Provider>
   )

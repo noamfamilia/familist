@@ -30,6 +30,7 @@ import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueI
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import { useShallow } from 'zustand/react/shallow'
+import { useSignOutCatalogDebugStore } from '@/lib/debug/signOutCatalogDebug'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -573,6 +574,17 @@ function HomeContent() {
                   }}
                 >
                   User feedback
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                  onClick={() => {
+                    setProfileMenuOpen(false)
+                    useSignOutCatalogDebugStore.getState().openModal()
+                  }}
+                >
+                  Sign-out catalog debug
                 </button>
                 {!isGuest ? (
                   <button
