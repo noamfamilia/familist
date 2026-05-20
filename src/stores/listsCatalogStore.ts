@@ -4,7 +4,7 @@ import { liveQuery } from 'dexie'
 import { create } from 'zustand'
 import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 import { getCachedLists } from '@/lib/cache'
-import { signOutCatalogDebugLog, catalogStoreSnapshot } from '@/lib/debug/signOutCatalogDebug'
+import { signOutTrace } from '@/lib/debug/signOutCatalogDebug'
 import { buildListsCatalogFromDexie } from '@/lib/data/queries'
 import type { ListWithRole } from '@/lib/supabase/types'
 
@@ -29,6 +29,16 @@ type ListsCatalogActions = {
   endLocalCatalogPersistence: () => void
 }
 
+function traceStoreSet(note: string, userId: string | null, listsLen: number, status: ListsCatalogStatus) {
+  signOutTrace('store:setState', {
+    note,
+    resolvedUserId: userId,
+    directActiveUserId: userId,
+    directStatus: status,
+    directListsLen: listsLen,
+  })
+}
+
 export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActions>((set, get) => ({
   activeUserId: null,
   listsCatalogStatus: 'idle',
@@ -37,12 +47,15 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
   catalogSessionEpoch: 0,
 
   clearListsCatalog: () =>
-    set((s) => ({
-      activeUserId: null,
-      listsCatalogStatus: 'idle',
-      lists: [],
-      catalogSessionEpoch: s.catalogSessionEpoch + 1,
-    })),
+    set((s) => {
+      traceStoreSet('clearListsCatalog', null, 0, 'idle')
+      return {
+        activeUserId: null,
+        listsCatalogStatus: 'idle',
+        lists: [],
+        catalogSessionEpoch: s.catalogSessionEpoch + 1,
+      }
+    }),
 
   beginHomeSession: (userId, cachedLists) => {
     const incoming = cachedLists ? [...cachedLists] : []
@@ -50,29 +63,27 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
 
     if (st.activeUserId === userId) {
       if (st.lists.length > 0 && incoming.length === 0) {
-        signOutCatalogDebugLog('beginHomeSession', 'idempotent: keep existing lists (ignore empty cache)', {
-          userId,
-          existingListsLength: st.lists.length,
-          catalogSessionEpoch: st.catalogSessionEpoch,
+        signOutTrace('beginHomeSession', {
+          note: 'idempotent keep lists',
+          resolvedUserId: userId,
+          directListsLen: st.lists.length,
+          directEpoch: st.catalogSessionEpoch,
         })
         return st.catalogSessionEpoch
       }
       if (st.lists.length > 0) {
-        signOutCatalogDebugLog('beginHomeSession', 'idempotent: same actor already has lists', {
-          userId,
-          existingListsLength: st.lists.length,
+        signOutTrace('beginHomeSession', {
+          note: 'idempotent same actor has lists',
+          resolvedUserId: userId,
+          directListsLen: st.lists.length,
         })
         return st.catalogSessionEpoch
       }
       if (incoming.length > 0) {
-        set({
-          lists: incoming,
-          listsCatalogStatus: 'ready',
-        })
-        signOutCatalogDebugLog('beginHomeSession', 'idempotent: hydrate from cache (same actor)', {
-          userId,
-          incomingLength: incoming.length,
-        })
+        const lists = [...incoming]
+        set({ lists, listsCatalogStatus: 'ready' })
+        traceStoreSet('beginHomeSession hydrate cache', userId, lists.length, 'ready')
+        signOutTrace('beginHomeSession', { note: 'hydrate from cache', resolvedUserId: userId, directListsLen: lists.length })
         return st.catalogSessionEpoch
       }
       if (st.listsCatalogStatus === 'loading') {
@@ -80,7 +91,7 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
       }
     }
 
-    const lists = incoming
+    const lists = [...incoming]
     let nextEpoch = 0
     set((s) => {
       nextEpoch = s.catalogSessionEpoch + 1
@@ -91,11 +102,12 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
         catalogSessionEpoch: nextEpoch,
       }
     })
-    signOutCatalogDebugLog('beginHomeSession', 'new actor session', {
-      userId,
-      previousActiveUserId: st.activeUserId,
-      listsLength: lists.length,
-      epoch: nextEpoch,
+    traceStoreSet('beginHomeSession new actor', userId, lists.length, lists.length > 0 ? 'ready' : 'loading')
+    signOutTrace('beginHomeSession', {
+      note: 'new actor session',
+      resolvedUserId: userId,
+      directListsLen: lists.length,
+      directEpoch: nextEpoch,
     })
     return nextEpoch
   },
@@ -103,23 +115,31 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
   applyWarmResult: (userId, lists) => {
     const st = get()
     if (st.activeUserId !== userId) return
-    set({ lists, listsCatalogStatus: 'ready' })
+    const nextLists = [...lists]
+    set({ lists: nextLists, listsCatalogStatus: 'ready' })
+    traceStoreSet('applyWarmResult', userId, nextLists.length, 'ready')
   },
 
   applyL2BridgePayload: (userId, lists) => {
     const st = get()
     if (st.activeUserId !== userId) return
     if (st.localCatalogMutationDepth > 0) return
+    const nextLists = [...lists]
     set({
-      lists,
+      lists: nextLists,
       ...(st.listsCatalogStatus !== 'ready' ? { listsCatalogStatus: 'ready' as const } : {}),
     })
+    traceStoreSet('applyL2BridgePayload', userId, nextLists.length, 'ready')
   },
 
   setCatalogLists: (updater) =>
-    set((s) => ({
-      lists: typeof updater === 'function' ? (updater as (p: ListWithRole[]) => ListWithRole[])(s.lists) : updater,
-    })),
+    set((s) => {
+      const next =
+        typeof updater === 'function'
+          ? [...(updater as (p: ListWithRole[]) => ListWithRole[])(s.lists)]
+          : [...updater]
+      return { lists: next }
+    }),
 
   beginLocalCatalogPersistence: () => set((s) => ({ localCatalogMutationDepth: s.localCatalogMutationDepth + 1 })),
 
@@ -134,15 +154,8 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
 export async function warmListsCatalog(
   userId: string,
   sessionEpoch?: number,
-  source = 'unknown',
+  _source = 'unknown',
 ): Promise<{ applied: boolean; dexieLength: number; discardReason?: string }> {
-  const before = useListsCatalogStore.getState()
-  signOutCatalogDebugLog('warmListsCatalog', `start source=${source}`, {
-    userId,
-    sessionEpoch: sessionEpoch ?? null,
-    storeBefore: catalogStoreSnapshot(),
-  })
-
   const rows = await buildListsCatalogFromDexie(userId)
   const st = useListsCatalogStore.getState()
 
@@ -154,85 +167,36 @@ export async function warmListsCatalog(
   }
 
   if (discardReason) {
-    signOutCatalogDebugLog('warmListsCatalog', `DISCARDED source=${source}`, {
-      userId,
-      dexieLength: rows.length,
-      discardReason,
-      storeAfter: catalogStoreSnapshot(),
-    })
     return { applied: false, dexieLength: rows.length, discardReason }
   }
 
   st.applyWarmResult(userId, rows)
-  signOutCatalogDebugLog('warmListsCatalog', `APPLIED source=${source}`, {
-    userId,
-    dexieLength: rows.length,
-    storeAfter: catalogStoreSnapshot(),
-  })
   return { applied: true, dexieLength: rows.length }
 }
 
 /** Begin catalog session + Dexie warm (actor change: sign-in, sign-out, refresh). */
-export async function bootstrapListsCatalogSession(userId: string, source = 'unknown'): Promise<void> {
+export async function bootstrapListsCatalogSession(userId: string, _source = 'unknown'): Promise<void> {
   const storeBefore = useListsCatalogStore.getState()
   const cachedLists = getCachedLists(userId)?.lists ?? []
-  const epochBefore = storeBefore.catalogSessionEpoch
 
   if (
     storeBefore.activeUserId === userId &&
     storeBefore.lists.length > 0 &&
     storeBefore.listsCatalogStatus === 'ready'
   ) {
-    signOutCatalogDebugLog('bootstrap', `skipped idempotent (already ready) source=${source}`, {
-      userId,
-      listsLength: storeBefore.lists.length,
-      epoch: storeBefore.catalogSessionEpoch,
-    })
     return
   }
 
   if (storeBefore.activeUserId === userId && storeBefore.listsCatalogStatus === 'loading') {
-    signOutCatalogDebugLog('bootstrap', `warm-only (same actor loading) source=${source}`, { userId })
-    await warmListsCatalog(userId, storeBefore.catalogSessionEpoch, source)
+    await warmListsCatalog(userId, storeBefore.catalogSessionEpoch, _source)
     return
   }
 
-  signOutCatalogDebugLog('bootstrap', `start source=${source}`, {
+  const epoch = useListsCatalogStore.getState().beginHomeSession(
     userId,
-    activeUserIdBefore: storeBefore.activeUserId,
-    epochBefore,
-    cachedListsLength: cachedLists.length,
-    cachedListIds: cachedLists.map((l) => l.id),
-    storeBefore: catalogStoreSnapshot(),
-  })
-
-  const store = useListsCatalogStore.getState()
-  const epoch = store.beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
-  const afterBegin = useListsCatalogStore.getState()
-
-  signOutCatalogDebugLog('bootstrap', `after beginHomeSession source=${source}`, {
-    userId,
-    epochBefore,
-    epochAfter: epoch,
-    listsLengthAfterBegin: afterBegin.lists.length,
-    statusAfterBegin: afterBegin.listsCatalogStatus,
-    listIdsAfterBegin: afterBegin.lists.map((l) => l.id),
-  })
-
-  const warm = await warmListsCatalog(userId, epoch, source)
-  const final = useListsCatalogStore.getState()
-
-  signOutCatalogDebugLog('bootstrap', `end source=${source}`, {
-    userId,
-    warmApplied: warm.applied,
-    warmDexieLength: warm.dexieLength,
-    warmDiscardReason: warm.discardReason ?? null,
-    finalActiveUserId: final.activeUserId,
-    finalListsLength: final.lists.length,
-    finalStatus: final.listsCatalogStatus,
-    finalEpoch: final.catalogSessionEpoch,
-    finalListIds: final.lists.map((l) => l.id),
-  })
+    cachedLists.length > 0 ? cachedLists : null,
+  )
+  await warmListsCatalog(userId, epoch, _source)
 }
 
 export function subscribeListsCatalogL2Bridge(userId: string): () => void {

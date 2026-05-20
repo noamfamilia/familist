@@ -30,7 +30,7 @@ import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueI
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import { useShallow } from 'zustand/react/shallow'
-import { catalogStoreSnapshot, signOutCatalogDebugLog, useSignOutCatalogDebugStore } from '@/lib/debug/signOutCatalogDebug'
+import { registerPageShellGate, useSignOutCatalogDebugStore } from '@/lib/debug/signOutCatalogDebug'
 
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -419,25 +419,24 @@ function HomeContent() {
   useEffect(() => {
     const fullPageSpinner = !hasMounted || (loading && !effectiveUserId)
     const payload = {
-      shouldRender: showListsShell,
-      showListsViewMounted: showListsShell,
-      fullPageSpinner,
-      effectiveUserId,
-      userReactId: user?.id ?? null,
+      showListsShell,
+      hasMounted,
+      resolvedUserId: effectiveUserId,
+      authUserId: user?.id ?? null,
       guestId,
       bootstrapUserId,
-      isGuest,
       authLoading: loading,
-      online,
-      internetReachable: internetReachable === true,
-      authReady: !loading,
-      catalogStore: catalogStoreSnapshot(),
+      note: fullPageSpinner
+        ? 'full-page spinner (ListsView skipped)'
+        : showListsShell
+          ? 'ListsView mounted'
+          : 'ListsView skipped',
     }
     const snapshot = JSON.stringify(payload)
     if (snapshot === homeGateLogPrevRef.current) return
     homeGateLogPrevRef.current = snapshot
     log.info('GATE', 'HomeContent', payload)
-    signOutCatalogDebugLog('HomeContent.gate', 'home shell render gate', payload)
+    registerPageShellGate(payload)
   }, [
     internetReachable,
     loading,
