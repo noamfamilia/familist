@@ -33,7 +33,7 @@ import {
 } from '@/lib/guestSession'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
-import { useListsCatalogStore } from '@/stores/listsCatalogStore'
+import { bootstrapListsCatalogSession } from '@/stores/listsCatalogStore'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
@@ -242,7 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfileFetchPhase('idle')
     clearActiveCacheUserId()
     bumpReadDiscardGeneration('enter-guest-mode')
-    useListsCatalogStore.getState().clearListsCatalog()
+    void bootstrapListsCatalogSession(gid)
     if (options?.signedOut) setSignedOutToGuest(true)
   }, [])
 
@@ -471,6 +471,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSignedOutToGuest(false)
       void hydrateProfileFromDexie(nextUser.id)
       scheduleStartupProfileFetch(nextUser.id)
+      void bootstrapListsCatalogSession(nextUser.id)
     },
     [hydrateProfileFromDexie, scheduleStartupProfileFetch],
   )

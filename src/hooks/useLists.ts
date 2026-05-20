@@ -252,11 +252,23 @@ export function useLists() {
       // ignore
     }
 
+    setError(null)
+    setLastFetchError(null)
+
     if (!userId) {
       useListsCatalogStore.getState().clearListsCatalog()
       setHasCompletedInitialFetch(false)
       hasInitialDataRef.current = false
       perfLog('localStorage read end', { durationMs: Math.round(performance.now() - lsT0), note: 'no user' })
+      return
+    }
+
+    const catalog = useListsCatalogStore.getState()
+    if (catalog.activeUserId === userId && catalog.listsCatalogStatus === 'ready') {
+      perfLog('localStorage read end', {
+        durationMs: Math.round(performance.now() - lsT0),
+        note: 'catalog_already_ready',
+      })
       return
     }
 
@@ -486,6 +498,7 @@ export function useLists() {
       setCachedLists(userId, listsData)
       await upsertListsSummaryFromServer(userId, rawRows)
       void enqueueListMirrorJobs(mirrorListIds)
+      await warmListsCatalog(userId)
       appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert rows=${listsData.length}`)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)

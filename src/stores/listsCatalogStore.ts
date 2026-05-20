@@ -3,6 +3,7 @@
 import { liveQuery } from 'dexie'
 import { create } from 'zustand'
 import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
+import { getCachedLists } from '@/lib/cache'
 import { buildListsCatalogFromDexie } from '@/lib/data/queries'
 import type { ListWithRole } from '@/lib/supabase/types'
 
@@ -55,7 +56,10 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
     const st = get()
     if (st.activeUserId !== userId) return
     if (st.localCatalogMutationDepth > 0) return
-    set({ lists })
+    set({
+      lists,
+      ...(st.listsCatalogStatus !== 'ready' ? { listsCatalogStatus: 'ready' as const } : {}),
+    })
   },
 
   setCatalogLists: (updater) =>
@@ -74,6 +78,14 @@ export async function warmListsCatalog(userId: string): Promise<void> {
   const st = useListsCatalogStore.getState()
   if (st.activeUserId !== userId) return
   st.applyWarmResult(userId, rows)
+}
+
+/** Begin catalog session + Dexie warm (e.g. after guest sign-out when userId unchanged). */
+export async function bootstrapListsCatalogSession(userId: string): Promise<void> {
+  const cachedLists = getCachedLists(userId)?.lists ?? []
+  const store = useListsCatalogStore.getState()
+  store.beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
+  await warmListsCatalog(userId)
 }
 
 export function subscribeListsCatalogL2Bridge(userId: string): () => void {
