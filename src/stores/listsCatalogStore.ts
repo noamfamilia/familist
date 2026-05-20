@@ -39,12 +39,14 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
       lists: [],
     }),
 
-  beginHomeSession: (userId, cachedLists) =>
+  beginHomeSession: (userId, cachedLists) => {
+    const lists = cachedLists ? [...cachedLists] : []
     set({
       activeUserId: userId,
-      listsCatalogStatus: 'loading',
-      lists: cachedLists ? [...cachedLists] : [],
-    }),
+      listsCatalogStatus: lists.length > 0 ? 'ready' : 'loading',
+      lists,
+    })
+  },
 
   applyWarmResult: (userId, lists) => {
     const st = get()
@@ -76,8 +78,11 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
 export async function warmListsCatalog(userId: string): Promise<void> {
   const rows = await buildListsCatalogFromDexie(userId)
   const st = useListsCatalogStore.getState()
-  if (st.activeUserId !== userId) return
-  st.applyWarmResult(userId, rows)
+  if (st.activeUserId !== userId) {
+    const cachedLists = getCachedLists(userId)?.lists ?? []
+    st.beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
+  }
+  useListsCatalogStore.getState().applyWarmResult(userId, rows)
 }
 
 /** Begin catalog session + Dexie warm (e.g. after guest sign-out when userId unchanged). */

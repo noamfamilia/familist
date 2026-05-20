@@ -10,6 +10,7 @@ import { getActiveCacheUserId, getCachedLists, setCachedLists, setCachedList, re
 import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { db } from '@/lib/db'
 import {
+  bootstrapListsCatalogSession,
   subscribeListsCatalogL2Bridge,
   useListsCatalogStore,
   warmListsCatalog,
@@ -278,20 +279,19 @@ export function useLists() {
       actorChanged,
     })
 
-    const guestSessionAfterSignOut = isGuest && !user
-    if (actorChanged && !guestSessionAfterSignOut) {
-      store.beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
+    if (actorChanged) {
       setHasCompletedInitialFetch(false)
       hasInitialDataRef.current = cachedLists.length > 0
-    } else if (guestSessionAfterSignOut && actorChanged) {
-      setHasCompletedInitialFetch(false)
-      hasInitialDataRef.current = false
     }
 
     let cancelled = false
     void (async () => {
-      await warmListsCatalog(userId)
-      if (!cancelled && actorChanged) {
+      if (actorChanged) {
+        await bootstrapListsCatalogSession(userId)
+      } else {
+        await warmListsCatalog(userId)
+      }
+      if (!cancelled) {
         hasInitialDataRef.current = useListsCatalogStore.getState().lists.length > 0
       }
     })()
@@ -301,7 +301,7 @@ export function useLists() {
       cancelled = true
       unsub()
     }
-  }, [userId, isGuest, user])
+  }, [userId, user])
 
   const trackSaveOperation = async <T>(operation: PromiseLike<T>): Promise<T> => {
     pendingSaveOpsRef.current++
@@ -533,6 +533,11 @@ export function useLists() {
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
       if (serverOutcome === 'connectivity_failure' && connectivityStatusRef.current === 'online') {
         reportConnectivityFailure('fetchLists-connectivity-error')
+      }
+      const catalogActor = useListsCatalogStore.getState().activeUserId
+      if (catalogActor && catalogActor !== userId) {
+        serverOutcome = 'success'
+        return
       }
       fetchErr = (err as Error).message
       setLastFetchError(err)
@@ -1241,7 +1246,7 @@ export function useLists() {
   }
 
   const loading = useMemo(
-    () => Boolean(userId && lists.length === 0 && listsCatalogStatus !== 'ready' && !error),
+    () => Boolean(userId && lists.length === 0 && listsCatalogStatus === 'loading' && !error),
     [userId, lists.length, listsCatalogStatus, error],
   )
 

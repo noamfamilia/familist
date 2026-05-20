@@ -33,7 +33,6 @@ import {
 } from '@/lib/guestSession'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
-import { bootstrapListsCatalogSession } from '@/stores/listsCatalogStore'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
@@ -161,8 +160,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [guestId, setGuestId] = useState<string | null>(null)
-  const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(null)
+  const [guestId, setGuestId] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? ensureGuestId() : null,
+  )
+  const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    const gid = ensureGuestId()
+    const cachedAuth = getActiveCacheUserId()
+    if (cachedAuth && !isGuestId(cachedAuth)) return cachedAuth
+    return gid
+  })
   const [isMigrating, setIsMigrating] = useState(false)
   const [signedOutToGuest, setSignedOutToGuest] = useState(false)
   const [profileFetchPhase, setProfileFetchPhase] = useState<ProfileFetchPhase>('idle')
@@ -243,7 +250,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfileFetchPhase('idle')
     clearActiveCacheUserId()
     bumpReadDiscardGeneration('enter-guest-mode')
-    void bootstrapListsCatalogSession(gid)
     if (options?.signedOut) setSignedOutToGuest(true)
   }, [])
 
