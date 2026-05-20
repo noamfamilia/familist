@@ -210,6 +210,7 @@ export function useLists() {
   const pendingSaveOpsRef = useRef(0)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hasInitialDataRef = useRef(false)
+  const catalogActorEffectGenRef = useRef(0)
   const userId = activeActorId
   /** Owner id for catalog mutations (authenticated user or local guest). */
   const mutationUserId = resolveCatalogMutationUserId(user?.id, guestId, bootstrapUserId)
@@ -284,16 +285,17 @@ export function useLists() {
       hasInitialDataRef.current = cachedLists.length > 0
     }
 
+    const effectGen = ++catalogActorEffectGenRef.current
     let cancelled = false
     void (async () => {
       if (actorChanged) {
         await bootstrapListsCatalogSession(userId)
       } else {
-        await warmListsCatalog(userId)
+        const epoch = useListsCatalogStore.getState().catalogSessionEpoch
+        await warmListsCatalog(userId, epoch)
       }
-      if (!cancelled) {
-        hasInitialDataRef.current = useListsCatalogStore.getState().lists.length > 0
-      }
+      if (cancelled || catalogActorEffectGenRef.current !== effectGen) return
+      hasInitialDataRef.current = useListsCatalogStore.getState().lists.length > 0
     })()
 
     const unsub = subscribeListsCatalogL2Bridge(userId)
@@ -391,8 +393,11 @@ export function useLists() {
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       fetchTimeoutRef.current = null
       try {
-        await warmListsCatalog(userId)
-        hasInitialDataRef.current = true
+        const catalog = useListsCatalogStore.getState()
+        if (catalog.activeUserId === userId) {
+          await warmListsCatalog(userId, catalog.catalogSessionEpoch)
+          hasInitialDataRef.current = true
+        }
       } finally {
         perfLog('fetchLists end', {
           durationMs: Math.round(performance.now() - fetchT0),
@@ -512,7 +517,10 @@ export function useLists() {
       setCachedLists(userId, listsData)
       await upsertListsSummaryFromServer(userId, rawRows)
       void enqueueListMirrorJobs(mirrorListIds)
-      await warmListsCatalog(userId)
+      const catalog = useListsCatalogStore.getState()
+      if (catalog.activeUserId === userId) {
+        await warmListsCatalog(userId, catalog.catalogSessionEpoch)
+      }
       appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert rows=${listsData.length}`)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
@@ -573,7 +581,10 @@ export function useLists() {
       }
       if (connectivityDiscarded && !canFetchFromServerNow()) {
         queueMicrotask(() => {
-          void warmListsCatalog(userId)
+          const catalog = useListsCatalogStore.getState()
+          if (catalog.activeUserId === userId) {
+            void warmListsCatalog(userId, catalog.catalogSessionEpoch)
+          }
         })
       }
     }

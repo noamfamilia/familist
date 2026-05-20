@@ -14,11 +14,13 @@ type ListsCatalogState = {
   listsCatalogStatus: ListsCatalogStatus
   lists: ListWithRole[]
   localCatalogMutationDepth: number
+  /** Bumped on actor/session changes so stale warm flights are ignored. */
+  catalogSessionEpoch: number
 }
 
 type ListsCatalogActions = {
   clearListsCatalog: () => void
-  beginHomeSession: (userId: string, cachedLists: ListWithRole[] | null) => void
+  beginHomeSession: (userId: string, cachedLists: ListWithRole[] | null) => number
   applyWarmResult: (userId: string, lists: ListWithRole[]) => void
   applyL2BridgePayload: (userId: string, lists: ListWithRole[]) => void
   setCatalogLists: (updater: ListWithRole[] | ((prev: ListWithRole[]) => ListWithRole[])) => void
@@ -31,21 +33,29 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
   listsCatalogStatus: 'idle',
   lists: [],
   localCatalogMutationDepth: 0,
+  catalogSessionEpoch: 0,
 
   clearListsCatalog: () =>
-    set({
+    set((s) => ({
       activeUserId: null,
       listsCatalogStatus: 'idle',
       lists: [],
-    }),
+      catalogSessionEpoch: s.catalogSessionEpoch + 1,
+    })),
 
   beginHomeSession: (userId, cachedLists) => {
     const lists = cachedLists ? [...cachedLists] : []
-    set({
-      activeUserId: userId,
-      listsCatalogStatus: lists.length > 0 ? 'ready' : 'loading',
-      lists,
+    let nextEpoch = 0
+    set((s) => {
+      nextEpoch = s.catalogSessionEpoch + 1
+      return {
+        activeUserId: userId,
+        listsCatalogStatus: lists.length > 0 ? 'ready' : 'loading',
+        lists,
+        catalogSessionEpoch: nextEpoch,
+      }
     })
+    return nextEpoch
   },
 
   applyWarmResult: (userId, lists) => {
@@ -75,22 +85,24 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
     set((s) => ({ localCatalogMutationDepth: Math.max(0, s.localCatalogMutationDepth - 1) })),
 }))
 
-export async function warmListsCatalog(userId: string): Promise<void> {
+/**
+ * Apply Dexie catalog rows for `userId`. Never switches `activeUserId` — only
+ * `beginHomeSession` / `bootstrapListsCatalogSession` may start a new actor session.
+ */
+export async function warmListsCatalog(userId: string, sessionEpoch?: number): Promise<void> {
   const rows = await buildListsCatalogFromDexie(userId)
   const st = useListsCatalogStore.getState()
-  if (st.activeUserId !== userId) {
-    const cachedLists = getCachedLists(userId)?.lists ?? []
-    st.beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
-  }
-  useListsCatalogStore.getState().applyWarmResult(userId, rows)
+  if (st.activeUserId !== userId) return
+  if (sessionEpoch != null && st.catalogSessionEpoch !== sessionEpoch) return
+  st.applyWarmResult(userId, rows)
 }
 
-/** Begin catalog session + Dexie warm (e.g. after guest sign-out when userId unchanged). */
+/** Begin catalog session + Dexie warm (actor change: sign-in, sign-out, refresh). */
 export async function bootstrapListsCatalogSession(userId: string): Promise<void> {
   const cachedLists = getCachedLists(userId)?.lists ?? []
   const store = useListsCatalogStore.getState()
-  store.beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
-  await warmListsCatalog(userId)
+  const epoch = store.beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
+  await warmListsCatalog(userId, epoch)
 }
 
 export function subscribeListsCatalogL2Bridge(userId: string): () => void {
