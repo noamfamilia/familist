@@ -43,9 +43,10 @@ export function SignOutCatalogDebugModal() {
       }
     >
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-        Sign out once, then open this log from the profile menu (below User feedback). Use Copy to share the
-        sequence — look for duplicate <code className="text-teal">bootstrap</code> / discarded{' '}
-        <code className="text-teal">warmListsCatalog</code> entries.
+        Sign out once, then open from the profile menu (below User feedback). Compare{' '}
+        <code className="text-teal">postSignOutUI</code> snapshots with <code className="text-teal">ListsView.render</code>{' '}
+        and <code className="text-teal">useLists.return</code> — if the store has 2 lists but hook/UI show 0, that is the
+        render-path bug.
       </p>
       <pre className="text-[11px] leading-snug font-mono whitespace-pre-wrap break-all max-h-[min(70vh,520px)] overflow-y-auto p-3 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">
         {text || '(no entries yet — sign out to capture a session)'}

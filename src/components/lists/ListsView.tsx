@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { compareListsCatalogSortOrder } from '@/lib/data/listCatalogSort'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -18,6 +19,11 @@ import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
 import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useAuth } from '@/providers/AuthProvider'
+import {
+  catalogStoreSnapshot,
+  registerListsViewRenderSnapshot,
+  signOutCatalogDebugLog,
+} from '@/lib/debug/signOutCatalogDebug'
 import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 import { formatJoinListInviteErrorForUser } from '@/lib/joinListInviteErrorMessage'
 import { fetchFailureToastMessage } from '@/lib/fetchToastPolicy'
@@ -69,7 +75,12 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     isOfflineActionsDisabled,
     mutationUserId,
   } = useLists()
-  const { user, loading: authLoading, bootstrapUserId, isGuest } = useAuth()
+  const { user, activeActorId, guestId, loading: authLoading, bootstrapUserId, isGuest } = useAuth()
+  const catalogActiveUserId = useListsCatalogStore((s) => s.activeUserId)
+  const catalogListsLength = useListsCatalogStore((s) => s.lists.length)
+  const catalogStatus = useListsCatalogStore((s) => s.listsCatalogStatus)
+  const catalogLists = useListsCatalogStore(useShallow((s) => s.lists))
+  const listsViewRenderCountRef = useRef(0)
   /** `inviteToken:userId` after a successful join so we do not enqueue twice. */
   const inviteJoinSucceededKeyRef = useRef<string | null>(null)
   
@@ -164,7 +175,74 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       }),
     [filteredLists],
   )
-  
+
+  const showEmptyState = lists.length === 0
+  const showSpinnerInsteadOfCards = loading
+  const visibleCardCount = activeLists.length + archivedLists.length
+
+  listsViewRenderCountRef.current += 1
+
+  useEffect(() => {
+    const renderSnapshot = {
+      renderNumber: listsViewRenderCountRef.current,
+      activeActorId,
+      userReactId: user?.id ?? null,
+      guestId,
+      bootstrapUserId,
+      isGuest,
+      authLoading,
+      catalogActiveUserId,
+      catalogListsLength,
+      catalogStatus,
+      catalogListIdNames: catalogLists.map((l) => ({ id: l.id, name: l.name })),
+      hookListsLength: lists.length,
+      hookListIdNames: lists.map((l) => ({ id: l.id, name: l.name })),
+      hookListsVsCatalogMismatch:
+        lists.length !== catalogListsLength ||
+        lists.some((l, i) => catalogLists[i]?.id !== l.id),
+      filteredListsLength: filteredLists.length,
+      activeListsLength: activeLists.length,
+      archivedListsLength: archivedLists.length,
+      visibleCardCount,
+      viewMode,
+      selectedLabel,
+      searchText: searchText || null,
+      isCreating,
+      loading,
+      catalogFetchError: catalogFetchError ?? null,
+      showSpinnerInsteadOfCards,
+      showEmptyState,
+      wouldRenderCards: !showSpinnerInsteadOfCards && visibleCardCount > 0,
+      catalogStoreDirect: catalogStoreSnapshot(),
+    }
+    registerListsViewRenderSnapshot(renderSnapshot)
+    signOutCatalogDebugLog('ListsView.render', 'visible catalog render snapshot', renderSnapshot)
+  }, [
+    activeActorId,
+    user?.id,
+    guestId,
+    bootstrapUserId,
+    isGuest,
+    authLoading,
+    catalogActiveUserId,
+    catalogListsLength,
+    catalogStatus,
+    catalogLists,
+    lists,
+    filteredLists.length,
+    activeLists.length,
+    archivedLists.length,
+    visibleCardCount,
+    viewMode,
+    selectedLabel,
+    searchText,
+    isCreating,
+    loading,
+    catalogFetchError,
+    showSpinnerInsteadOfCards,
+    showEmptyState,
+  ])
+
   // Get all owned list names (including archived) for duplicate name checking
   const ownedListNames = lists.filter(l => l.role === 'owner').map(l => l.name)
   const mergedLabels = [...labels, ...localLabels.filter(l => !labels.includes(l))]

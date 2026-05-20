@@ -12,6 +12,7 @@ import { db } from '@/lib/db'
 import {
   catalogStoreSnapshot,
   logDexieGuestCatalogSnapshot,
+  registerUseListsHookSnapshot,
   signOutCatalogDebugLog,
 } from '@/lib/debug/signOutCatalogDebug'
 import {
@@ -1313,6 +1314,50 @@ export function useLists() {
     () => Boolean(userId && lists.length === 0 && listsCatalogStatus === 'loading' && !error),
     [userId, lists.length, listsCatalogStatus, error],
   )
+
+  const storeActiveUserId = useListsCatalogStore((s) => s.activeUserId)
+
+  useEffect(() => {
+    const hookSnapshot = {
+      userId,
+      userReactId: user?.id ?? null,
+      isGuest,
+      guestId,
+      bootstrapUserId,
+      storeActiveUserId,
+      hookListsLength: lists.length,
+      hookListIdNames: lists.map((l) => ({ id: l.id, name: l.name })),
+      listsCatalogStatus,
+      loading,
+      loadingFormula: {
+        hasUserId: !!userId,
+        hookListsEmpty: lists.length === 0,
+        statusLoading: listsCatalogStatus === 'loading',
+        noError: !error,
+      },
+      error: error ?? null,
+      isFetching,
+      hasCompletedInitialFetch,
+      catalogStoreDirect: catalogStoreSnapshot(),
+      storeListsLength: useListsCatalogStore.getState().lists.length,
+      hookVsStoreListsMismatch: useListsCatalogStore.getState().lists.length !== lists.length,
+    }
+    registerUseListsHookSnapshot(hookSnapshot)
+    signOutCatalogDebugLog('useLists.return', 'hook output snapshot', hookSnapshot)
+  }, [
+    userId,
+    user?.id,
+    isGuest,
+    guestId,
+    bootstrapUserId,
+    storeActiveUserId,
+    lists,
+    listsCatalogStatus,
+    loading,
+    error,
+    isFetching,
+    hasCompletedInitialFetch,
+  ])
 
   return {
     lists,

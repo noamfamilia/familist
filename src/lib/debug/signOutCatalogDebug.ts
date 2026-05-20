@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { getCachedLists } from '@/lib/cache'
 import { db } from '@/lib/db'
+import { logHomeCatalogEmptyPathsAudit } from '@/lib/debug/homeCatalogEmptyPathsAudit'
 import { getStoredGuestId } from '@/lib/guestSession'
 import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 
@@ -32,6 +33,29 @@ type SignOutCatalogDebugActions = {
 
 let idCounter = 0
 
+export type HomeRenderDebugSnapshot = {
+  at: string
+  delayMs?: number
+  catalogStore: Record<string, unknown>
+  useListsHook: Record<string, unknown> | null
+  listsViewRender: Record<string, unknown> | null
+}
+
+let lastUseListsHookSnapshot: Record<string, unknown> | null = null
+let lastListsViewRenderSnapshot: Record<string, unknown> | null = null
+
+export function registerUseListsHookSnapshot(snapshot: Record<string, unknown>): void {
+  lastUseListsHookSnapshot = snapshot
+}
+
+export function registerListsViewRenderSnapshot(snapshot: Record<string, unknown>): void {
+  lastListsViewRenderSnapshot = snapshot
+}
+
+function listIdNamePairs(lists: { id: string; name: string }[]): { id: string; name: string }[] {
+  return lists.map((l) => ({ id: l.id, name: l.name }))
+}
+
 function readFamilistGuestIdFromLocalStorage(): string | null {
   if (typeof window === 'undefined') return null
   try {
@@ -51,12 +75,15 @@ export const useSignOutCatalogDebugStore = create<SignOutCatalogDebugState & Sig
     beginSession: (label) => {
       const now = Date.now()
       idCounter = 0
+      lastUseListsHookSnapshot = null
+      lastListsViewRenderSnapshot = null
       set({
         entries: [],
         sessionStartMs: now,
         nextId: 0,
       })
       get().append('session', label, { iso: new Date(now).toISOString() })
+      logHomeCatalogEmptyPathsAudit()
     },
 
     append: (phase, message, data) => {
@@ -114,6 +141,32 @@ export function catalogStoreSnapshot(): Record<string, unknown> {
     listsLength: s.lists.length,
     catalogSessionEpoch: s.catalogSessionEpoch,
     listIds: s.lists.map((l) => l.id),
+    listIdNames: listIdNamePairs(s.lists),
+  }
+}
+
+function delayedRenderSnapshot(delayMs: number): HomeRenderDebugSnapshot {
+  return {
+    at: new Date().toISOString(),
+    delayMs,
+    catalogStore: catalogStoreSnapshot(),
+    useListsHook: lastUseListsHookSnapshot,
+    listsViewRender: lastListsViewRenderSnapshot,
+  }
+}
+
+/** Post-sign-out UI snapshots — focus on store vs hook vs ListsView desync. */
+export function schedulePostSignOutDelayedSnapshots(guestId: string): void {
+  const delays = [0, 250, 1000, 3000] as const
+  for (const delayMs of delays) {
+    const run = () => {
+      signOutCatalogDebugLog('postSignOutUI', `delayed snapshot +${delayMs}ms`, {
+        guestId,
+        ...delayedRenderSnapshot(delayMs),
+      })
+    }
+    if (delayMs === 0) run()
+    else setTimeout(run, delayMs)
   }
 }
 

@@ -34,13 +34,13 @@ import {
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
 import { discardGuestOutboundQueueRows } from '@/lib/data/syncQueue'
-import { bootstrapListsCatalogSession } from '@/stores/listsCatalogStore'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
 import {
   catalogStoreSnapshot,
   logDexieGuestCatalogSnapshot,
+  schedulePostSignOutDelayedSnapshots,
   signOutCatalogDebugLog,
   useSignOutCatalogDebugStore,
 } from '@/lib/debug/signOutCatalogDebug'
@@ -193,6 +193,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const guestMigrationChoiceRef = useRef<((migrate: boolean) => void) | null>(null)
   const lastAppliedUserIdRef = useRef<string | null>(null)
   const signUpActivationHandledRef = useRef<string | null>(null)
+  /** Skip duplicate enterGuestMode(same gid) when signOut + SIGNED_OUT both fire. */
+  const lastEnterGuestModeGidRef = useRef<string | null>(null)
   const [guestMigrationPrompt, setGuestMigrationPrompt] = useState<GuestMigrationPromptState | null>(null)
   const sessionMode: SessionMode = user ? 'authenticated' : 'guest'
   const isGuest = sessionMode === 'guest'
@@ -251,6 +253,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const gid = options?.freshGuest ? rotateGuestId() : ensureGuestId()
     const lsGuestBefore = typeof window !== 'undefined' ? localStorage.getItem('familist_guest_id') : null
 
+    if (
+      !options?.freshGuest &&
+      userRef.current === null &&
+      lastEnterGuestModeGidRef.current === gid
+    ) {
+      signOutCatalogDebugLog('enterGuestMode', 'idempotent skip (already guest, same gid)', {
+        gid,
+        signedOut: options?.signedOut ?? false,
+        catalogStore: catalogStoreSnapshot(),
+      })
+      if (options?.signedOut) setSignedOutToGuest(true)
+      return
+    }
+
     signOutCatalogDebugLog('enterGuestMode', 'before state updates', {
       freshGuest: options?.freshGuest ?? false,
       signedOut: options?.signedOut ?? false,
@@ -272,6 +288,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearActiveCacheUserId()
     bumpReadDiscardGeneration('enter-guest-mode')
     if (options?.signedOut) setSignedOutToGuest(true)
+    lastEnterGuestModeGidRef.current = gid
 
     signOutCatalogDebugLog('enterGuestMode', 'after state updates', {
       gid,
@@ -513,6 +530,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setActiveCacheUserId(nextUser.id)
       setBootstrapUserId(nextUser.id)
       setSignedOutToGuest(false)
+      lastEnterGuestModeGidRef.current = null
       void hydrateProfileFromDexie(nextUser.id)
       scheduleStartupProfileFetch(nextUser.id)
       bumpReadDiscardGeneration('activate-authenticated-user')
@@ -851,27 +869,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOutCatalogDebugLog('signOut', 'before enterGuestMode({ signedOut: true })', {
       gidFromEnsureGuestId: gid,
       localStorage_familist_guest_id: lsGuestId,
-      willCallBootstrapListsCatalogSession: true,
-      bootstrapSource: 'signOut',
+      catalogBootstrapOwner: 'useLists-actor-effect-only',
     })
 
     enterGuestMode({ freshGuest: false, signedOut: true })
 
-    signOutCatalogDebugLog('signOut', 'after enterGuestMode, before await bootstrapListsCatalogSession', {
+    signOutCatalogDebugLog('signOut', 'after enterGuestMode (auth only — no catalog bootstrap)', {
       gid,
       catalogStore: catalogStoreSnapshot(),
     })
 
-    await bootstrapListsCatalogSession(gid, 'signOut')
+    schedulePostSignOutDelayedSnapshots(gid)
 
-    signOutCatalogDebugLog('signOut', 'after await bootstrapListsCatalogSession(signOut)', {
-      gid,
-      catalogStore: catalogStoreSnapshot(),
-    })
-
-    await logDexieGuestCatalogSnapshot(gid, 'signOut-end')
-
-    signOutCatalogDebugLog('signOut', 'signOut() complete — check useLists actor effect for 2nd bootstrap', {
+    signOutCatalogDebugLog('signOut', 'signOut() complete — await useLists bootstrap + delayed UI snapshots', {
       gid,
       catalogStore: catalogStoreSnapshot(),
     })
