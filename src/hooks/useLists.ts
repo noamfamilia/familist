@@ -254,21 +254,17 @@ export function useLists() {
 
     setError(null)
     setLastFetchError(null)
+    fetchingRef.current = false
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current)
+      fetchTimeoutRef.current = null
+    }
 
     if (!userId) {
       useListsCatalogStore.getState().clearListsCatalog()
       setHasCompletedInitialFetch(false)
       hasInitialDataRef.current = false
       perfLog('localStorage read end', { durationMs: Math.round(performance.now() - lsT0), note: 'no user' })
-      return
-    }
-
-    const catalog = useListsCatalogStore.getState()
-    if (catalog.activeUserId === userId && catalog.listsCatalogStatus === 'ready') {
-      perfLog('localStorage read end', {
-        durationMs: Math.round(performance.now() - lsT0),
-        note: 'catalog_already_ready',
-      })
       return
     }
 
@@ -511,6 +507,11 @@ export function useLists() {
         respondsTo: 'Home lists refresh',
       })
     } catch (err) {
+      if (shouldDiscardReadFlightResult(readFlightGen)) {
+        connectivityDiscarded = true
+        serverOutcome = 'success'
+        return
+      }
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
       if (serverOutcome === 'connectivity_failure' && connectivityStatusRef.current === 'online') {
         reportConnectivityFailure('fetchLists-connectivity-error')

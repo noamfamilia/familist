@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
-import { clearActiveCacheUserId, getActiveCacheUserId, setActiveCacheUserId } from '@/lib/cache'
+import { clearActiveCacheUserId, getActiveCacheUserId, getCachedLists, setActiveCacheUserId } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
 import { log, perfLog } from '@/lib/startupPerfLog'
@@ -33,7 +33,7 @@ import {
 } from '@/lib/guestSession'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
-import { bootstrapListsCatalogSession } from '@/stores/listsCatalogStore'
+import { useListsCatalogStore, warmListsCatalog } from '@/stores/listsCatalogStore'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
@@ -234,6 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const gid = options?.freshGuest ? rotateGuestId() : ensureGuestId()
     setGuestId(gid)
     setBootstrapUserId(gid)
+    userRef.current = null
     setUser(null)
     setProfile(null)
     lastAppliedUserIdRef.current = null
@@ -242,7 +243,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfileFetchPhase('idle')
     clearActiveCacheUserId()
     bumpReadDiscardGeneration('enter-guest-mode')
-    void bootstrapListsCatalogSession(gid)
+    const guestCached = getCachedLists(gid)?.lists ?? []
+    const catalog = useListsCatalogStore.getState()
+    catalog.beginHomeSession(gid, guestCached.length > 0 ? guestCached : null)
+    void warmListsCatalog(gid)
     if (options?.signedOut) setSignedOutToGuest(true)
   }, [])
 
@@ -465,13 +469,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mountedRef.current) return
       lastAppliedUserIdRef.current = nextUser.id
       perfLog('auth activateAuthenticatedUser', { source, userId: nextUser.id })
+      userRef.current = nextUser
       setUser(nextUser)
       setActiveCacheUserId(nextUser.id)
       setBootstrapUserId(nextUser.id)
       setSignedOutToGuest(false)
       void hydrateProfileFromDexie(nextUser.id)
       scheduleStartupProfileFetch(nextUser.id)
-      void bootstrapListsCatalogSession(nextUser.id)
+      bumpReadDiscardGeneration('activate-authenticated-user')
     },
     [hydrateProfileFromDexie, scheduleStartupProfileFetch],
   )
