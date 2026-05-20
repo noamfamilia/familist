@@ -268,22 +268,40 @@ export function useLists() {
       return
     }
 
+    const store = useListsCatalogStore.getState()
+    const actorChanged = store.activeUserId !== userId
     const cachedLists = getCachedLists(userId)?.lists || []
     perfLog('localStorage read end', {
       durationMs: Math.round(performance.now() - lsT0),
       bytesOrItemCount: cachedLists.length,
       approxStorageChars,
+      actorChanged,
     })
-    useListsCatalogStore.getState().beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
-    setHasCompletedInitialFetch(false)
-    hasInitialDataRef.current = cachedLists.length > 0
-  }, [userId])
 
-  useEffect(() => {
-    if (!userId) return
-    void warmListsCatalog(userId)
-    return subscribeListsCatalogL2Bridge(userId)
-  }, [userId])
+    const guestSessionAfterSignOut = isGuest && !user
+    if (actorChanged && !guestSessionAfterSignOut) {
+      store.beginHomeSession(userId, cachedLists.length > 0 ? cachedLists : null)
+      setHasCompletedInitialFetch(false)
+      hasInitialDataRef.current = cachedLists.length > 0
+    } else if (guestSessionAfterSignOut && actorChanged) {
+      setHasCompletedInitialFetch(false)
+      hasInitialDataRef.current = false
+    }
+
+    let cancelled = false
+    void (async () => {
+      await warmListsCatalog(userId)
+      if (!cancelled && actorChanged) {
+        hasInitialDataRef.current = useListsCatalogStore.getState().lists.length > 0
+      }
+    })()
+
+    const unsub = subscribeListsCatalogL2Bridge(userId)
+    return () => {
+      cancelled = true
+      unsub()
+    }
+  }, [userId, isGuest, user])
 
   const trackSaveOperation = async <T>(operation: PromiseLike<T>): Promise<T> => {
     pendingSaveOpsRef.current++
@@ -576,6 +594,8 @@ export function useLists() {
   }, [recoveryFetchGeneration, fetchLists, userId])
 
   useEffect(() => {
+    const activeId = useListsCatalogStore.getState().activeUserId
+    if (!userId || activeId !== userId) return
     setCachedLists(userId, lists)
     // Do not write lists back into Dexie from this effect.
     // lists state is itself sourced from Dexie (useLiveQuery), so writing here creates
