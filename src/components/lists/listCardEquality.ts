@@ -10,6 +10,15 @@ export function sameStringList(a: string[] | undefined, b: string[] | undefined)
   return true
 }
 
+/** Same catalog rows in the same order (for skipping redundant Zustand updates on refresh). */
+export function listsCatalogEqual(a: readonly ListWithRole[], b: readonly ListWithRole[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (!listCardModelEqual(a[i], b[i])) return false
+  }
+  return true
+}
+
 /** Fields that affect ListCard / SortableListCard rendered catalog data (not callbacks / drag refs). */
 export function listCardModelEqual(a: ListWithRole, b: ListWithRole): boolean {
   return (

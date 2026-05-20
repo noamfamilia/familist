@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 import { getCachedLists } from '@/lib/cache'
 import { buildListsCatalogFromDexie } from '@/lib/data/queries'
+import { listsCatalogEqual } from '@/components/lists/listCardEquality'
 import type { ListWithRole } from '@/lib/supabase/types'
 
 export type ListsCatalogStatus = 'idle' | 'loading' | 'ready'
@@ -55,8 +56,11 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
         return st.catalogSessionEpoch
       }
       if (incoming.length > 0) {
-        const lists = [...incoming]
-        set({ lists, listsCatalogStatus: 'ready' })
+        if (!listsCatalogEqual(st.lists, incoming)) {
+          set({ lists: [...incoming], listsCatalogStatus: 'ready' })
+        } else if (st.listsCatalogStatus !== 'ready') {
+          set({ listsCatalogStatus: 'ready' })
+        }
         return st.catalogSessionEpoch
       }
       if (st.listsCatalogStatus === 'loading') {
@@ -64,14 +68,21 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
       }
     }
 
-    const lists = [...incoming]
     let nextEpoch = 0
     set((s) => {
       nextEpoch = s.catalogSessionEpoch + 1
+      const status: ListsCatalogStatus = incoming.length > 0 ? 'ready' : 'loading'
+      if (incoming.length > 0 && listsCatalogEqual(s.lists, incoming) && s.activeUserId === userId) {
+        return {
+          activeUserId: userId,
+          listsCatalogStatus: status,
+          catalogSessionEpoch: nextEpoch,
+        }
+      }
       return {
         activeUserId: userId,
-        listsCatalogStatus: lists.length > 0 ? 'ready' : 'loading',
-        lists,
+        listsCatalogStatus: status,
+        lists: incoming.length > 0 ? [...incoming] : [],
         catalogSessionEpoch: nextEpoch,
       }
     })
@@ -81,17 +92,23 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
   applyWarmResult: (userId, lists) => {
     const st = get()
     if (st.activeUserId !== userId) return
-    const nextLists = [...lists]
-    set({ lists: nextLists, listsCatalogStatus: 'ready' })
+    if (listsCatalogEqual(st.lists, lists)) {
+      if (st.listsCatalogStatus !== 'ready') set({ listsCatalogStatus: 'ready' })
+      return
+    }
+    set({ lists: [...lists], listsCatalogStatus: 'ready' })
   },
 
   applyL2BridgePayload: (userId, lists) => {
     const st = get()
     if (st.activeUserId !== userId) return
     if (st.localCatalogMutationDepth > 0) return
-    const nextLists = [...lists]
+    if (listsCatalogEqual(st.lists, lists)) {
+      if (st.listsCatalogStatus !== 'ready') set({ listsCatalogStatus: 'ready' })
+      return
+    }
     set({
-      lists: nextLists,
+      lists: [...lists],
       ...(st.listsCatalogStatus !== 'ready' ? { listsCatalogStatus: 'ready' as const } : {}),
     })
   },
