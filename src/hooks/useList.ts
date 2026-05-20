@@ -81,6 +81,7 @@ import { createUserMutationGate } from '@/lib/userMutationGate'
 import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
 import {
   canFetchFromServer,
+  canFetchFromServerNow,
   captureReadFlightGeneration,
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
@@ -639,8 +640,8 @@ export function useList(listId: string) {
       return
     }
 
-    // Not online: hydrate from Dexie + L1 only (may run while a stale server read is still in flight).
-    if (!canFetchFromServer(connectivityStatus)) {
+    // Not online or guest: hydrate from Dexie + L1 only (may run while a stale server read is still in flight).
+    if (!canFetchFromServerNow()) {
       const ownedFetch = !fetchingRef.current
       if (ownedFetch) {
         fetchingRef.current = true
@@ -1078,7 +1079,7 @@ export function useList(listId: string) {
           scheduleRealtimeFetchRef.current(0)
         })
       }
-      if (connectivityDiscarded && !canFetchFromServer(connectivityStatusRef.current)) {
+      if (connectivityDiscarded && !canFetchFromServerNow()) {
         queueMicrotask(() => {
           void fetchList()
         })

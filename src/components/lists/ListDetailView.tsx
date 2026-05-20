@@ -24,6 +24,7 @@ import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useToast } from '@/components/ui/Toast'
+import { GUEST_JOIN_SHARE_BLOCKED_MSG } from '@/lib/sessionPolicy'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import {
   OFFLINE_ACTIONS_DISABLED_MSG,
@@ -958,6 +959,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             type="button"
             disabled={shareSettingsBlocked}
             onClick={() => {
+              if (isGuest) {
+                showError(GUEST_JOIN_SHARE_BLOCKED_MSG)
+                return
+              }
               if (shareSettingsBlocked) return
               setShowShareModal(true)
             }}

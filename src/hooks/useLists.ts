@@ -30,9 +30,12 @@ import { enqueueListMirrorJobs } from '@/lib/data/listMirror'
 import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
 import {
   canFetchFromServer,
+  canFetchFromServerNow,
   captureReadFlightGeneration,
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
+import { isGuestId } from '@/lib/guestSession'
+import { GUEST_JOIN_SHARE_BLOCKED_MSG } from '@/lib/sessionPolicy'
 import {
   clearSyncQueueForList,
   enqueueSyncQueueRecord,
@@ -191,7 +194,8 @@ async function softDeleteListInDexie(
 }
 
 export function useLists() {
-  const { user, profile, loading: authLoading, activeActorId, guestId, bootstrapUserId } = useAuth()
+  const { user, profile, loading: authLoading, activeActorId, guestId, bootstrapUserId, isGuest } =
+    useAuth()
   const lists = useListsCatalogStore(useShallow((s) => s.lists))
   const listsCatalogStatus = useListsCatalogStore((s) => s.listsCatalogStatus)
   const [isFetching, setIsFetching] = useState(true)
@@ -350,7 +354,7 @@ export function useLists() {
       return
     }
 
-    if (!canFetchFromServer(readStatus)) {
+    if (!canFetchFromServerNow()) {
       appendMutationDiagnostic(`[fetchLists.debug] dexie-only status=${readStatus}`)
       const fetchT0 = performance.now()
       fetchingRef.current = true
@@ -530,7 +534,7 @@ export function useLists() {
           requestListsCatalogRealtimeFlush(0)
         })
       }
-      if (connectivityDiscarded && !canFetchFromServer(connectivityStatusRef.current)) {
+      if (connectivityDiscarded && !canFetchFromServerNow()) {
         queueMicrotask(() => {
           void warmListsCatalog(userId)
         })
@@ -851,6 +855,16 @@ export function useLists() {
         )
         return { data: null, error: new Error('Not authenticated'), joinedListName: null as string | null }
       }
+      if (isGuest || isGuestId(mutationUserId)) {
+        appendMutationDiagnostic(
+          `[invite] joinListByToken blocked reason=guest userId=${mutationUserId} tokenLen=${tokenLen}`,
+        )
+        return {
+          data: null,
+          error: new Error(GUEST_JOIN_SHARE_BLOCKED_MSG),
+          joinedListName: null as string | null,
+        }
+      }
       if (!tryBeginMutation()) {
         const msg = blockedMutationMessage()
         appendMutationDiagnostic(
@@ -859,50 +873,50 @@ export function useLists() {
         return { data: null, error: new Error(msg), joinedListName: null as string | null }
       }
       try {
-        if (canMutateNow()) {
+        if (!canMutateNow()) {
           appendMutationDiagnostic(
-            `[invite] joinListByToken rpc userId=${mutationUserId} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
+            `[invite] joinListByToken blocked reason=not_online userId=${mutationUserId} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
           )
-          catalogMutationVersionRef.current += 1
-          catalogSkipRealtimeUntilRef.current = Date.now() + 2000
-          const { data: listIdRaw, error: rpcError } = await supabase.rpc('join_list_by_token', {
-            p_token: token,
-          } as never)
-          if (rpcError) {
-            appendMutationDiagnostic(
-              `[invite] joinListByToken rpc_err userId=${mutationUserId} tokenLen=${tokenLen} err=${rpcError.message}`,
-            )
-            return { data: null, error: new Error(rpcError.message), joinedListName: null as string | null }
+          return {
+            data: null,
+            error: new Error(blockedMutationMessage()),
+            joinedListName: null as string | null,
           }
-          const listId =
-            typeof listIdRaw === 'string'
-              ? listIdRaw
-              : listIdRaw != null
-                ? String(listIdRaw)
-                : null
-          if (!listId) {
-            return {
-              data: null,
-              error: new Error('Join did not return a list id'),
-              joinedListName: null as string | null,
-            }
-          }
-          await fetchLists()
-          const joined = useListsCatalogStore.getState().lists.find((l) => l.id === listId)
-          appendMutationDiagnostic(
-            `[invite] joinListByToken rpc_ok userId=${mutationUserId} listId=${listId} name=${joined?.name ? '1' : '0'}`,
-          )
-          return { data: listId, error: null, joinedListName: joined?.name ?? null }
         }
 
         appendMutationDiagnostic(
-          `[invite] joinListByToken blocked reason=not_online userId=${mutationUserId} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
+          `[invite] joinListByToken rpc userId=${mutationUserId} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
         )
-        return {
-          data: null,
-          error: new Error(blockedMutationMessage()),
-          joinedListName: null as string | null,
+        catalogMutationVersionRef.current += 1
+        catalogSkipRealtimeUntilRef.current = Date.now() + 2000
+        const { data: listIdRaw, error: rpcError } = await supabase.rpc('join_list_by_token', {
+          p_token: token,
+        } as never)
+        if (rpcError) {
+          appendMutationDiagnostic(
+            `[invite] joinListByToken rpc_err userId=${mutationUserId} tokenLen=${tokenLen} err=${rpcError.message}`,
+          )
+          return { data: null, error: new Error(rpcError.message), joinedListName: null as string | null }
         }
+        const listId =
+          typeof listIdRaw === 'string'
+            ? listIdRaw
+            : listIdRaw != null
+              ? String(listIdRaw)
+              : null
+        if (!listId) {
+          return {
+            data: null,
+            error: new Error('Join did not return a list id'),
+            joinedListName: null as string | null,
+          }
+        }
+        await fetchLists()
+        const joined = useListsCatalogStore.getState().lists.find((l) => l.id === listId)
+        appendMutationDiagnostic(
+          `[invite] joinListByToken rpc_ok userId=${mutationUserId} listId=${listId} name=${joined?.name ? '1' : '0'}`,
+        )
+        return { data: listId, error: null, joinedListName: joined?.name ?? null }
       } catch (e) {
         appendMutationDiagnostic(
           `[invite] joinListByToken throw userId=${mutationUserId} tokenLen=${tokenLen} err=${e instanceof Error ? e.message : String(e)}`,
@@ -914,6 +928,7 @@ export function useLists() {
     },
     [
       authLoading,
+      isGuest,
       mutationUserId,
       userId,
       bootstrapUserId,

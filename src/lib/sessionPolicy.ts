@@ -20,3 +20,7 @@ export function isAuthenticatedSession(): boolean {
 export function canOutboundSyncNow(): boolean {
   return isAuthenticatedSession() && getConnectivityStatusForReads() === 'online'
 }
+
+/** Shown when a signed-out guest attempts join/share or other account-only server actions. */
+export const GUEST_JOIN_SHARE_BLOCKED_MSG =
+  "Guests can't join or share lists. Sign in or sign up to continue."

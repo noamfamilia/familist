@@ -33,6 +33,7 @@ import {
 } from '@/lib/guestSession'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
+import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
@@ -207,9 +208,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     guestIdRef.current = guestId
   }, [guestId])
 
+  registerSessionModeGetter(() => (userRef.current ? 'authenticated' : 'guest'))
+  registerServerReadsAllowed(() => userRef.current != null)
+
   useEffect(() => {
-    registerSessionModeGetter(() => (userRef.current ? 'authenticated' : 'guest'))
-    registerServerReadsAllowed(() => userRef.current != null)
     return () => {
       registerSessionModeGetter(null)
       registerServerReadsAllowed(null)
@@ -221,7 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const gid = ensureGuestId()
     setGuestId(gid)
     const cachedAuth = getActiveCacheUserId()
-    if (cachedAuth && !isGuestId(cachedAuth)) {
+    if (cachedAuth && !isGuestId(cachedAuth) && userRef.current) {
       setBootstrapUserId(cachedAuth)
     } else if (!userRef.current) {
       setBootstrapUserId(gid)
@@ -239,6 +241,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profileFetchGenRef.current++
     setProfileFetchPhase('idle')
     clearActiveCacheUserId()
+    bumpReadDiscardGeneration('enter-guest-mode')
+    useListsCatalogStore.getState().clearListsCatalog()
     if (options?.signedOut) setSignedOutToGuest(true)
   }, [])
 

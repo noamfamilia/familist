@@ -21,6 +21,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useListsCatalogStore } from '@/stores/listsCatalogStore'
 import { formatJoinListInviteErrorForUser } from '@/lib/joinListInviteErrorMessage'
 import { fetchFailureToastMessage } from '@/lib/fetchToastPolicy'
+import { GUEST_JOIN_SHARE_BLOCKED_MSG } from '@/lib/sessionPolicy'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
@@ -68,7 +69,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     isOfflineActionsDisabled,
     mutationUserId,
   } = useLists()
-  const { user, loading: authLoading, bootstrapUserId } = useAuth()
+  const { user, loading: authLoading, bootstrapUserId, isGuest } = useAuth()
   /** `inviteToken:userId` after a successful join so we do not enqueue twice. */
   const inviteJoinSucceededKeyRef = useRef<string | null>(null)
   
@@ -271,6 +272,15 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       return
     }
 
+    if (isGuest) {
+      appendMutationDiagnostic(
+        `[invite] ListsView blocked reason=guest tokenLen=${inviteToken.length}`,
+      )
+      showError(GUEST_JOIN_SHARE_BLOCKED_MSG)
+      onInviteHandled?.()
+      return
+    }
+
     if (!user?.id) {
       appendMutationDiagnostic(
         `[invite] ListsView defer join reason=no_user_session tokenLen=${inviteToken.length} bootstrapUserId=${bootstrapUserId ? 'set' : 'absent'}`,
@@ -341,6 +351,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     inviteToken,
     user?.id,
     authLoading,
+    isGuest,
     bootstrapUserId,
     joinListByToken,
     onInviteHandled,
