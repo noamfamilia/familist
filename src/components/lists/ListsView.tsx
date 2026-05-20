@@ -176,7 +176,7 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     [filteredLists],
   )
 
-  const showEmptyState = lists.length === 0
+  const showEmptyState = lists.length === 0 && !loading
   const showSpinnerInsteadOfCards = loading
   const visibleCardCount = activeLists.length + archivedLists.length
 

@@ -204,6 +204,7 @@ export function useLists() {
   const { user, profile, loading: authLoading, activeActorId, guestId, bootstrapUserId, isGuest } =
     useAuth()
   const lists = useListsCatalogStore(useShallow((s) => s.lists))
+  const catalogActiveUserId = useListsCatalogStore((s) => s.activeUserId)
   const listsCatalogStatus = useListsCatalogStore((s) => s.listsCatalogStatus)
   const [isFetching, setIsFetching] = useState(true)
   const [hasCompletedInitialFetch, setHasCompletedInitialFetch] = useState(false)
@@ -218,6 +219,12 @@ export function useLists() {
   const hasInitialDataRef = useRef(false)
   const catalogActorEffectGenRef = useRef(0)
   const userId = activeActorId
+  const catalogMatchesActor = !!userId && catalogActiveUserId === userId
+  const actorLists = useMemo(
+    () => (catalogMatchesActor ? lists : []),
+    [catalogMatchesActor, lists],
+  )
+  const actorMismatch = Boolean(userId && catalogActiveUserId && catalogActiveUserId !== userId)
   /** Owner id for catalog mutations (authenticated user or local guest). */
   const mutationUserId = resolveCatalogMutationUserId(user?.id, guestId, bootstrapUserId)
   useEffect(() => {
@@ -644,7 +651,7 @@ export function useLists() {
     }
   }, [beginServerWork, endServerWork, userId])
 
-  const isInitialSyncing = isFetching && !hasCompletedInitialFetch && lists.length > 0
+  const isInitialSyncing = isFetching && !hasCompletedInitialFetch && actorLists.length > 0
 
   const refreshLists = useCallback(() => {
     void fetchLists()
@@ -664,13 +671,12 @@ export function useLists() {
   }, [recoveryFetchGeneration, fetchLists, userId])
 
   useEffect(() => {
-    const activeId = useListsCatalogStore.getState().activeUserId
-    if (!userId || activeId !== userId) return
-    setCachedLists(userId, lists)
+    if (!userId || !catalogMatchesActor) return
+    setCachedLists(userId, actorLists)
     // Do not write lists back into Dexie from this effect.
     // lists state is itself sourced from Dexie (useLiveQuery), so writing here creates
     // a feedback loop (especially with cachedAt updates) and can spam diagnostics.
-  }, [userId, lists])
+  }, [userId, catalogMatchesActor, actorLists])
 
   useEffect(() => {
     if (!userId) {
@@ -1276,11 +1282,11 @@ export function useLists() {
 
   const labels = useMemo(() => {
     const set = new Set<string>()
-    for (const list of lists) {
+    for (const list of actorLists) {
       if (list.label) set.add(list.label)
     }
     return [...set].sort((a, b) => a.localeCompare(b))
-  }, [lists])
+  }, [actorLists])
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
     appendMutationDiagnostic(`[mutation:list.reorder] local:start count=${reorderedLists.length}`)
@@ -1310,12 +1316,24 @@ export function useLists() {
     }
   }
 
-  const loading = useMemo(
-    () => Boolean(userId && lists.length === 0 && listsCatalogStatus === 'loading' && !error),
-    [userId, lists.length, listsCatalogStatus, error],
-  )
+  const loading = useMemo(() => {
+    if (!userId || error) return false
+    if (actorMismatch) return true
+    return Boolean(actorLists.length === 0 && listsCatalogStatus === 'loading')
+  }, [userId, actorMismatch, actorLists.length, listsCatalogStatus, error])
 
-  const storeActiveUserId = useListsCatalogStore((s) => s.activeUserId)
+  useEffect(() => {
+    if (!actorMismatch || lists.length === 0) return
+    const msg = `[useLists] stale cross-actor catalog: userId=${userId} storeActiveUserId=${catalogActiveUserId} rawLists=${lists.length}`
+    console.warn(msg)
+    signOutCatalogDebugLog('useLists.actorMismatch', 'stale cross-actor catalog during transition', {
+      userId,
+      catalogActiveUserId,
+      rawListsLength: lists.length,
+      actorListsLength: actorLists.length,
+      listsCatalogStatus,
+    })
+  }, [actorMismatch, userId, catalogActiveUserId, lists.length, actorLists.length, listsCatalogStatus])
 
   useEffect(() => {
     const hookSnapshot = {
@@ -1324,14 +1342,18 @@ export function useLists() {
       isGuest,
       guestId,
       bootstrapUserId,
-      storeActiveUserId,
-      hookListsLength: lists.length,
-      hookListIdNames: lists.map((l) => ({ id: l.id, name: l.name })),
+      catalogActiveUserId,
+      catalogMatchesActor,
+      actorMismatch,
+      rawStoreListsLength: lists.length,
+      actorListsLength: actorLists.length,
+      actorListIdNames: actorLists.map((l) => ({ id: l.id, name: l.name })),
       listsCatalogStatus,
       loading,
       loadingFormula: {
         hasUserId: !!userId,
-        hookListsEmpty: lists.length === 0,
+        actorMismatch,
+        actorListsEmpty: actorLists.length === 0,
         statusLoading: listsCatalogStatus === 'loading',
         noError: !error,
       },
@@ -1339,8 +1361,6 @@ export function useLists() {
       isFetching,
       hasCompletedInitialFetch,
       catalogStoreDirect: catalogStoreSnapshot(),
-      storeListsLength: useListsCatalogStore.getState().lists.length,
-      hookVsStoreListsMismatch: useListsCatalogStore.getState().lists.length !== lists.length,
     }
     registerUseListsHookSnapshot(hookSnapshot)
     signOutCatalogDebugLog('useLists.return', 'hook output snapshot', hookSnapshot)
@@ -1350,8 +1370,11 @@ export function useLists() {
     isGuest,
     guestId,
     bootstrapUserId,
-    storeActiveUserId,
+    catalogActiveUserId,
+    catalogMatchesActor,
+    actorMismatch,
     lists,
+    actorLists,
     listsCatalogStatus,
     loading,
     error,
@@ -1360,7 +1383,7 @@ export function useLists() {
   ])
 
   return {
-    lists,
+    lists: actorLists,
     loading,
     isFetching,
     isInitialSyncing,

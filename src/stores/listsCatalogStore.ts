@@ -45,7 +45,42 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
     })),
 
   beginHomeSession: (userId, cachedLists) => {
-    const lists = cachedLists ? [...cachedLists] : []
+    const incoming = cachedLists ? [...cachedLists] : []
+    const st = get()
+
+    if (st.activeUserId === userId) {
+      if (st.lists.length > 0 && incoming.length === 0) {
+        signOutCatalogDebugLog('beginHomeSession', 'idempotent: keep existing lists (ignore empty cache)', {
+          userId,
+          existingListsLength: st.lists.length,
+          catalogSessionEpoch: st.catalogSessionEpoch,
+        })
+        return st.catalogSessionEpoch
+      }
+      if (st.lists.length > 0) {
+        signOutCatalogDebugLog('beginHomeSession', 'idempotent: same actor already has lists', {
+          userId,
+          existingListsLength: st.lists.length,
+        })
+        return st.catalogSessionEpoch
+      }
+      if (incoming.length > 0) {
+        set({
+          lists: incoming,
+          listsCatalogStatus: 'ready',
+        })
+        signOutCatalogDebugLog('beginHomeSession', 'idempotent: hydrate from cache (same actor)', {
+          userId,
+          incomingLength: incoming.length,
+        })
+        return st.catalogSessionEpoch
+      }
+      if (st.listsCatalogStatus === 'loading') {
+        return st.catalogSessionEpoch
+      }
+    }
+
+    const lists = incoming
     let nextEpoch = 0
     set((s) => {
       nextEpoch = s.catalogSessionEpoch + 1
@@ -55,6 +90,12 @@ export const useListsCatalogStore = create<ListsCatalogState & ListsCatalogActio
         lists,
         catalogSessionEpoch: nextEpoch,
       }
+    })
+    signOutCatalogDebugLog('beginHomeSession', 'new actor session', {
+      userId,
+      previousActiveUserId: st.activeUserId,
+      listsLength: lists.length,
+      epoch: nextEpoch,
     })
     return nextEpoch
   },
@@ -136,6 +177,25 @@ export async function bootstrapListsCatalogSession(userId: string, source = 'unk
   const storeBefore = useListsCatalogStore.getState()
   const cachedLists = getCachedLists(userId)?.lists ?? []
   const epochBefore = storeBefore.catalogSessionEpoch
+
+  if (
+    storeBefore.activeUserId === userId &&
+    storeBefore.lists.length > 0 &&
+    storeBefore.listsCatalogStatus === 'ready'
+  ) {
+    signOutCatalogDebugLog('bootstrap', `skipped idempotent (already ready) source=${source}`, {
+      userId,
+      listsLength: storeBefore.lists.length,
+      epoch: storeBefore.catalogSessionEpoch,
+    })
+    return
+  }
+
+  if (storeBefore.activeUserId === userId && storeBefore.listsCatalogStatus === 'loading') {
+    signOutCatalogDebugLog('bootstrap', `warm-only (same actor loading) source=${source}`, { userId })
+    await warmListsCatalog(userId, storeBefore.catalogSessionEpoch, source)
+    return
+  }
 
   signOutCatalogDebugLog('bootstrap', `start source=${source}`, {
     userId,
