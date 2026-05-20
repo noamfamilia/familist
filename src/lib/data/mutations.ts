@@ -9,6 +9,7 @@ import {
   stableItemMemberStateDexieId,
 } from '@/lib/data/syncQueue'
 import { isTombstoned, isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
+import { touchListContentUpdateInDexie } from '@/lib/data/listActivity'
 import { validateSingleNewItemTextUniqueness } from '@/lib/data/localItemTextUniqueness'
 import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
@@ -47,6 +48,7 @@ export async function addItemMutation(input: {
 
   await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
     await db.items.put(row)
+    await touchListContentUpdateInDexie(input.list_id, t)
     await enqueueSyncQueueRecord({
       entity: 'item',
       entity_id: id,
@@ -85,6 +87,7 @@ export async function softDeleteItemMutation(
       deleted_at: t,
       updated_at: t,
     })
+    await touchListContentUpdateInDexie(list_id, t)
     if (!options?.skipEnqueue) {
       await enqueueSyncQueueRecord({
         entity: 'item',
@@ -121,6 +124,7 @@ export async function bulkSoftDeleteArchivedItemsMutation(list_id: string, itemI
         updated_at: t,
       })
     }
+    await touchListContentUpdateInDexie(list_id, t)
     await enqueueSyncQueueRecord({
       entity: 'list',
       entity_id: newBatchEntityId(),
@@ -156,6 +160,7 @@ export async function toggleItemMemberStateMutation(input: {
       ...sync,
       updated_at: t,
     })
+    await touchListContentUpdateInDexie(input.list_id, t)
     await enqueueSyncQueueRecord({
       entity: 'item_member_state',
       entity_id: itemMemberStateOutboxKey(input.item_id, input.member_id),
@@ -206,6 +211,7 @@ export async function seedItemMemberStatesForMemberMutation(input: { list_id: st
         updated_at: t,
       })
     }
+    await touchListContentUpdateInDexie(input.list_id, t)
     await enqueueSyncQueueRecord({
       entity: 'list',
       entity_id: newBatchEntityId(),
@@ -255,6 +261,7 @@ export async function addMemberMutation(input: {
 
   await db.transaction('rw', db.members, db.lists, db.sync_queue, db.list_users, async () => {
     await db.members.put(row)
+    await touchListContentUpdateInDexie(input.list_id, t)
     await enqueueSyncQueueRecord({
       entity: 'member',
       entity_id: id,

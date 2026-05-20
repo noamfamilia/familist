@@ -56,6 +56,7 @@ import {
   type LabelEdit,
 } from '@/lib/data/outboundLabelCoalesce'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
+import { touchListContentUpdateInDexie } from '@/lib/data/listActivity'
 import { validateImportSheetRowTextsUnique } from '@/lib/data/localItemTextUniqueness'
 import { validateListNameForOwner } from '@/lib/data/localListMemberNameUniqueness'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
@@ -170,6 +171,7 @@ async function softDeleteListInDexie(
         })
       }
       for (const state of states) await db.item_member_state.update(state.id, { deleted_at: t })
+      await touchListContentUpdateInDexie(listId, t)
       if (leaveRpc) {
         await enqueueSyncQueueRecord({
           entity: 'list',

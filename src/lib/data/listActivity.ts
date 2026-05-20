@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { isoNow } from '@/lib/data/base_sync_fields'
+import { isTombstoned, isoNow } from '@/lib/data/base_sync_fields'
 import {
   CATALOG_RPC_COALESCE_ENTITY,
   enqueueSyncQueueRecord,
@@ -10,6 +10,39 @@ import {
 type MarkViewedOptions = {
   nowIso?: string
   queueRemote?: boolean
+}
+
+/** Pick the latest parseable ISO timestamp (mirrors Postgres `greatest` on timestamptz). */
+export function maxIsoTimestamp(...candidates: (string | null | undefined)[]): string {
+  let bestMs = -Infinity
+  let best = ''
+  for (const raw of candidates) {
+    if (raw == null || raw === '') continue
+    const s = String(raw)
+    const ms = Date.parse(s)
+    if (Number.isFinite(ms) && ms >= bestMs) {
+      bestMs = ms
+      best = s
+    }
+  }
+  return best || isoNow()
+}
+
+/**
+ * Advance `lists.last_content_update` when list content changes locally (items, members, IMS).
+ * Mirrors server `update_list_timestamp` triggers. Call inside a Dexie transaction that includes `db.lists`.
+ */
+export async function touchListContentUpdateInDexie(
+  listId: string,
+  touchedAt?: string,
+): Promise<string | null> {
+  const touch = touchedAt ?? isoNow()
+  const list = await db.lists.get(listId)
+  if (!list || isTombstoned(list.deleted_at ?? null)) return null
+  const next = maxIsoTimestamp(touch, list.last_content_update)
+  if (next === list.last_content_update) return next
+  await db.lists.update(listId, { last_content_update: next })
+  return next
 }
 
 export async function markListViewedLocally(

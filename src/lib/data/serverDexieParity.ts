@@ -11,6 +11,7 @@ import {
   pendingCreateForItemMemberStateComposite,
   pendingRpcTouchesList,
 } from '@/lib/data/syncPruneGuards'
+import { maxIsoTimestamp } from '@/lib/data/listActivity'
 import {
   reconcileListDetailPayloadWithPendingSyncPatches,
   reconcileUserListsSummaryRowsWithPendingCatalogQueue,
@@ -190,7 +191,11 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
             version: listSync.version,
             last_synced_at: listSync.last_synced_at,
             updated_at: row.updated_at,
-            last_content_update: row.last_content_update ?? existingList?.last_content_update ?? row.updated_at,
+            last_content_update: maxIsoTimestamp(
+              row.last_content_update,
+              existingList?.last_content_update,
+              row.updated_at,
+            ),
             comment: row.comment ?? null,
             category_names: existingList?.category_names ?? null,
             category_order: existingList?.category_order ?? null,
@@ -282,6 +287,11 @@ export async function upsertListDataPayloadFromServer(
         withLastSyncedNow({
           ...payloadReconciled.list,
           ...listSync,
+          last_content_update: maxIsoTimestamp(
+            payloadReconciled.list.last_content_update,
+            existingListRow?.last_content_update,
+            payloadReconciled.list.updated_at,
+          ),
           cached_at: now,
           app_version: APP_VERSION,
           ...(typeof keepMsg === 'string' && keepMsg.trim() !== '' ? { sync_error_message: keepMsg } : {}),
@@ -370,6 +380,11 @@ export async function upsertListDataPayloadFromMirror(
         withLastSyncedNow({
           ...payloadReconciled.list,
           ...listSync,
+          last_content_update: maxIsoTimestamp(
+            payloadReconciled.list.last_content_update,
+            existingListRow?.last_content_update,
+            payloadReconciled.list.updated_at,
+          ),
           cached_at: now,
           app_version: APP_VERSION,
           ...(typeof keepMsg === 'string' && keepMsg.trim() !== '' ? { sync_error_message: keepMsg } : {}),
