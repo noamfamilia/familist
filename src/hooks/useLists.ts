@@ -314,7 +314,7 @@ export function useLists() {
       cancelled = true
       unsub()
     }
-  }, [userId])
+  }, [userId, user, isGuest])
 
   const trackSaveOperation = async <T>(operation: PromiseLike<T>): Promise<T> => {
     pendingSaveOpsRef.current++
@@ -396,22 +396,6 @@ export function useLists() {
     if (!canFetchFromServerNow()) {
       appendMutationDiagnostic(`[fetchLists.debug] dexie-only status=${readStatus}`)
       const fetchT0 = performance.now()
-      const catalogBefore = useListsCatalogStore.getState()
-      if (
-        catalogBefore.activeUserId === userId &&
-        catalogBefore.listsCatalogStatus === 'ready'
-      ) {
-        hasInitialDataRef.current = catalogBefore.lists.length > 0
-        setIsFetching(false)
-        setHasCompletedInitialFetch(true)
-        fetchingRef.current = false
-        perfLog('fetchLists end', {
-          durationMs: Math.round(performance.now() - fetchT0),
-          note: 'dexie-only-skip-already-ready',
-          connectivity: readStatus,
-        })
-        return
-      }
       fetchingRef.current = true
       setIsFetching(true)
       setFetchTimedOut(false)
@@ -443,17 +427,11 @@ export function useLists() {
 
     if (fetchingRef.current) return
     const fetchT0 = performance.now()
-    const catalogAlreadyReady = (() => {
-      const c = useListsCatalogStore.getState()
-      return c.activeUserId === userId && c.listsCatalogStatus === 'ready' && c.lists.length > 0
-    })()
-    perfLog('fetchLists start', { catalogAlreadyReady })
+    perfLog('fetchLists start')
     let listCount = 0
     let fetchErr: string | undefined
     fetchingRef.current = true
-    if (!catalogAlreadyReady) {
-      setIsFetching(true)
-    }
+    setIsFetching(true)
     setFetchTimedOut(false)
 
     // Set timeout for fetch

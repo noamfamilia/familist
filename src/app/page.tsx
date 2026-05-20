@@ -24,9 +24,6 @@ import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { normalizeServerSyncableFields } from '@/lib/data/serverDexieParity'
 import { useToast } from '@/components/ui/Toast'
 import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
-import { sameStringList } from '@/components/lists/listCardEquality'
-
-const LAST_HOME_ACTOR_SESSION_KEY = 'familist_last_home_actor_id'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { OfflineIcon } from '@/components/icons/OfflineIcon'
 import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueIndicator'
@@ -196,33 +193,16 @@ function HomeContent() {
     setThemeMounted(true)
   }, [])
 
-  /** Re-apply per-actor home preferences when auth actor changes (sign-in / sign-out), not on same-actor remount. */
+  /** Re-apply per-actor home preferences when auth actor changes (sign-in / sign-out). */
   useEffect(() => {
     if (!activeActorId) {
       lastHomeActorRef.current = null
-      if (typeof window !== 'undefined') {
-        try {
-          sessionStorage.removeItem(LAST_HOME_ACTOR_SESSION_KEY)
-        } catch {
-          // ignore
-        }
-      }
       setSelectedLabel('Any')
       return
     }
 
-    const persistedActor =
-      typeof window !== 'undefined'
-        ? sessionStorage.getItem(LAST_HOME_ACTOR_SESSION_KEY)
-        : null
-    const actorChanged = persistedActor !== activeActorId
-
+    const actorChanged = lastHomeActorRef.current !== activeActorId
     if (actorChanged) {
-      try {
-        sessionStorage.setItem(LAST_HOME_ACTOR_SESSION_KEY, activeActorId)
-      } catch {
-        // ignore
-      }
       lastHomeActorRef.current = activeActorId
       setLocalLabels([])
       setPreCreateFilter(null)
@@ -230,15 +210,9 @@ function HomeContent() {
       setLabelDropdownOpen(false)
       setActiveListId(null)
       const cached = getCachedLabelFilter(activeActorId)
-      const fromCache =
-        cached !== null && cached !== undefined && cached !== '' ? cached : 'Any'
-      setSelectedLabel(fromCache)
-    } else {
-      lastHomeActorRef.current = activeActorId
-      const cached = getCachedLabelFilter(activeActorId)
-      const fromCache =
-        cached !== null && cached !== undefined && cached !== '' ? cached : 'Any'
-      setSelectedLabel((prev) => (prev === 'Any' ? fromCache : prev))
+      setSelectedLabel(
+        cached !== null && cached !== undefined && cached !== '' ? cached : 'Any',
+      )
     }
 
     const profileActorId = user?.id ?? (isGuest ? bootstrapUserId : null)
@@ -248,7 +222,7 @@ function HomeContent() {
     const cachedRaw = getCachedLabelFilter(activeActorId)
     const effective =
       cachedRaw !== null && cachedRaw !== undefined && cachedRaw !== '' ? cachedRaw : serverLabel
-    setSelectedLabel((prev) => (prev === effective ? prev : effective))
+    setSelectedLabel(effective)
     setCachedLabelFilter(effective, activeActorId)
     if (user && effective !== serverLabel) {
       void updateProfile({ label_filter: effective })
@@ -379,7 +353,7 @@ function HomeContent() {
   )
 
   const handleLabelsChange = useCallback((labels: string[]) => {
-    setAvailableLabels((prev) => (sameStringList(prev, labels) ? prev : labels))
+    setAvailableLabels(labels)
   }, [])
 
   useEffect(() => {
