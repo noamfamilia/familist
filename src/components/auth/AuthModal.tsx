@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
-import { GoogleGIcon } from '@/components/auth/GoogleGIcon'
+import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -120,7 +120,7 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
 
           {mode === 'signUp' && (
             <Input
-              label="Nickname (you can change it later)"
+              label="Name (you can change it later)"
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
@@ -187,13 +187,10 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400">OR</span>
                 <div className="h-px flex-1 bg-gray-200 dark:bg-neutral-600" aria-hidden />
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full flex items-center justify-center gap-2"
+              <GoogleAuthButton
+                flow={mode === 'signUp' ? 'signUp' : 'signIn'}
                 loading={googleLoading}
                 disabled={loading}
-                aria-label="Continue with Google"
                 onClick={async () => {
                   setError('')
                   setSuccessMessage('')
@@ -206,10 +203,7 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                     showErrorToast(googleError.message)
                   }
                 }}
-              >
-                <GoogleGIcon className="h-5 w-5 shrink-0" />
-                Continue with Google
-              </Button>
+              />
             </>
           )}
 

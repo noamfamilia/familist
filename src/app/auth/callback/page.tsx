@@ -17,11 +17,11 @@ function CallbackHandler() {
       const supabase = createClient()
       const code = searchParams.get('code')
 
+      let exchangeErrorMessage: string | null = null
       if (code) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
         if (exchangeError) {
-          setError(`Auth error: ${exchangeError.message}`)
-          return
+          exchangeErrorMessage = exchangeError.message
         }
       }
 
@@ -33,7 +33,11 @@ function CallbackHandler() {
       }
 
       if (!data.session) {
-        setError('No session found. The link may be expired. Please try again.')
+        setError(
+          exchangeErrorMessage
+            ? `Auth error: ${exchangeErrorMessage}`
+            : 'No session found. The link may be expired. Please try again.',
+        )
         return
       }
 

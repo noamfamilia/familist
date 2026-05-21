@@ -350,6 +350,22 @@ export function useAuthPhaseBootstrap(
       }
 
       if (
+        event === 'USER_UPDATED' &&
+        nextUser &&
+        nextId !== null &&
+        refs.lastAppliedUserIdRef.current === nextId &&
+        refs.authenticatedEstablishedRef.current
+      ) {
+        refs.userRef.current = nextUser
+        actionsRef.current.setUser(nextUser)
+        if (effectMounted) {
+          refs.loadingRef.current = false
+          actionsRef.current.setLoading(false)
+        }
+        return
+      }
+
+      if (
         (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') &&
         nextId !== null &&
         refs.lastAppliedUserIdRef.current === nextId &&

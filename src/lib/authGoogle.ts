@@ -26,3 +26,14 @@ export async function signInWithGoogle(intent: GoogleAuthIntent) {
     },
   })
 }
+
+/** Link Google to the current signed-in user (requires manual linking in Supabase project settings). */
+export async function linkGoogleIdentity() {
+  const supabase = createClient()
+  return supabase.auth.linkIdentity({
+    provider: 'google',
+    options: {
+      redirectTo: authOAuthRedirectUrl(),
+    },
+  })
+}

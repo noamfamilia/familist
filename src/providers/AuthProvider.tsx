@@ -45,7 +45,8 @@ import {
   consumePendingSignUpMigration,
   markPendingSignUpMigration,
 } from '@/lib/authSignUpMigration'
-import { signInWithGoogle as startGoogleOAuth, type GoogleAuthIntent } from '@/lib/authGoogle'
+import { linkGoogleIdentity as startGoogleLink, signInWithGoogle as startGoogleOAuth, type GoogleAuthIntent } from '@/lib/authGoogle'
+import { applyGoogleNicknameIfNeeded } from '@/lib/googleProfileNickname'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
@@ -73,6 +74,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
   signInWithGoogle: (intent: GoogleAuthIntent) => Promise<{ error: Error | null }>
+  linkGoogleIdentity: () => Promise<{ error: Error | null }>
   signOut: () => Promise<{ error: Error | null }>
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   /** Auth → server queue; guest → Dexie profile row only. */
@@ -423,11 +425,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (!data) return
       const row = data as Profile & { theme?: string }
-      void upsertProfileFromServer(row)
-      setProfile({
+      const normalized: Profile = {
         ...row,
         theme: row.theme === 'dark' ? 'dark' : 'light',
-      })
+      }
+      void upsertProfileFromServer(normalized)
+      setProfile(normalized)
+
+      const activeUser = userRef.current
+      if (activeUser?.id === userId) {
+        const applied = await applyGoogleNicknameIfNeeded(activeUser, normalized)
+        if (applied && mountedRef.current && userRef.current?.id === userId) {
+          userRef.current = applied.user
+          setUser(applied.user)
+          setProfile(applied.profile)
+          void upsertProfileFromServer(applied.profile)
+        }
+      }
     } catch (err) {
       console.error('fetchProfile error:', err)
     } finally {
@@ -671,6 +685,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const linkGoogleIdentity = async () => {
+    try {
+      clearPendingSignUpMigration()
+      const { error } = await startGoogleLink()
+      return { error: error as Error | null }
+    } catch (error) {
+      return { error: error instanceof Error ? error : new Error(String(error)) }
+    }
+  }
+
   const signUp = async (email: string, password: string, nickname: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -809,6 +833,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signUp,
         signInWithGoogle,
+        linkGoogleIdentity,
         signOut,
         updateProfile,
         updateActorProfile,

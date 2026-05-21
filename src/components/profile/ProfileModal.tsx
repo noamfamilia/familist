@@ -10,6 +10,8 @@ import { ThemedImage } from '@/components/ui/ThemedImage'
 import { Modal } from '@/components/ui/Modal'
 import { APP_VERSION } from '@/lib/appVersion'
 import { useTheme } from 'next-themes'
+import { GoogleGIcon } from '@/components/auth/GoogleGIcon'
+import { userHasGoogleIdentity } from '@/lib/googleProfileNickname'
 
 interface ProfileModalProps {
   isOpen: boolean
@@ -19,11 +21,13 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp }: ProfileModalProps) {
-  const { user, profile, isGuest, signedOutToGuest, clearSignedOutToGuest, signOut, updateProfile } = useAuth()
+  const { user, profile, isGuest, signedOutToGuest, clearSignedOutToGuest, signOut, updateProfile, linkGoogleIdentity } = useAuth()
   const { success, error: showError } = useToast()
   const { resolvedTheme, setTheme } = useTheme()
   const [error, setError] = useState('')
   const [signingOut, setSigningOut] = useState(false)
+  const [linkingGoogle, setLinkingGoogle] = useState(false)
+  const googleLinked = user ? userHasGoogleIdentity(user) : false
   const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
   const [isEditingNickname, setIsEditingNickname] = useState(false)
   const [editNickname, setEditNickname] = useState(displayNickname)
@@ -108,7 +112,7 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
             <p className="text-gray-800 dark:text-gray-200 break-all">{user.email}</p>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Nickname</label>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name</label>
             {isEditingNickname ? (
               <div className="flex gap-2 mt-1">
                 <input
@@ -145,6 +149,37 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
         </div>
 
         {error && <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
+
+        <div className="space-y-2 pt-1 border-t border-gray-200 dark:border-neutral-600">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            Google account
+          </label>
+          {googleLinked ? (
+            <p className="text-sm text-gray-700 dark:text-gray-300">Google account linked</p>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full flex items-center justify-center gap-2"
+              loading={linkingGoogle}
+              disabled={linkingGoogle || signingOut}
+              aria-label="Link Google account"
+              onClick={async () => {
+                setError('')
+                setLinkingGoogle(true)
+                const { error: linkErr } = await linkGoogleIdentity()
+                setLinkingGoogle(false)
+                if (linkErr) {
+                  setError(linkErr.message)
+                  showError(linkErr.message)
+                }
+              }}
+            >
+              <GoogleGIcon className="h-5 w-5 shrink-0" />
+              Link Google account
+            </Button>
+          )}
+        </div>
 
         <InstallAppButton />
 
