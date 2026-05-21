@@ -102,10 +102,13 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
 
   // Sign in / Sign up / Forgot password form
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={handleClose} 
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
       title={getTitle()}
+      size="lg"
+      contentClassName="!max-w-lg max-sm:!max-w-none"
+      fullScreenMobile
     >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input

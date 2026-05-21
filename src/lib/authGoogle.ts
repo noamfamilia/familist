@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
+import { markOpenProfileAfterOAuthSignUp } from '@/lib/authOAuthPostRedirect'
 import {
   clearPendingSignUpMigration,
   markPendingSignUpMigration,
@@ -14,6 +15,7 @@ export function authOAuthRedirectUrl(): string {
 export async function signInWithGoogle(intent: GoogleAuthIntent) {
   if (intent === 'signUp') {
     markPendingSignUpMigration()
+    markOpenProfileAfterOAuthSignUp()
   } else {
     clearPendingSignUpMigration()
   }

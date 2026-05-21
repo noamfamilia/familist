@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal'
 import { APP_VERSION } from '@/lib/appVersion'
 import { useTheme } from 'next-themes'
 import { GoogleGIcon } from '@/components/auth/GoogleGIcon'
+import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { userHasGoogleIdentity } from '@/lib/googleProfileNickname'
 
 interface ProfileModalProps {
@@ -28,7 +29,7 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
   const [signingOut, setSigningOut] = useState(false)
   const [linkingGoogle, setLinkingGoogle] = useState(false)
   const googleLinked = user ? userHasGoogleIdentity(user) : false
-  const displayNickname = profile?.nickname || user?.user_metadata?.nickname || '-'
+  const displayNickname = user ? resolveAuthDisplayName(user, profile) : '-'
   const [isEditingNickname, setIsEditingNickname] = useState(false)
   const [editNickname, setEditNickname] = useState(displayNickname)
 

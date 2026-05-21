@@ -39,7 +39,14 @@ export function deriveSuggestedGoogleNickname(user: User): string | null {
   if (!trimmed) return null
 
   const first = trimmed.split(/\s+/)[0]?.trim()
-  return first || null
+  if (first) return first
+
+  if (user.email) {
+    const local = user.email.split('@')[0]?.trim()
+    if (local) return local
+  }
+
+  return null
 }
 
 /**

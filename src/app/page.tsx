@@ -29,6 +29,7 @@ import { OfflineIcon } from '@/components/icons/OfflineIcon'
 import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueIndicator'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
+import { consumeOpenProfileAfterOAuthSignUp } from '@/lib/authOAuthPostRedirect'
 import { useShallow } from 'zustand/react/shallow'
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -118,6 +119,7 @@ function HomeContent() {
   )
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [pendingProfileOpenAfterOAuth, setPendingProfileOpenAfterOAuth] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [showServerQueue, setShowServerQueue] = useState(false)
@@ -151,6 +153,20 @@ function HomeContent() {
   useLayoutEffect(() => {
     perfLog('main page mounted', { route: 'home' })
   }, [])
+
+  useLayoutEffect(() => {
+    if (consumeOpenProfileAfterOAuthSignUp()) {
+      setPendingProfileOpenAfterOAuth(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!pendingProfileOpenAfterOAuth) return
+    if (!hasMounted || isGuest || !user || authPhase !== 'authenticated') return
+    if (profileFetchPhase === 'loading') return
+    setPendingProfileOpenAfterOAuth(false)
+    setShowProfile(true)
+  }, [pendingProfileOpenAfterOAuth, hasMounted, isGuest, user, authPhase, profileFetchPhase])
 
   const homeGatePrevRef = useRef<string>('')
   useEffect(() => {
