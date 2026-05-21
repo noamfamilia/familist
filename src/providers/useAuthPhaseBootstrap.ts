@@ -14,6 +14,7 @@ import {
 } from '@/lib/authBootStorage'
 import { logAuthBootTrace } from '@/lib/authBootTrace'
 import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
+import { appendConnectivityDebugLine } from '@/lib/connectivityDebugLog'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
 import { registerSessionModeGetter } from '@/lib/sessionPolicy'
 
@@ -394,6 +395,9 @@ export function useAuthPhaseBootstrap(
           respondsTo: 'App bootstrap',
           failure: sessionError ?? undefined,
         })
+        appendConnectivityDebugLine(
+          `[auth] getSession ${sessionError ? 'error' : sessionData?.session ? 'has-session' : 'signed-out'} durationMs=${Math.round(performance.now() - gs0)}`,
+        )
 
         if (!effectMounted) return
 

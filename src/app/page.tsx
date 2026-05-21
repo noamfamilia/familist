@@ -39,6 +39,10 @@ const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Moda
 const ServerQueueModal = dynamic(() => import('@/components/home/ServerQueueModal').then(mod => mod.ServerQueueModal), {
   ssr: false,
 })
+const ConnectivityDebugModal = dynamic(
+  () => import('@/components/home/ConnectivityDebugModal').then(mod => mod.ConnectivityDebugModal),
+  { ssr: false },
+)
 
 // All home tour steps - list steps only shown when lists exist
 const homeTourSteps: Step[] = [
@@ -117,6 +121,7 @@ function HomeContent() {
   const [showImport, setShowImport] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [showServerQueue, setShowServerQueue] = useState(false)
+  const [showConnectivityDebug, setShowConnectivityDebug] = useState(false)
   const [feedbackText, setFeedbackText] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { success, error: showError } = useToast()
@@ -631,17 +636,30 @@ function HomeContent() {
                   User feedback
                 </button>
                 {!isGuest ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                    onClick={() => {
-                      setProfileMenuOpen(false)
-                      setShowServerQueue(true)
-                    }}
-                  >
-                    Server queue
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      onClick={() => {
+                        setProfileMenuOpen(false)
+                        setShowServerQueue(true)
+                      }}
+                    >
+                      Server queue
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      onClick={() => {
+                        setProfileMenuOpen(false)
+                        setShowConnectivityDebug(true)
+                      }}
+                    >
+                      Connectivity debug
+                    </button>
+                  </>
                 ) : null}
               </div>
             )}
@@ -927,6 +945,10 @@ function HomeContent() {
       </Modal>
 
       <ServerQueueModal isOpen={showServerQueue} onClose={() => setShowServerQueue(false)} />
+      <ConnectivityDebugModal
+        isOpen={showConnectivityDebug}
+        onClose={() => setShowConnectivityDebug(false)}
+      />
     </div>
   )
 }

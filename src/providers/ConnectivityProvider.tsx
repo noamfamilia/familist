@@ -21,6 +21,7 @@ import {
 } from '@/lib/recoveryHealthCheck'
 import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
 import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
+import { appendConnectivityDebugLine } from '@/lib/connectivityDebugLog'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import {
   connectivityProbeDelayForStep,
@@ -271,6 +272,15 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     setHasMounted(true)
   }, [])
 
+  useLayoutEffect(() => {
+    if (bootLoggedRef.current) return
+    bootLoggedRef.current = true
+    const onLine = typeof navigator !== 'undefined' ? navigator.onLine : true
+    appendConnectivityDebugLine(
+      `[connectivity] boot ConnectivityProvider mount initialStatus=online navigator.onLine=${onLine}`,
+    )
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     const runLegacyOfflineWallPurge = async () => {
@@ -328,6 +338,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
   const statusRef = useRef<ConnectivityStatus>('online')
   const bootStartedAtRef = useRef(Date.now())
+  const bootLoggedRef = useRef(false)
   const offlineBannerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     statusRef.current = status

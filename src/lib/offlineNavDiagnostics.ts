@@ -6,6 +6,7 @@
  * Registered by DiagnosticsMessageBoxProvider to forward into the nav log.
  */
 
+import { appendConnectivityDebugLine } from '@/lib/connectivityDebugLog'
 import { DIAGNOSTICS_DATA_COLLECTION_ENABLED, isDebugVerboseEnabled } from '@/lib/diagnosticsFlags'
 
 type Sink = (section: string) => void
@@ -18,8 +19,7 @@ export function registerOfflineNavDiagnosticSink(fn: Sink | null) {
 }
 
 export function appendOfflineNavDiagnostic(section: string) {
-  // Legacy diagnostics are intentionally suppressed.
-  void section
+  appendConnectivityDebugLine(section)
 }
 
 export function appendMutationDiagnostic(section: string) {
