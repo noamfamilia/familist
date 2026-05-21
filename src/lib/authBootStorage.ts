@@ -37,6 +37,15 @@ export function setLastAuthUserId(userId: string): void {
   }
 }
 
+export function clearLastAuthUserId(): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(LAST_AUTH_USER_ID_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 /** Find Supabase auth token keys in localStorage (sb-*-auth-token). */
 export function findSupabaseAuthStorageKeys(): string[] {
   if (typeof window === 'undefined') return []

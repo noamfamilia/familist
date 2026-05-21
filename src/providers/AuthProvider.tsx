@@ -31,8 +31,8 @@ import {
   isGuestId,
   rotateGuestId,
 } from '@/lib/guestSession'
-import { getCachedAuthenticatedUserId } from '@/lib/authBootstrap'
-import { getLastAuthUserId, setLastAuthUserId, type AuthPhase } from '@/lib/authBootStorage'
+import { getCachedAuthenticatedUserId, getInitialBootstrapUserId } from '@/lib/authBootstrap'
+import { clearLastAuthUserId, setLastAuthUserId, type AuthPhase } from '@/lib/authBootStorage'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { type SessionMode } from '@/lib/sessionPolicy'
 import { useAuthPhaseBootstrap } from '@/providers/useAuthPhaseBootstrap'
@@ -175,14 +175,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [guestId, setGuestId] = useState<string | null>(() =>
     typeof window !== 'undefined' ? ensureGuestId() : null,
   )
-  const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null
-    const last = getLastAuthUserId()
-    if (last) return last
-    const cached = getActiveCacheUserId()
-    if (cached && !isGuestId(cached)) return cached
-    return null
-  })
+  const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(() =>
+    getInitialBootstrapUserId(),
+  )
   const [isMigrating, setIsMigrating] = useState(false)
   const [signedOutToGuest, setSignedOutToGuest] = useState(false)
   const [profileFetchPhase, setProfileFetchPhase] = useState<ProfileFetchPhase>('idle')
@@ -309,8 +304,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    if (options?.signedOut && options.formerAuthUserId) {
-      await reconcileGuestDexieAfterSignOut(gid, options.formerAuthUserId)
+    if (options?.signedOut) {
+      clearLastAuthUserId()
+      if (options.formerAuthUserId) {
+        await reconcileGuestDexieAfterSignOut(gid, options.formerAuthUserId)
+      }
     }
 
     guestIdRef.current = gid

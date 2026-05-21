@@ -13,20 +13,23 @@ export function resolveActiveUserId(
 ): string | null {
   if (userId) return userId
 
+  const boot = bootstrapUserId ?? null
+  const mode = getSessionMode()
+
+  if (mode === 'guest') {
+    if (boot && isGuestId(boot)) return boot
+    if (guestId && isGuestId(guestId)) return guestId
+    return guestId ?? null
+  }
+
   const cachedAuth = getCachedAuthenticatedUserId(bootstrapUserId)
   if (cachedAuth) return cachedAuth
 
-  const boot = bootstrapUserId ?? null
-  if (getSessionMode() === 'resolving') {
-    return cachedAuth ?? (boot && !isGuestId(boot) ? boot : null)
+  if (mode === 'resolving') {
+    return boot && !isGuestId(boot) ? boot : null
   }
 
   if (guestId && isGuestId(guestId)) return guestId
-  if (getSessionMode() === 'guest') {
-    const boot = bootstrapUserId ?? null
-    if (boot && isGuestId(boot)) return boot
-    return guestId ?? null
-  }
   if (boot && isGuestId(boot)) return boot
   return guestId ?? boot ?? null
 }
