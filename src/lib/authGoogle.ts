@@ -1,11 +1,15 @@
 import { createClient } from '@/lib/supabase/client'
-import { markOpenProfileAfterOAuthSignUp } from '@/lib/authOAuthPostRedirect'
+import {
+  markOAuthIntent,
+  markOpenProfileAfterOAuthSignUp,
+  type GoogleAuthIntent,
+} from '@/lib/authOAuthPostRedirect'
 import {
   clearPendingSignUpMigration,
   markPendingSignUpMigration,
 } from '@/lib/authSignUpMigration'
 
-export type GoogleAuthIntent = 'signIn' | 'signUp'
+export type { GoogleAuthIntent } from '@/lib/authOAuthPostRedirect'
 
 export function authOAuthRedirectUrl(): string {
   if (typeof window === 'undefined') return '/auth/callback'
@@ -13,6 +17,7 @@ export function authOAuthRedirectUrl(): string {
 }
 
 export async function signInWithGoogle(intent: GoogleAuthIntent) {
+  markOAuthIntent(intent)
   if (intent === 'signUp') {
     markPendingSignUpMigration()
     markOpenProfileAfterOAuthSignUp()
@@ -31,6 +36,8 @@ export async function signInWithGoogle(intent: GoogleAuthIntent) {
 
 /** Link Google to the current signed-in user (requires manual linking in Supabase project settings). */
 export async function linkGoogleIdentity() {
+  markOAuthIntent('signIn')
+  clearPendingSignUpMigration()
   const supabase = createClient()
   return supabase.auth.linkIdentity({
     provider: 'google',

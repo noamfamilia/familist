@@ -4,6 +4,16 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { buildInvitePath, getPendingInviteToken } from '@/lib/invite'
+import { signInWithGoogle } from '@/lib/authGoogle'
+import { clearPendingSignUpMigration } from '@/lib/authSignUpMigration'
+import {
+  applyOAuthSignUpDowngradeForExistingAccount,
+  clearOpenProfileAfterOAuthSignUp,
+  consumeOAuthIntent,
+  isOAuthUserAlreadyExistsError,
+  markOAuthExistingAccountSignInNotice,
+  type GoogleAuthIntent,
+} from '@/lib/authOAuthPostRedirect'
 
 /** Same shell as home auth bootstrap spinner (page.tsx resolving gate). */
 function AuthCallbackShell({ children }: { children: React.ReactNode }) {
@@ -26,6 +36,10 @@ function CallbackHandler() {
 
   useEffect(() => {
     const handleCallback = async () => {
+      const oauthIntent: GoogleAuthIntent | null = consumeOAuthIntent()
+      const oauthError = searchParams.get('error')
+      const oauthErrorDescription = searchParams.get('error_description')
+
       const supabase = createClient()
       const code = searchParams.get('code')
 
@@ -45,11 +59,32 @@ function CallbackHandler() {
       }
 
       if (!data.session) {
+        const alreadyExists =
+          oauthIntent === 'signUp' &&
+          isOAuthUserAlreadyExistsError(oauthError, oauthErrorDescription)
+
+        if (alreadyExists) {
+          clearOpenProfileAfterOAuthSignUp()
+          clearPendingSignUpMigration()
+          markOAuthExistingAccountSignInNotice(
+            'This email already has an account. Signing you in…',
+          )
+          const { error: retryError } = await signInWithGoogle('signIn')
+          if (retryError) {
+            setError(retryError.message)
+          }
+          return
+        }
+
         setError(
           exchangeErrorMessage ??
             'No session found. The link may be expired. Please try again.',
         )
         return
+      }
+
+      if (oauthIntent === 'signUp') {
+        applyOAuthSignUpDowngradeForExistingAccount(data.session.user)
       }
 
       if (type === 'recovery') {

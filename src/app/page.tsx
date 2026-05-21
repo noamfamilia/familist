@@ -29,7 +29,10 @@ import { OfflineIcon } from '@/components/icons/OfflineIcon'
 import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueIndicator'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
-import { consumeOpenProfileAfterOAuthSignUp } from '@/lib/authOAuthPostRedirect'
+import {
+  consumeOAuthExistingAccountSignInNotice,
+  consumeOpenProfileAfterOAuthSignUp,
+} from '@/lib/authOAuthPostRedirect'
 import { useShallow } from 'zustand/react/shallow'
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
@@ -126,7 +129,7 @@ function HomeContent() {
   const [showConnectivityDebug, setShowConnectivityDebug] = useState(false)
   const [feedbackText, setFeedbackText] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
-  const { success, error: showError } = useToast()
+  const { success, error: showError, info } = useToast()
   const { resolvedTheme, setTheme } = useTheme()
   const hasMounted = useHasMounted()
   const [themeMounted, setThemeMounted] = useState(false)
@@ -159,6 +162,12 @@ function HomeContent() {
       setPendingProfileOpenAfterOAuth(true)
     }
   }, [])
+
+  useEffect(() => {
+    if (!hasMounted || isGuest || !user || authPhase !== 'authenticated') return
+    const notice = consumeOAuthExistingAccountSignInNotice()
+    if (notice) info(notice)
+  }, [hasMounted, isGuest, user, authPhase, info])
 
   useEffect(() => {
     if (!pendingProfileOpenAfterOAuth) return
