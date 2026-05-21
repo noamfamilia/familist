@@ -16,13 +16,17 @@ export function resolveActiveUserId(
   const cachedAuth = getCachedAuthenticatedUserId(bootstrapUserId)
   if (cachedAuth) return cachedAuth
 
+  const boot = bootstrapUserId ?? null
+  if (getSessionMode() === 'resolving') {
+    return cachedAuth ?? (boot && !isGuestId(boot) ? boot : null)
+  }
+
   if (guestId && isGuestId(guestId)) return guestId
   if (getSessionMode() === 'guest') {
     const boot = bootstrapUserId ?? null
     if (boot && isGuestId(boot)) return boot
     return guestId ?? null
   }
-  const boot = bootstrapUserId ?? null
   if (boot && isGuestId(boot)) return boot
   return guestId ?? boot ?? null
 }

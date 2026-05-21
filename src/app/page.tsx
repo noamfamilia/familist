@@ -89,6 +89,7 @@ function HomeContent() {
     user,
     profile,
     loading,
+    authPhase,
     bootstrapUserId,
     activeActorId,
     guestId,
@@ -424,10 +425,11 @@ function HomeContent() {
 
   const effectiveUserId = activeActorId
   const showListsShell = !!effectiveUserId
-  const profileMenuNeedsSession = sessionRestoring
+  const profileMenuNeedsSession = authPhase === 'resolving' || sessionRestoring
   const homeGateLogPrevRef = useRef<string>('')
   useEffect(() => {
-    const fullPageSpinner = !hasMounted || (loading && !effectiveUserId)
+    const fullPageSpinner =
+      !hasMounted || authPhase === 'resolving' || (loading && authPhase !== 'guest' && !user)
     const payload = {
       showListsShell,
       hasMounted,
@@ -458,9 +460,14 @@ function HomeContent() {
     bootstrapUserId,
     isGuest,
     sessionRestoring,
+    authPhase,
   ])
 
-  if (!hasMounted || (loading && !effectiveUserId)) {
+  if (
+    !hasMounted ||
+    authPhase === 'resolving' ||
+    (loading && authPhase !== 'guest' && !user)
+  ) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>

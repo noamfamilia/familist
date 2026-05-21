@@ -5,14 +5,13 @@ import { useTheme } from 'next-themes'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
-import { clearActiveCacheUserId, getActiveCacheUserId, getCachedLists, setActiveCacheUserId } from '@/lib/cache'
+import { getActiveCacheUserId, getCachedLists, setActiveCacheUserId } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { beginActivationServerProgressWindow, hasActivationServerResponse } from '@/lib/activationServerProgress'
 import { notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
 import { log, perfLog } from '@/lib/startupPerfLog'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
-import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
 import { runLocalDexieGc } from '@/lib/data/localDexieGc'
 import { reportServerDexieParityDiagnostics, upsertProfileFromServer } from '@/lib/data/serverDexieParity'
 import { enqueueProfilePatch, pickQueueableProfilePatch } from '@/lib/data/profileOutboundQueue'
@@ -33,25 +32,29 @@ import {
   rotateGuestId,
 } from '@/lib/guestSession'
 import { getCachedAuthenticatedUserId } from '@/lib/authBootstrap'
+import { getLastAuthUserId, setLastAuthUserId, type AuthPhase } from '@/lib/authBootStorage'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
-import { registerSessionModeGetter, type SessionMode } from '@/lib/sessionPolicy'
+import { type SessionMode } from '@/lib/sessionPolicy'
+import { useAuthPhaseBootstrap } from '@/providers/useAuthPhaseBootstrap'
 import { reconcileGuestDexieAfterSignOut } from '@/lib/data/guestCatalogReconcile'
 import { discardGuestOutboundQueueRows } from '@/lib/data/syncQueue'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
+export type { AuthPhase } from '@/lib/authBootStorage'
 
 interface AuthContextType {
   user: User | null
   profile: Profile | null
   loading: boolean
+  authPhase: AuthPhase
   /** Active actor id: authenticated user or local guest. */
   bootstrapUserId: string | null
   guestId: string | null
   sessionMode: SessionMode
   isGuest: boolean
-  /** True while getSession hydrates and we already know the last signed-in user id. */
+  /** True while auth bootstrap is resolving (not guest). */
   sessionRestoring: boolean
   isMigrating: boolean
   /** Shown once after sign-out when returning to guest mode. */
@@ -118,6 +121,7 @@ async function clearAuthAndAppStorage(): Promise<void> {
         k.startsWith('label_filter_') ||
         k.startsWith('tutorial_') ||
         k === 'active_cache_user' ||
+        k === 'last_auth_user_id' ||
         k === 'familist_guest_id' ||
         k === 'familist_connectivity_status' ||
         k === 'pending_invite_token' ||
@@ -167,15 +171,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [authPhase, setAuthPhase] = useState<AuthPhase>('resolving')
   const [guestId, setGuestId] = useState<string | null>(() =>
     typeof window !== 'undefined' ? ensureGuestId() : null,
   )
   const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null
-    const gid = ensureGuestId()
-    const cachedAuth = getActiveCacheUserId()
-    if (cachedAuth && !isGuestId(cachedAuth)) return cachedAuth
-    return gid
+    const last = getLastAuthUserId()
+    if (last) return last
+    const cached = getActiveCacheUserId()
+    if (cached && !isGuestId(cached)) return cached
+    return null
   })
   const [isMigrating, setIsMigrating] = useState(false)
   const [signedOutToGuest, setSignedOutToGuest] = useState(false)
@@ -193,11 +199,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUpActivationHandledRef = useRef<string | null>(null)
   /** Skip duplicate enterGuestMode(same gid) when signOut + SIGNED_OUT both fire. */
   const lastEnterGuestModeGidRef = useRef<string | null>(null)
+  const authPhaseRef = useRef<AuthPhase>('resolving')
+  const authenticatedEstablishedRef = useRef(false)
+  const initialSessionReceivedRef = useRef(false)
+  const initialSessionSettledNullRef = useRef(false)
+  const initialSessionTimedOutRef = useRef(false)
+  const explicitSignOutInProgressRef = useRef(false)
+  const hardRecoveryInProgressRef = useRef(false)
   const [guestMigrationPrompt, setGuestMigrationPrompt] = useState<GuestMigrationPromptState | null>(null)
-  const cachedAuthUserId = getCachedAuthenticatedUserId(bootstrapUserId)
-  const sessionRestoring = loading && !user && cachedAuthUserId != null
-  const sessionMode: SessionMode = user || sessionRestoring ? 'authenticated' : 'guest'
-  const isGuest = sessionMode === 'guest'
+
+  const setAuthPhaseBoth = useCallback((phase: AuthPhase) => {
+    authPhaseRef.current = phase
+    setAuthPhase(phase)
+  }, [])
+
+  const sessionRestoring = authPhase === 'resolving'
+  const sessionMode: SessionMode =
+    authPhase === 'resolving' ? 'resolving' : authPhase === 'guest' ? 'guest' : 'authenticated'
+  const isGuest = authPhase === 'guest'
   const activeActorId = resolveActiveUserId(user?.id, guestId, bootstrapUserId)
   const displayName =
     sessionRestoring ? '' : isGuest ? 'Guest' : resolveAuthDisplayName(user, profile)
@@ -227,32 +246,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     guestIdRef.current = guestId
   }, [guestId])
 
-  registerSessionModeGetter(() => {
-    if (userRef.current) return 'authenticated'
-    const boot = bootstrapUserIdRef.current
-    if (getCachedAuthenticatedUserId(boot)) return 'authenticated'
-    return 'guest'
-  })
-  registerServerReadsAllowed(() => userRef.current != null)
-
   useEffect(() => {
-    return () => {
-      registerSessionModeGetter(null)
-      registerServerReadsAllowed(null)
-    }
+    registerServerReadsAllowed(() => userRef.current != null)
+    return () => registerServerReadsAllowed(null)
   }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const gid = ensureGuestId()
     setGuestId(gid)
-    const cachedAuth = getActiveCacheUserId()
-    if (cachedAuth && !isGuestId(cachedAuth)) {
-      if (!userRef.current) setBootstrapUserId(cachedAuth)
-    } else if (!userRef.current) {
-      setBootstrapUserId(gid)
+    guestIdRef.current = gid
+
+    const phase = authPhaseRef.current
+    if (phase === 'resolving') {
+      const restoreId = getCachedAuthenticatedUserId(bootstrapUserIdRef.current)
+      if (restoreId && !userRef.current) {
+        bootstrapUserIdRef.current = restoreId
+        setBootstrapUserId(restoreId)
+      }
+      return
     }
-  }, [])
+    if (phase === 'guest' && !userRef.current) {
+      bootstrapUserIdRef.current = gid
+      setBootstrapUserId(gid)
+      return
+    }
+    if (phase === 'authenticated' && userRef.current) {
+      bootstrapUserIdRef.current = userRef.current.id
+      setBootstrapUserId(userRef.current.id)
+    }
+  }, [authPhase])
 
   const hydrateProfileFromDexie = useCallback(async (userId: string) => {
     try {
@@ -419,6 +442,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       perfLog('auth/recovery start', { source })
+      hardRecoveryInProgressRef.current = true
       try {
         try {
           await supabase.auth.signOut({ scope: 'local' })
@@ -435,12 +459,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // best effort
         }
       } finally {
+        hardRecoveryInProgressRef.current = false
         profileFetchGenRef.current++
         clearStoredGuestId()
         rotateGuestId()
         setUser(null)
         setProfile(null)
         setProfileFetchPhase('idle')
+        setAuthPhaseBoth('guest')
+        authenticatedEstablishedRef.current = false
         void enterGuestMode({ freshGuest: true })
         setLoading(false)
         perfLog('auth/recovery end', { source })
@@ -449,7 +476,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [enterGuestMode, supabase.auth],
+    [enterGuestMode, setAuthPhaseBoth, supabase.auth],
   )
 
   const scheduleStartupProfileFetch = useCallback(
@@ -524,6 +551,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userRef.current = nextUser
       setUser(nextUser)
       setActiveCacheUserId(nextUser.id)
+      setLastAuthUserId(nextUser.id)
       setBootstrapUserId(nextUser.id)
       setSignedOutToGuest(false)
       lastEnterGuestModeGidRef.current = null
@@ -587,191 +615,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [activateAuthenticatedUserCore, clearPendingSignUpMigration, promptGuestMigrationChoice, runGuestMigration],
   )
 
-  useEffect(() => {
-    let mounted = true
-    let subscription: { unsubscribe: () => void } | null = null
-    const hydratedFromGetSessionRef = { current: false }
-
-    const applySessionUserCore = async (
-      nextUser: User | null,
-      source: string,
-      options?: { signedOut?: boolean },
-    ) => {
-      if (!mounted) return
-      perfLog('auth applySessionUser', { source, hasUser: !!nextUser, userId: nextUser?.id ?? null })
-      lastAppliedUserIdRef.current = nextUser?.id ?? null
-      if (nextUser) {
-        if (consumePendingSignUpMigration()) {
-          await completeSignUpWithOptionalGuestMigration(nextUser, source)
-        } else {
-          await activateAuthenticatedUserCore(nextUser, source)
-        }
-        return
-      }
-      const formerAuthUserId = userRef.current?.id ?? lastAppliedUserIdRef.current
-      await enterGuestMode({
-        freshGuest: false,
-        signedOut: options?.signedOut === true,
-        formerAuthUserId,
-      })
-    }
-
-    void (async () => {
-      const t0 = typeof performance !== 'undefined' ? performance.now() : 0
-      perfLog('auth/session start')
-      try {
-        perfLog('auth/getSession start')
-        const gs0 = performance.now()
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-        logServerRoundTrip({
-          description: sessionError
-            ? 'Auth getSession failed'
-            : sessionData?.session
-              ? 'Restored auth session'
-              : 'Auth session (signed out)',
-          ok: !sessionError,
-          durationMs: Math.round(performance.now() - gs0),
-          respondsTo: 'App bootstrap',
-          failure: sessionError ?? undefined,
-        })
-        perfLog('auth/getSession end', {
-          durationMs: Math.round(performance.now() - gs0),
-          hasSession: !!sessionData?.session,
-          error: sessionError?.message,
-        })
-
-        if (!mounted) return
-
-        if (sessionError && isInvalidRefreshTokenError(sessionError)) {
-          perfLog('auth/getSession invalid-refresh-token', { message: sessionError.message })
-          await hardRecoverInvalidRefreshToken('getSession')
-          return
-        }
-
-        if (isStartupDiagnosticsEnabled()) {
-          perfLog('auth/getUser start')
-          const gu0 = performance.now()
-          try {
-            const { data: userData, error: userError } = await supabase.auth.getUser()
-            perfLog('auth/getUser end', {
-              durationMs: Math.round(performance.now() - gu0),
-              hasUser: !!userData?.user,
-              error: userError?.message,
-            })
-          } catch (guErr) {
-            perfLog('auth/getUser end', {
-              durationMs: Math.round(performance.now() - gu0),
-              error: guErr instanceof Error ? guErr.message : String(guErr),
-            })
-          }
-          if (!mounted) return
-        }
-
-        const nextUser = sessionData?.session?.user ?? null
-        perfLog('auth/getSession applySessionUser start', {
-          hasUser: !!nextUser,
-          userId: nextUser?.id ?? null,
-        })
-        await applySessionUserCore(nextUser, 'getSession')
-        perfLog('auth/getSession applySessionUser end', {
-          hasUser: !!nextUser,
-          userId: nextUser?.id ?? null,
-        })
-      } catch (error) {
-        console.error('Failed to get session:', error)
-        perfLog('auth/session try error', {
-          message: error instanceof Error ? error.message : String(error),
-        })
-        if (isInvalidRefreshTokenError(error)) {
-          await hardRecoverInvalidRefreshToken('getSession-catch')
-          return
-        }
-      } finally {
-        hydratedFromGetSessionRef.current = true
-        if (mounted) {
-          perfLog('auth setLoading(false) before', { source: 'getSession_bootstrap' })
-          setLoading(false)
-          perfLog('auth setLoading(false) after', {
-            source: 'getSession_bootstrap',
-            durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - t0),
-          })
-          perfLog('auth/session end', {
-            durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - t0),
-          })
-        }
-      }
-
-      if (!mounted) return
-
-      perfLog('auth onAuthStateChange subscribe start')
-      const {
-        data: { subscription: sub },
-      } = supabase.auth.onAuthStateChange((event, session) => {
-        const nextUser = session?.user ?? null
-        const nextId = nextUser?.id ?? null
-
-        if (event === 'INITIAL_SESSION' && hydratedFromGetSessionRef.current) {
-          if (nextId === lastAppliedUserIdRef.current) {
-            perfLog('auth onAuthStateChange ignored', {
-              event,
-              reason: 'initial_session_same_as_getSession',
-              userId: nextId,
-            })
-            return
-          }
-          perfLog('auth onAuthStateChange', {
-            event,
-            hasSession: !!session,
-            note: 'initial_session_differs_reapplying',
-          })
-          void applySessionUserCore(nextUser, 'onAuthStateChange')
-          return
-        }
-
-        if (
-          (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') &&
-          nextId !== null &&
-          lastAppliedUserIdRef.current === nextId
-        ) {
-          perfLog('auth onAuthStateChange ignored', {
-            event,
-            reason: 'same_user_idempotent',
-            userId: nextId,
-          })
-          return
-        }
-
-        if (event === 'SIGNED_OUT') {
-          perfLog('auth onAuthStateChange', { event, hasSession: false })
-          void applySessionUserCore(null, 'onAuthStateChange', { signedOut: true })
-          if (mounted) setLoading(false)
-          return
-        }
-
-        perfLog('auth onAuthStateChange', { event, hasSession: !!session })
-        void applySessionUserCore(nextUser, 'onAuthStateChange')
-        if (mounted) {
-          perfLog('auth onAuthStateChange setLoading(false) before')
-          setLoading(false)
-          perfLog('auth onAuthStateChange setLoading(false) after')
-        }
-      })
-      subscription = sub
-      perfLog('auth onAuthStateChange subscribe end')
-    })()
-
-    return () => {
-      mounted = false
-      subscription?.unsubscribe()
-    }
-  }, [
-    activateAuthenticatedUserCore,
-    completeSignUpWithOptionalGuestMigration,
-    consumePendingSignUpMigration,
-    enterGuestMode,
-    hardRecoverInvalidRefreshToken,
-    supabase.auth,
-  ])
+  const { transitionToAuthenticated, transitionToGuest } = useAuthPhaseBootstrap(
+    supabase,
+    loading,
+    {
+      mountedRef,
+      userRef,
+      bootstrapUserIdRef,
+      lastAppliedUserIdRef,
+      authenticatedEstablishedRef,
+      initialSessionReceivedRef,
+      initialSessionSettledNullRef,
+      initialSessionTimedOutRef,
+      explicitSignOutInProgressRef,
+      hardRecoveryInProgressRef,
+      authPhaseRef,
+    },
+    {
+      setAuthPhaseBoth,
+      setUser,
+      setBootstrapUserId,
+      setLoading,
+      setActiveCacheUserId,
+      activateAuthenticatedUserCore,
+      completeSignUpWithOptionalGuestMigration,
+      consumePendingSignUpMigration,
+      enterGuestMode,
+      hardRecoverInvalidRefreshToken,
+    },
+  )
 
   useEffect(() => {
     const t = profile?.theme
@@ -793,7 +665,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!result.error && result.data?.user) {
         clearPendingSignUpMigration()
-        await activateAuthenticatedUserCore(result.data.user, 'signIn')
+        await transitionToAuthenticated(result.data.user, 'signIn')
       }
 
       return { error: result.error }
@@ -826,18 +698,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    const formerAuthUserId = userRef.current?.id ?? null
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error('Sign out error:', error)
-      return { error: error as Error }
+    const formerAuthUserId = userRef.current?.id ?? lastAppliedUserIdRef.current
+    explicitSignOutInProgressRef.current = true
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        explicitSignOutInProgressRef.current = false
+        console.error('Sign out error:', error)
+        return { error: error as Error }
+      }
+      if (authPhaseRef.current !== 'guest') {
+        await transitionToGuest({
+          source: 'signOut-fallback',
+          guestPath: 'B',
+          signedOut: true,
+          formerAuthUserId,
+        })
+      }
+      return { error: null }
+    } catch (e) {
+      explicitSignOutInProgressRef.current = false
+      return { error: e instanceof Error ? e : new Error(String(e)) }
     }
-    await enterGuestMode({
-      freshGuest: false,
-      signedOut: true,
-      formerAuthUserId,
-    })
-    return { error: null }
   }
 
   const updateActorProfile = async (updates: Partial<Profile>) => {
@@ -915,6 +797,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         profile,
         loading,
+        authPhase,
         bootstrapUserId,
         guestId,
         sessionMode,

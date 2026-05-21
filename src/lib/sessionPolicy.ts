@@ -1,6 +1,6 @@
 import { getConnectivityStatusForReads, isServerSessionActive } from '@/lib/data/serverReadPolicy'
 
-export type SessionMode = 'guest' | 'authenticated'
+export type SessionMode = 'resolving' | 'authenticated' | 'guest'
 
 let sessionModeGetter: (() => SessionMode) | null = null
 
@@ -10,11 +10,15 @@ export function registerSessionModeGetter(fn: (() => SessionMode) | null): void 
 }
 
 export function getSessionMode(): SessionMode {
-  return sessionModeGetter?.() ?? 'authenticated'
+  return sessionModeGetter?.() ?? 'resolving'
 }
 
 export function isAuthenticatedSession(): boolean {
   return getSessionMode() === 'authenticated'
+}
+
+export function isResolvingSession(): boolean {
+  return getSessionMode() === 'resolving'
 }
 
 export function canOutboundSyncNow(): boolean {
