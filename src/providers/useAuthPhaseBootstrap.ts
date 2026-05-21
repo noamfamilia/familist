@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { User } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getActiveCacheUserId } from '@/lib/cache'
@@ -15,7 +15,6 @@ import {
 import { logAuthBootTrace } from '@/lib/authBootTrace'
 import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
-import { perfLog } from '@/lib/startupPerfLog'
 import { registerSessionModeGetter } from '@/lib/sessionPolicy'
 
 const INITIAL_SESSION_TIMEOUT_MS = 1_200
@@ -48,6 +47,7 @@ export type AuthPhaseBootstrapRefs = {
   explicitSignOutInProgressRef: React.MutableRefObject<boolean>
   hardRecoveryInProgressRef: React.MutableRefObject<boolean>
   authPhaseRef: React.MutableRefObject<AuthPhase>
+  loadingRef: React.MutableRefObject<boolean>
 }
 
 export type AuthPhaseBootstrapActions = {
@@ -67,302 +67,268 @@ export type AuthPhaseBootstrapActions = {
   hardRecoverInvalidRefreshToken: (source: string) => Promise<void>
 }
 
+function emitAuthBootTraceFromRefs(
+  refs: AuthPhaseBootstrapRefs,
+  params: {
+    event: string
+    reason: string
+    guestPath?: GuestEntryPath
+    authPhaseBefore: AuthPhase
+    authPhaseAfter: AuthPhase
+    loadingBefore: boolean
+    loadingAfter: boolean
+    sessionUserId?: string | null
+    getSessionErrorCode?: string | null
+    didEnterGuestMode?: boolean
+    didEnterAuthenticatedMode?: boolean
+  },
+): void {
+  logAuthBootTrace({
+    event: params.event,
+    reason: params.reason,
+    guestPath: params.guestPath ?? null,
+    authPhaseBefore: params.authPhaseBefore,
+    authPhaseAfter: params.authPhaseAfter,
+    loadingBefore: params.loadingBefore,
+    loadingAfter: params.loadingAfter,
+    authenticatedEstablished: refs.authenticatedEstablishedRef.current,
+    initialSessionReceived: refs.initialSessionReceivedRef.current,
+    initialSessionTimedOut: refs.initialSessionTimedOutRef.current,
+    initialSessionSettledNull: refs.initialSessionSettledNullRef.current,
+    sessionUserId: params.sessionUserId ?? refs.userRef.current?.id ?? null,
+    getSessionErrorCode: params.getSessionErrorCode,
+    hasUsableAuthBlob: hasUsableAuthBlob(),
+    lastAuthUserId: getLastAuthUserId(),
+    activeCacheUserBefore: getActiveCacheUserId(),
+    activeCacheUserAfter: getActiveCacheUserId(),
+    bootstrapUserIdBefore: refs.bootstrapUserIdRef.current,
+    bootstrapUserIdAfter: refs.bootstrapUserIdRef.current,
+    sessionMode:
+      refs.authPhaseRef.current === 'resolving'
+        ? 'resolving'
+        : refs.authPhaseRef.current === 'guest'
+          ? 'guest'
+          : 'authenticated',
+    didEnterGuestMode: params.didEnterGuestMode ?? false,
+    didEnterAuthenticatedMode: params.didEnterAuthenticatedMode ?? false,
+    didClearActiveCacheUser: false,
+    hardRecoveryInProgress: refs.hardRecoveryInProgressRef.current,
+    explicitSignOutInProgress: refs.explicitSignOutInProgressRef.current,
+  })
+}
+
 export function useAuthPhaseBootstrap(
   supabase: SupabaseClient,
-  loading: boolean,
   refs: AuthPhaseBootstrapRefs,
   actions: AuthPhaseBootstrapActions,
 ) {
-  const {
-    mountedRef,
-    userRef,
-    bootstrapUserIdRef,
-    lastAppliedUserIdRef,
-    authenticatedEstablishedRef,
-    initialSessionReceivedRef,
-    initialSessionSettledNullRef,
-    initialSessionTimedOutRef,
-    explicitSignOutInProgressRef,
-    hardRecoveryInProgressRef,
-    authPhaseRef,
-  } = refs
+  const actionsRef = useRef(actions)
+  actionsRef.current = actions
 
-  const {
-    setAuthPhaseBoth,
-    setUser,
-    setBootstrapUserId,
-    setLoading,
-    setActiveCacheUserId,
-    activateAuthenticatedUserCore,
-    completeSignUpWithOptionalGuestMigration,
-    consumePendingSignUpMigration,
-    enterGuestMode,
-    hardRecoverInvalidRefreshToken,
-  } = actions
-
-  const emitAuthBootTrace = useCallback(
-    (params: {
-      event: string
-      reason: string
-      guestPath?: GuestEntryPath
-      authPhaseBefore: AuthPhase
-      authPhaseAfter: AuthPhase
-      loadingBefore: boolean
-      loadingAfter: boolean
-      sessionUserId?: string | null
-      getSessionErrorCode?: string | null
-      didEnterGuestMode?: boolean
-      didEnterAuthenticatedMode?: boolean
-    }) => {
-      logAuthBootTrace({
-        event: params.event,
-        reason: params.reason,
-        guestPath: params.guestPath ?? null,
-        authPhaseBefore: params.authPhaseBefore,
-        authPhaseAfter: params.authPhaseAfter,
-        loadingBefore: params.loadingBefore,
-        loadingAfter: params.loadingAfter,
-        authenticatedEstablished: authenticatedEstablishedRef.current,
-        initialSessionReceived: initialSessionReceivedRef.current,
-        initialSessionTimedOut: initialSessionTimedOutRef.current,
-        initialSessionSettledNull: initialSessionSettledNullRef.current,
-        sessionUserId: params.sessionUserId ?? userRef.current?.id ?? null,
-        getSessionErrorCode: params.getSessionErrorCode,
-        hasUsableAuthBlob: hasUsableAuthBlob(),
-        lastAuthUserId: getLastAuthUserId(),
-        activeCacheUserBefore: getActiveCacheUserId(),
-        activeCacheUserAfter: getActiveCacheUserId(),
-        bootstrapUserIdBefore: bootstrapUserIdRef.current,
-        bootstrapUserIdAfter: bootstrapUserIdRef.current,
-        sessionMode:
-          authPhaseRef.current === 'resolving'
-            ? 'resolving'
-            : authPhaseRef.current === 'guest'
-              ? 'guest'
-              : 'authenticated',
-        didEnterGuestMode: params.didEnterGuestMode ?? false,
-        didEnterAuthenticatedMode: params.didEnterAuthenticatedMode ?? false,
-        didClearActiveCacheUser: false,
-        hardRecoveryInProgress: hardRecoveryInProgressRef.current,
-        explicitSignOutInProgress: explicitSignOutInProgressRef.current,
-      })
-    },
-    [
-      authenticatedEstablishedRef,
-      authPhaseRef,
-      bootstrapUserIdRef,
-      explicitSignOutInProgressRef,
-      hardRecoveryInProgressRef,
-      initialSessionReceivedRef,
-      initialSessionSettledNullRef,
-      initialSessionTimedOutRef,
-      userRef,
-    ],
+  const transitionToAuthenticatedRef = useRef(
+    async (_nextUser: User, _source: string) => {},
   )
-
-  const transitionToAuthenticated = useCallback(
-    async (nextUser: User, source: string) => {
-      if (!mountedRef.current) return
-      const loadingBefore = loading
-      const phaseBefore = authPhaseRef.current
-      const nextId = nextUser.id
-
-      if (
-        authenticatedEstablishedRef.current &&
-        lastAppliedUserIdRef.current === nextId &&
-        phaseBefore === 'authenticated'
-      ) {
-        emitAuthBootTrace({
-          event: source,
-          reason: 'idempotent-authenticated',
-          authPhaseBefore: phaseBefore,
-          authPhaseAfter: phaseBefore,
-          loadingBefore,
-          loadingAfter: loadingBefore,
-          sessionUserId: nextId,
-        })
-        return
-      }
-
-      setAuthPhaseBoth('authenticated')
-      authenticatedEstablishedRef.current = true
-      lastAppliedUserIdRef.current = nextId
-      userRef.current = nextUser
-      setUser(nextUser)
-      bootstrapUserIdRef.current = nextId
-      setBootstrapUserId(nextId)
-      setActiveCacheUserId(nextId)
-      setLastAuthUserId(nextId)
-
-      if (consumePendingSignUpMigration()) {
-        await completeSignUpWithOptionalGuestMigration(nextUser, source)
-      } else {
-        await activateAuthenticatedUserCore(nextUser, source)
-      }
-
-      if (!mountedRef.current) return
-      setLoading(false)
-      emitAuthBootTrace({
-        event: source,
-        reason: 'transitionToAuthenticated',
-        authPhaseBefore: phaseBefore,
-        authPhaseAfter: 'authenticated',
-        loadingBefore,
-        loadingAfter: false,
-        sessionUserId: nextId,
-        didEnterAuthenticatedMode: true,
-      })
-    },
-    [
-      activateAuthenticatedUserCore,
-      authPhaseRef,
-      authenticatedEstablishedRef,
-      bootstrapUserIdRef,
-      completeSignUpWithOptionalGuestMigration,
-      consumePendingSignUpMigration,
-      emitAuthBootTrace,
-      lastAppliedUserIdRef,
-      loading,
-      mountedRef,
-      setActiveCacheUserId,
-      setAuthPhaseBoth,
-      setBootstrapUserId,
-      setLoading,
-      setUser,
-      userRef,
-    ],
-  )
-
-  const transitionToGuest = useCallback(
-    async (options: {
+  const transitionToGuestRef = useRef(
+    async (_options: {
       source: string
       guestPath: GuestEntryPath
       signedOut?: boolean
       freshGuest?: boolean
       formerAuthUserId?: string | null
-    }) => {
-      if (!mountedRef.current) return
-      if (hardRecoveryInProgressRef.current && options.guestPath !== 'C') return
-
-      const loadingBefore = loading
-      const phaseBefore = authPhaseRef.current
-
-      if (phaseBefore === 'resolving' && options.guestPath !== 'A' && options.guestPath !== 'D') {
-        if (options.guestPath !== 'B' && options.guestPath !== 'C') {
-          return
-        }
-      }
-
-      if (phaseBefore === 'authenticated' && options.guestPath !== 'B' && options.guestPath !== 'C') {
-        return
-      }
-
-      const formerAuthUserId = options.formerAuthUserId ?? userRef.current?.id ?? lastAppliedUserIdRef.current
-
-      setAuthPhaseBoth('guest')
-      authenticatedEstablishedRef.current = false
-      await enterGuestMode({
-        freshGuest: options.freshGuest === true,
-        signedOut: options.signedOut === true,
-        formerAuthUserId: options.signedOut ? formerAuthUserId : undefined,
-      })
-
-      if (!mountedRef.current) return
-      setLoading(false)
-      if (options.guestPath === 'B') {
-        explicitSignOutInProgressRef.current = false
-      }
-      emitAuthBootTrace({
-        event: options.source,
-        reason: 'transitionToGuest',
-        guestPath: options.guestPath,
-        authPhaseBefore: phaseBefore,
-        authPhaseAfter: 'guest',
-        loadingBefore,
-        loadingAfter: false,
-        didEnterGuestMode: true,
-      })
-    },
-    [
-      authPhaseRef,
-      authenticatedEstablishedRef,
-      emitAuthBootTrace,
-      enterGuestMode,
-      explicitSignOutInProgressRef,
-      hardRecoveryInProgressRef,
-      lastAppliedUserIdRef,
-      loading,
-      mountedRef,
-      setAuthPhaseBoth,
-      setLoading,
-      userRef,
-    ],
+    }) => {},
   )
 
-  const confirmedSignedOutLocally = useCallback(async (): Promise<boolean> => {
-    if (!initialSessionSettledNullRef.current) return false
-    if (hasUsableAuthBlob()) return false
-    try {
-      const { data } = await supabase.auth.getSession()
-      if (data?.session?.user) return false
-    } catch {
-      // conservative
+  transitionToAuthenticatedRef.current = async (nextUser: User, source: string) => {
+    const r = refs
+    const a = actionsRef.current
+    if (!r.mountedRef.current) return
+
+    const loadingBefore = r.loadingRef.current
+    const phaseBefore = r.authPhaseRef.current
+    const nextId = nextUser.id
+
+    if (
+      r.authenticatedEstablishedRef.current &&
+      r.lastAppliedUserIdRef.current === nextId &&
+      phaseBefore === 'authenticated'
+    ) {
+      emitAuthBootTraceFromRefs(r, {
+        event: source,
+        reason: 'idempotent-authenticated',
+        authPhaseBefore: phaseBefore,
+        authPhaseAfter: phaseBefore,
+        loadingBefore,
+        loadingAfter: loadingBefore,
+        sessionUserId: nextId,
+      })
+      return
     }
-    return true
-  }, [initialSessionSettledNullRef, supabase.auth])
+
+    a.setAuthPhaseBoth('authenticated')
+    r.authenticatedEstablishedRef.current = true
+    r.lastAppliedUserIdRef.current = nextId
+    r.userRef.current = nextUser
+    a.setUser(nextUser)
+    r.bootstrapUserIdRef.current = nextId
+    a.setBootstrapUserId(nextId)
+    a.setActiveCacheUserId(nextId)
+    setLastAuthUserId(nextId)
+
+    if (a.consumePendingSignUpMigration()) {
+      await a.completeSignUpWithOptionalGuestMigration(nextUser, source)
+    } else {
+      await a.activateAuthenticatedUserCore(nextUser, source)
+    }
+
+    if (!r.mountedRef.current) return
+    r.loadingRef.current = false
+    a.setLoading(false)
+    emitAuthBootTraceFromRefs(r, {
+      event: source,
+      reason: 'transitionToAuthenticated',
+      authPhaseBefore: phaseBefore,
+      authPhaseAfter: 'authenticated',
+      loadingBefore,
+      loadingAfter: false,
+      sessionUserId: nextId,
+      didEnterAuthenticatedMode: true,
+    })
+  }
+
+  transitionToGuestRef.current = async (options: {
+    source: string
+    guestPath: GuestEntryPath
+    signedOut?: boolean
+    freshGuest?: boolean
+    formerAuthUserId?: string | null
+  }) => {
+    const r = refs
+    const a = actionsRef.current
+    if (!r.mountedRef.current) return
+    if (r.hardRecoveryInProgressRef.current && options.guestPath !== 'C') return
+
+    const loadingBefore = r.loadingRef.current
+    const phaseBefore = r.authPhaseRef.current
+
+    if (phaseBefore === 'resolving' && options.guestPath !== 'A' && options.guestPath !== 'D') {
+      if (options.guestPath !== 'B' && options.guestPath !== 'C') return
+    }
+
+    if (phaseBefore === 'authenticated' && options.guestPath !== 'B' && options.guestPath !== 'C') {
+      return
+    }
+
+    const formerAuthUserId =
+      options.formerAuthUserId ?? r.userRef.current?.id ?? r.lastAppliedUserIdRef.current
+
+    a.setAuthPhaseBoth('guest')
+    r.authenticatedEstablishedRef.current = false
+    await a.enterGuestMode({
+      freshGuest: options.freshGuest === true,
+      signedOut: options.signedOut === true,
+      formerAuthUserId: options.signedOut ? formerAuthUserId : undefined,
+    })
+
+    if (!r.mountedRef.current) return
+    r.loadingRef.current = false
+    a.setLoading(false)
+    if (options.guestPath === 'B') {
+      r.explicitSignOutInProgressRef.current = false
+    }
+    emitAuthBootTraceFromRefs(r, {
+      event: options.source,
+      reason: 'transitionToGuest',
+      guestPath: options.guestPath,
+      authPhaseBefore: phaseBefore,
+      authPhaseAfter: 'guest',
+      loadingBefore,
+      loadingAfter: false,
+      didEnterGuestMode: true,
+    })
+  }
 
   useEffect(() => {
     registerSessionModeGetter(() => {
-      const phase = authPhaseRef.current
+      const phase = refs.authPhaseRef.current
       if (phase === 'resolving') return 'resolving'
       if (phase === 'guest') return 'guest'
       return 'authenticated'
     })
-    registerAuthPhaseGetter(() => authPhaseRef.current)
+    registerAuthPhaseGetter(() => refs.authPhaseRef.current)
     return () => {
       registerSessionModeGetter(null)
       registerAuthPhaseGetter(null)
     }
-  }, [authPhaseRef])
+  }, [refs.authPhaseRef])
 
   useEffect(() => {
-    let mounted = true
+    let effectMounted = true
     let subscription: { unsubscribe: () => void } | null = null
     let safetyTimeoutId: ReturnType<typeof setTimeout> | null = null
 
-    setAuthPhaseBoth('resolving')
-    setLoading(true)
-    authenticatedEstablishedRef.current = false
+    const alreadyTerminal =
+      refs.authenticatedEstablishedRef.current &&
+      (refs.authPhaseRef.current === 'authenticated' || refs.authPhaseRef.current === 'guest')
+
+    if (!alreadyTerminal) {
+      actionsRef.current.setAuthPhaseBoth('resolving')
+      refs.loadingRef.current = true
+      actionsRef.current.setLoading(true)
+      refs.authenticatedEstablishedRef.current = false
+    }
+
+    const confirmedSignedOutLocally = async (): Promise<boolean> => {
+      if (!refs.initialSessionSettledNullRef.current) return false
+      if (hasUsableAuthBlob()) return false
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (data?.session?.user) return false
+      } catch {
+        // conservative
+      }
+      return true
+    }
 
     const handleInitialSessionNull = async (source: string) => {
-      if (!mounted) return
-      if (authPhaseRef.current !== 'resolving') return
+      if (!effectMounted) return
+      if (refs.authPhaseRef.current !== 'resolving') return
       if (await confirmedSignedOutLocally()) {
-        await transitionToGuest({ source, guestPath: 'A' })
+        await transitionToGuestRef.current({ source, guestPath: 'A' })
       }
     }
 
     const {
       data: { subscription: sub },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!mounted) return
+      if (!effectMounted) return
       const nextUser = session?.user ?? null
       const nextId = nextUser?.id ?? null
 
       if (event === 'INITIAL_SESSION') {
-        initialSessionReceivedRef.current = true
+        refs.initialSessionReceivedRef.current = true
         if (nextUser) {
-          if (authenticatedEstablishedRef.current && lastAppliedUserIdRef.current === nextId) {
-            if (mounted) setLoading(false)
+          if (
+            refs.authenticatedEstablishedRef.current &&
+            refs.lastAppliedUserIdRef.current === nextId
+          ) {
+            if (effectMounted) {
+              refs.loadingRef.current = false
+              actionsRef.current.setLoading(false)
+            }
             return
           }
-          if (hardRecoveryInProgressRef.current || explicitSignOutInProgressRef.current) return
-          void transitionToAuthenticated(nextUser, 'INITIAL_SESSION')
+          if (refs.hardRecoveryInProgressRef.current || refs.explicitSignOutInProgressRef.current) {
+            return
+          }
+          void transitionToAuthenticatedRef.current(nextUser, 'INITIAL_SESSION')
           return
         }
-        initialSessionSettledNullRef.current = true
-        if (authenticatedEstablishedRef.current) {
-          if (mounted) setLoading(false)
+        refs.initialSessionSettledNullRef.current = true
+        if (refs.authenticatedEstablishedRef.current) {
+          if (effectMounted) {
+            refs.loadingRef.current = false
+            actionsRef.current.setLoading(false)
+          }
           return
         }
         void handleInitialSessionNull('INITIAL_SESSION')
@@ -370,10 +336,10 @@ export function useAuthPhaseBootstrap(
       }
 
       if (event === 'SIGNED_OUT') {
-        if (hardRecoveryInProgressRef.current) return
-        if (!explicitSignOutInProgressRef.current) return
-        const formerAuthUserId = userRef.current?.id ?? lastAppliedUserIdRef.current
-        void transitionToGuest({
+        if (refs.hardRecoveryInProgressRef.current) return
+        if (!refs.explicitSignOutInProgressRef.current) return
+        const formerAuthUserId = refs.userRef.current?.id ?? refs.lastAppliedUserIdRef.current
+        void transitionToGuestRef.current({
           source: 'SIGNED_OUT',
           guestPath: 'B',
           signedOut: true,
@@ -385,29 +351,29 @@ export function useAuthPhaseBootstrap(
       if (
         (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') &&
         nextId !== null &&
-        lastAppliedUserIdRef.current === nextId &&
-        authenticatedEstablishedRef.current
+        refs.lastAppliedUserIdRef.current === nextId &&
+        refs.authenticatedEstablishedRef.current
       ) {
         return
       }
 
-      if (!nextUser) {
+      if (!nextUser) return
+
+      if (refs.hardRecoveryInProgressRef.current || refs.explicitSignOutInProgressRef.current) {
         return
       }
 
-      if (hardRecoveryInProgressRef.current || explicitSignOutInProgressRef.current) return
-
-      void transitionToAuthenticated(nextUser, event)
+      void transitionToAuthenticatedRef.current(nextUser, event)
     })
     subscription = sub
 
     safetyTimeoutId = setTimeout(() => {
-      if (!mounted) return
-      initialSessionTimedOutRef.current = true
-      if (authPhaseRef.current !== 'resolving') return
-      if (authenticatedEstablishedRef.current) return
+      if (!effectMounted) return
+      refs.initialSessionTimedOutRef.current = true
+      if (refs.authPhaseRef.current !== 'resolving') return
+      if (refs.authenticatedEstablishedRef.current) return
       if (hasUsableAuthBlob()) return
-      void transitionToGuest({
+      void transitionToGuestRef.current({
         source: 'initial-session-timeout-no-blob',
         guestPath: 'D',
       })
@@ -429,10 +395,10 @@ export function useAuthPhaseBootstrap(
           failure: sessionError ?? undefined,
         })
 
-        if (!mounted) return
+        if (!effectMounted) return
 
         if (sessionError && isInvalidRefreshTokenError(sessionError)) {
-          await hardRecoverInvalidRefreshToken('getSession')
+          await actionsRef.current.hardRecoverInvalidRefreshToken('getSession')
           return
         }
 
@@ -442,54 +408,44 @@ export function useAuthPhaseBootstrap(
           } catch {
             // diagnostics only
           }
-          if (!mounted) return
+          if (!effectMounted) return
         }
 
         const nextUser = sessionData?.session?.user ?? null
         if (nextUser) {
-          await transitionToAuthenticated(nextUser, 'getSession-fast-path')
+          await transitionToAuthenticatedRef.current(nextUser, 'getSession-fast-path')
         } else if (sessionError) {
-          emitAuthBootTrace({
+          emitAuthBootTraceFromRefs(refs, {
             event: 'getSession',
             reason: 'error-stay-resolving',
-            authPhaseBefore: authPhaseRef.current,
-            authPhaseAfter: authPhaseRef.current,
-            loadingBefore: true,
-            loadingAfter: true,
+            authPhaseBefore: refs.authPhaseRef.current,
+            authPhaseAfter: refs.authPhaseRef.current,
+            loadingBefore: refs.loadingRef.current,
+            loadingAfter: refs.loadingRef.current,
             getSessionErrorCode: sessionError.message,
           })
         }
       } catch (error) {
         if (isInvalidRefreshTokenError(error)) {
-          await hardRecoverInvalidRefreshToken('getSession-catch')
+          await actionsRef.current.hardRecoverInvalidRefreshToken('getSession-catch')
         }
       }
     })()
 
     return () => {
-      mounted = false
+      effectMounted = false
       if (safetyTimeoutId) clearTimeout(safetyTimeoutId)
       subscription?.unsubscribe()
     }
-  }, [
-    authPhaseRef,
-    authenticatedEstablishedRef,
-    confirmedSignedOutLocally,
-    emitAuthBootTrace,
-    explicitSignOutInProgressRef,
-    hardRecoverInvalidRefreshToken,
-    hardRecoveryInProgressRef,
-    initialSessionReceivedRef,
-    initialSessionSettledNullRef,
-    initialSessionTimedOutRef,
-    lastAppliedUserIdRef,
-    setAuthPhaseBoth,
-    setLoading,
-    supabase.auth,
-    transitionToAuthenticated,
-    transitionToGuest,
-    userRef,
-  ])
+    // Mount once: transitions read latest handlers via refs; do not re-bootstrap when loading changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase])
 
-  return { transitionToAuthenticated, transitionToGuest, explicitSignOutInProgressRef }
+  return {
+    transitionToAuthenticated: (user: User, source: string) =>
+      transitionToAuthenticatedRef.current(user, source),
+    transitionToGuest: (options: Parameters<typeof transitionToGuestRef.current>[0]) =>
+      transitionToGuestRef.current(options),
+    explicitSignOutInProgressRef: refs.explicitSignOutInProgressRef,
+  }
 }

@@ -206,6 +206,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const initialSessionTimedOutRef = useRef(false)
   const explicitSignOutInProgressRef = useRef(false)
   const hardRecoveryInProgressRef = useRef(false)
+  const loadingRef = useRef(true)
+  loadingRef.current = loading
   const [guestMigrationPrompt, setGuestMigrationPrompt] = useState<GuestMigrationPromptState | null>(null)
 
   const setAuthPhaseBoth = useCallback((phase: AuthPhase) => {
@@ -617,7 +619,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const { transitionToAuthenticated, transitionToGuest } = useAuthPhaseBootstrap(
     supabase,
-    loading,
     {
       mountedRef,
       userRef,
@@ -630,6 +631,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       explicitSignOutInProgressRef,
       hardRecoveryInProgressRef,
       authPhaseRef,
+      loadingRef,
     },
     {
       setAuthPhaseBoth,
