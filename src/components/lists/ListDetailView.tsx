@@ -40,6 +40,7 @@ import {
 } from '@/lib/offlineRouteReadiness'
 import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNameUniqueness'
+import { inMemoryItemsHaveExactNormalizedText } from '@/lib/data/localItemTextUniqueness'
 import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 
@@ -590,7 +591,11 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   )
   const [newItemText, setNewItemText] = useState('')
   const [addItemBulkMode, setAddItemBulkMode] = useState(false)
-  const addItemCategoryAnim = useMenuOpenAnimation(!!newItemText)
+  const showAddItemCategoryPicker =
+    !addItemBulkMode &&
+    !!newItemText.trim() &&
+    !inMemoryItemsHaveExactNormalizedText(items, newItemText)
+  const addItemCategoryAnim = useMenuOpenAnimation(showAddItemCategoryPicker)
   const newItemTextRef = useRef('')
   newItemTextRef.current = newItemText
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({})

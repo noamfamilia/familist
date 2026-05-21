@@ -52,7 +52,11 @@ import {
   syncFieldsForLocalInsert,
   withLastSyncedNow,
 } from '@/lib/data/base_sync_fields'
-import { validateBulkItemLinesUniqueness, validateSingleNewItemTextUniqueness } from '@/lib/data/localItemTextUniqueness'
+import {
+  classifySingleAddText,
+  validateBulkItemLinesUniqueness,
+  validateSingleNewItemTextUniqueness,
+} from '@/lib/data/localItemTextUniqueness'
 import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
 import { APP_VERSION } from '@/lib/appVersion'
 import { ITEM_TEXT_WIDTH_MAX, ITEM_TEXT_WIDTH_MIN, measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
@@ -1302,6 +1306,23 @@ export function useList(listId: string) {
     if (!mutationUserId) {
       return { data: null, error: { message: 'Not authenticated' } }
     }
+
+    const trimmed = text.trim()
+    const classified = await classifySingleAddText(listId, trimmed)
+    if (classified.kind === 'duplicate_active') {
+      return { data: null, error: { message: classified.message } }
+    }
+    if (classified.kind === 'unarchive') {
+      const { error } = await updateItemRef.current(classified.itemId, {
+        archived: false,
+        archived_at: null,
+      })
+      if (error) {
+        return { data: null, error }
+      }
+      return { data: { id: classified.itemId } as Item, error: null }
+    }
+
     if (!tryBeginItemQueueableMutation()) {
       return { data: null, error: { message: blockedMutationMessage() } }
     }

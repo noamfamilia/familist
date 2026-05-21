@@ -16,6 +16,54 @@ function shortenForMessage(s: string, max = 72): string {
  * True when another non–soft-deleted item in this list already uses the same display text
  * (case-insensitive trim). Soft-deleted rows (`deleted_at` set) do not count.
  */
+export type SingleAddTextClassification =
+  | { kind: 'create' }
+  | { kind: 'unarchive'; itemId: string }
+  | { kind: 'duplicate_active'; message: string }
+
+/** Single add: archived exact match → unarchive; active exact match → duplicate; else create. */
+export async function classifySingleAddText(
+  listId: string,
+  displayText: string,
+): Promise<SingleAddTextClassification> {
+  const trimmed = displayText.trim()
+  if (!trimmed) return { kind: 'create' }
+
+  const target = normalizeItemTextForUniqueness(trimmed)
+  const rows = await db.items.where('list_id').equals(listId).toArray()
+  let archivedMatchId: string | null = null
+
+  for (const row of rows) {
+    if (isTombstoned(row.deleted_at)) continue
+    if (normalizeItemTextForUniqueness(String(row.text ?? '')) !== target) continue
+    if (row.archived) {
+      if (!archivedMatchId) archivedMatchId = row.id
+      continue
+    }
+    return {
+      kind: 'duplicate_active',
+      message: `An item named “${shortenForMessage(trimmed)}” already exists in this list.`,
+    }
+  }
+
+  if (archivedMatchId) return { kind: 'unarchive', itemId: archivedMatchId }
+  return { kind: 'create' }
+}
+
+/** UI: exact normalized name match against in-memory list rows (active or archived). */
+export function inMemoryItemsHaveExactNormalizedText(
+  items: { text?: string | null; deleted_at?: string | null }[],
+  displayText: string,
+): boolean {
+  const target = normalizeItemTextForUniqueness(displayText)
+  if (!target) return false
+  for (const row of items) {
+    if (isTombstoned(row.deleted_at)) continue
+    if (normalizeItemTextForUniqueness(String(row.text ?? '')) === target) return true
+  }
+  return false
+}
+
 export async function listHasActiveItemWithNormalizedText(
   listId: string,
   displayText: string,

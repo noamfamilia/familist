@@ -10,7 +10,10 @@ import {
 } from '@/lib/data/syncQueue'
 import { isTombstoned, isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { touchListContentUpdateInDexie } from '@/lib/data/listActivity'
-import { validateSingleNewItemTextUniqueness } from '@/lib/data/localItemTextUniqueness'
+import {
+  classifySingleAddText,
+  validateSingleNewItemTextUniqueness,
+} from '@/lib/data/localItemTextUniqueness'
 import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 
@@ -28,9 +31,12 @@ export async function addItemMutation(input: {
   const t = isoNow()
   const sync = syncFieldsForLocalInsert({ client_created_at: t })
   const sortOrder = input.sort_order ?? 0
-  const dup = await validateSingleNewItemTextUniqueness(input.list_id, input.text)
-  if (!dup.ok) {
-    throw new Error(dup.message)
+  const classified = await classifySingleAddText(input.list_id, input.text)
+  if (classified.kind === 'duplicate_active') {
+    throw new Error(classified.message)
+  }
+  if (classified.kind === 'unarchive') {
+    throw new Error('Item already exists (archived); use unarchive instead of create')
   }
 
   const row: DbItemRow = {
