@@ -511,7 +511,7 @@ function HomeContent() {
                 className="text-sm text-teal font-medium hover:opacity-80 max-w-[140px] truncate text-left whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Sign in"
               >
-                Guest
+                Guest (sign in)
               </button>
             ) : null}
             <OutboundQueueIndicator />

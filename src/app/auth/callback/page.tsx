@@ -15,9 +15,18 @@ function CallbackHandler() {
   useEffect(() => {
     const handleCallback = async () => {
       const supabase = createClient()
+      const code = searchParams.get('code')
+
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        if (exchangeError) {
+          setError(`Auth error: ${exchangeError.message}`)
+          return
+        }
+      }
 
       const { data, error: sessionError } = await supabase.auth.getSession()
-      
+
       if (sessionError) {
         setError(`Auth error: ${sessionError.message}`)
         return
@@ -28,7 +37,6 @@ function CallbackHandler() {
         return
       }
 
-      // Branch based on flow type
       if (type === 'recovery') {
         router.replace('/reset')
       } else {
@@ -37,8 +45,8 @@ function CallbackHandler() {
       }
     }
 
-    handleCallback()
-  }, [router, type])
+    void handleCallback()
+  }, [router, searchParams, type])
 
   if (error) {
     return (

@@ -40,6 +40,12 @@ import { useAuthPhaseBootstrap } from '@/providers/useAuthPhaseBootstrap'
 import { reconcileGuestDexieAfterSignOut } from '@/lib/data/guestCatalogReconcile'
 import { discardGuestOutboundQueueRows } from '@/lib/data/syncQueue'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
+import {
+  clearPendingSignUpMigration,
+  consumePendingSignUpMigration,
+  markPendingSignUpMigration,
+} from '@/lib/authSignUpMigration'
+import { signInWithGoogle as startGoogleOAuth, type GoogleAuthIntent } from '@/lib/authGoogle'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
@@ -66,6 +72,7 @@ interface AuthContextType {
   profileFetchPhase: ProfileFetchPhase
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
+  signInWithGoogle: (intent: GoogleAuthIntent) => Promise<{ error: Error | null }>
   signOut: () => Promise<{ error: Error | null }>
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   /** Auth → server queue; guest → Dexie profile row only. */
@@ -79,7 +86,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const PROFILE_FETCH_STARTUP_TIMEOUT_MS = 2_000
 const PROFILE_FETCH_TIMEOUT_MESSAGE = 'profile fetch timeout'
 const AUTH_RECOVERY_ONCE_KEY = 'familist_auth_recovery_done_once'
-const PENDING_SIGNUP_MIGRATION_KEY = 'familist_pending_signup_migration'
 
 type GuestMigrationPromptState = {
   guestId: string
@@ -573,35 +579,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [hydrateProfileFromDexie, scheduleStartupProfileFetch],
   )
 
-  const consumePendingSignUpMigration = useCallback((): boolean => {
-    if (typeof window === 'undefined') return false
-    try {
-      if (sessionStorage.getItem(PENDING_SIGNUP_MIGRATION_KEY) !== '1') return false
-      sessionStorage.removeItem(PENDING_SIGNUP_MIGRATION_KEY)
-      return true
-    } catch {
-      return false
-    }
-  }, [])
-
-  const markPendingSignUpMigration = useCallback(() => {
-    if (typeof window === 'undefined') return
-    try {
-      sessionStorage.setItem(PENDING_SIGNUP_MIGRATION_KEY, '1')
-    } catch {
-      // ignore
-    }
-  }, [])
-
-  const clearPendingSignUpMigration = useCallback(() => {
-    if (typeof window === 'undefined') return
-    try {
-      sessionStorage.removeItem(PENDING_SIGNUP_MIGRATION_KEY)
-    } catch {
-      // ignore
-    }
-  }, [])
-
   const completeSignUpWithOptionalGuestMigration = useCallback(
     async (nextUser: User, source: string) => {
       clearPendingSignUpMigration()
@@ -623,7 +600,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       await activateAuthenticatedUserCore(nextUser, source)
     },
-    [activateAuthenticatedUserCore, clearPendingSignUpMigration, promptGuestMigrationChoice, runGuestMigration],
+    [activateAuthenticatedUserCore, promptGuestMigrationChoice, runGuestMigration],
   )
 
   const { transitionToAuthenticated, transitionToGuest } = useAuthPhaseBootstrap(
@@ -682,6 +659,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: result.error }
     } catch (error) {
       return { error: error as Error }
+    }
+  }
+
+  const signInWithGoogle = async (intent: GoogleAuthIntent) => {
+    try {
+      const { error } = await startGoogleOAuth(intent)
+      return { error: error as Error | null }
+    } catch (error) {
+      return { error: error instanceof Error ? error : new Error(String(error)) }
     }
   }
 
@@ -822,6 +808,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profileFetchPhase,
         signIn,
         signUp,
+        signInWithGoogle,
         signOut,
         updateProfile,
         updateActorProfile,

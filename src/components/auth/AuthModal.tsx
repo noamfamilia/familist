@@ -5,6 +5,8 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/providers/AuthProvider'
+import { useToast } from '@/components/ui/Toast'
+import { GoogleGIcon } from '@/components/auth/GoogleGIcon'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -13,9 +15,11 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModalProps) {
-  const { signIn, signUp, resetPassword } = useAuth()
+  const { signIn, signUp, signInWithGoogle, resetPassword } = useAuth()
+  const { error: showErrorToast } = useToast()
   const [mode, setMode] = useState<'signIn' | 'signUp' | 'forgotPassword'>(initialMode)
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
@@ -171,9 +175,43 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
             type="submit"
             className="w-full"
             loading={loading}
+            disabled={googleLoading}
           >
             {mode === 'forgotPassword' ? 'Send Reset Email' : mode === 'signUp' ? 'Sign Up' : 'Sign In'}
           </Button>
+
+          {mode !== 'forgotPassword' && (
+            <>
+              <div className="flex items-center gap-3 py-1">
+                <div className="h-px flex-1 bg-gray-200 dark:bg-neutral-600" aria-hidden />
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">OR</span>
+                <div className="h-px flex-1 bg-gray-200 dark:bg-neutral-600" aria-hidden />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full flex items-center justify-center gap-2"
+                loading={googleLoading}
+                disabled={loading}
+                aria-label="Continue with Google"
+                onClick={async () => {
+                  setError('')
+                  setSuccessMessage('')
+                  setGoogleLoading(true)
+                  const intent = mode === 'signUp' ? 'signUp' : 'signIn'
+                  const { error: googleError } = await signInWithGoogle(intent)
+                  if (googleError) {
+                    setGoogleLoading(false)
+                    setError(googleError.message)
+                    showErrorToast(googleError.message)
+                  }
+                }}
+              >
+                <GoogleGIcon className="h-5 w-5 shrink-0" />
+                Continue with Google
+              </Button>
+            </>
+          )}
 
           {mode === 'signIn' && (
             <button
