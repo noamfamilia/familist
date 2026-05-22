@@ -49,7 +49,7 @@ import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
-import { itemNameFontClassForStep } from '@/lib/itemNameFontStep'
+import { itemCardRowHeightWithMembersPx, itemNameFontClassForStep } from '@/lib/itemNameFontStep'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
 import { LayerMultiIcon } from '@/components/icons/LayerMultiIcon'
 import { LayerSingleIcon } from '@/components/icons/LayerSingleIcon'
@@ -675,6 +675,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const itemNameFontClassName = itemNameFontClassForStep(itemNameFontStep)
+  const filterArchivedGapPx = useMemo(
+    () => Math.round(itemCardRowHeightWithMembersPx(itemNameFontStep) / 2),
+    [itemNameFontStep],
+  )
 
   const [newItemCategory, setNewItemCategory] = useState<ItemCategory>(1)
 
@@ -1254,17 +1258,26 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             ) : null}
           </div>
 
-          {/* Archived section separator */}
+          {/* Archived section — divider when not filtering; half-row gap when filtering */}
           {archivedItems.length > 0 && (
             <>
-              <div className="flex items-center gap-3 my-6">
-                <div className="flex-1 h-px bg-gray-300 dark:bg-neutral-700" />
-                <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Archived</span>
-                <div className="flex-1 h-px bg-gray-300 dark:bg-neutral-700" />
-              </div>
+              {!searchText ? (
+                <div className="flex items-center gap-3 my-6">
+                  <div className="flex-1 h-px bg-gray-300 dark:bg-neutral-700" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Archived</span>
+                  <div className="flex-1 h-px bg-gray-300 dark:bg-neutral-700" />
+                </div>
+              ) : null}
 
               {/* Archived items list (no drag) */}
-              <div className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}>
+              <div
+                className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}
+                style={
+                  searchText && activeItems.length > 0
+                    ? { marginTop: filterArchivedGapPx }
+                    : undefined
+                }
+              >
                 {archivedItems.map(item => (
                   <ItemCard
                     key={item.id}
