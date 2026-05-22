@@ -20,7 +20,6 @@ import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useAuth } from '@/providers/AuthProvider'
 import { formatJoinListInviteErrorForUser } from '@/lib/joinListInviteErrorMessage'
 import { fetchFailureToastMessage } from '@/lib/fetchToastPolicy'
-import { GUEST_JOIN_SHARE_BLOCKED_MSG } from '@/lib/sessionPolicy'
 
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
@@ -279,8 +278,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       appendMutationDiagnostic(
         `[invite] ListsView blocked reason=guest tokenLen=${inviteToken.length}`,
       )
-      showError(GUEST_JOIN_SHARE_BLOCKED_MSG)
-      onInviteHandled?.()
       return
     }
 

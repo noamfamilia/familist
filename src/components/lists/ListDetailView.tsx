@@ -112,6 +112,8 @@ function reorderWithDrag(
 const TutorialTour = dynamic(() => import('@/components/ui/TutorialTour').then(mod => mod.TutorialTour), {
   ssr: false,
 })
+import { GuestShareSignInModal } from '@/components/auth/GuestShareSignInModal'
+
 const ShareModal = dynamic(() => import('@/components/lists/ShareModal').then(mod => mod.ShareModal), {
   ssr: false,
 })
@@ -1355,24 +1357,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         </div>
       </Modal>
 
-      <Modal
+      <GuestShareSignInModal
         isOpen={showGuestShareSignInModal}
         onClose={() => setShowGuestShareSignInModal(false)}
-        title="Sign in required"
-        size="sm"
-        hideClose
-      >
-        <p className="text-center text-gray-700 dark:text-gray-300 leading-relaxed mb-6">
-          You need to sign-in to share and join lists
-        </p>
-        <button
-          type="button"
-          onClick={() => setShowGuestShareSignInModal(false)}
-          className="w-full px-4 py-2.5 text-base font-medium text-white bg-red-500 rounded-lg hover:bg-red-600"
-        >
-          Dismiss
-        </button>
-      </Modal>
+      />
 
       {isListOwner && !isGuest && list && (
         <ShareModal

@@ -5,6 +5,7 @@ import { popHomeListHistoryEntry } from '@/lib/navigation/backToHome'
 import { isLikelyListId, LIST_QUERY_PARAM, stripListQueryFromHref } from '@/lib/navigation/listQuery'
 import { useActiveListUiStore } from '@/stores/activeListUiStore'
 import { useAuth } from '@/providers/AuthProvider'
+import { GuestShareSignInModal } from '@/components/auth/GuestShareSignInModal'
 import { ListsView } from '@/components/lists/ListsView'
 import { ThemedImage } from '@/components/ui/ThemedImage'
 import { ProfileModal } from '@/components/profile/ProfileModal'
@@ -117,6 +118,7 @@ function HomeContent() {
   const [pendingProfileOpenAfterOAuth, setPendingProfileOpenAfterOAuth] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
+  const [showGuestInviteModal, setShowGuestInviteModal] = useState(false)
   const [feedbackText, setFeedbackText] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { success, error: showError, info } = useToast()
@@ -289,10 +291,19 @@ function HomeContent() {
   }, [searchParams, user, router])
 
   useEffect(() => {
-    if (!loading && !user && inviteToken) {
+    if (!inviteToken || !isGuest) {
+      setShowGuestInviteModal(false)
+      return
+    }
+    if (authPhase === 'resolving' || (loading && authPhase !== 'guest')) return
+    setShowGuestInviteModal(true)
+  }, [inviteToken, isGuest, authPhase, loading])
+
+  useEffect(() => {
+    if (!loading && !user && inviteToken && !isGuest) {
       setShowAuthModal(true)
     }
-  }, [loading, user, inviteToken])
+  }, [loading, user, inviteToken, isGuest])
 
   useEffect(() => {
     if (!profileMenuOpen) return
@@ -412,6 +423,11 @@ function HomeContent() {
     const search = url.searchParams.toString()
     router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
   }, [handleSelectLabel, router])
+
+  const dismissGuestInviteModal = useCallback(() => {
+    setShowGuestInviteModal(false)
+    clearInviteState()
+  }, [clearInviteState])
 
   /** Legacy `/?list=<uuid>` opens the modal then strips the param so the shell stays on `/`. */
   useEffect(() => {
@@ -934,6 +950,8 @@ function HomeContent() {
           </button>
         </div>
       </Modal>
+
+      <GuestShareSignInModal isOpen={showGuestInviteModal} onClose={dismissGuestInviteModal} />
     </div>
   )
 }
