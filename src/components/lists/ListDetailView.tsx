@@ -1144,7 +1144,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               aria-hidden
             />
           ) : null}
-          {/* Members header with hide done toggles */}
+          {/* Members header with hide done toggles — hidden while add-field filters the list */}
+          {!searchText ? (
           <div
             className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}`}
             data-tour="members-header"
@@ -1196,10 +1197,11 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               }}
             />
           </div>
+          ) : null}
 
           {/* Active items — min-w-full w-max children so widest row sets column width */}
           <div className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}>
-            {sumScope !== 'none' && (
+            {!searchText && sumScope !== 'none' && (
               <ListSumRowCard
                 sumScope={sumScope}
                 items={items}
