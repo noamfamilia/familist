@@ -67,6 +67,23 @@ body {
   pointer-events: auto;
 }
 
+/* Profile / account panel: slide in from left toward right */
+.menu-slide-ltr {
+  opacity: 0;
+  transform: translateX(-14px);
+  transition:
+    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+  transform-origin: left center;
+}
+
+.menu-slide-ltr.open {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
 @layer utilities {
   .gradient-primary {
     background: linear-gradient(135deg, var(--color-cyan) 0%, var(--color-teal) 100%);

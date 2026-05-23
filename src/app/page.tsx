@@ -12,6 +12,8 @@ import { isLikelyListId, LIST_QUERY_PARAM, stripListQueryFromHref } from '@/lib/
 import { useActiveListUiStore } from '@/stores/activeListUiStore'
 import { useAuth } from '@/providers/AuthProvider'
 import { GuestShareSignInModal } from '@/components/auth/GuestShareSignInModal'
+import { GoogleOneTapPrompt } from '@/components/auth/GoogleOneTapPrompt'
+import { ProfileAvatar } from '@/components/auth/ProfileAvatar'
 import { ListsView } from '@/components/lists/ListsView'
 import { ThemedImage } from '@/components/ui/ThemedImage'
 import { ProfileModal } from '@/components/profile/ProfileModal'
@@ -146,9 +148,13 @@ function HomeContent() {
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
 
-  const profileMenuAnim = useMenuOpenAnimation(profileMenuOpen)
+  const profileMenuAnim = useMenuOpenAnimation(profileMenuOpen, 'slide-ltr')
   const labelDropdownAnim = useMenuOpenAnimation(labelDropdownOpen)
   const addLabelHomeAnim = useMenuOpenAnimation(addingLabel && !labelDropdownOpen)
+
+  const handleGoogleOneTapNewSignUp = useCallback(() => {
+    setPendingProfileOpenAfterOAuth(true)
+  }, [])
 
   useLayoutEffect(() => {
     if (consumeOpenProfileAfterOAuthSignUp()) {
@@ -454,7 +460,7 @@ function HomeContent() {
               aria-haspopup="menu"
               title={user?.email ?? (sessionRestoring ? 'Restoring session…' : 'Account')}
             >
-              <ThemedImage src="/profile.png" alt="" width={32} height={32} className="w-8 h-8" />
+              <ProfileAvatar user={user} guest={isGuest} size={32} className="w-8 h-8" />
             </button>
             {isGuest ? (
               <button
@@ -482,14 +488,14 @@ function HomeContent() {
             ) : null}
             {profileMenuAnim.mounted && (
               <div
-                className={`absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${profileMenuAnim.menuClassName}`}
+                className={`absolute left-0 top-full z-50 mt-2 min-w-[240px] origin-top-left overflow-hidden rounded-xl border border-gray-200/90 bg-white py-1.5 shadow-xl shadow-black/10 dark:border-neutral-600/90 dark:bg-neutral-900 dark:shadow-black/50 ${profileMenuAnim.menuClassName}`}
                 role="menu"
               >
                 {isGuest ? (
                   <button
                     type="button"
                     disabled={profileMenuNeedsSession}
-                    className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
+                    className={`w-full text-left block px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-neutral-800 ${
                       profileMenuNeedsSession
                         ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
                         : 'text-gray-900 dark:text-gray-100'
@@ -508,7 +514,7 @@ function HomeContent() {
                   <button
                     type="button"
                     disabled={profileMenuNeedsSession}
-                    className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
+                    className={`w-full text-left block px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-neutral-800 ${
                       profileMenuNeedsSession
                         ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
                         : 'text-gray-900 dark:text-gray-100'
@@ -525,7 +531,7 @@ function HomeContent() {
                 )}
                 <button
                   type="button"
-                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   role="menuitem"
                   onClick={() => {
                     const prev: 'light' | 'dark' =
@@ -547,7 +553,7 @@ function HomeContent() {
                   <button
                     type="button"
                     disabled={isOffline || profileMenuNeedsSession}
-                    className={`w-full text-left block px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-neutral-800 ${
+                    className={`w-full text-left block px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-neutral-800 ${
                       isOffline || profileMenuNeedsSession
                         ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
                         : 'text-gray-900 dark:text-gray-100'
@@ -877,6 +883,11 @@ function HomeContent() {
           </button>
         </div>
       </Modal>
+
+      <GoogleOneTapPrompt
+        enabled={!showAuthModal && !showGuestInviteModal && authPhase !== 'resolving'}
+        onNewGoogleSignUp={handleGoogleOneTapNewSignUp}
+      />
 
       <GuestShareSignInModal isOpen={showGuestInviteModal} onClose={dismissGuestInviteModal} />
     </div>

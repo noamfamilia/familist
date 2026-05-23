@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
 
-/** Matches `.menu` / `.menu.open` transition duration in globals.css */
+/** Matches `.menu` / `.menu-slide-ltr` transition duration in globals.css */
 export const MENU_OPEN_ANIMATION_MS = 300
 
+export type MenuOpenAnimationVariant = 'dropdown' | 'slide-ltr'
+
 /**
- * Mount/unmount timing for `.menu` + `.menu.open` (opacity + translateY).
+ * Mount/unmount timing for animated menus (opacity + translate).
  * Open: mount → add `open` on next frames. Close: remove `open` → unmount after transition.
  */
-export function useMenuOpenAnimation(isOpen: boolean) {
+export function useMenuOpenAnimation(isOpen: boolean, variant: MenuOpenAnimationVariant = 'dropdown') {
   const [mounted, setMounted] = useState(isOpen)
   const [openClass, setOpenClass] = useState(false)
+  const baseClass = variant === 'slide-ltr' ? 'menu-slide-ltr' : 'menu'
 
   useEffect(() => {
     if (isOpen) {
@@ -30,7 +33,7 @@ export function useMenuOpenAnimation(isOpen: boolean) {
 
   return {
     mounted,
-    /** Includes base `menu` and `open` when fully visible */
-    menuClassName: `menu${openClass ? ' open' : ''}`,
+    /** Includes base animation class and `open` when fully visible */
+    menuClassName: `${baseClass}${openClass ? ' open' : ''}`,
   }
 }

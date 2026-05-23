@@ -12,6 +12,7 @@ import { APP_VERSION } from '@/lib/appVersion'
 import { useTheme } from 'next-themes'
 import { GoogleGIcon } from '@/components/auth/GoogleGIcon'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
+import { ProfileAvatar } from '@/components/auth/ProfileAvatar'
 import { userHasGoogleIdentity } from '@/lib/googleProfileNickname'
 
 interface ProfileModalProps {
@@ -107,13 +108,16 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Account settings" contentClassName="!overflow-visible">
       <div className="space-y-4">
+        <div className="flex items-center gap-3 pb-1">
+          <ProfileAvatar user={user} size={48} className="w-12 h-12" />
+          <p className="min-w-0">
+            <span className="block font-medium text-gray-900 dark:text-gray-100 truncate">{displayNickname}</span>
+            <span className="block text-sm text-gray-500 dark:text-gray-400 truncate">{user.email}</span>
+          </p>
+        </div>
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Email</label>
-            <p className="text-gray-800 dark:text-gray-200 break-all">{user.email}</p>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name</label>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Display name</label>
             {isEditingNickname ? (
               <div className="flex gap-2 mt-1">
                 <input
