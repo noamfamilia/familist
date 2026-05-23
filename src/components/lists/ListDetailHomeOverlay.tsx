@@ -26,7 +26,7 @@ export type ListDetailHomeOverlayProps = {
  * horizontal overflow is allowed so wide member rows can be panned; `sm+` keeps horizontal clip on the backdrop.
  *
  * URL bar is synced to `/list/[id]` via one `pushState` per open session; switching lists uses
- * `replaceState`. UI close pops that entry (`popHomeListHistoryEntry`); system Back uses `popstate`.
+ * `replaceState`. UI close pops that entry (`closeHomeListOverlay`); system Back uses `popstate`.
  */
 export function ListDetailHomeOverlay({ listId, onClose }: ListDetailHomeOverlayProps) {
   const mounted = useHasMounted()

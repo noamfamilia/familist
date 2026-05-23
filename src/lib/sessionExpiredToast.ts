@@ -32,7 +32,7 @@ export type SessionExpiredToastCode =
   | '444'
 
 export function formatSessionExpiredToast(code: SessionExpiredToastCode): string {
-  return `[${code}] Session expired - sign in again`
+  return `[${code}] Session expired - refresh app and sign-in`
 }
 
 export function classifySessionExpiredRejection(err: unknown): SessionExpiredToastCode | null {

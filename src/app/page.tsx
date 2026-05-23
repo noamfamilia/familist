@@ -1,7 +1,13 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { popHomeListHistoryEntry } from '@/lib/navigation/backToHome'
+import {
+  clearGuestInviteDismissed,
+  closeHomeListOverlay,
+  finalizeHomeAfterListClose,
+  isGuestInviteDismissed,
+  markGuestInviteDismissed,
+} from '@/lib/navigation/backToHome'
 import { isLikelyListId, LIST_QUERY_PARAM, stripListQueryFromHref } from '@/lib/navigation/listQuery'
 import { useActiveListUiStore } from '@/stores/activeListUiStore'
 import { useAuth } from '@/providers/AuthProvider'
@@ -276,6 +282,7 @@ function HomeContent() {
 
   useEffect(() => {
     if (!inviteToken) return
+    clearGuestInviteDismissed()
     setPendingInviteToken(inviteToken)
   }, [inviteToken])
 
@@ -292,6 +299,10 @@ function HomeContent() {
 
   useEffect(() => {
     if (!inviteToken || !isGuest) {
+      setShowGuestInviteModal(false)
+      return
+    }
+    if (isGuestInviteDismissed()) {
       setShowGuestInviteModal(false)
       return
     }
@@ -425,6 +436,7 @@ function HomeContent() {
   }, [handleSelectLabel, router])
 
   const dismissGuestInviteModal = useCallback(() => {
+    markGuestInviteDismissed()
     setShowGuestInviteModal(false)
     clearInviteState()
   }, [clearInviteState])
@@ -438,9 +450,8 @@ function HomeContent() {
   }, [router, searchParams, setActiveListId])
 
   const closeListModal = useCallback(() => {
-    if (popHomeListHistoryEntry()) return
-    setActiveListId(null)
-  }, [setActiveListId])
+    closeHomeListOverlay(router, setActiveListId)
+  }, [router, setActiveListId])
 
   /** System / browser Back after `pushState` to `/list/[id]`: clear modal so the user stays in-app on `/`. */
   useEffect(() => {
@@ -452,12 +463,13 @@ function HomeContent() {
       const listPath = `/list/${openId}`
       if (browserPathSearchHash() !== listPath) {
         useActiveListUiStore.getState().setActiveListId(null)
+        finalizeHomeAfterListClose(router, { stripInvite: isGuestInviteDismissed() })
       }
     }
 
     window.addEventListener('popstate', onPopState, true)
     return () => window.removeEventListener('popstate', onPopState, true)
-  }, [activeListId])
+  }, [activeListId, router])
 
   const effectiveUserId = activeActorId
   const showListsShell = !!effectiveUserId
