@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
 import { upsertListDataPayloadFromMirror } from '@/lib/data/serverDexieParity'
 import {
@@ -93,7 +92,6 @@ export async function enqueueListMirrorJobs(listIds: string[]): Promise<void> {
     const merged = [...new Set([...unique, ...prev])]
     await db.meta.put({ id: LIST_MIRROR_QUEUE_META_ID, value: { ids: merged } satisfies QueuePayload, updated_at: Date.now() })
   })
-  appendMutationDiagnostic(`[list-mirror] enqueue count=${unique.length}`)
 }
 
 export async function peekListMirrorQueue(): Promise<string[]> {
@@ -134,18 +132,15 @@ export async function runListMirrorJob(
   options?: { bypassVersionGate?: boolean },
 ): Promise<boolean> {
   if (!canFetchFromServerNow()) {
-    appendMutationDiagnostic(`[list-mirror] skip not online listId=${listId}`)
     return false
   }
   const outboundQueue = await db.sync_queue.toArray()
   if (shouldDeferServerReadsForOutboundList(listId, outboundQueue)) {
-    appendMutationDiagnostic(`[list-mirror] skip outbound quiet listId=${listId}`)
     return false
   }
   const owner = LIST_MIRROR_SESSION_OWNER
   const acquired = await waitForListMirrorLock(listId, owner, { maxWaitMs: 5_000, pollMs: 100 })
   if (!acquired) {
-    appendMutationDiagnostic(`[list-mirror] skip lock timeout listId=${listId}`)
     return false
   }
   let rpcT0 = 0
@@ -157,11 +152,9 @@ export async function runListMirrorJob(
     })
     const list = await db.lists.get(listId)
     if (!list) {
-      appendMutationDiagnostic(`[list-mirror] skip no list row listId=${listId}`)
       return false
     }
     if (isTombstoned(list.deleted_at ?? null)) {
-      appendMutationDiagnostic(`[list-mirror] skip tombstoned local list listId=${listId}`)
       return false
     }
     const lastMirrored = await getLastMirroredListDetailVersion(listId)
@@ -172,22 +165,15 @@ export async function runListMirrorJob(
       list.last_content_update !== lastMirroredContentUpdate
     const bypass = options?.bypassVersionGate === true
     if (!bypass && !(list.version > lastMirrored) && !contentChanged) {
-      appendMutationDiagnostic(
-        `[list-mirror] skip version gate listId=${listId} list.version=${list.version} lastMirrored=${lastMirrored}`,
-      )
       return false
     }
 
-    appendMutationDiagnostic(
-      `[list-mirror] fetch get_list_data listId=${listId} list.version=${list.version} lastMirrored=${lastMirrored} bypass=${bypass ? 1 : 0}`,
-    )
     rpcT0 = performance.now()
     const readFlightGen = captureReadFlightGeneration()
     const listReconcileGen = captureListReconcileGeneration(listId)
     const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
     if (error) throw error
     if (shouldDiscardReadFlightResult(readFlightGen)) {
-      appendMutationDiagnostic(`[list-mirror] connectivity-discard listId=${listId}`)
       logServerRoundTrip({
         description: `Fetched list ${formatQuotedListName(list.name, listId)} (background cache)`,
         ok: true,
@@ -197,7 +183,6 @@ export async function runListMirrorJob(
       return false
     }
     if (shouldDiscardListReconcileResult(listId, listReconcileGen)) {
-      appendMutationDiagnostic(`[list-mirror] reconcile-discard listId=${listId}`)
       logServerRoundTrip({
         description: `Fetched list ${formatQuotedListName(list.name, listId)} (background cache)`,
         ok: true,
@@ -207,7 +192,6 @@ export async function runListMirrorJob(
       return false
     }
     if (!data?.list) {
-      appendMutationDiagnostic(`[list-mirror] skip empty payload listId=${listId}`)
       logServerRoundTrip({
         description: `Fetched list ${formatQuotedListName(list.name, listId)} (background cache)`,
         ok: false,
@@ -235,7 +219,6 @@ export async function runListMirrorJob(
       value: { list_id: listId, at_iso: new Date().toISOString() },
       updated_at: Date.now(),
     })
-    appendMutationDiagnostic(`[list-mirror] ok listId=${listId} items=${items.length} members=${members.length}`)
     logServerRoundTrip({
       description: `Fetched list ${formatQuotedListName(data.list.name, listId)} (${items.length} items, ${members.length} members, background cache)`,
       ok: true,
@@ -244,7 +227,6 @@ export async function runListMirrorJob(
     })
     return true
   } catch (e) {
-    appendMutationDiagnostic(`[list-mirror] error listId=${listId} msg=${e instanceof Error ? e.message : String(e)}`)
     logServerRoundTrip({
       description: `Fetched list ${formatQuotedListName(null, listId)} (background cache)`,
       ok: false,

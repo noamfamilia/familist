@@ -5,7 +5,6 @@
  */
 
 import type { DbSyncQueueRow } from '@/lib/db'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { listIdsTouchingOutboundRow } from '@/lib/data/syncQueueListScope'
 
 const listReconcileGeneration = new Map<string, number>()
@@ -17,9 +16,6 @@ export function captureListReconcileGeneration(listId: string): number {
 export function bumpListReconcileGeneration(listId: string, cause: string): number {
   const next = (listReconcileGeneration.get(listId) ?? 0) + 1
   listReconcileGeneration.set(listId, next)
-  appendMutationDiagnostic(
-    `[list-reconcile] bump listId=${listId} gen=${next} cause=${cause}`,
-  )
   return next
 }
 

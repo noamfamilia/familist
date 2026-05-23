@@ -3,7 +3,6 @@ import { APP_VERSION } from '@/lib/appVersion'
 import { removeCachedList } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { isoNow, isTombstoned, legacyDeletedAtToIso, withLastSyncedNow } from '@/lib/data/base_sync_fields'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import {
   catalogRemovalBlockedForList,
   loadPendingOutboundQueueSnapshot,
@@ -472,25 +471,4 @@ export async function readListPrefsFromDexie(userId: string, listId: string) {
 export async function upsertProfileFromServer(row: Profile) {
   const sync = normalizeServerSyncableFields(row as unknown as Record<string, unknown>)
   await db.profiles.put(withLastSyncedNow({ ...row, ...sync }))
-}
-
-let parityDiagnosticsReported = false
-export function reportServerDexieParityDiagnostics() {
-  if (parityDiagnosticsReported) return
-  parityDiagnosticsReported = true
-
-  const mappedServerKeys = Object.keys(PARITY_SCOPE).length
-  const mappedTables = new Set(Object.values(PARITY_SCOPE).flat())
-  const missingDexieMirror: string[] = []
-  const orphanDexieTable = PARITY_SCOPED_TABLES.filter((tableName) => !mappedTables.has(tableName))
-
-  appendMutationDiagnostic(
-    `[parity] mappedServerObjects=${mappedServerKeys} mappedDexieTables=${mappedTables.size} missingDexieMirror=${missingDexieMirror.length} orphanDexieTable=${orphanDexieTable.length}`,
-  )
-  if (missingDexieMirror.length > 0) {
-    appendMutationDiagnostic(`[parity] missingDexieMirror keys=${missingDexieMirror.join(',')}`)
-  }
-  if (orphanDexieTable.length > 0) {
-    appendMutationDiagnostic(`[parity] orphanDexieTable names=${orphanDexieTable.join(',')}`)
-  }
 }

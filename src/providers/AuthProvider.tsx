@@ -10,11 +10,10 @@ import { db } from '@/lib/db'
 import { appendConnectivityDebugLine } from '@/lib/connectivityDebugLog'
 import { beginActivationServerProgressWindow, hasActivationServerResponse } from '@/lib/activationServerProgress'
 import { notifyProfileFetchTimedOut } from '@/lib/profileFetchConnectivityBridge'
-import { log, perfLog } from '@/lib/startupPerfLog'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
 import { runLocalDexieGc } from '@/lib/data/localDexieGc'
-import { reportServerDexieParityDiagnostics, upsertProfileFromServer } from '@/lib/data/serverDexieParity'
+import { upsertProfileFromServer } from '@/lib/data/serverDexieParity'
 import { enqueueProfilePatch, pickQueueableProfilePatch } from '@/lib/data/profileOutboundQueue'
 import { readProfileFromDexie, upsertLocalProfilePatch } from '@/lib/profileDexieHydrate'
 import {
@@ -227,7 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const displayName =
     sessionRestoring ? '' : isGuest ? 'Guest' : resolveAuthDisplayName(user, profile)
   useEffect(() => {
-    reportServerDexieParityDiagnostics()
     scheduleAfterFirstPaint(() => {
       void runLocalDexieGc()
     })
@@ -290,7 +288,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const activeId = userRef.current?.id ?? bootstrapUserIdRef.current ?? getActiveCacheUserId()
       if (activeId !== userId) return
       setProfile(hydrated)
-      perfLog('auth/hydrateProfileFromDexie', { userId })
     } catch {
       // best-effort local hydrate
     }
@@ -370,17 +367,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = useCallback(async (userId: string) => {
     const t0 = performance.now()
-    perfLog('auth/fetchProfile start', { userId })
     if (!canFetchFromServerNow()) {
       const cachedProfile = await readProfileFromDexie(userId)
       if (cachedProfile && mountedRef.current && userRef.current?.id === userId) {
         setProfile(cachedProfile)
       }
-      perfLog('auth/fetchProfile end', {
-        userId,
-        durationMs: Math.round(performance.now() - t0),
-        note: 'dexie-only',
-      })
       return
     }
     const readFlightGen = captureReadFlightGeneration()
@@ -397,11 +388,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cachedProfile && mountedRef.current && userRef.current?.id === userId) {
           setProfile(cachedProfile)
         }
-        perfLog('auth/fetchProfile end', {
-          userId,
-          durationMs: Math.round(performance.now() - t0),
-          note: 'discarded-not-online',
-        })
         return
       }
       logServerRoundTrip({
@@ -445,24 +431,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('fetchProfile error:', err)
     } finally {
-      perfLog('auth/fetchProfile end', {
-        userId,
-        durationMs: Math.round(performance.now() - t0),
-      })
     }
   }, [])
 
   const hardRecoverInvalidRefreshToken = useCallback(
     async (source: string) => {
       if (typeof window !== 'undefined' && sessionStorage.getItem(AUTH_RECOVERY_ONCE_KEY) === '1') {
-        perfLog('auth/recovery skipped already-ran', { source })
         return
       }
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(AUTH_RECOVERY_ONCE_KEY, '1')
       }
 
-      perfLog('auth/recovery start', { source })
       hardRecoveryInProgressRef.current = true
       try {
         try {
@@ -491,7 +471,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authenticatedEstablishedRef.current = false
         void enterGuestMode({ freshGuest: true })
         setLoading(false)
-        perfLog('auth/recovery end', { source })
         if (typeof window !== 'undefined') {
           window.location.reload()
         }
@@ -503,48 +482,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const scheduleStartupProfileFetch = useCallback(
     (userId: string) => {
       const gen = ++profileFetchGenRef.current
-      perfLog('auth/fetchProfile schedule after first paint', { userId, gen })
       scheduleAfterFirstPaint(() => {
-        perfLog('auth/fetchProfile run start', { userId, gen })
         setProfileFetchPhase('loading')
         void (async () => {
           const wrapT0 = performance.now()
           try {
-            perfLog('auth/fetchProfile withTimeout await start', { userId, gen })
             await withTimeout(
               fetchProfile(userId),
               PROFILE_FETCH_STARTUP_TIMEOUT_MS,
               PROFILE_FETCH_TIMEOUT_MESSAGE,
             )
-            perfLog('auth/fetchProfile withTimeout await end', {
-              userId,
-              gen,
-              durationMs: Math.round(performance.now() - wrapT0),
-            })
             if (profileFetchGenRef.current === gen) {
               setProfileFetchPhase('done')
             }
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e)
-            perfLog('auth/fetchProfile withTimeout error', {
-              userId,
-              gen,
-              durationMs: Math.round(performance.now() - wrapT0),
-              message: msg,
-            })
             if (msg === PROFILE_FETCH_TIMEOUT_MESSAGE && profileFetchGenRef.current === gen) {
               const cachedProfile = await readProfileFromDexie(userId)
               if (cachedProfile) {
                 setProfile(cachedProfile)
               }
               const hadOtherServerResponse = hasActivationServerResponse()
-              log.warn('AUTH', 'fetchProfile timeout; proceeding with cached profile', {
-                userId,
-                gen,
-                timeoutMs: PROFILE_FETCH_STARTUP_TIMEOUT_MS,
-                hadCachedProfile: !!cachedProfile,
-                hadOtherServerResponse,
-              })
               if (!hadOtherServerResponse) {
                 appendConnectivityDebugLine(
                   `[auth] profile-fetch-timeout -> enterOffline userId=${userId} gen=${gen} hadOtherServerResponse=false`,
@@ -570,15 +528,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (nextUser: User, source: string) => {
       if (!mountedRef.current) return
       lastAppliedUserIdRef.current = nextUser.id
-      perfLog('auth activateAuthenticatedUser', { source, userId: nextUser.id })
       appendConnectivityDebugLine(
         `[auth] activateAuthenticated userId=${nextUser.id} source=${source}`,
       )
       beginActivationServerProgressWindow()
       const discardedGuestQueue = await discardGuestOutboundQueueRows()
-      if (discardedGuestQueue > 0) {
-        perfLog('auth/discarded-guest-outbound-queue', { count: discardedGuestQueue })
-      }
       userRef.current = nextUser
       setUser(nextUser)
       setActiveCacheUserId(nextUser.id)

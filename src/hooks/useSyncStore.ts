@@ -15,7 +15,6 @@ import {
 } from '@/lib/connectivityErrors'
 import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
 import { OUTBOUND_CONNECTIVITY_QUEUE_DETAIL } from '@/lib/outboundConnectivityQueue'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useToast } from '@/components/ui/Toast'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
 import { bumpListReconcileGeneration } from '@/lib/data/listReconcilePolicy'
@@ -426,9 +425,6 @@ export function useSyncStore(): SyncStoreState {
 
       const queue = await db.sync_queue.toArray()
       if (shouldDeferOutboundVerify(row, queue)) {
-        appendMutationDiagnostic(
-          `[sync-verify] deferred row=${row.id} kind=${row.kind}/${row.entity}`,
-        )
         return true
       }
 
@@ -460,9 +456,6 @@ export function useSyncStore(): SyncStoreState {
       const t0 = performance.now()
       const description = await describeOutboundSyncRow(row)
       const syncQueueRespondsTo = (durationMs: number) => formatSyncQueueRespondsTo(row, durationMs)
-      appendMutationDiagnostic(
-        `[sync->server] send kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
-      )
       try {
         const dependencyQueue = await db.sync_queue.toArray()
         if (isBlockedByPendingDependencies(row, dependencyQueue)) {
@@ -505,9 +498,6 @@ export function useSyncStore(): SyncStoreState {
             await cleanupDexieAfterListServerDeleted(id)
           }
         }
-        appendMutationDiagnostic(
-          `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
-        )
         const durationMs = performance.now() - t0
         logServerRoundTrip({
           description,
@@ -846,9 +836,6 @@ export function useSyncStore(): SyncStoreState {
         if (method === 'reorderListItems') {
           const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
           const itemIds = Array.isArray(payload.item_ids) ? payload.item_ids : []
-          appendMutationDiagnostic(
-            `[sync->server] reorderListItems payload listId=${rpcListId} count=${itemIds.length} head=${itemIds.slice(0, 5).join(',')} tail=${itemIds.slice(-5).join(',')}`,
-          )
           if (rpcListId && itemIds.length > 0) {
             const { error } = await supabase.rpc('reorder_list_items', {
               p_list_id: rpcListId,
@@ -861,9 +848,6 @@ export function useSyncStore(): SyncStoreState {
           const category = Number(payload.category ?? 1)
           const lines = Array.isArray(payload.lines) ? payload.lines : []
           const itemRows = Array.isArray(payload.items) ? payload.items : []
-          appendMutationDiagnostic(
-            `[sync->server] bulkAddListItems payload listId=${rpcListId} lines=${lines.length} items=${itemRows.length}`,
-          )
           if (rpcListId && itemRows.length > 0) {
             const pItems: Record<string, unknown>[] = []
             for (const raw of itemRows) {
@@ -905,9 +889,6 @@ export function useSyncStore(): SyncStoreState {
               const sync = normalizeServerSyncableFields(baseRow as Record<string, unknown>)
               pItems.push({ ...baseRow, ...sync })
             }
-            appendMutationDiagnostic(
-              `[sync->server] bulk_upsert_items_sync listId=${rpcListId} count=${pItems.length}`,
-            )
             const { data: bulkUpsertData, error } = await supabase.rpc('bulk_upsert_items_sync', {
               p_list_id: rpcListId,
               p_items: pItems as never,
@@ -965,9 +946,6 @@ export function useSyncStore(): SyncStoreState {
           }
         } else if (method === 'reorderListUsers') {
           const listIds = Array.isArray(payload.list_ids) ? payload.list_ids : []
-          appendMutationDiagnostic(
-            `[sync->server] reorderListUsers payload count=${listIds.length} head=${listIds.slice(0, 5).join(',')} tail=${listIds.slice(-5).join(',')}`,
-          )
           if (listIds.length > 0) {
             const { error } = await supabase.rpc('reorder_user_lists', {
               p_list_ids: listIds,
@@ -976,7 +954,6 @@ export function useSyncStore(): SyncStoreState {
           }
         } else if (method === 'bulkPatchListLabels') {
           const updates = Array.isArray(payload.updates) ? payload.updates : []
-          appendMutationDiagnostic(`[sync->server] bulkPatchListLabels payload count=${updates.length}`)
           if (updates.length > 0) {
             const { error } = await supabase.rpc('bulk_update_list_labels', {
               p_updates: updates,
@@ -989,9 +966,6 @@ export function useSyncStore(): SyncStoreState {
           const itemIds = Array.isArray(payload.item_ids)
             ? (payload.item_ids as unknown[]).filter((x): x is string => typeof x === 'string' && x.length > 0)
             : []
-          appendMutationDiagnostic(
-            `[sync->server] deleteArchivedItems listId=${rpcListId} itemIds=${itemIds.length}`,
-          )
           const { error } = await supabase.rpc('delete_archived_items', { p_list_id: rpcListId })
           if (error) throw error
           for (const id of itemIds) {
@@ -1000,7 +974,6 @@ export function useSyncStore(): SyncStoreState {
         } else if (method === 'restoreArchivedItems') {
           const rpcListId = String(payload.list_id ?? rowListIdForSync(row) ?? '')
           if (!rpcListId) throw new Error('restoreArchivedItems missing list_id')
-          appendMutationDiagnostic(`[sync->server] restoreArchivedItems listId=${rpcListId}`)
           const { error } = await supabase.rpc('restore_archived_items', { p_list_id: rpcListId })
           if (error) throw error
         } else if (method === 'seedItemMemberStateForMember') {
@@ -1009,9 +982,6 @@ export function useSyncStore(): SyncStoreState {
           if (!rpcListId || !memberId) {
             throw new Error('seedItemMemberStateForMember missing list_id/member_id')
           }
-          appendMutationDiagnostic(
-            `[sync->server] seedItemMemberStateForMember listId=${rpcListId} memberId=${memberId}`,
-          )
           const { error } = await supabase.rpc('seed_item_member_state_for_member', {
             p_list_id: rpcListId,
             p_member_id: memberId,
@@ -1020,13 +990,11 @@ export function useSyncStore(): SyncStoreState {
         } else if (method === 'joinListByToken') {
           const token = String(payload.token ?? '')
           if (!token) throw new Error('joinListByToken missing token')
-          appendMutationDiagnostic('[sync->server] joinListByToken')
           const { error } = await supabase.rpc('join_list_by_token', { p_token: token } as never)
           if (error) throw error
         } else if (method === 'leaveList') {
           const lid = String(payload.list_id ?? rowListIdForSync(row) ?? '')
           if (!lid) throw new Error('leaveList missing list_id')
-          appendMutationDiagnostic(`[sync->server] leaveList listId=${lid}`)
           const { error } = await supabase.rpc('leave_list', { p_list_id: lid } as never)
           if (error) throw error
           await cleanupDexieAfterListServerDeleted(lid)
@@ -1035,9 +1003,6 @@ export function useSyncStore(): SyncStoreState {
           const members = Array.isArray(payload.members) ? payload.members : []
           const states = Array.isArray(payload.states) ? payload.states : []
           if (!rpcListId) throw new Error('bulkAddStates missing list_id')
-          appendMutationDiagnostic(
-            `[sync->server] bulkAddStates listId=${rpcListId} members=${members.length} states=${states.length}`,
-          )
           const { error } = await supabase.rpc('bulk_add_states', {
             p_list_id: rpcListId,
             p_members: members as never,
@@ -1047,7 +1012,6 @@ export function useSyncStore(): SyncStoreState {
         } else if (method === 'ownMember') {
           const memberId = String(payload.member_id ?? '')
           if (!memberId) throw new Error('ownMember missing member_id')
-          appendMutationDiagnostic(`[sync->server] ownMember memberId=${memberId}`)
           const { error } = await supabase.rpc('own_member', { p_member_id: memberId } as never)
           if (error) throw error
         } else if (method === 'importList') {
@@ -1061,7 +1025,6 @@ export function useSyncStore(): SyncStoreState {
           const importClientCreated =
             typeof plImp.p_client_created_at === 'string' ? plImp.p_client_created_at : isoNow()
           if (!importedId || !pName) throw new Error('importList missing imported_id/p_name')
-          appendMutationDiagnostic(`[sync->server] importList id=${importedId}`)
           const { data, error } = await supabase.rpc('import_list', {
             p_id: importedId,
             p_name: pName,
@@ -1085,7 +1048,6 @@ export function useSyncStore(): SyncStoreState {
           const lid = String(payload.list_id ?? rowListIdForSync(row) ?? '')
           const force = Boolean((payload as Record<string, unknown>).force_regenerate)
           if (!lid) throw new Error('generateShareToken missing list_id')
-          appendMutationDiagnostic(`[sync->server] generateShareToken listId=${lid} force=${force ? 1 : 0}`)
           const { error } = await supabase.rpc('generate_share_token', {
             p_list_id: lid,
             p_force_regenerate: force,
@@ -1098,7 +1060,6 @@ export function useSyncStore(): SyncStoreState {
         } else if (method === 'revokeShareToken') {
           const lid = String(payload.list_id ?? rowListIdForSync(row) ?? '')
           if (!lid) throw new Error('revokeShareToken missing list_id')
-          appendMutationDiagnostic(`[sync->server] revokeShareToken listId=${lid}`)
           const { error } = await supabase.rpc('revoke_share_token', { p_list_id: lid } as never)
           if (error) throw error
           const uidRev = resolveSyncUserId(payload.user_id)
@@ -1110,7 +1071,6 @@ export function useSyncStore(): SyncStoreState {
           const pUserIds = (payload as Record<string, unknown>).p_user_ids
           const ids = Array.isArray(pUserIds) ? (pUserIds as string[]) : []
           if (!lid || ids.length === 0) throw new Error('removeUsersFromList missing list_id/p_user_ids')
-          appendMutationDiagnostic(`[sync->server] removeUsersFromList listId=${lid} count=${ids.length}`)
           const { error } = await supabase.rpc('remove_users_from_list', {
             p_list_id: lid,
             p_user_ids: ids,
@@ -1129,9 +1089,6 @@ export function useSyncStore(): SyncStoreState {
       if (!verified) {
         throw new Error(`Verification failed for ${row.kind}/${row.entity}/${queueDiagKey(row)}`)
       }
-      appendMutationDiagnostic(
-        `[sync<-server] ok kind=${row.kind} entity=${row.entity} key=${queueDiagKey(row)}`,
-      )
       const durationMs = performance.now() - t0
       logServerRoundTrip({
         description,
@@ -1145,9 +1102,6 @@ export function useSyncStore(): SyncStoreState {
           if (p.method === 'bulkPatchListLabels' && Array.isArray(p.updates)) {
             const ids = p.updates.map((u) => String(u.list_id ?? '')).filter(Boolean)
             const localNames = await localListNamesForIds(ids)
-            appendMutationDiagnostic(
-              `[sync] bulkPatchListLabels batch list_ids=${ids.join(',')} local=${localNames} err=${normalizeErrorMessage(err)}`,
-            )
           }
         }
         const durationMs = performance.now() - t0
@@ -1213,9 +1167,6 @@ export function useSyncStore(): SyncStoreState {
               dependencyDevDiagLastMsRef.current = tick
               const r = latched[0]!
               const reason = blockedOutboundDependencyReason(r, batch)!
-              appendMutationDiagnostic(
-                `[sync-dep] latched queueId=${r.id} ${r.kind}/${r.entity} — ${reason}`,
-              )
               console.info('[familist/outbound-sync] dependency latch', {
                 queueId: r.id,
                 kind: r.kind,
@@ -1232,9 +1183,6 @@ export function useSyncStore(): SyncStoreState {
           if (!claimed) continue
 
           if (isGuestOutboundQueueRow(claimed, guestOwnedListIds)) {
-            appendMutationDiagnostic(
-              `[sync] discard guest-scoped row id=${claimed.id} kind=${claimed.kind}/${claimed.entity}`,
-            )
             await db.sync_queue.delete(claimed.id)
             continue
           }
@@ -1262,15 +1210,9 @@ export function useSyncStore(): SyncStoreState {
             }
           } catch (error) {
             const message = normalizeErrorMessage(error)
-            appendMutationDiagnostic(
-              `[sync<-server] error kind=${claimed.kind} entity=${claimed.entity} key=${queueDiagKey(claimed)} msg=${message}`,
-            )
             if (error instanceof SyncDependencyBlockedError) {
               const depSnap = await db.sync_queue.toArray()
               const depReason = blockedOutboundDependencyReason(claimed, depSnap)
-              appendMutationDiagnostic(
-                `[sync] dependency wait queueId=${claimed.id} kind=${claimed.kind} entity=${claimed.entity}${depReason ? ` — ${depReason}` : ''}`,
-              )
               await releaseRowForDependencyWait(claimed.id)
               continue
             }

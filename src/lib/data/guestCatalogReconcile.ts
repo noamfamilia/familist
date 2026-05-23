@@ -1,7 +1,6 @@
 import { db } from '@/lib/db'
 import { maxIsoTimestamp } from '@/lib/data/listActivity'
 import { isGuestId } from '@/lib/guestSession'
-import { perfLog } from '@/lib/startupPerfLog'
 
 /**
  * After sign-out, realign guest-owned Dexie rows that were mutated during the auth session:
@@ -42,12 +41,4 @@ export async function reconcileGuestDexieAfterSignOut(
     }
   })
 
-  if (ownerIdsRestored > 0 || viewedMerged > 0) {
-    perfLog('auth/guest-catalog-reconcile', {
-      guestId,
-      formerAuthUserId,
-      ownerIdsRestored,
-      viewedMerged,
-    })
-  }
 }

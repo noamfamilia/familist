@@ -1,6 +1,5 @@
 import { db, type DbSyncQueueRow } from '@/lib/db'
 import { isGuestId } from '@/lib/guestSession'
-import { perfLog } from '@/lib/startupPerfLog'
 
 function replaceGuestInValue(value: unknown, guestId: string, userId: string): unknown {
   if (value === guestId) return userId
@@ -88,7 +87,6 @@ export async function migrateGuestToUser(guestId: string, userId: string): Promi
   if (!isGuestId(guestId) || guestId === userId) return
 
   const t0 = performance.now()
-  perfLog('guest/migrate start', { guestId, userId })
 
   await db.transaction(
     'rw',
@@ -161,9 +159,4 @@ export async function migrateGuestToUser(guestId: string, userId: string): Promi
 
   migrateGuestLocalStorageKeys(guestId, userId)
 
-  perfLog('guest/migrate end', {
-    guestId,
-    userId,
-    durationMs: Math.round(performance.now() - t0),
-  })
 }

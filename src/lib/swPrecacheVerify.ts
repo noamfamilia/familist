@@ -1,9 +1,7 @@
 /**
- * Temporary diagnostic: fetch sw.js (cache-busted), parse precache + SW deps, probe each URL.
- * Used to find install failures (installing → redundant) caused by bad precache responses.
+ * Fetch sw.js (cache-busted), parse precache + SW deps, probe each URL.
+ * Used from PWA debug helpers (?debugPwa=1); failures log to the browser console only.
  */
-
-import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 
 const PRECACHE_VERIFY_SESSION_KEY = 'familist_precache_verify_v1'
 
@@ -179,21 +177,15 @@ async function runBatched(origin: string, paths: string[]): Promise<CheckResult[
   return out
 }
 
-/**
- * Fetches /sw.js?v=<buildId>, parses precache + deps, checks every path + core SW URLs.
- */
 export type PrecacheVerifyStats = { totalChecks: number; failCount: number; okCount: number }
 
-export async function runSwPrecacheVerification(
-  appendDiagnostics: (section: string) => void,
-): Promise<PrecacheVerifyStats | null> {
+/** Fetches /sw.js?v=<buildId>, parses precache + deps, checks every path + core SW URLs. */
+export async function runSwPrecacheVerification(): Promise<PrecacheVerifyStats | null> {
   if (typeof window === 'undefined' || typeof fetch === 'undefined') return null
 
   const origin = window.location.origin
   const buildId = process.env.NEXT_PUBLIC_BUILD_ID || 'unknown'
   const swBusted = `${origin}/sw.js?v=${encodeURIComponent(buildId)}`
-
-  appendDiagnostics(`[precache-verify] start\nsw fetch: ${swBusted}`)
 
   let swText: string
   try {
@@ -201,16 +193,17 @@ export async function runSwPrecacheVerification(
     const ct = res.headers.get('content-type') || ''
     swText = await res.text()
     if (!res.ok) {
-      appendDiagnostics(`[precache-verify] FAILED to fetch sw.js: HTTP ${res.status} ct=${ct}`)
+      console.warn(`[precache-verify] FAILED to fetch sw.js: HTTP ${res.status} ct=${ct}`)
       return null
     }
     if (looksLikeHtml(swText)) {
-      appendDiagnostics('[precache-verify] sw.js body looks like HTML (not a service worker script)')
+      console.warn('[precache-verify] sw.js body looks like HTML (not a service worker script)')
       return null
     }
-    appendDiagnostics(`[precache-verify] sw.js OK bytes=${swText.length}`)
   } catch (e) {
-    appendDiagnostics(`[precache-verify] FAILED to fetch sw.js: ${e instanceof Error ? e.message : String(e)}`)
+    console.warn(
+      `[precache-verify] FAILED to fetch sw.js: ${e instanceof Error ? e.message : String(e)}`,
+    )
     return null
   }
 
@@ -224,50 +217,19 @@ export async function runSwPrecacheVerification(
 
   const allPaths = [...new Set([...corePaths, ...precachePaths])]
 
-  appendDiagnostics(
-    `[precache-verify] parsed importScripts=${importScriptPaths.join(', ') || 'none'} workbox=${workboxPath || 'none'} precacheEntries=${precachePaths.length} totalChecks=${allPaths.length}`,
-  )
-
   const results = await runBatched(origin, allPaths)
   const failures = results.filter((r): r is Extract<CheckResult, { ok: false }> => !r.ok)
   const okCount = results.length - failures.length
 
   for (const f of failures) {
     if (!f.ok) {
-      const block = formatFailBlock(f.path, f.absolute, f.detail)
-      if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-        console.warn(block)
-      }
-      appendDiagnostics(block)
+      console.warn(formatFailBlock(f.path, f.absolute, f.detail))
     }
   }
 
-  const summary = `[precache-verify] RESULT SUMMARY\nok=${okCount}\nfail=${failures.length}\ntotal=${results.length}`
-  if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-    console.log(summary)
-  }
-  appendDiagnostics(summary)
-
   if (failures.length > 0) {
-    appendDiagnostics(
-      `[precache-verify] FAIL paths only (copy)\n${failures.map((f) => (!f.ok ? f.path : '')).join('\n')}`,
-    )
-    appendDiagnostics(
-      '[precache-verify] Next: fix failing URLs above (404/HTML/MIME). Those often break Workbox install → installing→redundant.',
-    )
-  } else {
-    appendDiagnostics(
-      [
-        '[precache-verify] All page-context fetches passed — precache list does not prove SW install.',
-        'Next diagnostic order:',
-        '1) Android: chrome://inspect → Remote devices → open your tab → inspect.',
-        '2) Application → Service workers → target scope → open dedicated DevTools for SW.',
-        '3) In the SERVICE WORKER console (not page console), look for:',
-        '   - importScripts failures',
-        '   - bad-precaching-response / non-ok precache',
-        '   - MIME / CORS / uncaught during install',
-        '4) Confirm only one register path: serwist auto + our fallback only if getRegistration() stayed empty.',
-      ].join('\n'),
+    console.warn(
+      `[precache-verify] ok=${okCount} fail=${failures.length} total=${results.length}`,
     )
   }
 

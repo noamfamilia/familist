@@ -15,10 +15,8 @@ import {
   warmListsCatalog,
 } from '@/stores/listsCatalogStore'
 import { APP_VERSION } from '@/lib/appVersion'
-import { perfLog } from '@/lib/startupPerfLog'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
-import { reportServerDexieParityDiagnostics, upsertListsSummaryFromServer } from '@/lib/data/serverDexieParity'
+import { upsertListsSummaryFromServer } from '@/lib/data/serverDexieParity'
 import {
   catalogMutationVersionRef,
   catalogRealtimeScheduleCaptureVersionRef,
@@ -221,9 +219,6 @@ export function useLists() {
   )
   /** Owner id for catalog mutations (authenticated user or local guest). */
   const mutationUserId = resolveCatalogMutationUserId(user?.id, guestId, bootstrapUserId)
-  useEffect(() => {
-    reportServerDexieParityDiagnostics()
-  }, [])
 
   const {
     isOfflineActionsDisabled,
@@ -249,7 +244,6 @@ export function useLists() {
   }, [canMutateNow, mutationGate, offlineAssetsReady, swControlled])
 
   useEffect(() => {
-    perfLog('localStorage read start')
     const lsT0 = performance.now()
     let approxStorageChars = 0
     try {
@@ -273,7 +267,6 @@ export function useLists() {
       useListsCatalogStore.getState().clearListsCatalog()
       setHasCompletedInitialFetch(false)
       hasInitialDataRef.current = false
-      perfLog('localStorage read end', { durationMs: Math.round(performance.now() - lsT0), note: 'no user' })
       return
     }
 
@@ -282,12 +275,6 @@ export function useLists() {
     const previousActiveUserId = store.activeUserId
     const cachedLists = getCachedLists(userId)?.lists || []
 
-    perfLog('localStorage read end', {
-      durationMs: Math.round(performance.now() - lsT0),
-      bytesOrItemCount: cachedLists.length,
-      approxStorageChars,
-      actorChanged,
-    })
 
     if (actorChanged) {
       setHasCompletedInitialFetch(false)
@@ -350,9 +337,6 @@ export function useLists() {
     if (!mutationUserId) return null
     const nowMs = Date.now()
     const orderedIds = orderedLists.map((list) => list.id)
-    appendMutationDiagnostic(
-      `[mutation:list.reorder.queue] userId=${mutationUserId} count=${orderedIds.length} head=${orderedIds.slice(0, 5).join(',')} tail=${orderedIds.slice(-5).join(',')}`,
-    )
     await db.transaction('rw', db.list_users, db.lists, db.sync_queue, async () => {
       const n = orderedLists.length
       for (const [index, list] of orderedLists.entries()) {
@@ -380,21 +364,15 @@ export function useLists() {
     const readStatus = connectivityStatusRef.current
     let staleDiscarded = false
     let connectivityDiscarded = false
-    appendMutationDiagnostic(
-      `[fetchLists.debug] start userId=${userId ?? 'null'} staleCheck=${staleCheck == null ? 'null' : String(staleCheck)} mutationVersion=${catalogMutationVersionRef.current} connectivity=${readStatus}`,
-    )
 
     if (!userId) {
-      perfLog('fetchLists start', { note: 'no user' })
       useListsCatalogStore.getState().clearListsCatalog()
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
-      perfLog('fetchLists end', { durationMs: 0, listCount: 0 })
       return
     }
 
     if (!canFetchFromServerNow()) {
-      appendMutationDiagnostic(`[fetchLists.debug] dexie-only status=${readStatus}`)
       const fetchT0 = performance.now()
       fetchingRef.current = true
       setIsFetching(true)
@@ -410,11 +388,6 @@ export function useLists() {
           hasInitialDataRef.current = true
         }
       } finally {
-        perfLog('fetchLists end', {
-          durationMs: Math.round(performance.now() - fetchT0),
-          note: 'dexie-only',
-          connectivity: readStatus,
-        })
         setIsFetching(false)
         setHasCompletedInitialFetch(true)
         fetchingRef.current = false
@@ -427,7 +400,6 @@ export function useLists() {
 
     if (fetchingRef.current) return
     const fetchT0 = performance.now()
-    perfLog('fetchLists start')
     let listCount = 0
     let fetchErr: string | undefined
     fetchingRef.current = true
@@ -452,16 +424,12 @@ export function useLists() {
     try {
       // Catalog: lists + list_users (counts come from Dexie liveQuery after mirror fills items/members)
       const { data, error: rpcError } = await supabase.rpc('get_user_lists')
-      appendMutationDiagnostic(`[fetchLists.debug] rpc rows=${Array.isArray(data) ? data.length : 0}`)
 
       if (rpcError) throw rpcError
 
       if (shouldDiscardReadFlightResult(readFlightGen)) {
         connectivityDiscarded = true
         const n = Array.isArray(data) ? data.length : 0
-        appendMutationDiagnostic(
-          `[fetchLists.debug] connectivity-discard rows=${n} status=${connectivityStatusRef.current}`,
-        )
         logServerRoundTrip({
           description: `Fetched list catalog (${n} lists)`,
           ok: true,
@@ -474,9 +442,6 @@ export function useLists() {
 
       if (staleCheck != null && staleCheck !== catalogMutationVersionRef.current) {
         staleDiscarded = true
-        appendMutationDiagnostic(
-          `[fetchLists.debug] stale-discard captured=${staleCheck} current=${catalogMutationVersionRef.current}`,
-        )
         const n = Array.isArray(data) ? data.length : 0
         logServerRoundTrip({
           description: `Fetched list catalog (${n} lists)`,
@@ -523,7 +488,6 @@ export function useLists() {
         ownerNickname: item.ownerNickname,
         label: item.label ?? '',
       }))
-      appendMutationDiagnostic(`[fetchLists.debug] apply rows=${listsData.length}`)
 
       setCachedLists(userId, listsData)
       await upsertListsSummaryFromServer(userId, rawRows)
@@ -532,7 +496,6 @@ export function useLists() {
       if (catalog.activeUserId === userId) {
         await warmListsCatalog(userId, catalog.catalogSessionEpoch, 'fetchLists-rpc-success')
       }
-      appendMutationDiagnostic(`[fetchLists.debug] dexie-upsert rows=${listsData.length}`)
       hasInitialDataRef.current = true
       setFetchTimedOut(false)
       listCount = listsData.length
@@ -570,14 +533,6 @@ export function useLists() {
       })
     } finally {
       endServerWork(serverOutcome)
-      perfLog('fetchLists end', {
-        durationMs: Math.round(performance.now() - fetchT0),
-        listCount,
-        appVersion: APP_VERSION,
-        error: fetchErr,
-        staleDiscarded,
-        connectivityDiscarded,
-      })
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
@@ -655,7 +610,6 @@ export function useLists() {
     if (!nameDup.ok) {
       return { error: new Error(nameDup.message) }
     }
-    appendMutationDiagnostic(`[mutation:list.create] local:start name="${trimmedName}"`)
     const listId = crypto.randomUUID()
     const now = new Date().toISOString()
     const sync = syncFieldsForLocalInsert()
@@ -738,7 +692,6 @@ export function useLists() {
     } finally {
       cat.endLocalCatalogPersistence()
     }
-    appendMutationDiagnostic(`[mutation:list.create] local:queued listId=${listId} server:queued`)
     return { data: { id: listId }, error: null }
     } finally {
       mutationGate.end()
@@ -750,7 +703,6 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-      appendMutationDiagnostic(`[mutation:list.update] local:start listId=${listId}`)
       let effectiveUpdates = updates
       if (updates.comment !== undefined) {
         effectiveUpdates = {
@@ -794,7 +746,6 @@ export function useLists() {
       } finally {
         cat.endLocalCatalogPersistence()
       }
-      appendMutationDiagnostic(`[mutation:list.update] local:queued listId=${listId} server:queued`)
 
       return { error: null }
     } finally {
@@ -803,9 +754,7 @@ export function useLists() {
   }
 
   const deleteList = async (listId: string) => {
-    appendMutationDiagnostic(`[mutation:list.delete] local:start listId=${listId}`)
     if (!tryBeginMutation()) {
-      appendMutationDiagnostic(`[mutation:list.delete] local:blocked reason=gate listId=${listId}`)
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
@@ -820,7 +769,6 @@ export function useLists() {
       } finally {
         cat.endLocalCatalogPersistence()
       }
-      appendMutationDiagnostic(`[mutation:list.delete] local:queued-soft-delete listId=${listId} server:queued`)
       return { error: null }
     } finally {
       mutationGate.end()
@@ -833,7 +781,6 @@ export function useLists() {
       return { error: new Error(blockedMutationMessage()) }
     }
     try {
-    appendMutationDiagnostic(`[mutation:list.user_state] local:start listId=${listId}`)
     const cat = useListsCatalogStore.getState()
     const previousLists = cat.lists
     const archiveFields =
@@ -889,7 +836,6 @@ export function useLists() {
         cat.setCatalogLists(previousLists)
         return { error: e instanceof Error ? e : new Error('Failed to update list state') }
       }
-      appendMutationDiagnostic(`[mutation:list.user_state] local:queued listId=${listId} server:queued`)
     } finally {
       cat.endLocalCatalogPersistence()
     }
@@ -904,21 +850,12 @@ export function useLists() {
     async (token: string) => {
       const tokenLen = token?.length ?? 0
       if (authLoading) {
-        appendMutationDiagnostic(
-          `[invite] joinListByToken deferred reason=authLoading catalogUserId=${userId ?? 'null'} tokenLen=${tokenLen}`,
-        )
         return { data: null, error: new Error('Session still loading'), joinedListName: null as string | null }
       }
       if (!mutationUserId) {
-        appendMutationDiagnostic(
-          `[invite] joinListByToken blocked reason=no_user_session authLoading=0 catalogUserId=${userId ?? 'null'} bootstrapUserId=${bootstrapUserId ?? 'null'} mutationUserId=null tokenLen=${tokenLen}`,
-        )
         return { data: null, error: new Error('Not authenticated'), joinedListName: null as string | null }
       }
       if (isGuest || isGuestId(mutationUserId)) {
-        appendMutationDiagnostic(
-          `[invite] joinListByToken blocked reason=guest userId=${mutationUserId} tokenLen=${tokenLen}`,
-        )
         return {
           data: null,
           error: new Error(GUEST_JOIN_SHARE_BLOCKED_MSG),
@@ -927,16 +864,10 @@ export function useLists() {
       }
       if (!tryBeginMutation()) {
         const msg = blockedMutationMessage()
-        appendMutationDiagnostic(
-          `[invite] joinListByToken blocked reason=mutation_gate userId=${mutationUserId} tokenLen=${tokenLen} msg=${msg}`,
-        )
         return { data: null, error: new Error(msg), joinedListName: null as string | null }
       }
       try {
         if (!canMutateNow()) {
-          appendMutationDiagnostic(
-            `[invite] joinListByToken blocked reason=not_online userId=${mutationUserId} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
-          )
           return {
             data: null,
             error: new Error(blockedMutationMessage()),
@@ -944,18 +875,12 @@ export function useLists() {
           }
         }
 
-        appendMutationDiagnostic(
-          `[invite] joinListByToken rpc userId=${mutationUserId} tokenLen=${tokenLen} catalogUserId=${userId ?? 'null'}`,
-        )
         catalogMutationVersionRef.current += 1
         catalogSkipRealtimeUntilRef.current = Date.now() + 2000
         const { data: listIdRaw, error: rpcError } = await supabase.rpc('join_list_by_token', {
           p_token: token,
         } as never)
         if (rpcError) {
-          appendMutationDiagnostic(
-            `[invite] joinListByToken rpc_err userId=${mutationUserId} tokenLen=${tokenLen} err=${rpcError.message}`,
-          )
           return { data: null, error: new Error(rpcError.message), joinedListName: null as string | null }
         }
         const listId =
@@ -973,14 +898,8 @@ export function useLists() {
         }
         await fetchLists()
         const joined = useListsCatalogStore.getState().lists.find((l) => l.id === listId)
-        appendMutationDiagnostic(
-          `[invite] joinListByToken rpc_ok userId=${mutationUserId} listId=${listId} name=${joined?.name ? '1' : '0'}`,
-        )
         return { data: listId, error: null, joinedListName: joined?.name ?? null }
       } catch (e) {
-        appendMutationDiagnostic(
-          `[invite] joinListByToken throw userId=${mutationUserId} tokenLen=${tokenLen} err=${e instanceof Error ? e.message : String(e)}`,
-        )
         return { data: null, error: e instanceof Error ? e : new Error(String(e)), joinedListName: null as string | null }
       } finally {
         mutationGate.end()
@@ -1044,9 +963,6 @@ export function useLists() {
         })
         optimisticList = result.optimisticList
         catDup.setCatalogLists((prev) => prependListToCatalogSorted(prev, optimisticList!))
-        appendMutationDiagnostic(
-          `[mutation:list.duplicate] local:ok source=${listId} dup=${result.duplicateId} items=${optimisticList.activeItemCount} archived=${optimisticList.archivedItemCount}`,
-        )
         return { data: optimisticList, error: null }
       } catch (e) {
         if (e instanceof DuplicateListError) {
@@ -1091,9 +1007,6 @@ export function useLists() {
         })
         optimisticList = result.optimisticList
         catImp.setCatalogLists((prev) => prependListToCatalogSorted(prev, optimisticList!))
-        appendMutationDiagnostic(
-          `[mutation:list.import] local:ok id=${result.importedId} items=${optimisticList.activeItemCount} targets=${hasTargets ? 1 : 0}`,
-        )
         return { data: optimisticList, error: null }
       } catch (e) {
         if (e instanceof ImportListError) {
@@ -1157,7 +1070,6 @@ export function useLists() {
     } finally {
       catLbl.endLocalCatalogPersistence()
     }
-    appendMutationDiagnostic(`[mutation:list.label] local:queued listId=${listId} label="${target}" server:queued`)
     return { error: null }
   }
 
@@ -1221,9 +1133,6 @@ export function useLists() {
       } finally {
         catBatch.endLocalCatalogPersistence()
       }
-      appendMutationDiagnostic(
-        `[mutation:list.label.batch] local:queued count=${edits.length} server:queued`,
-      )
       return { error: null, historyLines }
     } finally {
       mutationGate.end()
@@ -1239,13 +1148,10 @@ export function useLists() {
   }, [actorLists])
 
   const reorderLists = async (reorderedLists: ListWithRole[]) => {
-    appendMutationDiagnostic(`[mutation:list.reorder] local:start count=${reorderedLists.length}`)
     if (!mutationUserId) {
-      appendMutationDiagnostic('[mutation:list.reorder] local:blocked reason=no-user')
       return
     }
     if (!tryBeginMutation()) {
-      appendMutationDiagnostic('[mutation:list.reorder] local:blocked reason=gate')
       return
     }
     try {
@@ -1260,7 +1166,6 @@ export function useLists() {
     } finally {
       catOrd.endLocalCatalogPersistence()
     }
-    appendMutationDiagnostic('[mutation:list.reorder] local:queued server:queued')
     } finally {
       mutationGate.end()
     }

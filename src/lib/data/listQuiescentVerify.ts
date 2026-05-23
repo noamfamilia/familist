@@ -1,6 +1,5 @@
 import { db } from '@/lib/db'
 import type { DbSyncQueueRow } from '@/lib/db'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { bumpListReconcileGeneration } from '@/lib/data/listReconcilePolicy'
 import { syncListDetail, syncLists } from '@/lib/data/sync'
 import {
@@ -86,12 +85,8 @@ export function quiescentFlushDecisionAfterRow(
 /** `get_user_lists` only — for reorder / bulk label RPCs (no items or members). */
 export async function flushQuiescentCatalogOnlyVerification(userId: string): Promise<void> {
   try {
-    appendMutationDiagnostic('[sync-verify] quiescent catalog-only flush')
     await syncLists(userId, 'Post-mutation verification: list catalog')
   } catch (e) {
-    appendMutationDiagnostic(
-      `[sync-verify] quiescent catalog-only flush failed msg=${e instanceof Error ? e.message : String(e)}`,
-    )
   }
 }
 
@@ -106,9 +101,6 @@ export async function flushQuiescentListVerification(
   if (hasOtherPendingOutboundForList(queue, listId)) return
 
   try {
-    appendMutationDiagnostic(
-      `[sync-verify] quiescent flush listId=${listId} skipCatalog=${options?.skipCatalog ? 1 : 0} skipListDetail=${options?.skipListDetail ? 1 : 0} force=${options?.force ? 1 : 0}`,
-    )
     if (!options?.skipListDetail) {
       bumpListReconcileGeneration(listId, 'post-verify-quiescent')
     }
@@ -119,9 +111,6 @@ export async function flushQuiescentListVerification(
       await syncListDetail(userId, listId, 'Post-mutation verification: list detail')
     }
   } catch (e) {
-    appendMutationDiagnostic(
-      `[sync-verify] quiescent flush failed listId=${listId} msg=${e instanceof Error ? e.message : String(e)}`,
-    )
   }
 }
 

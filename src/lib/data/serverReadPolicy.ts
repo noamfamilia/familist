@@ -5,7 +5,6 @@
  * In-flight reads started while online are invalidated when the app leaves `online` (generation bump).
  */
 
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 
 export type ConnectivityStatus = 'online' | 'offline' | 'recovering'
 
@@ -44,9 +43,6 @@ let readDiscardGeneration = 0
 
 export function bumpReadDiscardGeneration(cause: string): void {
   readDiscardGeneration += 1
-  appendMutationDiagnostic(
-    `[server-read] discard-generation bump gen=${readDiscardGeneration} cause=${cause}`,
-  )
 }
 
 /** Capture at the start of a server read (while `online`). */

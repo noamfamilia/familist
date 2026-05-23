@@ -2,7 +2,6 @@
 
 import { liveQuery } from 'dexie'
 import { create } from 'zustand'
-import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 import { db, type DbListRow, type DbListUserRow } from '@/lib/db'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { loadListDetailFromDexie, type ListDetailDexieSnapshot } from '@/lib/data/queries'
@@ -321,9 +320,7 @@ export function subscribeListDataL2Bridge(userId: string, listId: string): () =>
       useListDataStore.getState().applyL2BridgePayload(userId, listId, payload)
     },
     error: (err) => {
-      if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-        console.error('[listDataStore] L2 bridge liveQuery error', err)
-      }
+      console.error('[listDataStore] L2 bridge liveQuery error', err)
     },
   })
   return () => subscription.unsubscribe()

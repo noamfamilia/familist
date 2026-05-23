@@ -10,8 +10,7 @@
  */
 import { usePathname, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
-import { log, perfLog } from '@/lib/startupPerfLog'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -19,8 +18,6 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { OfflineIcon } from '@/components/icons/OfflineIcon'
 import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueIndicator'
-import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
-import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useToast } from '@/components/ui/Toast'
@@ -30,15 +27,11 @@ import {
   RECOVERING_MUTATIONS_DISABLED_MSG,
   shouldShowConnectivityRelatedMutationToast,
 } from '@/lib/mutationToastPolicy'
-import { cachedListDataExists, getCachedList, logListDetailCacheValidation } from '@/lib/cache'
 import {
   getClientBuildId,
-  getLastOfflineRouteMarkerRecord,
   isClientBuildIdKnown,
-  normalOfflineRouteReady,
   setNormalOfflineRouteReadyMarker,
 } from '@/lib/offlineRouteReadiness'
-import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNameUniqueness'
 import { inMemoryItemsHaveExactNormalizedText } from '@/lib/data/localItemTextUniqueness'
 import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
@@ -245,9 +238,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const { user, loading: authLoading, activeActorId, bootstrapUserId, profile, profileFetchPhase, isGuest } =
     useAuth()
 
-  useLayoutEffect(() => {
-    perfLog('main page mounted', { route: 'list', listId })
-  }, [listId])
 
   useEffect(() => {
     void setListMirrorPriorityListId(listId)
@@ -260,8 +250,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const hasMounted = useHasMounted()
   const { offlineAssetsReady, swControlled, internetReachable, online, isOffline, isRecovering } =
     useConnectivity()
-  const { appendDiagnostics } = useDiagnosticsMessageBox()
-  
   const {
     list,
     mirroredListUserRow,
@@ -308,19 +296,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     isOfflineActionsDisabled,
     allowItemMutationQueue,
   } = useList(listId)
-  const listGateLogPrevRef = useRef<string>('')
-  useEffect(() => {
-    const payload = {
-      shouldRender: !!list,
-      online,
-      internetReachable: internetReachable === true,
-      authReady: !authLoading,
-    }
-    const snapshot = JSON.stringify(payload)
-    if (snapshot === listGateLogPrevRef.current) return
-    listGateLogPrevRef.current = snapshot
-    log.info('GATE', 'ListPage', payload)
-  }, [authLoading, internetReachable, list, online])
 
   const listItemsClipboardText = useMemo(() => {
     const active = [...items]
@@ -347,49 +322,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     wasOfflineRef.current = isOfflineActionsDisabled
   }, [isOfflineActionsDisabled, refresh])
 
-  const listGatePrevRef = useRef<string>('')
-  useEffect(() => {
-    const profileLoading = profileFetchPhase === 'loading'
-    const authReady = !authLoading
-    const effectiveUserId = activeActorId
-    const showListShell = !(authLoading && !activeActorId) && !loading
-    const shouldRenderListBody = !!list && showListShell
-    let reasonIfNot = ''
-      if (authLoading && !activeActorId) reasonIfNot = 'auth.loading_no_activeActorId'
-    else if (loading) reasonIfNot = 'useList.loading'
-    else if (!list) reasonIfNot = '!list'
-    else reasonIfNot = 'ok'
-
-    const snapshot = JSON.stringify({
-      authLoading,
-      hasUser: !!user,
-      userId: user?.id ?? null,
-      effectiveUserId,
-      bootstrapUserId,
-      profileLoading,
-      hasProfile: !!profile,
-      profileFetchPhase,
-      authReady,
-      profileReady: !!profile,
-      offlineAssetsReady,
-      useListLoading: loading,
-      shouldRenderListBody,
-      reasonIfNot,
-    })
-    if (snapshot === listGatePrevRef.current) return
-    listGatePrevRef.current = snapshot
-    perfLog('ListPage gate', JSON.parse(snapshot) as Record<string, unknown>)
-  }, [
-    authLoading,
-    user,
-    bootstrapUserId,
-    profile,
-    profileFetchPhase,
-    loading,
-    list,
-    offlineAssetsReady,
-  ])
-
   // Redirect to home if access is revoked
   useEffect(() => {
     if (accessDenied) {
@@ -400,86 +332,11 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const [showNewMemberAlert, setShowNewMemberAlert] = useState(false)
   const knownMemberIdsRef = useRef<Set<string> | null>(null)
-  const lastListPageDiagSigRef = useRef<string>('')
-  const lastListPageDiagAtRef = useRef(0)
   const normalOfflineMarkerAppliedSigRef = useRef<string>('')
 
   useEffect(() => {
     normalOfflineMarkerAppliedSigRef.current = ''
   }, [listId])
-
-  useLayoutEffect(() => {
-    const uid = activeActorId
-    const tReadStart = performance.now()
-    appendOfflineNavDiagnostic(`[list-page-mount] listId=${listId} effectiveUserId=${uid ?? 'null'}`)
-    appendOfflineNavDiagnostic(
-      `[list-page-mount] navigator.onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
-    )
-    logListDetailCacheValidation(listId, uid ?? undefined, '[list-page-mount]')
-    const hasRow = cachedListDataExists(listId, uid ?? undefined)
-    appendOfflineNavDiagnostic(`[list-page-mount] cachedListDataExists=${hasRow ? 1 : 0}`)
-    const rrMount = normalOfflineRouteReady(listId, uid ?? undefined)
-    const lastMount = getLastOfflineRouteMarkerRecord(listId, uid ?? undefined)
-    appendOfflineNavDiagnostic(
-      `[list-page-mount] normalOfflineRouteReady=${rrMount ? 1 : 0} lastMarkerBuildId=${lastMount?.buildId ?? 'none'} currentBuildId=${getClientBuildId()}`,
-    )
-    const cached = uid ? getCachedList(uid, listId) : null
-    const readMs = Math.round(performance.now() - tReadStart)
-    appendOfflineNavDiagnostic(
-      `[list-page-mount] localStorage read end ms=${readMs} appliedListRow=${cached?.list ? 1 : 0} itemCount=${cached?.items?.length ?? 0} memberCount=${cached?.members?.length ?? 0}`,
-    )
-  }, [listId, user?.id, bootstrapUserId, swControlled, offlineAssetsReady])
-
-  useEffect(() => {
-    const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
-    const cacheUserId = activeActorId ?? undefined
-    const hasCachedListData = cachedListDataExists(listId, cacheUserId)
-    const routeReady = normalOfflineRouteReady(listId, cacheUserId)
-    const offlineNavAllowed =
-      offline &&
-      swControlled &&
-      offlineAssetsReady &&
-      hasCachedListData &&
-      routeReady
-    const lastMarker = getLastOfflineRouteMarkerRecord(listId, cacheUserId)
-    let offlineGateReason = 'n/a'
-    if (offline) {
-      if (!swControlled) offlineGateReason = 'blocked_sw_not_controlled'
-      else if (!offlineAssetsReady) offlineGateReason = 'blocked_offline_assets_not_ready'
-      else if (!hasCachedListData) offlineGateReason = 'blocked_list_data_not_cached'
-      else if (!routeReady) offlineGateReason = 'blocked_route_not_verified_offline'
-      else offlineGateReason = 'allowed_offline_normal_route_ready'
-    }
-    const errShort = error ? String(error).slice(0, 160) : ''
-    const sig = `${pathname}|${listId}|${loading}|${hasCompletedInitialFetch}|${!!list}|${errShort}|${accessDenied}|${swControlled}|${offlineAssetsReady}|${offline}|${routeReady}`
-    const now = Date.now()
-    if (sig === lastListPageDiagSigRef.current && now - lastListPageDiagAtRef.current < 250) return
-    lastListPageDiagSigRef.current = sig
-    lastListPageDiagAtRef.current = now
-    appendOfflineNavDiagnostic(
-      [
-        `[list-page] path=${pathname} listId=${listId}`,
-        `loading=${loading ? 1 : 0} hasCompletedInitialFetch=${hasCompletedInitialFetch ? 1 : 0} listPresent=${list ? 1 : 0}`,
-        `accessDenied=${accessDenied ? 1 : 0} error=${errShort || '(none)'}`,
-        `offline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
-        `cachedListData=${hasCachedListData ? 1 : 0} normalOfflineRouteReady=${routeReady ? 1 : 0}`,
-        `lastMarkerBuildId=${lastMarker?.buildId ?? 'none'} currentBuildId=${getClientBuildId()}`,
-        `offlineNavAllowed=${offlineNavAllowed ? 1 : 0} offlineGateReason=${offlineGateReason}`,
-      ].join('\n'),
-    )
-  }, [
-    pathname,
-    listId,
-    loading,
-    hasCompletedInitialFetch,
-    list,
-    error,
-    accessDenied,
-    swControlled,
-    offlineAssetsReady,
-    user?.id,
-    bootstrapUserId,
-  ])
 
   useEffect(() => {
     const uid = activeActorId ?? null
@@ -498,9 +355,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     normalOfflineMarkerAppliedSigRef.current = markerSig
 
     setNormalOfflineRouteReadyMarker(uid, listId)
-    appendOfflineNavDiagnostic(
-      `[list-page] normal_offline_route_ready marker set listId=${listId} userId=${uid} buildId=${getClientBuildId()}`,
-    )
   }, [
     pathname,
     surface,
@@ -514,28 +368,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     swControlled,
     offlineAssetsReady,
   ])
-
-  useEffect(() => {
-    if (!isPwaDebugEnabled()) return
-    let cancelled = false
-
-    const runSwDebug = async () => {
-      try {
-        const [pwa, info] = await Promise.all([collectPwaDiagnostics(), getServiceWorkerDebugInfo()])
-        if (cancelled) return
-        appendDiagnostics(
-          `list-page SW+PWA (${listId})\n${JSON.stringify({ pwa, sw: info }, null, 2)}`,
-        )
-      } catch {
-        /* diagnostics panel only */
-      }
-    }
-
-    void runSwDebug()
-    return () => {
-      cancelled = true
-    }
-  }, [appendDiagnostics, listId])
 
   useEffect(() => {
     if (!hasCompletedInitialFetch || !user) return

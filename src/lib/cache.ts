@@ -1,5 +1,4 @@
 import type { ItemWithState, List, ListWithRole, MemberWithCreator } from '@/lib/supabase/types'
-import { appendListDetailCacheDiagnostic } from '@/lib/offlineNavDiagnostics'
 
 const MAX_CACHED_LISTS = 10
 const CACHE_KEY_ACTIVE_USER = 'active_cache_user'
@@ -285,28 +284,6 @@ export function validateListDetailOfflineCache(listId: string, userId?: string |
     cacheSchemaVersion: schemaVersion ?? undefined,
   }
   return { ok: true, reason: finalReason, breakdown, data }
-}
-
-/** Append a multi-line cache validation report to the diagnostics panel (when sink is registered). */
-export function logListDetailCacheValidation(listId: string, userId?: string, label = '[list-detail-cache]'): void {
-  const { ok, reason, breakdown } = validateListDetailOfflineCache(listId, userId)
-  const lines = [
-    `${label}`,
-    `requestedListId=${breakdown.requestedListId}`,
-    `cacheKey=${breakdown.cacheKey ?? '(null)'}`,
-    `passedUserId=${breakdown.passedUserId ?? 'null'} activeCacheUserId=${breakdown.activeCacheUserId ?? 'null'} scopedUserId=${breakdown.scopedUserId ?? 'null'} keyUsesExplicitPassedUser=${breakdown.keyUsesExplicitPassedUser ? 1 : 0}`,
-    `rawExists=${breakdown.rawExists ? 1 : 0} rawLengthChars=${breakdown.rawLengthChars ?? 'n/a'}`,
-    `parseOk=${breakdown.parseOk ? 1 : 0} parseError=${breakdown.parseErrorSnippet ?? 'none'}`,
-    `rootIsObject=${breakdown.rootIsObject ? 1 : 0}`,
-    `schemaVersion=${breakdown.schemaVersion ?? 'absent'} schemaVersionOk=${breakdown.schemaVersionOk ? 1 : 0}`,
-    `listIsObject=${breakdown.listIsObject ? 1 : 0} listIdInPayload=${breakdown.listIdInPayload ?? 'null'} listIdMatchesRequested=${breakdown.listIdMatchesRequested ? 1 : 0}`,
-    `itemsIsArray=${breakdown.itemsIsArray ? 1 : 0} itemCount=${breakdown.itemCount ?? 'n/a'}`,
-    `membersIsArray=${breakdown.membersIsArray ? 1 : 0} memberCount=${breakdown.memberCount ?? 'n/a'}`,
-    `cachedAt=${breakdown.cachedAt ?? 'absent'} cachedAtIsNumber=${breakdown.cachedAtIsNumber ? 1 : 0}`,
-    `prefsNote=${breakdown.prefsNote}`,
-    `cachedListDataExists=${ok ? 1 : 0} finalReason=${reason}`,
-  ]
-  appendListDetailCacheDiagnostic(lines.join('\n'))
 }
 
 function getListsKey(userId: string) {

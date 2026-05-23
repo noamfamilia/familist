@@ -16,7 +16,6 @@ import { ImportModal } from '@/components/import/ImportModal'
 import { LabelManagerModal } from './LabelManagerModal'
 import type { ListWithRole } from '@/lib/supabase/types'
 import type { Step } from 'react-joyride'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { useAuth } from '@/providers/AuthProvider'
 import { formatJoinListInviteErrorForUser } from '@/lib/joinListInviteErrorMessage'
 import { fetchFailureToastMessage } from '@/lib/fetchToastPolicy'
@@ -215,24 +214,15 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
-    appendMutationDiagnostic(
-      `[mutation:list.reorder.drag] event active=${String(active?.id ?? 'n/a')} over=${String(over?.id ?? 'n/a')} activeCount=${activeLists.length} archivedCount=${archivedLists.length} filteredCount=${filteredLists.length} totalCount=${lists.length}`,
-    )
     
     if (over && active.id !== over.id) {
       const oldIndex = activeLists.findIndex(l => l.id === active.id)
       const newIndex = activeLists.findIndex(l => l.id === over.id)
-      appendMutationDiagnostic(
-        `[mutation:list.reorder.drag] indices oldIndex=${oldIndex} newIndex=${newIndex} beforeHead=${activeLists.slice(0, 5).map((l) => l.id).join(',')}`,
-      )
       
       if (oldIndex !== -1 && newIndex !== -1) {
         const reordered = [...activeLists]
         const [removed] = reordered.splice(oldIndex, 1)
         reordered.splice(newIndex, 0, removed)
-        appendMutationDiagnostic(
-          `[mutation:list.reorder.drag] afterHead=${reordered.slice(0, 5).map((l) => l.id).join(',')} moved=${String(removed?.id ?? 'n/a')}`,
-        )
 
         // Merge into full `lists` so RPC receives every list id once (hidden rows keep their slots).
         const nextFull = [...lists]
@@ -243,19 +233,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
           if (!l.userArchived && visibleActiveIds.has(l.id)) {
             activeIndicesInFull.push(i)
           }
-        }
-        if (activeIndicesInFull.length !== reordered.length) {
-          appendMutationDiagnostic(
-            `[mutation:list.reorder.drag] mergeSkip slots=${activeIndicesInFull.length} reordered=${reordered.length}`,
-          )
-        } else {
-          for (let i = 0; i < activeIndicesInFull.length; i++) {
-            nextFull[activeIndicesInFull[i]] = reordered[i]
-          }
-          appendMutationDiagnostic(
-            `[mutation:list.reorder.drag] mergeFull head=${nextFull.slice(0, 5).map((l) => l.id).join(',')}`,
-          )
-          reorderLists(nextFull)
         }
       }
     }
@@ -268,23 +245,14 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     }
 
     if (authLoading) {
-      appendMutationDiagnostic(
-        `[invite] ListsView defer join reason=authLoading tokenLen=${inviteToken.length} bootstrapUserId=${bootstrapUserId ? 'set' : 'absent'}`,
-      )
       return
     }
 
     if (isGuest) {
-      appendMutationDiagnostic(
-        `[invite] ListsView blocked reason=guest tokenLen=${inviteToken.length}`,
-      )
       return
     }
 
     if (!user?.id) {
-      appendMutationDiagnostic(
-        `[invite] ListsView defer join reason=no_user_session tokenLen=${inviteToken.length} bootstrapUserId=${bootstrapUserId ? 'set' : 'absent'}`,
-      )
       return
     }
 
@@ -296,21 +264,15 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
     let cancelled = false
 
     const handleInviteJoin = async () => {
-      appendMutationDiagnostic(`[invite] ListsView join start userId=${user.id} tokenLen=${inviteToken.length}`)
       const { data, error, joinedListName } = await joinListByToken(inviteToken)
       if (cancelled) {
-        appendMutationDiagnostic('[invite] ListsView join cancelled (unmount)')
         return
       }
 
       if (error) {
         if (error.message === 'Session still loading') {
-          appendMutationDiagnostic('[invite] ListsView join returned session_loading (unexpected)')
           return
         }
-        appendMutationDiagnostic(
-          `[invite] ListsView join failed userId=${user.id} tokenLen=${inviteToken.length} err=${error.message}`,
-        )
         const toastMessage = formatJoinListInviteErrorForUser(error.message)
         showError(toastMessage, { serverError: error })
         onInviteHandled?.()
@@ -322,9 +284,6 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
       inviteJoinSucceededKeyRef.current = successKey
       onInviteHandled?.()
 
-      appendMutationDiagnostic(
-        `[invite] ListsView join ok userId=${user.id} tokenLen=${inviteToken.length} dataType=${typeof data} clearedUrl=1`,
-      )
 
       if (typeof data === 'string' && data) {
         const nameFromCatalog =

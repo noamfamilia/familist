@@ -22,15 +22,12 @@ import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 import { db, type DbItemRow } from '@/lib/db'
 import {
   normalizeServerSyncableFields,
-  reportServerDexieParityDiagnostics,
   upsertListDataPayloadFromServer,
   upsertListPrefsFromServer,
 } from '@/lib/data/serverDexieParity'
 import { LIST_MIRROR_SESSION_OWNER, setLastMirroredListDetailVersion } from '@/lib/data/listMirror'
 import { releaseListMirrorLock, waitForListMirrorLock } from '@/lib/data/listMirrorLock'
-import { perfLog } from '@/lib/startupPerfLog'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
-import { appendMutationDiagnostic, appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { serverListDetailDiffersFromDexie } from '@/lib/data/listDetailServerDexieDiff'
 import {
   isLikelyConnectivityError,
@@ -396,9 +393,6 @@ export function useList(listId: string) {
   /** First mutation version captured when a debounced realtime fetch is scheduled; preserved across reschedules until that fetch completes. */
   const realtimeScheduleCaptureVersionRef = useRef<number | null>(null)
   const scheduleRealtimeFetchRef = useRef<(delayMs: number) => void>(() => {})
-  useEffect(() => {
-    reportServerDexieParityDiagnostics()
-  }, [])
 
   useEffect(() => {
     if (!list || isTombstoned(list.deleted_at ?? null)) return
@@ -488,7 +482,6 @@ export function useList(listId: string) {
   }, [connectivityStatus])
 
   useEffect(() => {
-    perfLog('localStorage read start')
     const lsT0 = performance.now()
     let approxStorageChars = 0
     try {
@@ -501,12 +494,6 @@ export function useList(listId: string) {
     const cachedData = getCachedList(scopedUserId, listId)
     const cachedPrefs = getCachedPrefs(listId, scopedUserId)
     const itemCount = (cachedData?.items || []).length
-    perfLog('localStorage read end', {
-      durationMs: Math.round(performance.now() - lsT0),
-      listCount: cachedData?.list ? 1 : 0,
-      itemCount,
-      approxStorageChars,
-    })
 
     if (scopedUserId && listId) {
       useListDataStore.getState().beginListSession(scopedUserId, listId, cachedData)
@@ -633,14 +620,12 @@ export function useList(listId: string) {
     let listMirrorLockHeld = false
 
     if (!scopedUserId || !listId) {
-      perfLog('fetchList start', { note: 'no user or list' })
       useListDataStore.getState().setList(null)
       useListDataStore.getState().setItems([])
       useListDataStore.getState().setMembers([])
       setLoading(false)
       setIsFetching(false)
       setHasCompletedInitialFetch(true)
-      perfLog('fetchList end', { durationMs: 0, listCount: 0, itemCount: 0 })
       return
     }
 
@@ -653,9 +638,6 @@ export function useList(listId: string) {
         setFetchTimedOut(false)
       }
       setError(null)
-      appendOfflineNavDiagnostic(
-        `[fetchList] dexie-only status=${connectivityStatus} listId=${listId} ownedFetch=${ownedFetch ? 1 : 0}`,
-      )
       if (
         !(await waitForListMirrorLock(listId, LIST_MIRROR_SESSION_OWNER, { maxWaitMs: 5_000, pollMs: 80 }))
       ) {
@@ -663,7 +645,6 @@ export function useList(listId: string) {
           fetchingRef.current = false
           setIsFetching(false)
         }
-        appendOfflineNavDiagnostic(`[fetchList] dexie deferred — mirror lock busy listId=${listId}`)
         queueMicrotask(() => void fetchList(options))
         return
       }
@@ -709,21 +690,16 @@ export function useList(listId: string) {
           fetchingRef.current = false
           setItemsUntilReconnectReconciled(null)
         }
-        appendOfflineNavDiagnostic(
-          `[fetchList] dexie-only finished listId=${listId} hadList=${hadList ? 1 : 0}`,
-        )
       }
       return
     }
 
     if (fetchingRef.current) {
-      appendOfflineNavDiagnostic(`[fetchList] skipped listId=${listId} (already fetching)`)
       return
     }
     if (
       !(await waitForListMirrorLock(listId, LIST_MIRROR_SESSION_OWNER, { maxWaitMs: 5_000, pollMs: 80 }))
     ) {
-      appendOfflineNavDiagnostic(`[fetchList] deferred — list mirror lock busy listId=${listId}`)
       queueMicrotask(() => void fetchList(options))
       return
     }
@@ -733,7 +709,6 @@ export function useList(listId: string) {
     let parallelT0 = 0
     let rpcDurationMs = 0
     let prefsDurationMs: number | null = null
-    perfLog('fetchList start', { listId })
     let listCount = 0
     let itemCountResult = 0
     let fetchErr: string | undefined
@@ -741,9 +716,6 @@ export function useList(listId: string) {
     setIsFetching(true)
     setFetchTimedOut(false)
 
-    appendOfflineNavDiagnostic(
-      `[fetchList] start listId=${listId} navigator.onLine=${typeof navigator !== 'undefined' && navigator.onLine ? 1 : 0} hadCachedListRow=${getCachedList(scopedUserId, listId)?.list ? 1 : 0}`,
-    )
 
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
     fetchTimeoutRef.current = setTimeout(() => {
@@ -759,15 +731,11 @@ export function useList(listId: string) {
     const listDetailReconcileGen = captureListReconcileGeneration(listId)
     let serverOutcome: ServerWorkOutcome = 'success'
     try {
-      appendOfflineNavDiagnostic(
-        `[fetchList] invoking get_list_data + list_users prefs in parallel listId=${listId}`,
-      )
       const willFetchPrefs = !prefsFetchedRef.current
       parallelT0 = performance.now()
 
       const rpcPromise = (async () => {
         const rpcT0 = performance.now()
-        appendOfflineNavDiagnostic(`[db-read] target=supabase rpc=get_list_data action=start listId=${listId}`)
         let data: Awaited<ReturnType<typeof supabase.rpc<'get_list_data'>>>['data']
         let rpcError: Awaited<ReturnType<typeof supabase.rpc<'get_list_data'>>>['error']
         try {
@@ -778,31 +746,15 @@ export function useList(listId: string) {
           rpcError = r.error
         } finally {
           rpcDurationMs = Math.round(performance.now() - rpcT0)
-          appendOfflineNavDiagnostic(
-            `[db-read] target=supabase rpc=get_list_data action=end listId=${listId} durationMs=${rpcDurationMs}`,
-          )
         }
-        perfLog('fetchList get_list_data', {
-          listId,
-          durationMs: rpcDurationMs,
-          ok: !rpcError,
-          code: rpcError?.code ?? null,
-          errMsg: rpcError?.message ? String(rpcError.message).slice(0, 120) : null,
-          hasListRow: !!(data && data.list),
-          itemCount: data?.items?.length ?? 0,
-          memberCount: data?.members?.length ?? 0,
-        })
         return { data, rpcError }
       })()
 
       const prefsPromise = (async () => {
         const prefsReconcileGen = captureListReconcileGeneration(listId)
         if (!willFetchPrefs) {
-          perfLog('fetchList list_users prefs skip', { listId, reason: 'already_fetched' })
           return { listUserData: null, prefsReconcileGen }
         }
-        perfLog('fetchList list_users prefs start', { listId })
-        appendOfflineNavDiagnostic(`[db-read] target=supabase table=list_users action=start listId=${listId}`)
         prefsFetchedRef.current = true
         const prefsT0 = performance.now()
         const { data: listUserData } = await supabase
@@ -814,14 +766,6 @@ export function useList(listId: string) {
           .eq('user_id', scopedUserId)
           .single()
         prefsDurationMs = Math.round(performance.now() - prefsT0)
-        perfLog('fetchList list_users prefs end', {
-          listId,
-          durationMs: prefsDurationMs,
-          hasRow: !!listUserData,
-        })
-        appendOfflineNavDiagnostic(
-          `[db-read] target=supabase table=list_users action=end listId=${listId} durationMs=${prefsDurationMs ?? 'n/a'} hasRow=${listUserData ? 1 : 0}`,
-        )
         return { listUserData, prefsReconcileGen }
       })()
 
@@ -830,18 +774,9 @@ export function useList(listId: string) {
         prefsPromise,
       ])
       pulseServerWorkProgress()
-      perfLog('fetchList parallel await', {
-        listId,
-        wallMs: Math.round(performance.now() - parallelT0),
-        rpcDurationMs,
-        prefsDurationMs,
-      })
 
       if (shouldDiscardReadFlightResult(readFlightGen)) {
         connectivityDiscarded = true
-        appendOfflineNavDiagnostic(
-          `[fetchList] connectivity-discard listId=${listId} status=${connectivityStatusRef.current}`,
-        )
         logServerRoundTrip({
           description: `Fetched list ${formatQuotedListName(data?.list?.name, listId)} (${data?.items?.length ?? 0} items, ${data?.members?.length ?? 0} members)`,
           ok: true,
@@ -912,24 +847,11 @@ export function useList(listId: string) {
 
       if (detailStale && prefsStale) {
         staleDiscarded = true
-        perfLog('fetchList stale_discard', {
-          listId,
-          rpcDurationMs,
-          capturedVersion: staleCheck,
-          mutationVersion: mutationVersionRef.current,
-          detailReconcileGen: listDetailReconcileGen,
-          prefsReconcileGen,
-        })
         return
       }
 
       if (detailStale) {
         staleDiscarded = true
-        perfLog('fetchList detail_discard', {
-          listId,
-          rpcDurationMs,
-          detailReconcileGen: listDetailReconcileGen,
-        })
       }
 
       hadAccessRef.current = true
@@ -944,9 +866,6 @@ export function useList(listId: string) {
           items: nextItems,
           members: serverMembers,
         })
-        appendMutationDiagnostic(
-          `[fetchList] get_list_data vs_dexie listId=${listId} diff=${differsFromDexie ? 1 : 0} items=${nextItems.length} members=${serverMembers.length}`,
-        )
 
         useListDataStore.getState().setList((prev) => replaceListPreservingClientMirror(prev, data.list))
         const pendingMutations = await db.sync_queue
@@ -1030,9 +949,6 @@ export function useList(listId: string) {
         setCachedPrefs(listId, { sumScope: serverSumScope }, scopedUserId)
       }
       setFetchTimedOut(false)
-      appendOfflineNavDiagnostic(
-        `[fetchList] RPC success listId=${listId} items=${(data.items || []).length} members=${(data.members || []).length}`,
-      )
       serverOutcome = 'success'
     } catch (err) {
       serverOutcome = isLikelyConnectivityError(err) ? 'connectivity_failure' : 'application_error'
@@ -1041,9 +957,6 @@ export function useList(listId: string) {
       }
       fetchErr = rpcFailureMessage(err)
       setError(rpcFailureMessage(err))
-      appendOfflineNavDiagnostic(
-        `[fetchList] catch listId=${listId} connectivity-ish=${isLikelyConnectivityError(err) ? 1 : 0} msg=${fetchErr}`,
-      )
       if (!serverDetailLogged) {
         logServerRoundTrip({
           description: `Fetched list ${formatQuotedListName(null, listId)}`,
@@ -1059,17 +972,6 @@ export function useList(listId: string) {
         listMirrorLockHeld = false
       }
       endServerWork(serverOutcome)
-      perfLog('fetchList end', {
-        durationMs: Math.round(performance.now() - fetchT0),
-        rpcDurationMs,
-        prefsDurationMs,
-        listCount,
-        itemCount: itemCountResult,
-        error: fetchErr,
-        staleDiscarded,
-        connectivityDiscarded,
-        listId,
-      })
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
       setLoading(false)
       setIsFetching(false)
@@ -1088,13 +990,6 @@ export function useList(listId: string) {
           void fetchList()
         })
       }
-      appendOfflineNavDiagnostic(
-        [
-          `[fetchList] finally listId=${listId} totalMs=${Math.round(performance.now() - fetchT0)}`,
-          `rpcMs=${rpcDurationMs} prefsMs=${prefsDurationMs == null ? 'n/a' : String(prefsDurationMs)}`,
-          `fetchErr=${fetchErr ?? '(none)'}`,
-        ].join(' '),
-      )
       setItemsUntilReconnectReconciled(null)
     }
   }, [
@@ -1207,16 +1102,10 @@ export function useList(listId: string) {
     }
 
     const subscribeT0 = performance.now()
-    perfLog('realtime subscribe start', { listId })
     let subscribeEndLogged = false
     const logRealtimeSubscribeEnd = (extra: Record<string, unknown> = {}) => {
       if (subscribeEndLogged) return
       subscribeEndLogged = true
-      perfLog('realtime subscribe end', {
-        durationMs: Math.round(performance.now() - subscribeT0),
-        listId,
-        ...extra,
-      })
     }
 
     const channel = supabase

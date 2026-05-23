@@ -4,7 +4,6 @@ import { APP_VERSION, parseSemver } from '@/lib/appVersion'
 import { db } from '@/lib/db'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { runListMirrorJob } from '@/lib/data/listMirror'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 
 /**
  * After `db.delete()`, Dexie `meta` is gone, so we persist “already wiped for this app major” in
@@ -53,19 +52,12 @@ export async function runOneTimeReconcileAfterDexieSchemaBelow10Upgrade(userId: 
     if (pending?.value !== true) return
 
     const lists = await db.lists.toArray()
-    appendMutationDiagnostic(
-      `[schema10-reconcile] start lists=${lists.filter((r) => !isTombstoned(r.deleted_at ?? null)).length}`,
-    )
     for (const row of lists) {
       if (isTombstoned(row.deleted_at ?? null)) continue
       await runListMirrorJob(userId, row.id, { bypassVersionGate: true })
     }
     await db.meta.delete(PENDING_SCHEMA_10_MIRROR_RECONCILE_META_ID)
-    appendMutationDiagnostic('[schema10-reconcile] done')
   } catch (e) {
-    appendMutationDiagnostic(
-      `[schema10-reconcile] error msg=${e instanceof Error ? e.message : String(e)}`,
-    )
   }
 }
 

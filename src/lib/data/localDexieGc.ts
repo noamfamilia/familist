@@ -1,6 +1,5 @@
 import { db } from '@/lib/db'
 import { isTombstoned, legacyDeletedAtToIso } from '@/lib/data/base_sync_fields'
-import { perfLog } from '@/lib/startupPerfLog'
 
 const GC_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
@@ -57,8 +56,5 @@ export async function runLocalDexieGc(): Promise<{ removed: number }> {
     }
   })
 
-  if (removed > 0) {
-    perfLog('localDexieGc', { removed })
-  }
   return { removed }
 }

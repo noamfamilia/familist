@@ -7,7 +7,6 @@ import type { PwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { collectPwaDiagnostics } from '@/lib/pwaDiagnostics'
 import { isPwaDebugEnabled, isPwaDeepDebugEnabled } from '@/lib/pwaDebug'
 import { scheduleAfterFirstPaint } from '@/lib/startupPerf'
-import { log, perfLog } from '@/lib/startupPerfLog'
 import { registerConnectivityFailureHandler } from '@/lib/connectivityFailureBridge'
 import {
   bumpReadDiscardGeneration,
@@ -20,9 +19,7 @@ import {
   runRecoveryHealthCheck,
 } from '@/lib/recoveryHealthCheck'
 import { runSwPrecacheVerification } from '@/lib/swPrecacheVerify'
-import { useDiagnosticsMessageBox } from '@/providers/DiagnosticsMessageBox'
 import { appendConnectivityDebugLine } from '@/lib/connectivityDebugLog'
-import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import {
   connectivityProbeDelayForStep,
   MAX_PROBE_BACKOFF_STEP,
@@ -33,7 +30,6 @@ import {
   OFFLINE_ACTIONS_DISABLED_MSG,
   RECOVERING_MUTATIONS_DISABLED_MSG,
 } from '@/lib/mutationToastPolicy'
-import { DIAGNOSTICS_DATA_COLLECTION_ENABLED } from '@/lib/diagnosticsFlags'
 import { USER_MUTATION_WAIT_MSG } from '@/lib/userMutationGate'
 import type { ServerWorkOutcome } from '@/lib/connectivityErrors'
 
@@ -76,7 +72,7 @@ function sleep(ms: number): Promise<void> {
  * Attach statechange + updatefound so we log installing → installed → activating → activated or redundant.
  * Listeners are deduped per ServiceWorker / ServiceWorkerRegistration instance.
  */
-function createSwLifecycleHandlers(appendDiagnostics: (section: string) => void) {
+function createSwLifecycleHandlers() {
   const seenWorkers = new WeakSet<ServiceWorker>()
   const registrationsWithUpdateFound = new WeakSet<ServiceWorkerRegistration>()
   const disposers: Array<() => void> = []
@@ -84,23 +80,12 @@ function createSwLifecycleHandlers(appendDiagnostics: (section: string) => void)
   const attachWorker = (sw: ServiceWorker, label: string) => {
     if (seenWorkers.has(sw)) return
     seenWorkers.add(sw)
-    appendDiagnostics(
-      `SW worker [${label}] snapshot\nstate=${sw.state}\nscriptURL=${sw.scriptURL}`,
-    )
     const onState = () => {
-      if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+      if (isPwaDebugEnabled()) {
         console.log('SW statechange', { label, state: sw.state, scriptURL: sw.scriptURL })
       }
-      appendDiagnostics(
-        `SW statechange [${label}]\nstate=${sw.state}\nscriptURL=${sw.scriptURL}`,
-      )
-      if (sw.state === 'redundant') {
-        if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-          console.warn('[SW] redundant', sw.scriptURL)
-        }
-        appendDiagnostics(
-          'SW reached redundant — use Remote debugging or SW DevTools console for install/precache errors (page-side precache-verify can still be ok).',
-        )
+      if (sw.state === 'redundant' && isPwaDebugEnabled()) {
+        console.warn('[SW] redundant', sw.scriptURL)
       }
     }
     sw.addEventListener('statechange', onState)
@@ -125,20 +110,17 @@ function createSwLifecycleHandlers(appendDiagnostics: (section: string) => void)
   return { attachToRegistration, dispose: () => disposers.forEach((d) => d()) }
 }
 
-function logFallbackSwRegister(appendDiagnostics: (section: string) => void) {
+function logFallbackSwRegister() {
   try {
     const n = Number(sessionStorage.getItem(SW_FALLBACK_REGISTER_COUNT_KEY) || '0') + 1
     sessionStorage.setItem(SW_FALLBACK_REGISTER_COUNT_KEY, String(n))
-    appendDiagnostics(
-      `[sw-register-fallback] about to call register('/sw.js') invoke#${n} at ${new Date().toISOString()}`,
-    )
-    if (n > 1) {
-      appendDiagnostics(
-        `[sw-register-fallback] WARNING: fallback register() invoked ${n} times this tab — possible supersession race with serwist`,
+    if (n > 1 && isPwaDebugEnabled()) {
+      console.warn(
+        `[sw-register-fallback] fallback register() invoked ${n} times this tab — possible supersession race with serwist`,
       )
     }
   } catch {
-    appendDiagnostics(`[sw-register-fallback] about to call register('/sw.js') (sessionStorage blocked)`)
+    /* ignore */
   }
 }
 
@@ -173,65 +155,6 @@ type ConnectivityContextType = {
 
 const ConnectivityContext = createContext<ConnectivityContextType | undefined>(undefined)
 
-function PwaDebugPrecacheButton({
-  appendDiagnostics,
-}: {
-  appendDiagnostics: (section: string) => void
-}) {
-  const [enabled, setEnabled] = useState(false)
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    scheduleAfterFirstPaint(() => setEnabled(isPwaDebugEnabled()))
-  }, [])
-
-  const onRun = useCallback(async () => {
-    if (!isPwaDebugEnabled()) return
-    setBusy(true)
-    const t0 = performance.now()
-    perfLog('precache-verify MANUAL start')
-    try {
-      const stats = await runSwPrecacheVerification(appendDiagnostics)
-      perfLog('precache-verify MANUAL end', {
-        durationMs: Math.round(performance.now() - t0),
-        totalChecks: stats?.totalChecks ?? 0,
-        failCount: stats?.failCount ?? 0,
-      })
-    } catch (e) {
-      appendDiagnostics(
-        `[precache-verify] manual error: ${e instanceof Error ? e.message : String(e)}`,
-      )
-      perfLog('precache-verify MANUAL end', {
-        durationMs: Math.round(performance.now() - t0),
-        totalChecks: 0,
-        failCount: 0,
-        error: e instanceof Error ? e.message : String(e),
-      })
-    } finally {
-      setBusy(false)
-    }
-  }, [appendDiagnostics])
-
-  if (!enabled) return null
-
-  return (
-    <div
-      className="pointer-events-auto fixed bottom-14 right-2 z-[60] flex flex-col gap-1 rounded border border-amber-600/80 bg-neutral-900/95 p-2 text-[11px] text-amber-100 shadow-lg"
-      aria-label="PWA debug tools"
-    >
-      <span className="font-semibold text-amber-300">PWA debug</span>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void onRun()}
-        className="rounded bg-amber-700 px-2 py-1 text-left text-white hover:bg-amber-600 disabled:opacity-50"
-      >
-        {busy ? 'Precache verify…' : 'Run precache verify'}
-      </button>
-    </div>
-  )
-}
-
 async function probeInternetReachable(): Promise<boolean> {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
   const timeoutId =
@@ -260,7 +183,6 @@ async function probeInternetReachable(): Promise<boolean> {
 
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
   const { dismissToast } = useToast()
-  const { appendDiagnostics } = useDiagnosticsMessageBox()
   const [hasMounted, setHasMounted] = useState(false)
   const [status, setStatus] = useState<ConnectivityStatus>('online')
   const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
@@ -318,12 +240,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     }
   }, [])
 
-  useEffect(() => {
-    const onLine = typeof navigator !== 'undefined' ? navigator.onLine : true
-    appendOfflineNavDiagnostic(
-      `[connectivity] status=${status} swControlled=${swControlled} offlineAssetsReady=${offlineAssetsReady} navigator.onLine=${onLine}`,
-    )
-  }, [status, swControlled, offlineAssetsReady])
   /** Bumped only when leaving `recovering` → `online` to refresh catalog once. */
   const [recoveryFetchGeneration, setRecoveryFetchGeneration] = useState(0)
   const bumpCatalogRefreshAfterOnline = useCallback(() => {
@@ -443,9 +359,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const markOnlineRecovered = useCallback((cause = 'unknown') => {
     const prev = statusRef.current
     cancelRecoveryHealth()
-    appendOfflineNavDiagnostic(
-      `[connectivity-transition] trigger=${cause} from=${prev} to=online`,
-    )
     clearSyncTimeout()
     dismissSyncingToast()
     clearProbeSchedule()
@@ -468,7 +381,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     }
     scheduleOutboundSyncKick(`mark-online-recovered:${cause}`)
   }, [
-    appendOfflineNavDiagnostic,
+    
     bumpCatalogRefreshAfterOnline,
     cancelRecoveryHealth,
     clearProbeSchedule,
@@ -489,9 +402,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     flushSync(() => {
       setStatus('recovering')
     })
-    appendOfflineNavDiagnostic(
-      `[recovery-health] start flightId=${flightId} minVisibleMs=${RECOVERY_MIN_VISIBLE_MS} fetchTimeoutMs=${RECOVERY_HEALTH_TIMEOUT_MS}`,
-    )
 
     void (async () => {
       if (activeRecoveryFlightIdRef.current !== flightId) return
@@ -499,11 +409,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
       recoveryHealthTimeoutRef.current = setTimeout(() => {
         if (activeRecoveryFlightIdRef.current !== flightId) return
-        appendOfflineNavDiagnostic('[recovery-health] timeout')
         enterOfflineRef.current('recovery-health-timeout')
       }, RECOVERY_HEALTH_TIMEOUT_MS)
 
-      appendOfflineNavDiagnostic(`[recovery-health] fetch flightId=${flightId}`)
       const result = await runRecoveryHealthCheck(flightId, abortController.signal)
       if (activeRecoveryFlightIdRef.current !== flightId) return
 
@@ -516,9 +424,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           await sleep(remainingVisibleMs)
         }
         if (activeRecoveryFlightIdRef.current !== flightId) return
-        appendOfflineNavDiagnostic(
-          `[recovery-health] ok flightId=${flightId} visibleMs=${Date.now() - recoveringEnteredAtRef.current}`,
-        )
         activeRecoveryFlightIdRef.current = null
         recoveryAbortRef.current = null
         markOnlineRecovered('recovery-health')
@@ -527,7 +432,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
       activeRecoveryFlightIdRef.current = null
       recoveryAbortRef.current = null
-      appendOfflineNavDiagnostic(`[recovery-health] connectivity_failure flightId=${flightId}`)
       enterOfflineRef.current('recovery-health-connectivity-failure')
     })()
   }, [cancelRecoveryHealth, clearRecoveryHealthTimeout, markOnlineRecovered])
@@ -547,9 +451,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       skipNextProbeStepIncrementRef.current = true
     }
     const delay = use1s ? POST_ONLINE_PROBE_DELAY_MS : connectivityProbeDelayForStep(probeStepRef.current)
-    appendOfflineNavDiagnostic(
-      `[probe] schedule status=${statusRef.current} delayMs=${delay} step=${probeStepRef.current} source=${use1s ? 'post-online-fast' : 'backoff'}`,
-    )
     probeTimeoutRef.current = setTimeout(() => {
       void (async () => {
         if (statusRef.current === 'online') return
@@ -557,26 +458,18 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           return
         }
         if (probeInFlightRef.current) {
-          appendOfflineNavDiagnostic('[probe] skipped reason=in-flight')
           scheduleNextProbeRef.current()
           return
         }
         probeInFlightRef.current = true
         const probeStartedAt = performance.now()
-        appendOfflineNavDiagnostic(
-          `[probe] start path=/api/reachability method=GET timeoutMs=${REACHABILITY_PROBE_TIMEOUT_MS} status=${statusRef.current} step=${probeStepRef.current}`,
-        )
         const ok = await probeInternetReachable()
         probeInFlightRef.current = false
-        appendOfflineNavDiagnostic(
-          `[probe] result ok=${ok ? 1 : 0} durationMs=${Math.round(performance.now() - probeStartedAt)} status=${statusRef.current} step=${probeStepRef.current}`,
-        )
         // `statusRef` can flip to `online` while the probe fetch runs; ref type does not model that.
         if ((statusRef.current as ConnectivityStatus) === 'online') return
         const s = statusRef.current
 
         if (!ok) {
-          appendOfflineNavDiagnostic(`[probe] failure status=${s} step=${probeStepRef.current}`)
           if (skipNextProbeStepIncrementRef.current) {
             skipNextProbeStepIncrementRef.current = false
           } else {
@@ -591,14 +484,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         skipNextProbeStepIncrementRef.current = false
         lastNetworkSuccessAtRef.current = Date.now()
         if (statusRef.current === 'offline') {
-          appendOfflineNavDiagnostic(
-            '[connectivity-transition] trigger=probe-success from=offline start=recovery-health',
-          )
           startRecoveryHealthCheckRef.current()
         } else {
-          appendOfflineNavDiagnostic(
-            `[probe] success ignored for recovery status=${statusRef.current}`,
-          )
         }
       })()
     }, delay)
@@ -617,9 +504,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const enterOffline = useCallback((cause = 'unknown') => {
     const prev = statusRef.current
     cancelRecoveryHealth()
-    appendOfflineNavDiagnostic(
-      `[connectivity-transition] trigger=${cause} from=${prev} to=offline`,
-    )
     clearSyncTimeout()
     dismissSyncingToast()
     clearProbeSchedule()
@@ -644,7 +528,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       })
     }
   }, [
-    appendOfflineNavDiagnostic,
+    
     cancelRecoveryHealth,
     clearProbeSchedule,
     clearSyncTimeout,
@@ -731,35 +615,19 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!PWA_ENABLED) return
     if (typeof navigator === 'undefined') return
-    perfLog('SW controller check', { swControlled: !!navigator.serviceWorker?.controller })
     if (!('serviceWorker' in navigator) || !navigator.serviceWorker) {
-      perfLog('SW getRegistration start')
-      perfLog('SW getRegistration end', {
-        durationMs: 0,
-        hasRegistration: false,
-        activeState: null,
-        controller: false,
-      })
       return
     }
     let cancelled = false
     const disposers: Array<() => void> = []
     const t0 = performance.now()
-    perfLog('SW getRegistration start')
     void navigator.serviceWorker
       .getRegistration()
       .then((reg) => {
         if (cancelled) return
-        perfLog('SW getRegistration end', {
-          durationMs: Math.round(performance.now() - t0),
-          hasRegistration: !!reg,
-          activeState: reg?.active?.state ?? null,
-          controller: !!navigator.serviceWorker?.controller,
-        })
         if (!reg) return
 
         const onUpdateFound = () => {
-          perfLog('SW updatefound')
         }
         reg.addEventListener('updatefound', onUpdateFound)
         disposers.push(() => reg.removeEventListener('updatefound', onUpdateFound))
@@ -767,7 +635,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         const trackWorker = (sw: ServiceWorker | null) => {
           if (!sw) return
           const onState = () => {
-            perfLog('SW statechange', { state: sw.state })
           }
           sw.addEventListener('statechange', onState)
           disposers.push(() => sw.removeEventListener('statechange', onState))
@@ -778,13 +645,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       })
       .catch((e) => {
         if (cancelled) return
-        perfLog('SW getRegistration end', {
-          durationMs: Math.round(performance.now() - t0),
-          hasRegistration: false,
-          activeState: null,
-          controller: !!navigator.serviceWorker?.controller,
-          error: e instanceof Error ? e.message : String(e),
-        })
       })
     return () => {
       cancelled = true
@@ -796,15 +656,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     const withinBootGrace = Date.now() - bootStartedAtRef.current < BOOT_ONLINE_GRACE_MS
     const navigatorOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
     const computedOnline = withinBootGrace || internetReachable !== false
-    perfLog('offline readiness computed', {
-      online: computedOnline,
-      withinBootGrace,
-      navigatorOnline,
-      internetReachable,
-      swControlled,
-      assetsReady: offlineAssetsReady,
-      cachedDataReady: undefined,
-    })
   }, [internetReachable, offlineAssetsReady, swControlled])
 
   useEffect(() => {
@@ -833,14 +684,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       }
 
       if (sinceBootMs < BOOT_ONLINE_GRACE_MS) {
-        appendOfflineNavDiagnostic(
-          `[heartbeat] suppress-offline-during-boot-grace cause=${cause} sinceBootMs=${sinceBootMs}`,
-        )
         return
       }
 
-      appendOfflineNavDiagnostic(`[heartbeat] failed cause=${cause} -> offline`)
-      log.warn('CONNECTIVITY', 'Online heartbeat failed', { trigger: 'heartbeat', cause })
       enterOfflineRef.current(`heartbeat-failed:${cause}`)
     }
     void runOnlineHeartbeat('initial')
@@ -859,9 +705,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     }
     const onOnline = () => {
       if (statusRef.current === 'offline') {
-        appendOfflineNavDiagnostic(
-          '[connectivity-event] window-online while offline -> schedule fast probe',
-        )
         clearProbeSchedule()
         probeStepRef.current = 0
         useNextProbeDelay1sRef.current = true
@@ -896,9 +739,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       }
       const s = statusRef.current
       if (s === 'offline' && navigatorReportsOnline()) {
-        appendOfflineNavDiagnostic(
-          '[connectivity-event] visibility-visible while offline -> reschedule probe',
-        )
         clearProbeSchedule()
         probeStepRef.current = 0
         useNextProbeDelay1sRef.current = true
@@ -952,7 +792,11 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
     const runInner = async () => {
       const debug = isPwaDebugEnabled()
-      const logDiag = debug ? appendDiagnostics : () => {}
+      const logDiag = debug
+        ? (section: string) => {
+            console.log(section)
+          }
+        : () => {}
 
       try {
         let appendPwaBlock = debug
@@ -972,9 +816,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           if (debug) {
             const d = await collectPwaDiagnostics()
             if (cancelled) return
-            if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-              console.log('[PWA DIAG]', d)
-            }
             if (appendPwaBlock) {
               logDiag(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
               logDiag('pwa: no serviceWorker in navigator')
@@ -989,7 +830,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
 
         let attachToRegistration: ((r: ServiceWorkerRegistration) => void) | null = null
         if (debug) {
-          const lifecycle = createSwLifecycleHandlers(logDiag)
+          const lifecycle = createSwLifecycleHandlers()
           disposeSwListeners = lifecycle.dispose
           attachToRegistration = lifecycle.attachToRegistration
         }
@@ -1036,7 +877,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         }
 
         if (!reg && !cancelled) {
-          logFallbackSwRegister(appendDiagnostics)
+          logFallbackSwRegister()
           reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
           registeredByUs = true
           attachToRegistration?.(reg)
@@ -1045,9 +886,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         const d = await diagPromise
         if (cancelled) return
         if (debug && d) {
-          if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-            console.log('[PWA DIAG]', d)
-          }
+          console.log('[PWA DIAG]', d)
           if (appendPwaBlock) {
             logDiag(`[PWA DIAG]\n${JSON.stringify(d, null, 2)}`)
           }
@@ -1077,15 +916,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
             activeState: reg.active?.state,
           }
           if (debug) {
-            if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-              console.log('SW reg', regSnap)
-            }
             logDiag(`SW reg (after wait / register)\n${JSON.stringify(regSnap, null, 2)}`)
 
             const regsNow = await navigator.serviceWorker.getRegistrations()
-            if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-              console.log('SW getRegistrations (after wait / register)', regsNow.length, regsNow)
-            }
             logDiag(
               `getRegistrations (after wait / register) n=${regsNow.length}\n${JSON.stringify(
                 regsNow.map((r) => ({
@@ -1126,7 +959,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           logDiag(`sw-reg FAIL\n${msg}`)
         }
       } catch (e) {
-        if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
+        if (debug) {
           console.error('[PWA DIAG] failed', e)
         }
       }
@@ -1141,7 +974,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       cancelled = true
       disposeSwListeners?.()
     }
-  }, [appendDiagnostics])
+  }, [])
 
   /** Manual precache verify when DEBUG_PWA / ?debugPwa=1 (also exposed on window for console). */
   useEffect(() => {
@@ -1152,32 +985,16 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         console.warn('[familist] Set localStorage.DEBUG_PWA="1" or add ?debugPwa=1 then reload.')
         return
       }
-      const t0 = performance.now()
-      perfLog('precache-verify MANUAL start')
       try {
-        const stats = await runSwPrecacheVerification(appendDiagnostics)
-        perfLog('precache-verify MANUAL end', {
-          durationMs: Math.round(performance.now() - t0),
-          totalChecks: stats?.totalChecks ?? 0,
-          failCount: stats?.failCount ?? 0,
-        })
+        await runSwPrecacheVerification()
       } catch (e) {
-        if (DIAGNOSTICS_DATA_COLLECTION_ENABLED) {
-          console.error('[precache-verify]', e)
-        }
-        appendDiagnostics(`[precache-verify] runner error: ${e instanceof Error ? e.message : String(e)}`)
-        perfLog('precache-verify MANUAL end', {
-          durationMs: Math.round(performance.now() - t0),
-          totalChecks: 0,
-          failCount: 0,
-          error: e instanceof Error ? e.message : String(e),
-        })
+        console.error('[precache-verify]', e)
       }
     }
     return () => {
       delete w.__familistRunPrecacheVerify
     }
-  }, [appendDiagnostics])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1190,22 +1007,10 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       } catch {
         return
       }
-      perfLog('precache-verify AUTO start')
-      const t0 = performance.now()
       try {
-        const stats = await runSwPrecacheVerification(() => {})
-        perfLog('precache-verify AUTO end', {
-          durationMs: Math.round(performance.now() - t0),
-          totalChecks: stats?.totalChecks ?? 0,
-          failCount: stats?.failCount ?? 0,
-        })
+        await runSwPrecacheVerification()
       } catch (e) {
-        perfLog('precache-verify AUTO end', {
-          durationMs: Math.round(performance.now() - t0),
-          totalChecks: 0,
-          failCount: 0,
-          error: e instanceof Error ? e.message : String(e),
-        })
+        console.error('[precache-verify]', e)
       }
     })
     return () => {
@@ -1237,10 +1042,7 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         showOfflineBanner,
       }}
     >
-      <>
-        {children}
-        {hasMounted ? <PwaDebugPrecacheButton appendDiagnostics={appendDiagnostics} /> : null}
-      </>
+      {children}
     </ConnectivityContext.Provider>
   )
 }

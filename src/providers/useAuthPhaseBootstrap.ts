@@ -12,8 +12,6 @@ import {
   type AuthPhase,
   type GuestEntryPath,
 } from '@/lib/authBootStorage'
-import { logAuthBootTrace } from '@/lib/authBootTrace'
-import { isStartupDiagnosticsEnabled } from '@/lib/startupDiagnostics'
 import { appendConnectivityDebugLine } from '@/lib/connectivityDebugLog'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
 import { registerSessionModeGetter } from '@/lib/sessionPolicy'
@@ -68,56 +66,6 @@ export type AuthPhaseBootstrapActions = {
   hardRecoverInvalidRefreshToken: (source: string) => Promise<void>
 }
 
-function emitAuthBootTraceFromRefs(
-  refs: AuthPhaseBootstrapRefs,
-  params: {
-    event: string
-    reason: string
-    guestPath?: GuestEntryPath
-    authPhaseBefore: AuthPhase
-    authPhaseAfter: AuthPhase
-    loadingBefore: boolean
-    loadingAfter: boolean
-    sessionUserId?: string | null
-    getSessionErrorCode?: string | null
-    didEnterGuestMode?: boolean
-    didEnterAuthenticatedMode?: boolean
-  },
-): void {
-  logAuthBootTrace({
-    event: params.event,
-    reason: params.reason,
-    guestPath: params.guestPath ?? null,
-    authPhaseBefore: params.authPhaseBefore,
-    authPhaseAfter: params.authPhaseAfter,
-    loadingBefore: params.loadingBefore,
-    loadingAfter: params.loadingAfter,
-    authenticatedEstablished: refs.authenticatedEstablishedRef.current,
-    initialSessionReceived: refs.initialSessionReceivedRef.current,
-    initialSessionTimedOut: refs.initialSessionTimedOutRef.current,
-    initialSessionSettledNull: refs.initialSessionSettledNullRef.current,
-    sessionUserId: params.sessionUserId ?? refs.userRef.current?.id ?? null,
-    getSessionErrorCode: params.getSessionErrorCode,
-    hasUsableAuthBlob: hasUsableAuthBlob(),
-    lastAuthUserId: getLastAuthUserId(),
-    activeCacheUserBefore: getActiveCacheUserId(),
-    activeCacheUserAfter: getActiveCacheUserId(),
-    bootstrapUserIdBefore: refs.bootstrapUserIdRef.current,
-    bootstrapUserIdAfter: refs.bootstrapUserIdRef.current,
-    sessionMode:
-      refs.authPhaseRef.current === 'resolving'
-        ? 'resolving'
-        : refs.authPhaseRef.current === 'guest'
-          ? 'guest'
-          : 'authenticated',
-    didEnterGuestMode: params.didEnterGuestMode ?? false,
-    didEnterAuthenticatedMode: params.didEnterAuthenticatedMode ?? false,
-    didClearActiveCacheUser: false,
-    hardRecoveryInProgress: refs.hardRecoveryInProgressRef.current,
-    explicitSignOutInProgress: refs.explicitSignOutInProgressRef.current,
-  })
-}
-
 export function useAuthPhaseBootstrap(
   supabase: SupabaseClient,
   refs: AuthPhaseBootstrapRefs,
@@ -153,15 +101,6 @@ export function useAuthPhaseBootstrap(
       r.lastAppliedUserIdRef.current === nextId &&
       phaseBefore === 'authenticated'
     ) {
-      emitAuthBootTraceFromRefs(r, {
-        event: source,
-        reason: 'idempotent-authenticated',
-        authPhaseBefore: phaseBefore,
-        authPhaseAfter: phaseBefore,
-        loadingBefore,
-        loadingAfter: loadingBefore,
-        sessionUserId: nextId,
-      })
       return
     }
 
@@ -184,16 +123,6 @@ export function useAuthPhaseBootstrap(
     if (!r.mountedRef.current) return
     r.loadingRef.current = false
     a.setLoading(false)
-    emitAuthBootTraceFromRefs(r, {
-      event: source,
-      reason: 'transitionToAuthenticated',
-      authPhaseBefore: phaseBefore,
-      authPhaseAfter: 'authenticated',
-      loadingBefore,
-      loadingAfter: false,
-      sessionUserId: nextId,
-      didEnterAuthenticatedMode: true,
-    })
   }
 
   transitionToGuestRef.current = async (options: {
@@ -236,16 +165,6 @@ export function useAuthPhaseBootstrap(
     if (options.guestPath === 'B') {
       r.explicitSignOutInProgressRef.current = false
     }
-    emitAuthBootTraceFromRefs(r, {
-      event: options.source,
-      reason: 'transitionToGuest',
-      guestPath: options.guestPath,
-      authPhaseBefore: phaseBefore,
-      authPhaseAfter: 'guest',
-      loadingBefore,
-      loadingAfter: false,
-      didEnterGuestMode: true,
-    })
   }
 
   useEffect(() => {
@@ -422,28 +341,8 @@ export function useAuthPhaseBootstrap(
           return
         }
 
-        if (isStartupDiagnosticsEnabled()) {
-          try {
-            await supabase.auth.getUser()
-          } catch {
-            // diagnostics only
-          }
-          if (!effectMounted) return
-        }
-
-        const nextUser = sessionData?.session?.user ?? null
         if (nextUser) {
           await transitionToAuthenticatedRef.current(nextUser, 'getSession-fast-path')
-        } else if (sessionError) {
-          emitAuthBootTraceFromRefs(refs, {
-            event: 'getSession',
-            reason: 'error-stay-resolving',
-            authPhaseBefore: refs.authPhaseRef.current,
-            authPhaseAfter: refs.authPhaseRef.current,
-            loadingBefore: refs.loadingRef.current,
-            loadingAfter: refs.loadingRef.current,
-            getSessionErrorCode: sessionError.message,
-          })
         }
       } catch (error) {
         if (isInvalidRefreshTokenError(error)) {

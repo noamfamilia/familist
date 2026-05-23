@@ -1,6 +1,5 @@
 'use client'
 
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { db, type DbSyncQueueRow } from '@/lib/db'
 import {
   cleanupDexieAfterItemServerDeleted,
@@ -38,9 +37,6 @@ async function removeOutboundImsQueueRowsReferencingTerminalFailedParentCreate(p
       (parent.entity === 'member' && memberId === parentId)
     if (!hit) continue
     await db.sync_queue.delete(r.id)
-    appendMutationDiagnostic(
-      `[sync] scrub removed orphan item_member_state queue row queueId=${r.id} parent=${parent.entity} parentId=${parentId}`,
-    )
   }
 }
 
@@ -74,15 +70,11 @@ async function refetchServerTruthForLists(
     try {
       await syncListDetail(syncUserId, listId, 'Terminal sync failure: reconcile list')
     } catch (e) {
-      appendMutationDiagnostic(
-        `[sync] scrub refetch list failed listId=${listId} err=${normalizeErrorMessage(e)}`,
-      )
     }
   }
   try {
     await syncLists(syncUserId, 'Terminal sync failure: reconcile catalog')
   } catch (e) {
-    appendMutationDiagnostic(`[sync] scrub syncLists failed err=${normalizeErrorMessage(e)}`)
   }
 }
 
@@ -110,7 +102,6 @@ export async function scrubAfterTerminalOutboundFailure(
         }
       }
       await removeOutboundImsQueueRowsReferencingTerminalFailedParentCreate(row)
-      appendMutationDiagnostic(`[sync] scrub create item removed id=${id || 'n/a'} listId=${listId || 'n/a'}`)
       return
     }
 
@@ -128,7 +119,6 @@ export async function scrubAfterTerminalOutboundFailure(
         }
       }
       await removeOutboundImsQueueRowsReferencingTerminalFailedParentCreate(row)
-      appendMutationDiagnostic(`[sync] scrub create member removed id=${id || 'n/a'} listId=${listId || 'n/a'}`)
       return
     }
 
@@ -138,7 +128,6 @@ export async function scrubAfterTerminalOutboundFailure(
       if (listId) {
         await cleanupDexieAfterListServerDeleted(listId)
       }
-      appendMutationDiagnostic(`[sync] scrub create list removed listId=${listId || 'n/a'}`)
       return
     }
 
@@ -152,7 +141,6 @@ export async function scrubAfterTerminalOutboundFailure(
           /* ignore */
         }
       }
-      appendMutationDiagnostic(`[sync] scrub create feedback removed id=${id || 'n/a'}`)
       return
     }
 
@@ -162,7 +150,6 @@ export async function scrubAfterTerminalOutboundFailure(
       if (method === 'importList') {
         const importedId = String(pl.imported_id ?? '')
         if (importedId) await cleanupDexieAfterListServerDeleted(importedId)
-        appendMutationDiagnostic(`[sync] scrub importList removed listId=${importedId || 'n/a'}`)
         return
       }
       if (method === 'joinListByToken') {
@@ -170,10 +157,8 @@ export async function scrubAfterTerminalOutboundFailure(
           try {
             await syncLists(syncUserId, 'Terminal sync failure: join rejected')
           } catch (e) {
-            appendMutationDiagnostic(`[sync] scrub join syncLists err=${normalizeErrorMessage(e)}`)
           }
         }
-        appendMutationDiagnostic('[sync] scrub joinListByToken catalog refresh')
         return
       }
     }

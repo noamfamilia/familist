@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback, useSyncExternalStore, memo, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
-import { appendOfflineNavDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
 import { ListSyncStatusIcon } from '@/components/lists/ListSyncStatusIcon'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
@@ -252,90 +251,39 @@ function ListCardInner({
       /** Offline list open: SW shell only (catalog row implies Dexie already has the list). */
       const offlineNavAllowed = offline && swControlled && offlineAssetsReady
       const allowed = !offline || offlineNavAllowed
-      let reason: string
-      if (!offline) {
-        reason = 'allowed_online'
-      } else if (!swControlled) {
-        reason = 'blocked_sw_not_controlled'
-      } else if (!offlineAssetsReady) {
-        reason = 'blocked_offline_assets_not_ready'
-      } else {
-        reason = 'allowed_offline_sw_assets'
-      }
-      const targetHref = listDetailHref
-      const currentPath =
-        typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : ''
-      const ctrl = typeof navigator !== 'undefined' ? navigator.serviceWorker?.controller : undefined
-
-      appendOfflineNavDiagnostic(
-        [
-          '[list-click] BEFORE',
-          `type=${native.type}`,
-          `button=${native.button}`,
-          `meta=${e.metaKey ? 1 : 0} ctrl=${e.ctrlKey ? 1 : 0} shift=${e.shiftKey ? 1 : 0} alt=${e.altKey ? 1 : 0}`,
-          `defaultPrevented(before)=${e.defaultPrevented ? 1 : 0}`,
-          `currentPath=${currentPath}`,
-          `targetHref=${targetHref}`,
-          `offline=${offline ? 1 : 0} swControlled=${swControlled ? 1 : 0} offlineAssetsReady=${offlineAssetsReady ? 1 : 0}`,
-          `offlineNavAllowed=${offlineNavAllowed ? 1 : 0} reason=${reason} allowed=${allowed ? 1 : 0}`,
-          `sw.controller.state=${ctrl?.state ?? 'no-controller'}`,
-          ctrl?.scriptURL ? `sw.controller.scriptURL=${ctrl.scriptURL}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      )
 
       if (native.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
-        appendOfflineNavDiagnostic(
-          '[list-click] non-primary or modified click — not intercepting (no preventDefault, default navigation)',
-        )
         return
       }
 
       e.preventDefault()
-      appendOfflineNavDiagnostic('[list-click] preventDefault called')
 
       if (navWarmInFlightRef.current) {
-        appendOfflineNavDiagnostic('[list-click] skip duplicate click while prefetch/nav in flight')
         return
       }
 
       if (!allowed) {
-        appendOfflineNavDiagnostic(`[list-click] blocked — no setActiveListId reason=${reason}`)
         return
       }
 
       navWarmInFlightRef.current = true
       try {
         if (navigateUserId) {
-          appendOfflineNavDiagnostic(`[list-click] prefetch nav start listId=${list.id}`)
           try {
             await prefetchListPageForNavigation(navigateUserId, list.id)
           } catch (err) {
-            appendOfflineNavDiagnostic(
-              `[list-click] prefetch nav threw: ${err instanceof Error ? err.message : String(err)}`,
-            )
           }
-          appendOfflineNavDiagnostic(`[list-click] prefetch nav done listId=${list.id}`)
         }
 
         try {
-          appendOfflineNavDiagnostic(
-            `[list-click] navAction=setActiveListId reason=${reason} listId=${list.id}`,
-          )
-          appendOfflineNavDiagnostic(`[list-click] setActiveListId(${list.id})`)
           setActiveListId(list.id)
-          appendOfflineNavDiagnostic('[list-click] setActiveListId done')
         } catch (err) {
-          appendOfflineNavDiagnostic(
-            `[list-click] setActiveListId threw: ${err instanceof Error ? err.stack || err.message : String(err)}`,
-          )
         }
       } finally {
         navWarmInFlightRef.current = false
       }
     },
-    [list.id, listDetailHref, navigateUserId, offlineAssetsReady, setActiveListId, swControlled],
+    [list.id, navigateUserId, offlineAssetsReady, setActiveListId, swControlled],
   )
 
   // Duplicate modal: outside-click for label dropdown

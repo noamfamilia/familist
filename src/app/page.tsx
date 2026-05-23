@@ -18,7 +18,6 @@ import { ProfileModal } from '@/components/profile/ProfileModal'
 import { ListDetailHomeOverlay } from '@/components/lists/ListDetailHomeOverlay'
 
 import { Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { log, perfLog } from '@/lib/startupPerfLog'
 import { useTheme } from 'next-themes'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
@@ -152,10 +151,6 @@ function HomeContent() {
   const addLabelHomeAnim = useMenuOpenAnimation(addingLabel && !labelDropdownOpen)
 
   useLayoutEffect(() => {
-    perfLog('main page mounted', { route: 'home' })
-  }, [])
-
-  useLayoutEffect(() => {
     if (consumeOpenProfileAfterOAuthSignUp()) {
       setPendingProfileOpenAfterOAuth(true)
     }
@@ -174,50 +169,6 @@ function HomeContent() {
     setPendingProfileOpenAfterOAuth(false)
     setShowProfile(true)
   }, [pendingProfileOpenAfterOAuth, hasMounted, isGuest, user, authPhase, profileFetchPhase])
-
-  const homeGatePrevRef = useRef<string>('')
-  useEffect(() => {
-    const profileLoading = profileFetchPhase === 'loading'
-    const authReady = !loading
-    const effectiveUserId = activeActorId
-    const shouldRenderListsView = !!effectiveUserId
-    let reasonIfNot = ''
-    if (!shouldRenderListsView) {
-      if (loading && !bootstrapUserId) reasonIfNot = 'auth.loading_no_bootstrapUserId'
-      else if (!user && !loading) reasonIfNot = '!user_session_resolved'
-      else reasonIfNot = 'unknown'
-    } else if (!user && effectiveUserId) {
-      reasonIfNot = 'lists_via_dexie_user_id_ready'
-    } else {
-      reasonIfNot = 'user_ok'
-    }
-
-    const snapshot = JSON.stringify({
-      loading,
-      hasUser: !!user,
-      userId: user?.id ?? null,
-      effectiveUserId,
-      bootstrapUserId,
-      profileLoading,
-      hasProfile: !!profile,
-      profileFetchPhase,
-      authReady,
-      profileReady: !!profile,
-      offlineAssetsReady,
-      shouldRenderListsView,
-      reasonIfNot,
-    })
-    if (snapshot === homeGatePrevRef.current) return
-    homeGatePrevRef.current = snapshot
-    perfLog('HomeContent gate', JSON.parse(snapshot) as Record<string, unknown>)
-  }, [
-    loading,
-    user,
-    profile,
-    bootstrapUserId,
-    profileFetchPhase,
-    offlineAssetsReady,
-  ])
 
   useEffect(() => {
     setThemeMounted(true)
@@ -474,42 +425,6 @@ function HomeContent() {
   const effectiveUserId = activeActorId
   const showListsShell = !!effectiveUserId
   const profileMenuNeedsSession = authPhase === 'resolving' || sessionRestoring
-  const homeGateLogPrevRef = useRef<string>('')
-  useEffect(() => {
-    const fullPageSpinner =
-      !hasMounted || authPhase === 'resolving' || (loading && authPhase !== 'guest' && !user)
-    const payload = {
-      showListsShell,
-      hasMounted,
-      resolvedUserId: effectiveUserId,
-      authUserId: user?.id ?? null,
-      guestId,
-      bootstrapUserId,
-      authLoading: loading,
-      note: fullPageSpinner
-        ? 'full-page spinner (ListsView skipped)'
-        : showListsShell
-          ? 'ListsView mounted'
-          : 'ListsView skipped',
-    }
-    const snapshot = JSON.stringify(payload)
-    if (snapshot === homeGateLogPrevRef.current) return
-    homeGateLogPrevRef.current = snapshot
-    log.info('GATE', 'HomeContent', payload)
-  }, [
-    internetReachable,
-    loading,
-    online,
-    showListsShell,
-    hasMounted,
-    effectiveUserId,
-    user?.id,
-    guestId,
-    bootstrapUserId,
-    isGuest,
-    sessionRestoring,
-    authPhase,
-  ])
 
   if (
     !hasMounted ||

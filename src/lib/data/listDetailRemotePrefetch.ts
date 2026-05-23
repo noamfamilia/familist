@@ -13,7 +13,6 @@ import {
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
 import { shouldDeferServerReadsForOutboundList } from '@/lib/data/outboundReadQuiet'
-import { appendMutationDiagnostic } from '@/lib/offlineNavDiagnostics'
 import { db } from '@/lib/db'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
 import type { ItemWithState, List, MemberWithCreator } from '@/lib/supabase/types'
@@ -60,24 +59,17 @@ export async function prefetchListDetailsFromServer(
   for (const listId of listIds) {
     try {
       if (shouldDeferServerReadsForOutboundList(listId, outboundQueue)) {
-        appendMutationDiagnostic(`[get_list_data] prefetch skip outbound quiet listId=${listId}`)
         continue
       }
-      appendMutationDiagnostic(`[get_list_data] prefetch start listId=${listId}`)
       const listReconcileGen = captureListReconcileGeneration(listId)
       const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
       if (shouldDiscardReadFlightResult(readFlightGen)) {
-        appendMutationDiagnostic(`[get_list_data] prefetch connectivity-discard listId=${listId}`)
         return
       }
       if (shouldDiscardListReconcileResult(listId, listReconcileGen)) {
-        appendMutationDiagnostic(`[get_list_data] prefetch reconcile-discard listId=${listId}`)
         continue
       }
       if (error || !data?.list) {
-        appendMutationDiagnostic(
-          `[get_list_data] prefetch rpc_fail listId=${listId} err=${error?.message ?? 'no_list'}`,
-        )
         continue
       }
       const serverMembers = ((data.members ?? []) as MemberWithCreator[]).filter(
@@ -92,16 +84,9 @@ export async function prefetchListDetailsFromServer(
         members: serverMembers,
       }
       const differs = await serverListDetailDiffersFromDexie(userId, listId, payload)
-      appendMutationDiagnostic(
-        `[get_list_data] prefetch pre_apply listId=${listId} diff=${differs ? 1 : 0} items=${nextItems.length} members=${serverMembers.length}`,
-      )
       await upsertListDataPayloadFromServer(userId, listId, payload)
       setCachedList(userId, listId, payload)
-      appendMutationDiagnostic(`[get_list_data] prefetch applied listId=${listId}`)
     } catch (e) {
-      appendMutationDiagnostic(
-        `[get_list_data] prefetch catch listId=${listId} msg=${e instanceof Error ? e.message : String(e)}`,
-      )
     }
   }
 }

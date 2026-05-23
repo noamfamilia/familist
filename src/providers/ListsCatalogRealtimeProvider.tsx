@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { canFetchFromServer } from '@/lib/data/serverReadPolicy'
-import { perfLog } from '@/lib/startupPerfLog'
 import {
   catalogMutationVersionRef,
   catalogRealtimeScheduleCaptureVersionRef,
@@ -131,15 +130,10 @@ export function ListsCatalogRealtimeProvider({ children }: { children: ReactNode
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     const subscribeT0 = performance.now()
-    perfLog('realtime subscribe start')
     let subscribeEndLogged = false
     const logRealtimeSubscribeEnd = (extra: Record<string, unknown> = {}) => {
       if (subscribeEndLogged) return
       subscribeEndLogged = true
-      perfLog('realtime subscribe end', {
-        durationMs: Math.round(performance.now() - subscribeT0),
-        ...extra,
-      })
     }
 
     const channel = supabase

@@ -17,7 +17,6 @@ import {
   newBatchEntityId,
   waitForSyncQueueRowCompletion,
 } from '@/lib/data/syncQueue'
-import { reportServerDexieParityDiagnostics } from '@/lib/data/serverDexieParity'
 import type { Database, List } from '@/lib/supabase/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -59,9 +58,6 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   /** True only for ~1s after a successful regenerate while the flourish CSS runs. */
   const [regenAnimPlaying, setRegenAnimPlaying] = useState(false)
   const [regeneratePending, setRegeneratePending] = useState(false)
-  useEffect(() => {
-    reportServerDexieParityDiagnostics()
-  }, [])
 
   useEffect(() => {
     if (!regenAnimPlaying) return
