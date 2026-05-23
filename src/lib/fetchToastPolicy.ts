@@ -1,4 +1,5 @@
 import { isLikelyConnectivityError, readHttpStatus } from '@/lib/connectivityErrors'
+import { sessionExpiredToastFromError } from '@/lib/sessionExpiredToast'
 
 const PERMISSION_POSTGRES_CODES = new Set(['42501', 'P0001'])
 
@@ -22,6 +23,9 @@ function readPostgresCode(err: unknown): string {
 
 /** Server rejected fetch (permissions / RLS), not a transport failure. */
 export function isFetchPermissionRejection(err: unknown): boolean {
+  const sessionToast = sessionExpiredToastFromError(err)
+  if (sessionToast) return true
+
   const code = readPostgresCode(err)
   if (code && PERMISSION_POSTGRES_CODES.has(code)) return true
   if (/^PGRST\d+/i.test(code)) {
@@ -33,7 +37,6 @@ export function isFetchPermissionRejection(err: unknown): boolean {
   const m = messageLower(err)
   if (m.includes('permission denied')) return true
   if (m.includes('row-level security')) return true
-  if (m.includes('jwt') && m.includes('expired')) return true
   return false
 }
 
@@ -51,8 +54,21 @@ export function fetchFailureToastMessage(
   if (m.includes('failed to fetch') || m.includes('fetch failed') || m.includes('load failed')) {
     return null
   }
+
+  const sessionToast = sessionExpiredToastFromError(err)
+  if (sessionToast) return sessionToast
+
   if (isFetchPermissionRejection(err)) {
     return `Fetch ${resourceLabel} rejected by server`
   }
   return null
+}
+
+/** Prefer session-expired toast when summary or serverError indicates auth loss. */
+export function resolveErrorToastMessage(summary: string, serverError?: unknown): string {
+  const fromServer = sessionExpiredToastFromError(serverError)
+  if (fromServer) return fromServer
+  const fromSummary = sessionExpiredToastFromError(summary)
+  if (fromSummary) return fromSummary
+  return summary
 }

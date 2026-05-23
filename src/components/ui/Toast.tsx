@@ -1,6 +1,8 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { resolveErrorToastMessage } from '@/lib/fetchToastPolicy'
+import { sessionExpiredToastFromError } from '@/lib/sessionExpiredToast'
 import { formatServerErrorForUser } from '@/lib/serverErrorMessage'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info'
@@ -13,14 +15,18 @@ export type ToastOptions = { durationMs?: number; action?: ToastAction }
 export type ToastErrorOptions = { serverError?: unknown }
 
 function buildErrorMessage(summary: string, serverError?: unknown): string {
+  const sessionToast =
+    sessionExpiredToastFromError(serverError) ?? sessionExpiredToastFromError(summary)
+  if (sessionToast) return sessionToast
+
   const detail = serverError == null ? '' : formatServerErrorForUser(serverError)
-  if (!detail) return summary
+  if (!detail) return resolveErrorToastMessage(summary, serverError)
   const s = summary.trim()
   if (!s) return detail
   if (detail === s) return s
   if (detail.includes(s) && detail.length > s.length) return detail
   if (s.includes(detail)) return s
-  return `${s}\n\n${detail}`
+  return resolveErrorToastMessage(`${s}\n\n${detail}`, serverError)
 }
 
 function errorToastDurationMs(message: string): number {
