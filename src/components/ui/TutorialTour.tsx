@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import Joyride, { ACTIONS, CallBackProps, STATUS, Step } from 'react-joyride'
+import Joyride, { ACTIONS, CallBackProps, EVENTS, STATUS, Step } from 'react-joyride'
 import { useHasMounted } from '@/hooks/useHasMounted'
 
 interface TutorialTourProps {
@@ -273,6 +273,12 @@ export function TutorialTour({
 
   const handleCallback = (data: CallBackProps) => {
     const { status, index, type } = data
+
+    if (type === EVENTS.STEP_BEFORE && portalToBody) {
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+    }
 
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
       const completedTargets = getCompletedTargets(tourId)

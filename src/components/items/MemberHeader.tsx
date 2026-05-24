@@ -12,6 +12,7 @@ import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
 import { AddMemberOutlineIcon } from '@/components/icons/AddMemberOutlineIcon'
 import { GoalMenuIcon } from '@/components/icons/GoalMenuIcon'
+import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import { ExpandAllItemsIcon } from '@/components/icons/ExpandAllItemsIcon'
 import { CollapseAllItemsIcon } from '@/components/icons/CollapseAllItemsIcon'
 import { ArchiveRestoreMenuIcon } from '@/components/icons/ArchiveRestoreMenuIcon'
@@ -650,8 +651,8 @@ export function MemberHeader({
             style={{ width: headerItemNameSlotWidthPx }}
           >
             {onItemNameFontStepChange && (
-              <div
-                data-tour="list-font"
+              <TourViewportTarget
+                target="list-font"
                 className="flex h-10 w-10 shrink-0 items-center justify-center"
               >
                 <button
@@ -664,11 +665,11 @@ export function MemberHeader({
                 >
                   <FontSizeIcon className="h-7 w-7 [&_*]:stroke-[3]" />
                 </button>
-              </div>
+              </TourViewportTarget>
             )}
             {onSaveCategorySettings && (
-              <div
-                data-tour="list-category"
+              <TourViewportTarget
+                target="list-category"
                 className="flex h-10 w-10 shrink-0 items-center justify-center"
               >
                 <button
@@ -688,7 +689,7 @@ export function MemberHeader({
                 >
                   <CategoryEditorIcon className="h-7 w-7" />
                 </button>
-              </div>
+              </TourViewportTarget>
             )}
           </div>
           
@@ -776,8 +777,8 @@ export function MemberHeader({
           <div className="flex-shrink-0 flex items-center ml-auto pl-2.5">
           {showActionsMenu && (
             <div className="relative">
-              <div
-                data-tour="list-gear"
+              <TourViewportTarget
+                target="list-gear"
                 className="flex h-10 w-10 shrink-0 items-center justify-center"
               >
                 <button
@@ -797,7 +798,7 @@ export function MemberHeader({
                 >
                   <GearIcon className="w-[30px] h-[30px]" />
                 </button>
-              </div>
+              </TourViewportTarget>
               {actionsMenuAnim.mounted && (actionsMenuPos ?? actionsMenuPosStableRef.current) && (
                 <div
                   ref={actionsMenuRef}

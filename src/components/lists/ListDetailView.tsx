@@ -44,6 +44,7 @@ import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import { itemCardRowHeightWithMembersPx, itemNameFontClassForStep } from '@/lib/itemNameFontStep'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
+import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import { LayerMultiIcon } from '@/components/icons/LayerMultiIcon'
 import { LayerSingleIcon } from '@/components/icons/LayerSingleIcon'
 import type { ItemWithState, ItemCategory, ListUserSumScope } from '@/lib/supabase/types'
@@ -780,8 +781,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           ) : null}
         </div>
         {isListOwner && (
-          <div
-            data-tour="share-settings"
+          <TourViewportTarget
+            target="share-settings"
             className="flex h-10 w-10 shrink-0 items-center justify-center"
           >
             <button
@@ -808,7 +809,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             >
               <ShareCardIcon className="w-[30px] h-[30px]" emphasized />
             </button>
-          </div>
+          </TourViewportTarget>
         )}
       </div>
 
@@ -1127,7 +1128,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         tourId="list"
         steps={listTourSteps}
         portalToBody
-        disableScrollParentFix={false}
         contentKey={listId}
       />
 
