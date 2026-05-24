@@ -150,7 +150,7 @@ function HomeContent() {
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
 
-  const profileMenuAnim = useMenuOpenAnimation(profileMenuOpen, 'slide-panel-ltr')
+  const profileMenuAnim = useMenuOpenAnimation(profileMenuOpen, 'slide-ltr')
   const labelDropdownAnim = useMenuOpenAnimation(labelDropdownOpen)
   const addLabelHomeAnim = useMenuOpenAnimation(addingLabel && !labelDropdownOpen)
 
@@ -274,6 +274,16 @@ function HomeContent() {
       setShowAuthModal(true)
     }
   }, [loading, user, inviteToken, isGuest])
+
+  useEffect(() => {
+    if (!profileMenuOpen) return
+    const close = (e: MouseEvent) => {
+      const el = profileMenuRef.current
+      if (el && !el.contains(e.target as Node)) setProfileMenuOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [profileMenuOpen])
 
   useEffect(() => {
     if (!profileMenuOpen) return
@@ -478,6 +488,57 @@ function HomeContent() {
                 aria-hidden
               />
             ) : null}
+            {profileMenuAnim.mounted && (
+              <div className="absolute left-0 top-full z-50 mt-2">
+                <ProfileHomeMenu
+                  user={user}
+                  profile={profile}
+                  isGuest={isGuest}
+                  profileMenuNeedsSession={profileMenuNeedsSession}
+                  menuClassName={profileMenuAnim.menuClassName}
+                  themeToggleLabel={
+                    themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'
+                  }
+                  onCloseMenu={() => setProfileMenuOpen(false)}
+                  onRequestSignIn={() => {
+                    setAuthModalMode('signIn')
+                    setShowAuthModal(true)
+                  }}
+                  onToggleTheme={() => {
+                    const prev: 'light' | 'dark' =
+                      themeMounted && resolvedTheme === 'dark' ? 'dark' : 'light'
+                    const next: 'light' | 'dark' = prev === 'dark' ? 'light' : 'dark'
+                    setTheme(next)
+                    void updateActorProfile({ theme: next }).then(({ error: themeErr }) => {
+                      if (themeErr) {
+                        setTheme(prev)
+                        showError(themeErr.message || 'Could not save theme')
+                      }
+                    })
+                  }}
+                  onShowTutorial={() => {
+                    requestShowTutorial()
+                    window.location.reload()
+                  }}
+                  onRequestImport={
+                    !isGuest && user
+                      ? () => setShowImport(true)
+                      : undefined
+                  }
+                  onRequestFeedback={
+                    !isGuest && user
+                      ? () => setShowFeedback(true)
+                      : undefined
+                  }
+                  importDisabled={isOffline || profileMenuNeedsSession}
+                  updateProfile={updateProfile}
+                  updateActorProfile={updateActorProfile}
+                  signOut={signOut}
+                  success={success}
+                  showError={showError}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <button
@@ -765,64 +826,6 @@ function HomeContent() {
       />
 
       <GuestShareSignInModal isOpen={showGuestInviteModal} onClose={dismissGuestInviteModal} />
-
-      {showListsShell && profileMenuAnim.mounted && (
-        <>
-          <button
-            type="button"
-            aria-label="Close account menu"
-            className={`absolute inset-0 z-40 bg-black/20 dark:bg-black/40 ${profileMenuAnim.backdropClassName ?? ''}`}
-            onClick={() => setProfileMenuOpen(false)}
-          />
-          <ProfileHomeMenu
-            user={user}
-            profile={profile}
-            isGuest={isGuest}
-            profileMenuNeedsSession={profileMenuNeedsSession}
-            menuClassName={profileMenuAnim.menuClassName}
-            themeToggleLabel={
-              themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'
-            }
-            onCloseMenu={() => setProfileMenuOpen(false)}
-            onRequestSignIn={() => {
-              setAuthModalMode('signIn')
-              setShowAuthModal(true)
-            }}
-            onToggleTheme={() => {
-              const prev: 'light' | 'dark' =
-                themeMounted && resolvedTheme === 'dark' ? 'dark' : 'light'
-              const next: 'light' | 'dark' = prev === 'dark' ? 'light' : 'dark'
-              setTheme(next)
-              void updateActorProfile({ theme: next }).then(({ error: themeErr }) => {
-                if (themeErr) {
-                  setTheme(prev)
-                  showError(themeErr.message || 'Could not save theme')
-                }
-              })
-            }}
-            onShowTutorial={() => {
-              requestShowTutorial()
-              window.location.reload()
-            }}
-            onRequestImport={
-              !isGuest && user
-                ? () => setShowImport(true)
-                : undefined
-            }
-            onRequestFeedback={
-              !isGuest && user
-                ? () => setShowFeedback(true)
-                : undefined
-            }
-            importDisabled={isOffline || profileMenuNeedsSession}
-            updateProfile={updateProfile}
-            updateActorProfile={updateActorProfile}
-            signOut={signOut}
-            success={success}
-            showError={showError}
-          />
-        </>
-      )}
     </div>
   )
 }
