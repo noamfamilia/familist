@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import Joyride, { ACTIONS, CallBackProps, STATUS, Step } from 'react-joyride'
 
 interface TutorialTourProps {
@@ -9,6 +9,36 @@ interface TutorialTourProps {
   run?: boolean
   onComplete?: () => void
   contentKey?: string | number // Changes when content changes to trigger re-check
+}
+
+const SHOW_TUTORIAL_SESSION_PREFIX = 'familist_run_tutorial_'
+const SHOW_TUTORIAL_EVENT = 'familist:show-tutorial'
+
+/** Survives React Strict Mode remounts within the same page load. */
+const tutorialRunRequested = new Set<string>()
+
+function isTutorialRunRequested(tourId: string): boolean {
+  if (tutorialRunRequested.has(tourId)) return true
+  if (typeof window === 'undefined') return false
+  return sessionStorage.getItem(`${SHOW_TUTORIAL_SESSION_PREFIX}${tourId}`) === '1'
+}
+
+function markTutorialRunRequested(tourId: string) {
+  tutorialRunRequested.add(tourId)
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem(`${SHOW_TUTORIAL_SESSION_PREFIX}${tourId}`, '1')
+  }
+}
+
+function acknowledgeTutorialRunRequest(tourId: string) {
+  tutorialRunRequested.add(tourId)
+  if (typeof window !== 'undefined') {
+    sessionStorage.removeItem(`${SHOW_TUTORIAL_SESSION_PREFIX}${tourId}`)
+  }
+}
+
+function clearTutorialRunRequest(tourId: string) {
+  tutorialRunRequested.delete(tourId)
 }
 
 // Get completed targets from localStorage
@@ -43,23 +73,41 @@ const delayedAdvanceTargets: Record<string, string> = {
   '[data-tour="create-list"]': '[data-tour="list-card"]',
 }
 
-const SHOW_TUTORIAL_SESSION_PREFIX = 'familist_run_tutorial_'
-
-function consumeShowTutorialRequest(tourId: string): boolean {
-  if (typeof window === 'undefined') return false
-  const key = `${SHOW_TUTORIAL_SESSION_PREFIX}${tourId}`
-  if (sessionStorage.getItem(key) === '1') {
-    sessionStorage.removeItem(key)
-    return true
+function resetTourRuntimeState(args: {
+  shouldRunRef: MutableRefObject<boolean>
+  hasStartedRef: MutableRefObject<boolean>
+  prevStepsKey: MutableRefObject<string>
+  prevContentKey: MutableRefObject<string | number | undefined>
+  pendingTargetRef: MutableRefObject<string | null>
+  currentTargetRef: MutableRefObject<string | null>
+  clearWaitTimer: () => void
+  reanchorTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>
+  setStepIndex: Dispatch<SetStateAction<number>>
+  setRun: Dispatch<SetStateAction<boolean>>
+  setFilteredSteps: Dispatch<SetStateAction<Step[]>>
+}) {
+  args.shouldRunRef.current = true
+  args.hasStartedRef.current = false
+  args.prevStepsKey.current = ''
+  args.prevContentKey.current = undefined
+  args.pendingTargetRef.current = null
+  args.currentTargetRef.current = null
+  args.clearWaitTimer()
+  if (args.reanchorTimerRef.current) {
+    clearTimeout(args.reanchorTimerRef.current)
+    args.reanchorTimerRef.current = null
   }
-  return false
+  args.setStepIndex(0)
+  args.setRun(false)
+  args.setFilteredSteps([])
 }
 
 export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentKey }: TutorialTourProps) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
-  const shouldRunRef = useRef(runProp === true || consumeShowTutorialRequest(tourId))
+  const [restartNonce, setRestartNonce] = useState(0)
+  const shouldRunRef = useRef(runProp === true)
   const prevStepsKey = useRef('')
   const prevContentKey = useRef<string | number | undefined>(undefined)
   const filteredStepsRef = useRef<Step[]>([])
@@ -68,6 +116,8 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
   const currentTargetRef = useRef<string | null>(null)
   const pendingTargetRef = useRef<string | null>(null)
   const hasStartedRef = useRef(false)
+  const runRef = useRef(run)
+  runRef.current = run
 
   const clearWaitTimer = () => {
     if (waitTimerRef.current) {
@@ -75,6 +125,30 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       waitTimerRef.current = null
     }
   }
+
+  useEffect(() => {
+    const handleShowTutorial = () => {
+      if (!isTutorialRunRequested(tourId)) return
+      acknowledgeTutorialRunRequest(tourId)
+      resetTourRuntimeState({
+        shouldRunRef,
+        hasStartedRef,
+        prevStepsKey,
+        prevContentKey,
+        pendingTargetRef,
+        currentTargetRef,
+        clearWaitTimer,
+        reanchorTimerRef,
+        setStepIndex,
+        setRun,
+        setFilteredSteps,
+      })
+      setRestartNonce(n => n + 1)
+    }
+
+    window.addEventListener(SHOW_TUTORIAL_EVENT, handleShowTutorial)
+    return () => window.removeEventListener(SHOW_TUTORIAL_EVENT, handleShowTutorial)
+  }, [tourId])
 
   const waitForTargetAndAdvance = (target: string, attempt = 0) => {
     clearWaitTimer()
@@ -102,6 +176,13 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
   }
 
   useEffect(() => {
+    if (runProp === true || isTutorialRunRequested(tourId)) {
+      acknowledgeTutorialRunRequest(tourId)
+      shouldRunRef.current = true
+    }
+  }, [tourId, runProp, restartNonce])
+
+  useEffect(() => {
     const isFullyComplete = localStorage.getItem(`tutorial_${tourId}`) === 'true'
 
     if (isFullyComplete || !shouldRunRef.current) {
@@ -118,10 +199,10 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       }
       return true
     })
-    
+
     // Create a key to detect changes in available steps
     const stepsKey = availableSteps.map(s => s.target).join(',')
-    
+
     const stepsChanged = stepsKey !== prevStepsKey.current
     const contentChanged = contentKey !== prevContentKey.current
     prevContentKey.current = contentKey
@@ -164,7 +245,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       setStepIndex(0)
       hasStartedRef.current = true
       setRun(true)
-    } else if (contentChanged && hasStartedRef.current && run) {
+    } else if (contentChanged && hasStartedRef.current && runRef.current) {
       // DOM nodes may have been replaced (e.g. optimistic→real ID key swap).
       // Toggle run so Joyride re-queries the CSS selector for the current target.
       if (reanchorTimerRef.current) clearTimeout(reanchorTimerRef.current)
@@ -174,7 +255,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
         setRun(true)
       }, 50)
     }
-  }, [tourId, runProp, steps, contentKey, run])
+  }, [tourId, runProp, steps, contentKey, restartNonce])
 
   useEffect(() => {
     filteredStepsRef.current = filteredSteps
@@ -204,18 +285,20 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
         }
       })
       saveCompletedTargets(tourId, completedTargets)
-      
+
       // Check if all steps have been completed or skipped
       if (completedTargets.size >= steps.length || status === STATUS.SKIPPED) {
         localStorage.setItem(`tutorial_${tourId}`, 'true')
       }
-      
+
       setRun(false)
       clearWaitTimer()
       pendingTargetRef.current = null
       currentTargetRef.current = null
       hasStartedRef.current = false
       prevStepsKey.current = ''
+      shouldRunRef.current = false
+      clearTutorialRunRequest(tourId)
       onComplete?.()
     }
 
@@ -292,15 +375,17 @@ export function resetTutorial(tourId: string) {
   localStorage.removeItem(`tutorial_${tourId}`)
   localStorage.removeItem(`tutorial_${tourId}_completed`)
   localStorage.removeItem(`tutorial_${tourId}_targets`)
+  clearTutorialRunRequest(tourId)
 }
 
-/** Clears tutorial progress and queues home + list tours to run on next page load. */
+/** Clears tutorial progress and starts home + list tours on the current page. */
 export function requestShowTutorial() {
   if (typeof window === 'undefined') return
   resetTutorial('home')
   resetTutorial('list')
-  sessionStorage.setItem(`${SHOW_TUTORIAL_SESSION_PREFIX}home`, '1')
-  sessionStorage.setItem(`${SHOW_TUTORIAL_SESSION_PREFIX}list`, '1')
+  markTutorialRunRequested('home')
+  markTutorialRunRequested('list')
+  window.dispatchEvent(new CustomEvent(SHOW_TUTORIAL_EVENT))
 }
 
 export function hasSeenTutorial(tourId: string): boolean {

@@ -539,7 +539,6 @@ function HomeContent() {
                   }}
                   onShowTutorial={() => {
                     requestShowTutorial()
-                    window.location.reload()
                   }}
                   onRequestImport={
                     !isGuest && user
