@@ -571,19 +571,15 @@ export function MemberHeader({
 
   // Unified outside-click: clicks inside header area are allowed, clicks outside close popups and are blocked
   useEffect(() => {
-    const anyOpen = !!openMenuId || isAdding || actionsOpen || itemNameFontOpen || showCategoryModal
+    const anyOpen = !!openMenuId || isAdding || actionsOpen || itemNameFontOpen
     if (!anyOpen) return
 
     const isInsideFloating = (target: Node) => {
       const fontFloating =
         itemNameFontOpen &&
         (itemNameFontPopoverRef.current?.contains(target) || itemNameFontBtnRef.current?.contains(target))
-      const categoryFloating =
-        showCategoryModal &&
-        (categoryModalPopoverRef.current?.contains(target) || categoryBtnRef.current?.contains(target))
       return (
         fontFloating ||
-        categoryFloating ||
         memberMenuRef.current?.contains(target) ||
         actionsMenuRef.current?.contains(target) ||
         actionsButtonRef.current?.contains(target) ||
@@ -601,17 +597,6 @@ export function MemberHeader({
 
     const handleMouseDown = (e: MouseEvent) => {
       const target = e.target as Node
-
-      if (showCategoryModal) {
-        if (categoryModalPopoverRef.current?.contains(target) || categoryBtnRef.current?.contains(target)) {
-          return
-        }
-        e.preventDefault()
-        e.stopPropagation()
-        blockNextClickRef.current = true
-        void categoryModalRef.current?.saveAndClose()
-        return
-      }
 
       if (itemNameFontOpen) {
         if (itemNameFontPopoverRef.current?.contains(target) || itemNameFontBtnRef.current?.contains(target)) {
@@ -637,7 +622,7 @@ export function MemberHeader({
 
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
-  }, [openMenuId, isAdding, actionsOpen, itemNameFontOpen, showCategoryModal, editingMemberId, closeMemberMenu, handleCancelEdit])
+  }, [openMenuId, isAdding, actionsOpen, itemNameFontOpen, editingMemberId, closeMemberMenu, handleCancelEdit])
 
   useEffect(() => {
     if (!itemNameFontOpen || !onItemNameFontStepChange) return
@@ -1334,6 +1319,10 @@ export function MemberHeader({
         <CategoryNamesModal
           ref={categoryModalRef}
           popoverRef={categoryModalPopoverRef}
+          anchorRef={categoryBtnRef}
+          onOutsidePointerDown={() => {
+            blockNextClickRef.current = true
+          }}
           isOpen={showCategoryModal}
           onClose={closeCategoryModal}
           anchorPos={categoryModalPos}

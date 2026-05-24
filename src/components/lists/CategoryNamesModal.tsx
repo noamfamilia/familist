@@ -38,7 +38,10 @@ interface CategoryNamesModalProps {
   isOpen: boolean
   onClose: () => void
   anchorPos: { top: number; left: number } | null
+  anchorRef?: React.RefObject<HTMLElement | null>
   popoverRef?: React.RefObject<HTMLDivElement | null>
+  /** Parent sets blockNextClickRef so the dismissed click does not hit the page. */
+  onOutsidePointerDown?: () => void
   categoryNames: CategoryNames
   categoryOrder: number[]
   onSave: (
@@ -114,7 +117,9 @@ export const CategoryNamesModal = forwardRef<CategoryNamesModalHandle, CategoryN
       isOpen,
       onClose,
       anchorPos,
+      anchorRef,
       popoverRef,
+      onOutsidePointerDown,
       categoryNames,
       categoryOrder,
       onSave,
@@ -213,6 +218,21 @@ export const CategoryNamesModal = forwardRef<CategoryNamesModalHandle, CategoryN
       document.addEventListener('keydown', onKeyDown)
       return () => document.removeEventListener('keydown', onKeyDown)
     }, [handleDone, isOpen])
+
+    useEffect(() => {
+      if (!isOpen) return
+      const onMouseDown = (e: MouseEvent) => {
+        const target = e.target as Node
+        if (popoverRef?.current?.contains(target)) return
+        if (anchorRef?.current?.contains(target)) return
+        e.preventDefault()
+        e.stopPropagation()
+        onOutsidePointerDown?.()
+        void handleDone()
+      }
+      document.addEventListener('mousedown', onMouseDown, true)
+      return () => document.removeEventListener('mousedown', onMouseDown, true)
+    }, [anchorRef, handleDone, isOpen, onOutsidePointerDown, popoverRef])
 
     if (!menuAnim.mounted || !anchorPosStableRef.current || typeof document === 'undefined') {
       return null
