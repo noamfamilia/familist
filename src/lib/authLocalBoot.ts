@@ -1,9 +1,5 @@
 import { getActiveCacheUserId } from '@/lib/cache'
-import {
-  findSupabaseAuthStorageKeys,
-  getLastAuthUserId,
-  hasUsableAuthBlob,
-} from '@/lib/authBootStorage'
+import { findSupabaseAuthStorageKeys, getLastAuthUserId } from '@/lib/authBootStorage'
 import { isGuestId } from '@/lib/guestSession'
 
 export type LocalBootActor =
@@ -55,12 +51,11 @@ export function getUserIdFromAuthBlob(): string | null {
 }
 
 /**
- * Synchronous boot actor for Dexie/UI: account only when a usable auth blob exists
- * and a non-guest user id can be resolved from the blob or aligned local hints.
+ * Synchronous boot actor for Dexie/UI: account when a non-guest user id is found in
+ * auth blob JWT, last_auth_user_id, or active_cache_user (sign-out clears the latter two).
  */
 export function resolveLocalBootActor(): LocalBootActor {
   if (typeof window === 'undefined') return { mode: 'guest' }
-  if (!hasUsableAuthBlob()) return { mode: 'guest' }
 
   const fromBlob = getUserIdFromAuthBlob()
   if (fromBlob) return { mode: 'account', userId: fromBlob }
