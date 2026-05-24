@@ -2,7 +2,6 @@ import { getActiveCacheUserId } from '@/lib/cache'
 import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind, type SyncQueueStatus } from '@/lib/db'
 import { isGuestId } from '@/lib/guestSession'
 import { getSessionMode } from '@/lib/sessionPolicy'
-import { getGuestOwnedListIdSet, isGuestOutboundQueueRow } from '@/lib/data/syncQueueUserScope'
 import { allocateQueueDisplayIndex } from '@/lib/serverQueueModalState'
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
@@ -777,13 +776,3 @@ export async function resetFailedSyncQueueRows(): Promise<void> {
 }
 
 export { syncQueueRowHasGuestScope } from '@/lib/data/syncQueueUserScope'
-
-/** Drop guest-scoped outbound rows when switching to an authenticated session (sign-in without migration). */
-export async function discardGuestOutboundQueueRows(): Promise<number> {
-  const guestOwnedListIds = await getGuestOwnedListIdSet()
-  const rows = await db.sync_queue.toArray()
-  const guestRows = rows.filter((r) => isGuestOutboundQueueRow(r, guestOwnedListIds))
-  if (guestRows.length === 0) return 0
-  await db.sync_queue.bulkDelete(guestRows.map((r) => r.id))
-  return guestRows.length
-}

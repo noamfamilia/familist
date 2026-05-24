@@ -56,7 +56,6 @@ export type AuthPhaseBootstrapActions = {
   setLoading: (loading: boolean) => void
   setActiveCacheUserId: (id: string) => void
   activateAuthenticatedUserCore: (user: User, source: string) => Promise<void>
-  activateWithOptionalGuestMigration: (user: User, source: string) => Promise<void>
   enterGuestMode: (options?: {
     freshGuest?: boolean
     signedOut?: boolean
@@ -117,7 +116,7 @@ export function useAuthPhaseBootstrap(
     a.setActiveCacheUserId(nextId)
     setLastAuthUserId(nextId)
 
-    await a.activateWithOptionalGuestMigration(nextUser, source)
+    await a.activateAuthenticatedUserCore(nextUser, source)
 
     if (!r.mountedRef.current) return
     r.loadingRef.current = false

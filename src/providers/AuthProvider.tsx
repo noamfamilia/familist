@@ -23,11 +23,9 @@ import {
   registerServerReadsAllowed,
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
-import { countGuestOwnedLists, migrateGuestToUser } from '@/lib/data/guestToUserMigration'
 import {
   clearStoredGuestId,
   ensureGuestId,
-  getStoredGuestId,
   isGuestId,
   rotateGuestId,
 } from '@/lib/guestSession'
@@ -37,15 +35,11 @@ import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { type SessionMode } from '@/lib/sessionPolicy'
 import { useAuthPhaseBootstrap } from '@/providers/useAuthPhaseBootstrap'
 import { reconcileGuestDexieAfterSignOut } from '@/lib/data/guestCatalogReconcile'
-import { discardGuestOutboundQueueRows } from '@/lib/data/syncQueue'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
-import {
-  markGuestMigrationPromptOffered,
-  shouldOfferGuestMigrationPrompt,
-} from '@/lib/guestMigrationPrompt'
+import { cacheUserAvatarIfNeeded } from '@/lib/avatarCache'
+import { resolveUserAvatarUrl } from '@/lib/authAvatar'
 import { linkGoogleIdentity as startGoogleLink, signInWithGoogle as startGoogleOAuth, type GoogleAuthIntent } from '@/lib/authGoogle'
 import { applyGoogleNicknameIfNeeded } from '@/lib/googleProfileNickname'
-import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 export type { AuthPhase } from '@/lib/authBootStorage'
 
@@ -61,7 +55,6 @@ interface AuthContextType {
   isGuest: boolean
   /** True while auth bootstrap is resolving (not guest). */
   sessionRestoring: boolean
-  isMigrating: boolean
   /** Shown once after sign-out when returning to guest mode. */
   signedOutToGuest: boolean
   clearSignedOutToGuest: () => void
@@ -180,7 +173,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(() =>
     getInitialBootstrapUserId(),
   )
-  const [isMigrating, setIsMigrating] = useState(false)
   const [signedOutToGuest, setSignedOutToGuest] = useState(false)
   const [profileFetchPhase, setProfileFetchPhase] = useState<ProfileFetchPhase>('idle')
   const supabase = createClient()
@@ -192,7 +184,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bootstrapUserIdRef = useRef<string | null>(null)
   const profileFetchGenRef = useRef(0)
   const lastAppliedUserIdRef = useRef<string | null>(null)
-  const signUpActivationHandledRef = useRef<string | null>(null)
   /** Skip duplicate enterGuestMode(same gid) when signOut + SIGNED_OUT both fire. */
   const lastEnterGuestModeGidRef = useRef<string | null>(null)
   const authPhaseRef = useRef<AuthPhase>('resolving')
@@ -335,7 +326,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     setProfile(null)
     lastAppliedUserIdRef.current = null
-    signUpActivationHandledRef.current = null
     profileFetchGenRef.current++
     setProfileFetchPhase('idle')
     setActiveCacheUserId(gid)
@@ -344,17 +334,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     lastEnterGuestModeGidRef.current = gid
     void hydrateProfileFromDexie(gid)
   }, [hydrateProfileFromDexie])
-
-  const runGuestMigration = useCallback(async (guestId: string, userId: string): Promise<void> => {
-    setIsMigrating(true)
-    try {
-      await migrateGuestToUser(guestId, userId)
-      clearStoredGuestId()
-      bumpReadDiscardGeneration('guest-migration')
-    } finally {
-      if (mountedRef.current) setIsMigrating(false)
-    }
-  }, [])
 
   const fetchProfile = useCallback(async (userId: string) => {
     const t0 = performance.now()
@@ -522,8 +501,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       appendConnectivityDebugLine(
         `[auth] activateAuthenticated userId=${nextUser.id} source=${source}`,
       )
+
       beginActivationServerProgressWindow()
-      const discardedGuestQueue = await discardGuestOutboundQueueRows()
       userRef.current = nextUser
       setUser(nextUser)
       setActiveCacheUserId(nextUser.id)
@@ -533,32 +512,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastEnterGuestModeGidRef.current = null
       void hydrateProfileFromDexie(nextUser.id)
       scheduleStartupProfileFetch(nextUser.id)
+      void cacheUserAvatarIfNeeded(nextUser)
       bumpReadDiscardGeneration('activate-authenticated-user')
     },
     [hydrateProfileFromDexie, scheduleStartupProfileFetch],
-  )
-
-  const activateWithOptionalGuestMigration = useCallback(
-    async (nextUser: User, source: string) => {
-      if (signUpActivationHandledRef.current === nextUser.id) {
-        await activateAuthenticatedUserCore(nextUser, source)
-        return
-      }
-      signUpActivationHandledRef.current = nextUser.id
-
-      await activateAuthenticatedUserCore(nextUser, source)
-
-      const guestId = getStoredGuestId()
-      if (!guestId || !isGuestId(guestId) || guestId === nextUser.id) return
-      if (!shouldOfferGuestMigrationPrompt(guestId, nextUser.id)) return
-
-      const listCount = await countGuestOwnedLists(guestId)
-      if (listCount <= 0) return
-
-      markGuestMigrationPromptOffered(guestId, nextUser.id)
-      await runGuestMigration(guestId, nextUser.id)
-    },
-    [activateAuthenticatedUserCore, runGuestMigration],
   )
 
   const { transitionToAuthenticated, transitionToGuest } = useAuthPhaseBootstrap(
@@ -584,7 +541,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading,
       setActiveCacheUserId,
       activateAuthenticatedUserCore,
-      activateWithOptionalGuestMigration,
       enterGuestMode,
       hardRecoverInvalidRefreshToken,
     },
@@ -596,6 +552,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTheme(t)
     }
   }, [profile?.theme, setTheme])
+
+  const avatarSourceUrl = user ? resolveUserAvatarUrl(user) : null
+  useEffect(() => {
+    if (!user || !avatarSourceUrl) return
+    void cacheUserAvatarIfNeeded(user)
+  }, [user, avatarSourceUrl])
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -761,7 +723,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         sessionMode,
         isGuest,
         sessionRestoring,
-        isMigrating,
         signedOutToGuest,
         clearSignedOutToGuest: () => setSignedOutToGuest(false),
         displayName,
@@ -779,7 +740,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updatePassword,
       }}
     >
-      {isMigrating ? <MigrationOverlay /> : null}
       {children}
     </AuthContext.Provider>
   )
