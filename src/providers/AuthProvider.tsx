@@ -29,7 +29,8 @@ import {
   isGuestId,
   rotateGuestId,
 } from '@/lib/guestSession'
-import { getCachedAuthenticatedUserId, getInitialBootstrapUserId } from '@/lib/authBootstrap'
+import { getCachedAuthenticatedUserId } from '@/lib/authBootstrap'
+import { resolveLocalBootActor } from '@/lib/authLocalBoot'
 import { clearLastAuthUserId, setLastAuthUserId, type AuthPhase } from '@/lib/authBootStorage'
 import { resolveActiveUserId } from '@/lib/resolveActiveUserId'
 import { type SessionMode } from '@/lib/sessionPolicy'
@@ -162,17 +163,38 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
   })
 }
 
+function readInitialAuthShell(): {
+  phase: AuthPhase
+  bootstrapUserId: string | null
+  loading: boolean
+  localAccountBoot: boolean
+} {
+  if (typeof window === 'undefined') {
+    return { phase: 'resolving', bootstrapUserId: null, loading: true, localAccountBoot: false }
+  }
+  const boot = resolveLocalBootActor()
+  if (boot.mode === 'account') {
+    return {
+      phase: 'authenticated',
+      bootstrapUserId: boot.userId,
+      loading: false,
+      localAccountBoot: true,
+    }
+  }
+  const gid = ensureGuestId()
+  return { phase: 'guest', bootstrapUserId: gid, loading: false, localAccountBoot: false }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const initialShell = readInitialAuthShell()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [authPhase, setAuthPhase] = useState<AuthPhase>('resolving')
+  const [loading, setLoading] = useState(initialShell.loading)
+  const [authPhase, setAuthPhase] = useState<AuthPhase>(initialShell.phase)
   const [guestId, setGuestId] = useState<string | null>(() =>
     typeof window !== 'undefined' ? ensureGuestId() : null,
   )
-  const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(() =>
-    getInitialBootstrapUserId(),
-  )
+  const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(initialShell.bootstrapUserId)
   const [signedOutToGuest, setSignedOutToGuest] = useState(false)
   const [profileFetchPhase, setProfileFetchPhase] = useState<ProfileFetchPhase>('idle')
   const supabase = createClient()
@@ -186,22 +208,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const lastAppliedUserIdRef = useRef<string | null>(null)
   /** Skip duplicate enterGuestMode(same gid) when signOut + SIGNED_OUT both fire. */
   const lastEnterGuestModeGidRef = useRef<string | null>(null)
-  const authPhaseRef = useRef<AuthPhase>('resolving')
+  const authPhaseRef = useRef<AuthPhase>(initialShell.phase)
   const authenticatedEstablishedRef = useRef(false)
   const initialSessionReceivedRef = useRef(false)
   const initialSessionSettledNullRef = useRef(false)
-  const initialSessionTimedOutRef = useRef(false)
   const explicitSignOutInProgressRef = useRef(false)
   const hardRecoveryInProgressRef = useRef(false)
-  const loadingRef = useRef(true)
+  const localAccountBootRef = useRef(initialShell.localAccountBoot)
+  const loadingRef = useRef(initialShell.loading)
   loadingRef.current = loading
+  bootstrapUserIdRef.current = initialShell.bootstrapUserId
 
   const setAuthPhaseBoth = useCallback((phase: AuthPhase) => {
     authPhaseRef.current = phase
     setAuthPhase(phase)
   }, [])
 
-  const sessionRestoring = authPhase === 'resolving'
+  const sessionRestoring = authPhase === 'authenticated' && user == null
   const sessionMode: SessionMode =
     authPhase === 'resolving' ? 'resolving' : authPhase === 'guest' ? 'guest' : 'authenticated'
   const isGuest = authPhase === 'guest'
@@ -267,6 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** Heal rare desync: authenticated phase but React user state missing while session exists. */
   useEffect(() => {
     if (authPhase !== 'authenticated' || user) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
     void supabase.auth.getSession().then(({ data }) => {
       const sessionUser = data.session?.user
       if (
@@ -293,6 +317,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // best-effort local hydrate
     }
   }, [])
+
+  const applyOptimisticLocalAccount = useCallback(
+    (userId: string) => {
+      setAuthPhaseBoth('authenticated')
+      localAccountBootRef.current = true
+      bootstrapUserIdRef.current = userId
+      setBootstrapUserId(userId)
+      setActiveCacheUserId(userId)
+      setLastAuthUserId(userId)
+      setLoading(false)
+      loadingRef.current = false
+      void hydrateProfileFromDexie(userId)
+    },
+    [hydrateProfileFromDexie, setAuthPhaseBoth],
+  )
 
   const enterGuestMode = useCallback(
     async (options?: {
@@ -528,11 +567,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authenticatedEstablishedRef,
       initialSessionReceivedRef,
       initialSessionSettledNullRef,
-      initialSessionTimedOutRef,
       explicitSignOutInProgressRef,
       hardRecoveryInProgressRef,
       authPhaseRef,
       loadingRef,
+      localAccountBootRef,
     },
     {
       setAuthPhaseBoth,
@@ -542,6 +581,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setActiveCacheUserId,
       activateAuthenticatedUserCore,
       enterGuestMode,
+      applyOptimisticLocalAccount,
       hardRecoverInvalidRefreshToken,
     },
   )

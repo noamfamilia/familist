@@ -31,8 +31,39 @@ export type SessionExpiredToastCode =
   | '443'
   | '444'
 
-export function formatSessionExpiredToast(code: SessionExpiredToastCode): string {
+/** Boot-time session verification failures (local actor kept; Dexie lists stay visible). */
+export type BootSessionVerifyCode = '450' | '451' | '452'
+
+export function formatSessionExpiredToast(
+  code: SessionExpiredToastCode | BootSessionVerifyCode,
+): string {
   return `[${code}] Session expired - refresh app and sign-in`
+}
+
+function isInvalidRefreshMessage(m: string): boolean {
+  return (
+    m.includes('refresh token') ||
+    m.includes('refresh_token_not_found') ||
+    m.includes('invalid refresh token')
+  )
+}
+
+/** Toast code when bootstrap getSession fails but local auth blob was used for Dexie. */
+export function bootSessionVerifyCodeFromGetSession(
+  sessionError: unknown,
+  hadAuthBlob: boolean,
+  hasSessionUser: boolean,
+): BootSessionVerifyCode | null {
+  if (hasSessionUser) return null
+  if (sessionError != null) {
+    const classified = classifySessionExpiredRejection(sessionError)
+    if (classified === '442' || isInvalidRefreshMessage(messageLower(sessionError))) {
+      return '450'
+    }
+    return '452'
+  }
+  if (hadAuthBlob) return '451'
+  return null
 }
 
 export function classifySessionExpiredRejection(err: unknown): SessionExpiredToastCode | null {

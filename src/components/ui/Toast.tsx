@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { registerBootSessionVerifyToastHandler } from '@/lib/authBootToastBridge'
 import { resolveErrorToastMessage } from '@/lib/fetchToastPolicy'
 import { sessionExpiredToastFromError } from '@/lib/sessionExpiredToast'
 import { formatServerErrorForUser } from '@/lib/serverErrorMessage'
@@ -103,6 +104,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   )
   const warning = useCallback((message: string) => showToast(message, 'warning'), [showToast])
   const info = useCallback((message: string) => showToast(message, 'info'), [showToast])
+
+  useEffect(() => {
+    registerBootSessionVerifyToastHandler((message) => {
+      showToast(message, 'error', { durationMs: errorToastDurationMs(message) })
+    })
+    return () => registerBootSessionVerifyToastHandler(null)
+  }, [showToast])
 
   const removeToast = (id: string) => {
     dismissToast(id)

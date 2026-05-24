@@ -3,9 +3,9 @@
 import { useEffect, useRef } from 'react'
 import type { User } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getActiveCacheUserId } from '@/lib/cache'
+import { notifyBootSessionVerifyFailed } from '@/lib/authBootToastBridge'
+import { isBrowserOnline, resolveLocalBootActor } from '@/lib/authLocalBoot'
 import {
-  getLastAuthUserId,
   hasUsableAuthBlob,
   registerAuthPhaseGetter,
   setLastAuthUserId,
@@ -13,10 +13,9 @@ import {
   type GuestEntryPath,
 } from '@/lib/authBootStorage'
 import { appendConnectivityDebugLine } from '@/lib/connectivityDebugLog'
+import { bootSessionVerifyCodeFromGetSession } from '@/lib/sessionExpiredToast'
 import { logServerRoundTrip } from '@/lib/serverActionLog'
 import { registerSessionModeGetter } from '@/lib/sessionPolicy'
-
-const INITIAL_SESSION_TIMEOUT_MS = 1_200
 
 function isInvalidRefreshTokenError(err: unknown): boolean {
   const msg =
@@ -42,11 +41,11 @@ export type AuthPhaseBootstrapRefs = {
   authenticatedEstablishedRef: React.MutableRefObject<boolean>
   initialSessionReceivedRef: React.MutableRefObject<boolean>
   initialSessionSettledNullRef: React.MutableRefObject<boolean>
-  initialSessionTimedOutRef: React.MutableRefObject<boolean>
   explicitSignOutInProgressRef: React.MutableRefObject<boolean>
   hardRecoveryInProgressRef: React.MutableRefObject<boolean>
   authPhaseRef: React.MutableRefObject<AuthPhase>
   loadingRef: React.MutableRefObject<boolean>
+  localAccountBootRef: React.MutableRefObject<boolean>
 }
 
 export type AuthPhaseBootstrapActions = {
@@ -61,6 +60,7 @@ export type AuthPhaseBootstrapActions = {
     signedOut?: boolean
     formerAuthUserId?: string | null
   }) => Promise<void>
+  applyOptimisticLocalAccount: (userId: string) => void
   hardRecoverInvalidRefreshToken: (source: string) => Promise<void>
 }
 
@@ -85,12 +85,15 @@ export function useAuthPhaseBootstrap(
     }) => {},
   )
 
+  const handleBootVerifyFailureRef = useRef(
+    (_sessionError: unknown, _hadAuthBlob: boolean, _hasSessionUser: boolean) => {},
+  )
+
   transitionToAuthenticatedRef.current = async (nextUser: User, source: string) => {
     const r = refs
     const a = actionsRef.current
     if (!r.mountedRef.current) return
 
-    const loadingBefore = r.loadingRef.current
     const phaseBefore = r.authPhaseRef.current
     const nextId = nextUser.id
 
@@ -103,11 +106,13 @@ export function useAuthPhaseBootstrap(
         r.userRef.current = nextUser
         a.setUser(nextUser)
       }
+      r.localAccountBootRef.current = false
       return
     }
 
     a.setAuthPhaseBoth('authenticated')
     r.authenticatedEstablishedRef.current = true
+    r.localAccountBootRef.current = false
     r.lastAppliedUserIdRef.current = nextId
     r.userRef.current = nextUser
     a.setUser(nextUser)
@@ -135,20 +140,24 @@ export function useAuthPhaseBootstrap(
     if (!r.mountedRef.current) return
     if (r.hardRecoveryInProgressRef.current && options.guestPath !== 'C') return
 
-    const loadingBefore = r.loadingRef.current
     const phaseBefore = r.authPhaseRef.current
 
-    if (phaseBefore === 'resolving' && options.guestPath !== 'A' && options.guestPath !== 'D') {
+    if (phaseBefore === 'resolving' && options.guestPath !== 'A') {
       if (options.guestPath !== 'B' && options.guestPath !== 'C') return
     }
 
-    if (phaseBefore === 'authenticated' && options.guestPath !== 'B' && options.guestPath !== 'C') {
+    if (
+      phaseBefore === 'authenticated' &&
+      options.guestPath !== 'B' &&
+      options.guestPath !== 'C'
+    ) {
       return
     }
 
     const formerAuthUserId =
       options.formerAuthUserId ?? r.userRef.current?.id ?? r.lastAppliedUserIdRef.current
 
+    r.localAccountBootRef.current = false
     a.setAuthPhaseBoth('guest')
     r.authenticatedEstablishedRef.current = false
     await a.enterGuestMode({
@@ -163,6 +172,21 @@ export function useAuthPhaseBootstrap(
     if (options.guestPath === 'B') {
       r.explicitSignOutInProgressRef.current = false
     }
+  }
+
+  handleBootVerifyFailureRef.current = (
+    sessionError: unknown,
+    hadAuthBlob: boolean,
+    hasSessionUser: boolean,
+  ) => {
+    const code = bootSessionVerifyCodeFromGetSession(sessionError, hadAuthBlob, hasSessionUser)
+    if (!code) return
+    appendConnectivityDebugLine(
+      `[auth] boot-verify-failed code=${code} hadBlob=${hadAuthBlob} err=${sessionError instanceof Error ? sessionError.message : String(sessionError ?? 'null-session')}`,
+    )
+    notifyBootSessionVerifyFailed(code)
+    refs.loadingRef.current = false
+    actionsRef.current.setLoading(false)
   }
 
   useEffect(() => {
@@ -182,23 +206,114 @@ export function useAuthPhaseBootstrap(
   useEffect(() => {
     let effectMounted = true
     let subscription: { unsubscribe: () => void } | null = null
-    let safetyTimeoutId: ReturnType<typeof setTimeout> | null = null
+    let bootVerifyPromise: Promise<void> | null = null
+
+    const runBootSessionVerify = async (): Promise<void> => {
+      if (!isBrowserOnline()) {
+        appendConnectivityDebugLine('[auth] boot-verify skipped offline')
+        refs.loadingRef.current = false
+        actionsRef.current.setLoading(false)
+        return
+      }
+
+      const hadAuthBlob = hasUsableAuthBlob()
+      try {
+        const gs0 = performance.now()
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+        logServerRoundTrip({
+          description: sessionError
+            ? 'Auth getSession failed'
+            : sessionData?.session
+              ? 'Restored auth session'
+              : 'Auth session (signed out)',
+          ok: !sessionError,
+          durationMs: Math.round(performance.now() - gs0),
+          respondsTo: 'App bootstrap',
+          failure: sessionError ?? undefined,
+        })
+        appendConnectivityDebugLine(
+          `[auth] getSession ${sessionError ? 'error' : sessionData?.session ? 'has-session' : 'signed-out'} durationMs=${Math.round(performance.now() - gs0)}`,
+        )
+
+        if (!effectMounted) return
+
+        const sessionUser = sessionData?.session?.user ?? null
+        if (sessionUser) {
+          await transitionToAuthenticatedRef.current(sessionUser, 'getSession-boot-verify')
+          return
+        }
+
+        if (sessionError && isInvalidRefreshTokenError(sessionError)) {
+          handleBootVerifyFailureRef.current(sessionError, hadAuthBlob, false)
+          return
+        }
+
+        if (sessionError) {
+          handleBootVerifyFailureRef.current(sessionError, hadAuthBlob, false)
+          return
+        }
+
+        if (refs.localAccountBootRef.current || hadAuthBlob) {
+          handleBootVerifyFailureRef.current(null, hadAuthBlob, false)
+          return
+        }
+
+        if (refs.authPhaseRef.current === 'resolving') {
+          await transitionToGuestRef.current({ source: 'boot-verify-signed-out', guestPath: 'A' })
+        }
+      } catch (error) {
+        if (!effectMounted) return
+        if (refs.localAccountBootRef.current || hadAuthBlob) {
+          handleBootVerifyFailureRef.current(error, hadAuthBlob, false)
+          return
+        }
+        if (isInvalidRefreshTokenError(error)) {
+          handleBootVerifyFailureRef.current(error, hadAuthBlob, false)
+        }
+      }
+    }
+
+    const scheduleBootVerify = () => {
+      if (!bootVerifyPromise) {
+        bootVerifyPromise = runBootSessionVerify().finally(() => {
+          bootVerifyPromise = null
+        })
+      }
+      return bootVerifyPromise
+    }
 
     const alreadyTerminal =
       refs.authenticatedEstablishedRef.current &&
       (refs.authPhaseRef.current === 'authenticated' || refs.authPhaseRef.current === 'guest')
 
     if (!alreadyTerminal) {
-      actionsRef.current.setAuthPhaseBoth('resolving')
-      refs.loadingRef.current = true
-      actionsRef.current.setLoading(true)
-      refs.authenticatedEstablishedRef.current = false
+      const localBoot = resolveLocalBootActor()
+      appendConnectivityDebugLine(
+        `[auth] local-boot mode=${localBoot.mode}${localBoot.mode === 'account' ? ` userId=${localBoot.userId}` : ''} hasBlob=${hasUsableAuthBlob()}`,
+      )
+      if (localBoot.mode === 'account') {
+        actionsRef.current.applyOptimisticLocalAccount(localBoot.userId)
+        refs.localAccountBootRef.current = true
+        refs.loadingRef.current = false
+        actionsRef.current.setLoading(false)
+      } else {
+        refs.localAccountBootRef.current = false
+        if (refs.authPhaseRef.current === 'resolving') {
+          void transitionToGuestRef.current({ source: 'local-boot', guestPath: 'C' })
+        } else {
+          refs.loadingRef.current = false
+          actionsRef.current.setLoading(false)
+        }
+      }
     }
 
     const confirmedSignedOutLocally = async (): Promise<boolean> => {
       if (!refs.initialSessionSettledNullRef.current) return false
       if (hasUsableAuthBlob()) return false
+      if (refs.localAccountBootRef.current) return false
       try {
+        await scheduleBootVerify()
+        if (refs.userRef.current) return false
         const { data } = await supabase.auth.getSession()
         if (data?.session?.user) return false
       } catch {
@@ -209,6 +324,13 @@ export function useAuthPhaseBootstrap(
 
     const handleInitialSessionNull = async (source: string) => {
       if (!effectMounted) return
+      if (refs.localAccountBootRef.current) {
+        refs.initialSessionSettledNullRef.current = true
+        refs.loadingRef.current = false
+        actionsRef.current.setLoading(false)
+        void scheduleBootVerify()
+        return
+      }
       if (refs.authPhaseRef.current !== 'resolving') return
       if (await confirmedSignedOutLocally()) {
         await transitionToGuestRef.current({ source, guestPath: 'A' })
@@ -301,59 +423,25 @@ export function useAuthPhaseBootstrap(
     })
     subscription = sub
 
-    safetyTimeoutId = setTimeout(() => {
-      if (!effectMounted) return
-      refs.initialSessionTimedOutRef.current = true
-      if (refs.authPhaseRef.current !== 'resolving') return
-      if (refs.authenticatedEstablishedRef.current) return
-      if (hasUsableAuthBlob()) return
-      void transitionToGuestRef.current({
-        source: 'initial-session-timeout-no-blob',
-        guestPath: 'D',
-      })
-    }, INITIAL_SESSION_TIMEOUT_MS)
+    if (refs.localAccountBootRef.current || refs.authPhaseRef.current === 'authenticated') {
+      void scheduleBootVerify()
+    }
 
-    void (async () => {
-      try {
-        const gs0 = performance.now()
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-        logServerRoundTrip({
-          description: sessionError
-            ? 'Auth getSession failed'
-            : sessionData?.session
-              ? 'Restored auth session'
-              : 'Auth session (signed out)',
-          ok: !sessionError,
-          durationMs: Math.round(performance.now() - gs0),
-          respondsTo: 'App bootstrap',
-          failure: sessionError ?? undefined,
-        })
-        appendConnectivityDebugLine(
-          `[auth] getSession ${sessionError ? 'error' : sessionData?.session ? 'has-session' : 'signed-out'} durationMs=${Math.round(performance.now() - gs0)}`,
-        )
-
-        if (!effectMounted) return
-
-        if (sessionError && isInvalidRefreshTokenError(sessionError)) {
-          await actionsRef.current.hardRecoverInvalidRefreshToken('getSession')
-          return
-        }
-
-        const sessionUser = sessionData?.session?.user ?? null
-        if (sessionUser) {
-          await transitionToAuthenticatedRef.current(sessionUser, 'getSession-fast-path')
-        }
-      } catch (error) {
-        if (isInvalidRefreshTokenError(error)) {
-          await actionsRef.current.hardRecoverInvalidRefreshToken('getSession-catch')
-        }
+    const onOnline = () => {
+      if (refs.localAccountBootRef.current && !refs.userRef.current) {
+        void scheduleBootVerify()
       }
-    })()
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', onOnline)
+    }
 
     return () => {
       effectMounted = false
-      if (safetyTimeoutId) clearTimeout(safetyTimeoutId)
       subscription?.unsubscribe()
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', onOnline)
+      }
     }
     // Mount once: transitions read latest handlers via refs; do not re-bootstrap when loading changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
