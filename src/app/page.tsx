@@ -279,10 +279,22 @@ function HomeContent() {
     if (!profileMenuOpen) return
     const close = (e: MouseEvent) => {
       const el = profileMenuRef.current
-      if (el && !el.contains(e.target as Node)) setProfileMenuOpen(false)
+      if (el && !el.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
+        document.addEventListener(
+          'click',
+          (ce) => {
+            ce.preventDefault()
+            ce.stopPropagation()
+          },
+          { capture: true, once: true },
+        )
+        setProfileMenuOpen(false)
+      }
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('mousedown', close, true)
+    return () => document.removeEventListener('mousedown', close, true)
   }, [profileMenuOpen])
 
   useEffect(() => {
