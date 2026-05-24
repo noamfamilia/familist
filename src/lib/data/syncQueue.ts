@@ -17,6 +17,11 @@ import {
   mergeBulkLabelPayload,
   resolveBulkLabelCoalesceTarget,
 } from '@/lib/data/outboundLabelCoalesce'
+import {
+  mergeReorderListItemsPayload,
+  reorderListItemsPayloadMatchesScope,
+  resolveReorderListItemsCoalesceTarget,
+} from '@/lib/data/outboundListDetailRpcCoalesce'
 
 /** Live progress line while a row is `processing` (Server queue UI, diagnostics). */
 export async function updateSyncQueueProcessingDetail(rowId: string, detail: string | null): Promise<void> {
@@ -484,6 +489,81 @@ export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void>
           }
           return
         }
+        await db.sync_queue.update(existing.id, {
+          entity,
+          entity_id,
+          payload: mergedPayload,
+          updated_at: ts,
+          next_retry_at: null,
+          parent1_type: input.parent1_type ?? existing.parent1_type,
+          parent1_id: input.parent1_id ?? existing.parent1_id,
+          parent2_type: input.parent2_type ?? existing.parent2_type,
+          parent2_id: input.parent2_id ?? existing.parent2_id,
+          processing_detail: null,
+        })
+        for (const dup of candidates) {
+          if (dup.id !== existing.id) await db.sync_queue.delete(dup.id)
+        }
+        await clearListUserSyncErrorsForEnqueueRow({
+          parent1_type: input.parent1_type ?? existing.parent1_type,
+          parent1_id: input.parent1_id ?? existing.parent1_id,
+          kind: 'rpc',
+          entity,
+          entity_id,
+          payload: mergedPayload,
+          status: existing.status,
+        })
+        bumpListReconcileGenerationsForEnqueue({
+          parent1_type: input.parent1_type ?? existing.parent1_type,
+          parent1_id: input.parent1_id ?? existing.parent1_id,
+          entity,
+          entity_id,
+          kind: 'rpc',
+          payload: mergedPayload,
+        })
+        return
+      }
+
+      input = { ...input, entity, entity_id }
+    }
+
+    const reorderItemsTarget = resolveReorderListItemsCoalesceTarget(incomingPayload)
+    if (reorderItemsTarget) {
+      const { entity, entity_id } = reorderItemsTarget
+      const mergeableStatuses: readonly SyncQueueStatus[] = ['queued', 'failed']
+
+      const primaryMatches = await db.sync_queue
+        .where('[entity+entity_id]')
+        .equals([entity, entity_id])
+        .filter(
+          (r) =>
+            r.kind === 'rpc' &&
+            mergeableStatuses.includes(r.status) &&
+            reorderListItemsPayloadMatchesScope(r.payload as Record<string, unknown>, entity_id),
+        )
+        .toArray()
+
+      const legacyMatches = await db.sync_queue
+        .filter(
+          (r) =>
+            r.kind === 'rpc' &&
+            mergeableStatuses.includes(r.status) &&
+            r.entity_id.startsWith('batch:') &&
+            reorderListItemsPayloadMatchesScope(r.payload as Record<string, unknown>, entity_id),
+        )
+        .toArray()
+
+      const candidates = [...primaryMatches, ...legacyMatches]
+      const existing =
+        candidates.length === 0
+          ? undefined
+          : candidates.reduce((a, b) => (a.updated_at >= b.updated_at ? a : b))
+
+      if (existing) {
+        const mergedPayload = mergeReorderListItemsPayload(
+          existing.payload as Record<string, unknown>,
+          incomingPayload,
+        )
         await db.sync_queue.update(existing.id, {
           entity,
           entity_id,

@@ -44,6 +44,11 @@ import {
   patchListUserOutboxKey,
 } from '@/lib/data/syncQueue'
 import {
+  awaitDrainBeforeReorderListItems,
+  awaitDrainCategoryListPatch,
+} from '@/lib/data/outboundCategoryCoalesce'
+import { reorderListItemsOutboxKey } from '@/lib/data/outboundListDetailRpcCoalesce'
+import {
   isoNow,
   isTombstoned,
   syncFieldsForLocalInsert,
@@ -143,6 +148,19 @@ function parseCategoryOrder(raw: string | null | undefined): number[] {
     }
   } catch { /* ignore */ }
   return [...DEFAULT_CATEGORY_ORDER]
+}
+
+function serializeCategoryFields(names: CategoryNames, order: number[]) {
+  const nonEmpty: Record<string, string> = {}
+  const normalizedNames: CategoryNames = { ...EMPTY_CATEGORY_NAMES }
+  for (const [k, v] of Object.entries(names)) {
+    const trimmed = (v ?? '').trim()
+    normalizedNames[k] = trimmed
+    if (trimmed) nonEmpty[k] = trimmed
+  }
+  const serializedNames = Object.keys(nonEmpty).length > 0 ? JSON.stringify(nonEmpty) : '{}'
+  const serializedOrder = JSON.stringify(order)
+  return { serializedNames, serializedOrder, normalizedNames }
 }
 
 type MemberFilter = 'all' | 'mine' | 'hide'
@@ -2217,49 +2235,25 @@ export function useList(listId: string) {
   }
 
 
-  const persistCategorySettingsToStorage = async (
+  const persistCategoryLocal = async (
     names: CategoryNames,
     order: number[],
-    shouldReorderItems: boolean,
   ): Promise<{ error: Error | null }> => {
-    const nonEmpty: Record<string, string> = {}
-    for (const [k, v] of Object.entries(names)) {
-      if (v) nonEmpty[k] = v
-    }
-    const serializedNames = Object.keys(nonEmpty).length > 0 ? JSON.stringify(nonEmpty) : '{}'
-    const serializedOrder = JSON.stringify(order)
-
     const prevNames = categoryNamesRef.current
-    const prevOrder = categoryOrderRef.current
+    const prevOrder = [...categoryOrderRef.current]
     const prevList = useListDataStore.getState().list
-    const itemsSnapshot =
-      shouldReorderItems && useListDataStore.getState().items.length > 0
-        ? [...useListDataStore.getState().items]
-        : null
+    const { serializedNames, serializedOrder, normalizedNames } = serializeCategoryFields(names, order)
 
     bumpListMutationGeneration()
     categoryListMirrorSuppressCountRef.current++
     try {
-      setCategoryNames({ ...EMPTY_CATEGORY_NAMES, ...names })
-      setCategoryOrder(order)
+      setCategoryNames(normalizedNames)
+      categoryNamesRef.current = normalizedNames
+      setCategoryOrder([...order])
+      categoryOrderRef.current = [...order]
       useListDataStore.getState().setList((l) =>
         l ? { ...l, category_names: serializedNames, category_order: serializedOrder } : l,
       )
-
-      let reorderedWithTs: ItemWithState[] | null = null
-      const nowIso = new Date(Date.now()).toISOString()
-      if (shouldReorderItems && itemsSnapshot) {
-        const fullOrder = computeItemsReorderedByCategory(itemsSnapshot, order)
-        reorderedWithTs = normalizeItemsCategory(
-          fullOrder.map((item, index) => ({
-            ...item,
-            sort_order: index,
-            updated_at: nowIso,
-          })),
-        )
-        useListDataStore.getState().setItems(reorderedWithTs)
-        skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
-      }
 
       const existing = await db.lists.get(listId)
       if (!existing || isTombstoned(existing.deleted_at ?? null)) {
@@ -2273,9 +2267,32 @@ export function useList(listId: string) {
         app_version: APP_VERSION,
       }
       const sync = normalizeServerSyncableFields(mergedList as unknown as Record<string, unknown>)
+      await db.lists.put(withLastSyncedNow({ ...mergedList, ...sync }))
+      return { error: null }
+    } catch (err: unknown) {
+      setCategoryNames(prevNames)
+      categoryNamesRef.current = prevNames
+      setCategoryOrder(prevOrder)
+      categoryOrderRef.current = prevOrder
+      if (prevList) {
+        useListDataStore.getState().setList(prevList)
+      }
+      return { error: new Error(rpcFailureMessage(err)) }
+    } finally {
+      categoryListMirrorSuppressCountRef.current--
+    }
+  }
 
-      await db.transaction('rw', db.lists, db.items, db.sync_queue, db.list_users, async () => {
-        await db.lists.put(withLastSyncedNow({ ...mergedList, ...sync }))
+  const flushCategoryPatchToQueue = async () => {
+    if (!mutationUserId) return
+    const { serializedNames, serializedOrder } = serializeCategoryFields(
+      categoryNamesRef.current,
+      categoryOrderRef.current,
+    )
+    await awaitDrainCategoryListPatch(listId)
+    if (!tryBeginMutation()) return
+    try {
+      await db.transaction('rw', db.lists, db.sync_queue, db.list_users, async () => {
         await enqueueSyncQueueRecord({
           entity: 'list',
           entity_id: listId,
@@ -2284,106 +2301,110 @@ export function useList(listId: string) {
           ...listQueueParent(listId),
           status: 'queued',
         })
-        if (shouldReorderItems && reorderedWithTs) {
-          for (const [index, item] of reorderedWithTs.entries()) {
-            await db.items.update(item.id, {
-              sort_order: index,
-              updated_at: nowIso,
-            })
-          }
-          await touchListContentUpdateInDexie(listId, nowIso)
-          await enqueueSyncQueueRecord({
-            entity: 'list',
-            entity_id: newBatchEntityId(),
-            kind: 'rpc',
-            payload: {
-              method: 'reorderListItems',
-              list_id: listId,
-              item_ids: reorderedWithTs.map((i) => i.id),
-            },
-            ...listQueueParent(listId),
-            status: 'queued',
+      })
+    } catch {
+      // Local state already persisted; queue will retry on next action.
+    } finally {
+      mutationGate.end()
+    }
+  }
+
+  const flushReorderListItemsToQueue = async (itemIds: string[]) => {
+    if (!mutationUserId || itemIds.length === 0) return
+    await awaitDrainBeforeReorderListItems(listId)
+    if (!tryBeginItemQueueableMutation()) return
+    try {
+      await db.transaction('rw', db.lists, db.sync_queue, db.list_users, async () => {
+        await enqueueSyncQueueRecord({
+          entity: 'list',
+          entity_id: reorderListItemsOutboxKey(listId),
+          kind: 'rpc',
+          payload: {
+            method: 'reorderListItems',
+            list_id: listId,
+            item_ids: itemIds,
+          },
+          ...listQueueParent(listId),
+          status: 'queued',
+        })
+      })
+    } catch {
+      // Local state already persisted; queue will retry on next action.
+    } finally {
+      mutationGate.end()
+    }
+  }
+
+  const renameCategory = async (catId: number, name: string) => {
+    setCategorySettingsMutationPending(true)
+    try {
+      const nextNames = { ...categoryNamesRef.current, [String(catId)]: name }
+      const r = await persistCategoryLocal(nextNames, categoryOrderRef.current)
+      if (r.error) return { error: r.error }
+      void flushCategoryPatchToQueue()
+      return { error: null }
+    } finally {
+      setCategorySettingsMutationPending(false)
+    }
+  }
+
+  const reorderCategories = async (order: number[]) => {
+    setCategorySettingsMutationPending(true)
+    try {
+      const r = await persistCategoryLocal(categoryNamesRef.current, order)
+      if (r.error) return { error: r.error }
+      void flushCategoryPatchToQueue()
+      return { error: null }
+    } finally {
+      setCategorySettingsMutationPending(false)
+    }
+  }
+
+  const sortItemsByCategory = async () => {
+    if (!mutationUserId) {
+      return { error: { message: 'Not authenticated' } }
+    }
+    setCategorySettingsMutationPending(true)
+    useListDataStore.getState().beginLocalListPersistence()
+    const itemsSnapshot = [...useListDataStore.getState().items]
+    const order = categoryOrderRef.current
+    try {
+      if (itemsSnapshot.length === 0) {
+        return { error: null }
+      }
+      const fullOrder = computeItemsReorderedByCategory(itemsSnapshot, order)
+      const nowIso = new Date().toISOString()
+      const reorderedWithTs = normalizeItemsCategory(
+        fullOrder.map((item, index) => ({
+          ...item,
+          sort_order: index,
+          updated_at: nowIso,
+        })),
+      )
+      bumpListMutationGeneration()
+      skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
+      useListDataStore.getState().setItems(reorderedWithTs)
+
+      await db.transaction('rw', db.items, db.lists, async () => {
+        for (const [index, item] of reorderedWithTs.entries()) {
+          await db.items.update(item.id, {
+            sort_order: index,
+            updated_at: nowIso,
           })
         }
+        await touchListContentUpdateInDexie(listId, nowIso)
       })
 
       if (userId) {
         await markCurrentListViewed(nowIso)
       }
+      void flushReorderListItemsToQueue(reorderedWithTs.map((i) => i.id))
       return { error: null }
     } catch (err: unknown) {
-      setCategoryNames(prevNames)
-      setCategoryOrder(prevOrder)
-      if (prevList) {
-        useListDataStore.getState().setList(prevList)
-      }
-      if (shouldReorderItems && itemsSnapshot) {
-        useListDataStore.getState().setItems(itemsSnapshot)
-      }
+      useListDataStore.getState().setItems(itemsSnapshot)
       return { error: new Error(rpcFailureMessage(err)) }
     } finally {
-      categoryListMirrorSuppressCountRef.current--
-    }
-  }
-
-  const updateCategoryNames = async (names: CategoryNames) => {
-    if (!tryBeginMutation()) {
-      return { error: { message: blockedMutationMessage() } }
-    }
-    setCategorySettingsMutationPending(true)
-    try {
-      const r = await persistCategorySettingsToStorage(names, categoryOrderRef.current, false)
-      return r.error ? { error: r.error } : { error: null }
-    } finally {
-      mutationGate.end()
-      setCategorySettingsMutationPending(false)
-    }
-  }
-
-  const updateCategoryOrder = async (order: number[]) => {
-    if (!tryBeginMutation()) {
-      return { error: { message: blockedMutationMessage() } }
-    }
-    setCategorySettingsMutationPending(true)
-    try {
-      const r = await persistCategorySettingsToStorage(categoryNamesRef.current, order, false)
-      return r.error ? { error: r.error } : { error: null }
-    } finally {
-      mutationGate.end()
-      setCategorySettingsMutationPending(false)
-    }
-  }
-
-  const saveCategorySettings = async (
-    names: CategoryNames,
-    order: number[],
-    options?: { reorderItems?: boolean },
-  ) => {
-    const reorder = !!options?.reorderItems
-    if (reorder && !mutationUserId) {
-      return { error: { message: 'Not authenticated' } }
-    }
-    if (reorder) {
-      if (!tryBeginItemQueueableMutation()) {
-        return { error: { message: blockedMutationMessage() } }
-      }
-    } else {
-      if (!tryBeginMutation()) {
-        return { error: { message: blockedMutationMessage() } }
-      }
-    }
-    setCategorySettingsMutationPending(true)
-    if (reorder) {
-      useListDataStore.getState().beginLocalListPersistence()
-    }
-    try {
-      const r = await persistCategorySettingsToStorage(names, order, reorder)
-      return r.error ? { error: r.error } : { error: null }
-    } finally {
-      if (reorder) {
-        useListDataStore.getState().endLocalListPersistence()
-      }
-      mutationGate.end()
+      useListDataStore.getState().endLocalListPersistence()
       setCategorySettingsMutationPending(false)
     }
   }
@@ -2523,9 +2544,11 @@ export function useList(listId: string) {
     updateMemberFilter,
     previewItemTextWidth,
     previewItemTextWidthMode,
-    updateCategoryNames,
-    updateCategoryOrder,
-    saveCategorySettings,
+    updateCategoryNames: renameCategory,
+    updateCategoryOrder: reorderCategories,
+    renameCategory,
+    reorderCategories,
+    sortItemsByCategory,
     categorySettingsMutationPending,
     lastViewedMembers,
     createTargets,

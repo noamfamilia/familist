@@ -1,13 +1,6 @@
 'use client'
 
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import {
@@ -30,40 +23,29 @@ function saveErrorMessage(error: unknown): string {
   return 'Failed to save categories'
 }
 
-export type CategoryNamesModalHandle = {
-  saveAndClose: () => Promise<void>
-}
-
 interface CategoryNamesModalProps {
   isOpen: boolean
   onClose: () => void
   anchorPos: { top: number; left: number } | null
-  anchorRef?: React.RefObject<HTMLElement | null>
   popoverRef?: React.RefObject<HTMLDivElement | null>
-  /** Parent sets blockNextClickRef so the dismissed click does not hit the page. */
-  onOutsidePointerDown?: () => void
   categoryNames: CategoryNames
   categoryOrder: number[]
-  onSave: (
-    names: CategoryNames,
-    order: number[],
-    options?: { reorderItems?: boolean },
-  ) => Promise<{ error: unknown }>
+  onRenameCategory: (catId: number, name: string) => Promise<{ error: unknown }>
+  onReorderCategories: (order: number[]) => Promise<{ error: unknown }>
+  onSortItems: () => Promise<{ error: unknown }>
   sortDisabled?: boolean
 }
 
-function SortableCategoryRow({
+function SortableCategoryCard({
   catId,
-  value,
-  onChange,
+  label,
+  onCardClick,
 }: {
   catId: number
-  value: string
-  onChange: (value: string) => void
+  label: string
+  onCardClick: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: catId })
-  const [focused, setFocused] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -75,209 +57,236 @@ function SortableCategoryRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center rounded-lg px-2 py-1 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
+      className="flex items-center gap-1.5"
     >
       <div
-        className="text-gray-400 dark:text-gray-500 cursor-grab select-none text-lg tracking-tighter touch-none mr-2 flex-shrink-0"
+        className="text-gray-400 dark:text-gray-500 cursor-grab select-none text-lg tracking-tighter touch-none flex-shrink-0"
         {...attributes}
         {...listeners}
       >
         ⋮⋮
       </div>
-      <div className="flex-1 min-w-0 relative">
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          placeholder="Add category name..."
-          className="w-full bg-transparent text-sm text-inherit focus:outline-none placeholder:text-gray-400 placeholder:opacity-55 dark:placeholder:text-neutral-400 dark:placeholder:opacity-70 h-5 p-0 pr-5"
-          maxLength={30}
-        />
-        {focused && value && (
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { onChange(''); inputRef.current?.focus() }}
-            className="absolute right-0 top-1/2 -translate-y-1/2 text-current opacity-45 hover:opacity-80"
-          >
-            ✕
-          </button>
-        )}
-      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onCardClick()
+        }}
+        className={`h-7 min-w-0 flex-1 px-2 rounded-md touch-manipulation flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId as ItemCategory].swatch} text-gray-500 hover:opacity-90 dark:hover:opacity-90`}
+      >
+        <span className="truncate">{label}</span>
+      </button>
     </div>
   )
 }
 
-export const CategoryNamesModal = forwardRef<CategoryNamesModalHandle, CategoryNamesModalProps>(
-  function CategoryNamesModal(
-    {
-      isOpen,
-      onClose,
-      anchorPos,
-      anchorRef,
-      popoverRef,
-      onOutsidePointerDown,
-      categoryNames,
-      categoryOrder,
-      onSave,
-      sortDisabled = false,
+export function CategoryNamesModal({
+  isOpen,
+  onClose,
+  anchorPos,
+  popoverRef,
+  categoryNames,
+  categoryOrder,
+  onRenameCategory,
+  onReorderCategories,
+  onSortItems,
+  sortDisabled = false,
+}: CategoryNamesModalProps) {
+  const { error: showError } = useToast()
+  const [renamingCatId, setRenamingCatId] = useState<number | null>(null)
+  const [renameText, setRenameText] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  const actionRef = useRef(false)
+
+  const anchorPosStableRef = useRef(anchorPos)
+  if (anchorPos) anchorPosStableRef.current = anchorPos
+  const menuAnim = useMenuOpenAnimation(isOpen && !!anchorPosStableRef.current)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setRenamingCatId(null)
+      setRenameText('')
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (renamingCatId == null) return
+    const id = requestAnimationFrame(() => renameInputRef.current?.focus())
+    return () => cancelAnimationFrame(id)
+  }, [renamingCatId])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const reportError = useCallback(
+    (error: unknown, fallback: string) => {
+      const msg = saveErrorMessage(error)
+      if (shouldShowConnectivityRelatedMutationToast(msg)) {
+        showError(msg || fallback, { serverError: error })
+      }
     },
-    ref,
-  ) {
-    const { error: showError } = useToast()
-    const [names, setNames] = useState<CategoryNames>({ ...categoryNames })
-    const [order, setOrder] = useState<number[]>([...categoryOrder])
-    const wasOpenRef = useRef(false)
-    const savingRef = useRef(false)
+    [showError],
+  )
 
-    const anchorPosStableRef = useRef(anchorPos)
-    if (anchorPos) anchorPosStableRef.current = anchorPos
-    const menuAnim = useMenuOpenAnimation(isOpen && !!anchorPosStableRef.current)
-
-    useEffect(() => {
-      if (isOpen && !wasOpenRef.current) {
-        setNames({ ...categoryNames })
-        setOrder([...categoryOrder])
-      }
-      wasOpenRef.current = isOpen
-    }, [isOpen, categoryNames, categoryOrder])
-
-    const sensors = useSensors(
-      useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-      useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-    )
-
-    const handleDragEnd = (event: DragEndEvent) => {
-      const { active, over } = event
-      if (over && active.id !== over.id) {
-        const oldIndex = order.indexOf(Number(active.id))
-        const newIndex = order.indexOf(Number(over.id))
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const next = [...order]
-          const [removed] = next.splice(oldIndex, 1)
-          next.splice(newIndex, 0, removed)
-          setOrder(next)
-        }
-      }
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = categoryOrder.indexOf(Number(active.id))
+    const newIndex = categoryOrder.indexOf(Number(over.id))
+    if (oldIndex === -1 || newIndex === -1) return
+    const next = [...categoryOrder]
+    const [removed] = next.splice(oldIndex, 1)
+    next.splice(newIndex, 0, removed)
+    if (actionRef.current) return
+    actionRef.current = true
+    try {
+      const res = await onReorderCategories(next)
+      if (res.error) reportError(res.error, 'Failed to reorder categories')
+    } finally {
+      actionRef.current = false
     }
+  }
 
-    const handleDone = useCallback(async () => {
-      if (savingRef.current) return
-      savingRef.current = true
-      try {
-        const trimmed: CategoryNames = {}
-        for (const [k, v] of Object.entries(names)) {
-          trimmed[k] = v.trim()
-        }
-        const saveRes = await onSave(trimmed, order)
-        if (saveRes.error) {
-          const msg = saveErrorMessage(saveRes.error)
-          if (shouldShowConnectivityRelatedMutationToast(msg)) {
-            showError(msg || 'Failed to save categories', { serverError: saveRes.error })
-          }
+  const openRename = (catId: number) => {
+    setRenamingCatId(catId)
+    setRenameText(categoryNames[String(catId)] ?? '')
+  }
+
+  const cancelRename = () => {
+    setRenamingCatId(null)
+    setRenameText('')
+  }
+
+  const commitRename = async () => {
+    if (renamingCatId == null || actionRef.current) return
+    actionRef.current = true
+    try {
+      const res = await onRenameCategory(renamingCatId, renameText)
+      if (res.error) {
+        reportError(res.error, 'Failed to rename category')
+        return
+      }
+      cancelRename()
+    } finally {
+      actionRef.current = false
+    }
+  }
+
+  const handleSortClick = async () => {
+    if (actionRef.current || sortDisabled) return
+    actionRef.current = true
+    try {
+      const res = await onSortItems()
+      if (res.error) reportError(res.error, 'Failed to sort items')
+    } finally {
+      actionRef.current = false
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (renamingCatId != null) {
+          e.preventDefault()
+          e.stopPropagation()
+          cancelRename()
           return
         }
-        onClose()
-      } finally {
-        savingRef.current = false
-      }
-    }, [names, onClose, onSave, order, showError])
-
-    useImperativeHandle(ref, () => ({ saveAndClose: handleDone }), [handleDone])
-
-    const handleSortClick = async () => {
-      if (savingRef.current) return
-      savingRef.current = true
-      try {
-        const trimmed: CategoryNames = {}
-        for (const [k, v] of Object.entries(names)) {
-          trimmed[k] = v.trim()
-        }
-        const saveRes = await onSave(trimmed, order, { reorderItems: true })
-        if (saveRes.error) {
-          const msg = saveErrorMessage(saveRes.error)
-          if (shouldShowConnectivityRelatedMutationToast(msg)) {
-            showError(msg || 'Failed to save categories', { serverError: saveRes.error })
-          }
-          return
-        }
-        onClose()
-      } finally {
-        savingRef.current = false
-      }
-    }
-
-    useEffect(() => {
-      if (!isOpen) return
-      const onKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') void handleDone()
-      }
-      document.addEventListener('keydown', onKeyDown)
-      return () => document.removeEventListener('keydown', onKeyDown)
-    }, [handleDone, isOpen])
-
-    useEffect(() => {
-      if (!isOpen) return
-      const onMouseDown = (e: MouseEvent) => {
-        const target = e.target as Node
-        if (popoverRef?.current?.contains(target)) return
-        if (anchorRef?.current?.contains(target)) return
         e.preventDefault()
         e.stopPropagation()
-        onOutsidePointerDown?.()
-        void handleDone()
+        onClose()
       }
-      document.addEventListener('mousedown', onMouseDown, true)
-      return () => document.removeEventListener('mousedown', onMouseDown, true)
-    }, [anchorRef, handleDone, isOpen, onOutsidePointerDown, popoverRef])
-
-    if (!menuAnim.mounted || !anchorPosStableRef.current || typeof document === 'undefined') {
-      return null
     }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [isOpen, onClose, renamingCatId])
 
-    const pos = anchorPosStableRef.current
+  if (!menuAnim.mounted || !anchorPosStableRef.current || typeof document === 'undefined') {
+    return null
+  }
 
-    return createPortal(
-      <div
-        ref={popoverRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-label="Categories"
-        className={`fixed z-[10000] w-[240px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${menuAnim.menuClassName}`}
-        style={{ top: pos.top, left: pos.left }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={order} strategy={verticalListSortingStrategy}>
-            <div className="space-y-1.5">
-              {order.map(c => (
-                <SortableCategoryRow
-                  key={c}
+  const pos = anchorPosStableRef.current
+
+  return createPortal(
+    <div
+      ref={popoverRef}
+      tabIndex={-1}
+      role="dialog"
+      aria-label="Categories"
+      className={`fixed z-[10000] w-[192px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${menuAnim.menuClassName}`}
+      style={{ top: pos.top, left: pos.left }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void handleDragEnd(e)}>
+        <SortableContext items={categoryOrder} strategy={verticalListSortingStrategy}>
+          <div className="space-y-1.5">
+            {categoryOrder.map((c) => (
+              <div key={c} className="relative">
+                <SortableCategoryCard
                   catId={c}
-                  value={names[String(c)] ?? ''}
-                  onChange={v => setNames(prev => ({ ...prev, [String(c)]: v }))}
+                  label={categoryNames[String(c)] ?? ''}
+                  onCardClick={() => openRename(c)}
                 />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-        <div className="mt-3 flex justify-center">
-          <button
-            type="button"
-            onClick={() => void handleSortClick()}
-            disabled={sortDisabled}
-            className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Sort list by Category
-          </button>
-        </div>
-      </div>,
-      document.body,
-    )
-  },
-)
-
-CategoryNamesModal.displayName = 'CategoryNamesModal'
+                {renamingCatId === c && (
+                  <div
+                    className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[180px]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      ref={renameInputRef}
+                      type="text"
+                      value={renameText}
+                      onChange={(e) => setRenameText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void commitRename()
+                        if (e.key === 'Escape') cancelRename()
+                      }}
+                      placeholder="Category name..."
+                      maxLength={30}
+                      className="w-full text-left text-sm border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+                      dir="ltr"
+                      aria-label="Category name"
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={cancelRename}
+                        className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => void commitRename()}
+                        className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+      <div className="mt-3 flex justify-center">
+        <button
+          type="button"
+          onClick={() => void handleSortClick()}
+          disabled={sortDisabled}
+          className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Sort items
+        </button>
+      </div>
+    </div>,
+    document.body,
+  )
+}

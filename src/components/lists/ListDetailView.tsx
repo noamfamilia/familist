@@ -265,7 +265,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     updateMemberFilter,
     previewItemTextWidth,
     previewItemTextWidthMode,
-    saveCategorySettings,
+    renameCategory,
+    reorderCategories,
+    sortItemsByCategory,
     categorySettingsMutationPending,
     lastViewedMembers,
     createTargets,
@@ -1004,7 +1006,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               onCreateTargets={createTargets}
               categoryNames={categoryNames}
               categoryOrder={categoryOrder}
-              onSaveCategorySettings={saveCategorySettings}
+              onRenameCategory={renameCategory}
+              onReorderCategories={reorderCategories}
+              onSortItemsByCategory={sortItemsByCategory}
               sumScope={sumScope}
               onEnableSumItems={() => void persistSumScope('all')}
               onDisableSumItems={() => void persistSumScope('none')}

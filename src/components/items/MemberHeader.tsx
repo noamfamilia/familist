@@ -28,7 +28,6 @@ import {
 } from '@/lib/itemNameFontStep'
 import { ITEM_TEXT_WIDTH_MIN } from '@/lib/itemTextWidthFit'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
-import type { CategoryNamesModalHandle } from '@/components/lists/CategoryNamesModal'
 
 const CategoryNamesModal = dynamic(
   () => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal),
@@ -73,7 +72,7 @@ interface MemberHeaderProps {
   showActionsMenu?: boolean
   actionsMenuLoading?: boolean
   hasArchivedItems?: boolean
-  /** Disables “Sort list by Category” in the Categories modal only (e.g. bulk operations). */
+  /** Disables “Sort items” in the Categories popover only (e.g. bulk operations). */
   categoryEditorSortDisabled?: boolean
   onExpandAll?: () => void
   onCollapseAll?: () => void
@@ -82,11 +81,9 @@ interface MemberHeaderProps {
   isOwner?: boolean
   categoryNames?: CategoryNames
   categoryOrder?: number[]
-  onSaveCategorySettings?: (
-    names: CategoryNames,
-    order: number[],
-    options?: { reorderItems?: boolean },
-  ) => Promise<{ error: unknown }>
+  onRenameCategory?: (catId: number, name: string) => Promise<{ error: unknown }>
+  onReorderCategories?: (order: number[]) => Promise<{ error: unknown }>
+  onSortItemsByCategory?: () => Promise<{ error: unknown }>
   hasTargetMember?: boolean
   onCreateTargets?: () => void
   /** When `'none'`, the sum row is hidden and "Show item sum" appears in the gear menu. */
@@ -129,7 +126,9 @@ export function MemberHeader({
   isOwner = false,
   categoryNames,
   categoryOrder,
-  onSaveCategorySettings,
+  onRenameCategory,
+  onReorderCategories,
+  onSortItemsByCategory,
   hasTargetMember = false,
   onCreateTargets,
   sumScope = 'none',
@@ -158,7 +157,6 @@ export function MemberHeader({
   const [categoryModalPos, setCategoryModalPos] = useState<{ top: number; left: number } | null>(null)
   const headerCardRef = useRef<HTMLDivElement>(null)
   const categoryBtnRef = useRef<HTMLButtonElement>(null)
-  const categoryModalRef = useRef<CategoryNamesModalHandle>(null)
   const categoryModalPopoverRef = useRef<HTMLDivElement>(null)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
   const actionsButtonRef = useRef<HTMLButtonElement>(null)
@@ -182,17 +180,17 @@ export function MemberHeader({
       e.stopPropagation()
       if (isOfflineActionsDisabled) return
       if (showCategoryModal) {
-        void categoryModalRef.current?.saveAndClose()
+        closeCategoryModal()
         return
       }
       requestAnimationFrame(() => {
         const el = categoryBtnRef.current
         if (!el) return
-        setCategoryModalPos(computeDisplayPopoverPos(el, 240))
+        setCategoryModalPos(computeDisplayPopoverPos(el, 192))
         setShowCategoryModal(true)
       })
     },
-    [computeDisplayPopoverPos, isOfflineActionsDisabled, showCategoryModal],
+    [computeDisplayPopoverPos, closeCategoryModal, isOfflineActionsDisabled, showCategoryModal],
   )
 
   const closeCategoryModal = useCallback(() => {
@@ -571,15 +569,19 @@ export function MemberHeader({
 
   // Unified outside-click: clicks inside header area are allowed, clicks outside close popups and are blocked
   useEffect(() => {
-    const anyOpen = !!openMenuId || isAdding || actionsOpen || itemNameFontOpen
+    const anyOpen = !!openMenuId || isAdding || actionsOpen || itemNameFontOpen || showCategoryModal
     if (!anyOpen) return
 
     const isInsideFloating = (target: Node) => {
       const fontFloating =
         itemNameFontOpen &&
         (itemNameFontPopoverRef.current?.contains(target) || itemNameFontBtnRef.current?.contains(target))
+      const categoryFloating =
+        showCategoryModal &&
+        (categoryModalPopoverRef.current?.contains(target) || categoryBtnRef.current?.contains(target))
       return (
         fontFloating ||
+        categoryFloating ||
         memberMenuRef.current?.contains(target) ||
         actionsMenuRef.current?.contains(target) ||
         actionsButtonRef.current?.contains(target) ||
@@ -589,6 +591,10 @@ export function MemberHeader({
     }
 
     const closeAll = () => {
+      if (showCategoryModal) {
+        closeCategoryModal()
+        return
+      }
       if (editingMemberId) handleCancelEdit()
       else if (isAdding) handleCancelAddMember()
       else if (openMenuId) { closeMemberMenu(); setEditingMemberId(null); setEditName('') }
@@ -610,6 +616,17 @@ export function MemberHeader({
         return
       }
 
+      if (showCategoryModal) {
+        if (categoryModalPopoverRef.current?.contains(target) || categoryBtnRef.current?.contains(target)) {
+          return
+        }
+        e.preventDefault()
+        e.stopPropagation()
+        blockNextClickRef.current = true
+        closeCategoryModal()
+        return
+      }
+
       // Inside floating menus — let through entirely
       if (isInsideFloating(target)) return
 
@@ -622,7 +639,7 @@ export function MemberHeader({
 
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
-  }, [openMenuId, isAdding, actionsOpen, itemNameFontOpen, editingMemberId, closeMemberMenu, handleCancelEdit])
+  }, [openMenuId, isAdding, actionsOpen, itemNameFontOpen, showCategoryModal, editingMemberId, closeMemberMenu, handleCancelEdit, closeCategoryModal])
 
   useEffect(() => {
     if (!itemNameFontOpen || !onItemNameFontStepChange) return
@@ -701,7 +718,7 @@ export function MemberHeader({
                 </button>
               </TourViewportTarget>
             )}
-            {onSaveCategorySettings && (
+            {onRenameCategory && onReorderCategories && onSortItemsByCategory && (
               <TourViewportTarget
                 target="list-category"
                 className="flex h-10 w-10 shrink-0 items-center justify-center"
@@ -1315,20 +1332,17 @@ export function MemberHeader({
           document.body,
         )}
 
-      {onSaveCategorySettings && categoryNames && (
+      {onRenameCategory && onReorderCategories && onSortItemsByCategory && categoryNames && (
         <CategoryNamesModal
-          ref={categoryModalRef}
           popoverRef={categoryModalPopoverRef}
-          anchorRef={categoryBtnRef}
-          onOutsidePointerDown={() => {
-            blockNextClickRef.current = true
-          }}
           isOpen={showCategoryModal}
           onClose={closeCategoryModal}
           anchorPos={categoryModalPos}
           categoryNames={categoryNames}
           categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
-          onSave={async (names, order, options) => onSaveCategorySettings(names, order, options)}
+          onRenameCategory={onRenameCategory}
+          onReorderCategories={onReorderCategories}
+          onSortItems={onSortItemsByCategory}
           sortDisabled={categoryEditorSortDisabled}
         />
       )}
