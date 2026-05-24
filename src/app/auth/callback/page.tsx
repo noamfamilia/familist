@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { buildInvitePath, getPendingInviteToken } from '@/lib/invite'
 import { signInWithGoogle } from '@/lib/authGoogle'
-import { clearPendingSignUpMigration } from '@/lib/authSignUpMigration'
 import {
   applyOAuthSignUpDowngradeForExistingAccount,
   clearOpenProfileAfterOAuthSignUp,
@@ -65,7 +64,6 @@ function CallbackHandler() {
 
         if (alreadyExists) {
           clearOpenProfileAfterOAuthSignUp()
-          clearPendingSignUpMigration()
           markOAuthExistingAccountSignInNotice(
             'This email already has an account. Signing you in…',
           )

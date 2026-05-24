@@ -78,7 +78,7 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
 
   if (isGuest) {
     return (
-      <Modal isOpen={isOpen} onClose={onClose} title="Guest mode" contentClassName="!overflow-visible">
+      <Modal isOpen={isOpen} onClose={onClose} title="Guest mode" manageHistory={false} contentClassName="!overflow-visible">
         <div className="space-y-4">
           {signedOutToGuest ? (
             <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -103,10 +103,24 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
     )
   }
 
-  if (!user) return null
+  if (!user) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Account settings"
+        manageHistory={false}
+        contentClassName="!overflow-visible"
+      >
+        <div className="flex justify-center py-8" aria-hidden>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal" />
+        </div>
+      </Modal>
+    )
+  }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Account settings" contentClassName="!overflow-visible">
+    <Modal isOpen={isOpen} onClose={onClose} title="Account settings" manageHistory={false} contentClassName="!overflow-visible">
       <div className="space-y-4">
         <div className="flex items-center gap-3 pb-1">
           <ProfileAvatar user={user} size={48} className="w-12 h-12" />

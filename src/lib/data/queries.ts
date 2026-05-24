@@ -19,6 +19,7 @@ import type {
   ListWithRole,
   MemberWithCreator,
 } from '@/lib/supabase/types'
+import { getCachedLists } from '@/lib/cache'
 import { compareListsCatalogSortOrder, listCatalogSortOrderForVisualIndex } from '@/lib/data/listCatalogSort'
 
 const PATCH_OVERLAY_STATUSES: readonly SyncQueueStatus[] = ['queued', 'processing', 'failed']
@@ -300,6 +301,12 @@ export async function buildListsCatalogFromDexie(userId: string): Promise<ListWi
   for (const { listUser, row } of listRows) {
     if (listUser.role !== 'owner' && row.owner_id) ownerIds.add(row.owner_id)
   }
+  const cachedOwnerNickById = new Map<string, string>()
+  for (const list of getCachedLists(userId)?.lists ?? []) {
+    if (list.role !== 'owner' && list.owner_id && list.ownerNickname?.trim()) {
+      cachedOwnerNickById.set(list.owner_id, list.ownerNickname.trim())
+    }
+  }
   const ownerNickById = new Map<string, string | null>()
   await Promise.all(
     [...ownerIds].map(async (oid) => {
@@ -327,7 +334,9 @@ export async function buildListsCatalogFromDexie(userId: string): Promise<ListWi
       activeItemCount: counts.activeItemCount,
       archivedItemCount: counts.archivedItemCount,
       ownerNickname:
-        listUser.role !== 'owner' ? (ownerNickById.get(row.owner_id) ?? null) : null,
+        listUser.role !== 'owner'
+          ? (ownerNickById.get(row.owner_id) ?? cachedOwnerNickById.get(row.owner_id) ?? null)
+          : null,
       pending_items: countPendingOutboundForList(queueRows, row.id),
       sync_error: listUser.sync_error === true,
     }

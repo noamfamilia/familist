@@ -1,5 +1,4 @@
 import type { User } from '@supabase/supabase-js'
-import { clearPendingSignUpMigration } from '@/lib/authSignUpMigration'
 import { userHasGoogleIdentity } from '@/lib/googleProfileNickname'
 
 export type GoogleAuthIntent = 'signIn' | 'signUp'
@@ -116,13 +115,12 @@ function existingAccountSignInMessage(user: User): string {
 
 /**
  * User chose sign-up but OAuth returned an existing account — treat as sign-in:
- * no profile modal, no guest migration prompt, show an info toast on home.
+ * no profile modal, show an info toast on home.
  */
 export function applyOAuthSignUpDowngradeForExistingAccount(user: User): boolean {
   if (!isExistingAuthUser(user)) return false
 
   clearOpenProfileAfterOAuthSignUp()
-  clearPendingSignUpMigration()
   markOAuthExistingAccountSignInNotice(existingAccountSignInMessage(user))
   return true
 }

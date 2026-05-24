@@ -158,6 +158,7 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
       db.item_member_state,
       db.offline_route_markers,
       db.sync_queue,
+      db.profiles,
     ],
     async () => {
       const queue = await loadPendingOutboundQueueSnapshot()
@@ -174,7 +175,10 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
       )
       const incomingIds = new Set(rowsReconciled.map((row) => row.id))
       for (const row of rowsReconciled) {
-        const { role, userArchived, userArchivedAt, sort_order, sumScope, label } = row
+        const { role, userArchived, userArchivedAt, sort_order, sumScope, label, ownerNickname } = row
+        if (role !== 'owner' && row.owner_id) {
+          await upsertOwnerProfileNicknameFromCatalog(row.owner_id, ownerNickname)
+        }
         const existingList = await db.lists.get(row.id)
         const listSync = normalizeServerSyncableFields(row as unknown as Record<string, unknown>)
         await db.lists.put(
@@ -471,4 +475,31 @@ export async function readListPrefsFromDexie(userId: string, listId: string) {
 export async function upsertProfileFromServer(row: Profile) {
   const sync = normalizeServerSyncableFields(row as unknown as Record<string, unknown>)
   await db.profiles.put(withLastSyncedNow({ ...row, ...sync }))
+}
+
+/** Persist list-owner display names from `get_user_lists` so shared list cards can resolve `ownerNickname` offline. */
+async function upsertOwnerProfileNicknameFromCatalog(
+  ownerId: string,
+  nickname: string | null | undefined,
+): Promise<void> {
+  const trimmed = nickname?.trim()
+  if (!trimmed) return
+
+  const existing = await db.profiles.get(ownerId)
+  if (existing?.nickname === trimmed) return
+
+  await db.profiles.put(
+    withLastSyncedNow({
+      id: ownerId,
+      email: existing?.email ?? null,
+      nickname: trimmed,
+      label_filter: existing?.label_filter ?? 'Any',
+      theme: existing?.theme ?? 'light',
+      client_created_at: existing?.client_created_at ?? isoNow(),
+      server_created_at: existing?.server_created_at ?? null,
+      deleted_at: existing?.deleted_at ?? null,
+      version: existing?.version ?? 1,
+      last_synced_at: existing?.last_synced_at ?? null,
+    }),
+  )
 }

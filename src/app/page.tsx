@@ -104,6 +104,7 @@ function HomeContent() {
     isGuest,
     sessionRestoring,
     profileFetchPhase,
+    guestMigrationPromptActive,
     updateProfile,
     updateActorProfile,
   } = useAuth()
@@ -171,10 +172,11 @@ function HomeContent() {
   useEffect(() => {
     if (!pendingProfileOpenAfterOAuth) return
     if (!hasMounted || isGuest || !user || authPhase !== 'authenticated') return
+    if (guestMigrationPromptActive) return
     if (profileFetchPhase === 'loading') return
     setPendingProfileOpenAfterOAuth(false)
     setShowProfile(true)
-  }, [pendingProfileOpenAfterOAuth, hasMounted, isGuest, user, authPhase, profileFetchPhase])
+  }, [pendingProfileOpenAfterOAuth, hasMounted, isGuest, user, authPhase, profileFetchPhase, guestMigrationPromptActive])
 
   useEffect(() => {
     setThemeMounted(true)

@@ -40,10 +40,9 @@ import { reconcileGuestDexieAfterSignOut } from '@/lib/data/guestCatalogReconcil
 import { discardGuestOutboundQueueRows } from '@/lib/data/syncQueue'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import {
-  clearPendingSignUpMigration,
-  consumePendingSignUpMigration,
-  markPendingSignUpMigration,
-} from '@/lib/authSignUpMigration'
+  markGuestMigrationPromptOffered,
+  shouldOfferGuestMigrationPrompt,
+} from '@/lib/guestMigrationPrompt'
 import { linkGoogleIdentity as startGoogleLink, signInWithGoogle as startGoogleOAuth, type GoogleAuthIntent } from '@/lib/authGoogle'
 import { applyGoogleNicknameIfNeeded } from '@/lib/googleProfileNickname'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
@@ -70,6 +69,10 @@ interface AuthContextType {
   displayName: string
   activeActorId: string | null
   profileFetchPhase: ProfileFetchPhase
+  /** Guest-list migration prompt is blocking the home shell. */
+  guestMigrationPromptActive: boolean
+  /** Ensure Supabase session is fully activated (lists, profile fetch). */
+  activateAuthenticatedSession: (user: User, source: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string, nickname: string) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>
   signInWithGoogle: (intent: GoogleAuthIntent) => Promise<{ error: Error | null }>
@@ -280,6 +283,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setBootstrapUserId(userRef.current.id)
     }
   }, [authPhase])
+
+  /** Heal rare desync: authenticated phase but React user state missing while session exists. */
+  useEffect(() => {
+    if (authPhase !== 'authenticated' || user) return
+    void supabase.auth.getSession().then(({ data }) => {
+      const sessionUser = data.session?.user
+      if (
+        !sessionUser ||
+        !mountedRef.current ||
+        authPhaseRef.current !== 'authenticated' ||
+        userRef.current
+      ) {
+        return
+      }
+      userRef.current = sessionUser
+      setUser(sessionUser)
+    })
+  }, [authPhase, user, supabase.auth])
 
   const hydrateProfileFromDexie = useCallback(async (userId: string) => {
     try {
@@ -547,26 +568,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [hydrateProfileFromDexie, scheduleStartupProfileFetch],
   )
 
-  const completeSignUpWithOptionalGuestMigration = useCallback(
+  const activateWithOptionalGuestMigration = useCallback(
     async (nextUser: User, source: string) => {
-      clearPendingSignUpMigration()
       if (signUpActivationHandledRef.current === nextUser.id) {
         await activateAuthenticatedUserCore(nextUser, source)
         return
       }
       signUpActivationHandledRef.current = nextUser.id
 
-      const guestId = getStoredGuestId()
-      if (guestId && isGuestId(guestId) && guestId !== nextUser.id) {
-        const listCount = await countGuestOwnedLists(guestId)
-        if (listCount > 0) {
-          const shouldMigrate = await promptGuestMigrationChoice(guestId, nextUser.id, listCount)
-          if (shouldMigrate) {
-            await runGuestMigration(guestId, nextUser.id)
-          }
-        }
-      }
       await activateAuthenticatedUserCore(nextUser, source)
+
+      const guestId = getStoredGuestId()
+      if (!guestId || !isGuestId(guestId) || guestId === nextUser.id) return
+      if (!shouldOfferGuestMigrationPrompt(guestId, nextUser.id)) return
+
+      const listCount = await countGuestOwnedLists(guestId)
+      if (listCount <= 0) return
+
+      markGuestMigrationPromptOffered(guestId, nextUser.id)
+      const shouldMigrate = await promptGuestMigrationChoice(guestId, nextUser.id, listCount)
+      if (shouldMigrate) {
+        await runGuestMigration(guestId, nextUser.id)
+      }
     },
     [activateAuthenticatedUserCore, promptGuestMigrationChoice, runGuestMigration],
   )
@@ -594,8 +617,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading,
       setActiveCacheUserId,
       activateAuthenticatedUserCore,
-      completeSignUpWithOptionalGuestMigration,
-      consumePendingSignUpMigration,
+      activateWithOptionalGuestMigration,
       enterGuestMode,
       hardRecoverInvalidRefreshToken,
     },
@@ -620,7 +642,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       )
 
       if (!result.error && result.data?.user) {
-        clearPendingSignUpMigration()
         await transitionToAuthenticated(result.data.user, 'signIn')
       }
 
@@ -641,7 +662,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const linkGoogleIdentity = async () => {
     try {
-      clearPendingSignUpMigration()
       const { error } = await startGoogleLink()
       return { error: error as Error | null }
     } catch (error) {
@@ -659,12 +679,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     })
 
-    if (!error && data?.user) {
-      markPendingSignUpMigration()
-    }
-
     if (!error && data?.user && data.session) {
-      await completeSignUpWithOptionalGuestMigration(data.user, 'signUp')
+      await transitionToAuthenticated(data.user, 'signUp')
     }
 
     const needsEmailConfirmation = !error && data?.user && !data.session
@@ -784,6 +800,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         displayName,
         activeActorId,
         profileFetchPhase,
+        guestMigrationPromptActive: guestMigrationPrompt !== null,
+        activateAuthenticatedSession: transitionToAuthenticated,
         signIn,
         signUp,
         signInWithGoogle,

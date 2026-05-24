@@ -23,18 +23,18 @@ export function GuestMigrateConfirmModal({
     <Modal
       isOpen={isOpen}
       onClose={onSkip}
-      title="Migrate lists to your account?"
+      title="Migrate guest lists to your account?"
       size="sm"
       hideClose
+      manageHistory={false}
     >
       <div className="space-y-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          You have {listLabel} on this device from guest mode. Migrate them to your new account? They will be
-          copied to your account only — nothing is synced back into guest mode.
+          You have {listLabel} on this device from guest mode. Copy them into your signed-in account?
+          They stay on this device only — nothing is synced back into guest mode.
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Choose No to keep guest lists on this device and start your account empty. You can still use guest mode
-          after signing out.
+          Choose No to keep guest lists separate. You can still browse as a guest after signing out.
         </p>
         <div className="flex flex-col gap-2 sm:flex-row-reverse sm:justify-end">
           <Button className="w-full sm:w-auto" onClick={onMigrate}>

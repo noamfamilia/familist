@@ -56,8 +56,7 @@ export type AuthPhaseBootstrapActions = {
   setLoading: (loading: boolean) => void
   setActiveCacheUserId: (id: string) => void
   activateAuthenticatedUserCore: (user: User, source: string) => Promise<void>
-  completeSignUpWithOptionalGuestMigration: (user: User, source: string) => Promise<void>
-  consumePendingSignUpMigration: () => boolean
+  activateWithOptionalGuestMigration: (user: User, source: string) => Promise<void>
   enterGuestMode: (options?: {
     freshGuest?: boolean
     signedOut?: boolean
@@ -101,6 +100,10 @@ export function useAuthPhaseBootstrap(
       r.lastAppliedUserIdRef.current === nextId &&
       phaseBefore === 'authenticated'
     ) {
+      if (r.userRef.current?.id !== nextId) {
+        r.userRef.current = nextUser
+        a.setUser(nextUser)
+      }
       return
     }
 
@@ -114,11 +117,7 @@ export function useAuthPhaseBootstrap(
     a.setActiveCacheUserId(nextId)
     setLastAuthUserId(nextId)
 
-    if (a.consumePendingSignUpMigration()) {
-      await a.completeSignUpWithOptionalGuestMigration(nextUser, source)
-    } else {
-      await a.activateAuthenticatedUserCore(nextUser, source)
-    }
+    await a.activateWithOptionalGuestMigration(nextUser, source)
 
     if (!r.mountedRef.current) return
     r.loadingRef.current = false
@@ -341,8 +340,9 @@ export function useAuthPhaseBootstrap(
           return
         }
 
-        if (nextUser) {
-          await transitionToAuthenticatedRef.current(nextUser, 'getSession-fast-path')
+        const sessionUser = sessionData?.session?.user ?? null
+        if (sessionUser) {
+          await transitionToAuthenticatedRef.current(sessionUser, 'getSession-fast-path')
         }
       } catch (error) {
         if (isInvalidRefreshTokenError(error)) {
