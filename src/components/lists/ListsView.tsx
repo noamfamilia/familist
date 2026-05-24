@@ -213,12 +213,13 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (isOfflineActionsDisabled) return
     const { active, over } = event
-    
+
     if (over && active.id !== over.id) {
       const oldIndex = activeLists.findIndex(l => l.id === active.id)
       const newIndex = activeLists.findIndex(l => l.id === over.id)
-      
+
       if (oldIndex !== -1 && newIndex !== -1) {
         const reordered = [...activeLists]
         const [removed] = reordered.splice(oldIndex, 1)
@@ -233,6 +234,12 @@ export function ListsView({ viewMode, homeTourSteps, showTutorial = true, invite
           if (!l.userArchived && visibleActiveIds.has(l.id)) {
             activeIndicesInFull.push(i)
           }
+        }
+        if (activeIndicesInFull.length === reordered.length) {
+          for (let i = 0; i < activeIndicesInFull.length; i++) {
+            nextFull[activeIndicesInFull[i]] = reordered[i]
+          }
+          void reorderLists(nextFull)
         }
       }
     }

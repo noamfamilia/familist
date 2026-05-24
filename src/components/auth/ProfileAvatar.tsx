@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { User } from '@supabase/supabase-js'
-import { ThemedImage } from '@/components/ui/ThemedImage'
 import { resolveUserAvatarUrl } from '@/lib/authAvatar'
-import { avatarCacheMetaId, parseAvatarCacheEntry } from '@/lib/avatarCache'
+import { avatarCacheMetaId, parseAvatarCacheEntry, readAvatarCacheEntry } from '@/lib/avatarCache'
+import { getOrCreateAvatarBlobUrl } from '@/lib/avatarDisplaySession'
+import { useAvatarDisplayStore } from '@/stores/avatarDisplayStore'
 import { db } from '@/lib/db'
 
 type ProfileAvatarProps = {
@@ -18,9 +19,8 @@ type ProfileAvatarProps = {
   className?: string
 }
 
-function avatarCacheEntryKey(entry: { sourceUrl: string; fetchedAt: number }): string {
-  return `${entry.sourceUrl}|${entry.fetchedAt}`
-}
+const DEFAULT_LIGHT = '/profile.png'
+const DEFAULT_DARK = '/profile_dark_trans.png'
 
 export function ProfileAvatar({
   user,
@@ -29,87 +29,91 @@ export function ProfileAvatar({
   size = 32,
   className = '',
 }: ProfileAvatarProps) {
-  const [useFallback, setUseFallback] = useState(false)
-  const [blobDisplayUrl, setBlobDisplayUrl] = useState<string | null>(null)
-  const blobKeyRef = useRef<string | null>(null)
-  const blobUrlRef = useRef<string | null>(null)
-  const remoteUrl = !guest ? resolveUserAvatarUrl(user ?? null) : null
   const cacheUserId = !guest ? user?.id ?? actorUserId ?? null : null
+  const remoteUrl = !guest ? resolveUserAvatarUrl(user ?? null) : null
 
+  const photoSrc = useAvatarDisplayStore((s) =>
+    !guest && cacheUserId && s.activeUserId === cacheUserId && !s.useFallback ? s.photoSrc : null,
+  )
+  const applyPhotoSrc = useAvatarDisplayStore((s) => s.applyPhotoSrc)
+  const beginSession = useAvatarDisplayStore((s) => s.beginSession)
+  const setUseFallback = useAvatarDisplayStore((s) => s.setUseFallback)
+
+  useEffect(() => {
+    if (guest || !cacheUserId) return
+    beginSession(cacheUserId, remoteUrl)
+  }, [beginSession, cacheUserId, guest, remoteUrl])
+
+  /** `undefined` = liveQuery loading; `null` = no row; object = row. */
   const cacheRow = useLiveQuery(
-    async () => (cacheUserId ? db.meta.get(avatarCacheMetaId(cacheUserId)) : undefined),
+    async () => {
+      if (!cacheUserId) return null
+      return (await db.meta.get(avatarCacheMetaId(cacheUserId))) ?? null
+    },
     [cacheUserId, guest],
   )
 
-  useEffect(() => {
-    setUseFallback(false)
-  }, [cacheUserId, remoteUrl])
+  useLayoutEffect(() => {
+    if (!cacheUserId || guest) return
 
-  useEffect(() => {
-    const entry = parseAvatarCacheEntry(cacheRow?.value)
-    if (!entry) {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current)
-        blobUrlRef.current = null
-        blobKeyRef.current = null
-      }
-      setBlobDisplayUrl(null)
-      return
-    }
+    let cancelled = false
+    void readAvatarCacheEntry(cacheUserId).then((entry) => {
+      if (cancelled || !entry) return
+      const url = getOrCreateAvatarBlobUrl(cacheUserId, entry)
+      applyPhotoSrc(cacheUserId, url, entry.sourceUrl)
+    })
 
-    const key = avatarCacheEntryKey(entry)
-    if (blobKeyRef.current === key && blobUrlRef.current) {
-      setBlobDisplayUrl(blobUrlRef.current)
-      return
-    }
-
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current)
-    }
-
-    const blob = new Blob([entry.bytes], { type: entry.mimeType })
-    const objectUrl = URL.createObjectURL(blob)
-    blobKeyRef.current = key
-    blobUrlRef.current = objectUrl
-    setBlobDisplayUrl(objectUrl)
-  }, [cacheRow])
-
-  useEffect(() => {
     return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current)
-        blobUrlRef.current = null
-        blobKeyRef.current = null
-      }
+      cancelled = true
     }
-  }, [])
+  }, [applyPhotoSrc, cacheUserId, guest])
 
-  const imgSrc = blobDisplayUrl ?? remoteUrl
-  const showGooglePhoto = !!imgSrc && !useFallback
+  useEffect(() => {
+    if (cacheRow === undefined || guest || !cacheUserId) return
+
+    const entry = parseAvatarCacheEntry(cacheRow?.value)
+    if (!entry) return
+
+    const url = getOrCreateAvatarBlobUrl(cacheUserId, entry)
+    applyPhotoSrc(cacheUserId, url, entry.sourceUrl)
+  }, [applyPhotoSrc, cacheRow, cacheUserId, guest])
+
   const sizeClass = className.includes('w-') ? className : `w-8 h-8 ${className}`.trim()
+  const photoShapeClass = guest ? '' : ' rounded-full object-cover ring-1 ring-black/5 dark:ring-white/10'
+  const showPhoto = !guest && !!photoSrc
 
-  if (showGooglePhoto) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
+  return (
+    <span className={`relative inline-block shrink-0 ${sizeClass}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={imgSrc}
+        src={DEFAULT_LIGHT}
         alt=""
         width={size}
         height={size}
-        className={`${sizeClass} rounded-full object-cover ring-1 ring-black/5 dark:ring-white/10`}
-        referrerPolicy="no-referrer"
-        onError={() => setUseFallback(true)}
+        className={`block h-full w-full dark:hidden${guest ? '' : photoShapeClass}`}
       />
-    )
-  }
-
-  return (
-    <ThemedImage
-      src="/profile.png"
-      alt=""
-      width={size}
-      height={size}
-      className={`${sizeClass}${guest ? '' : ' rounded-full'}`}
-    />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={DEFAULT_DARK}
+        alt=""
+        width={size}
+        height={size}
+        className={`hidden h-full w-full dark:block${guest ? '' : photoShapeClass}`}
+      />
+      {showPhoto ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photoSrc}
+          alt=""
+          width={size}
+          height={size}
+          className={`absolute inset-0 h-full w-full${photoShapeClass}`}
+          referrerPolicy="no-referrer"
+          onError={() => {
+            if (cacheUserId) setUseFallback(cacheUserId)
+          }}
+        />
+      ) : null}
+    </span>
   )
 }

@@ -1,5 +1,6 @@
 import type { User } from '@supabase/supabase-js'
 import { resolveUserAvatarUrl } from '@/lib/authAvatar'
+import { writeAvatarDisplayHint } from '@/lib/avatarDisplaySession'
 import { db } from '@/lib/db'
 
 const META_PREFIX = 'avatar_cache_'
@@ -45,7 +46,10 @@ export async function cacheUserAvatarIfNeeded(user: User): Promise<boolean> {
   if (!sourceUrl) return false
 
   const existing = await readAvatarCacheEntry(user.id)
-  if (existing?.sourceUrl === sourceUrl) return true
+  if (existing?.sourceUrl === sourceUrl) {
+    writeAvatarDisplayHint(user.id, sourceUrl)
+    return true
+  }
 
   try {
     const res = await fetch(sourceUrl, { referrerPolicy: 'no-referrer' })
@@ -61,6 +65,7 @@ export async function cacheUserAvatarIfNeeded(user: User): Promise<boolean> {
       bytes: new Uint8Array(buf),
       fetchedAt: Date.now(),
     })
+    writeAvatarDisplayHint(user.id, sourceUrl)
     return true
   } catch {
     return false

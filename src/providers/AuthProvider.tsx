@@ -38,6 +38,7 @@ import { useAuthPhaseBootstrap } from '@/providers/useAuthPhaseBootstrap'
 import { reconcileGuestDexieAfterSignOut } from '@/lib/data/guestCatalogReconcile'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { cacheUserAvatarIfNeeded } from '@/lib/avatarCache'
+import { bootstrapAvatarDisplaySession, useAvatarDisplayStore } from '@/stores/avatarDisplayStore'
 import { resolveUserAvatarUrl } from '@/lib/authAvatar'
 import { linkGoogleIdentity as startGoogleLink, signInWithGoogle as startGoogleOAuth, type GoogleAuthIntent } from '@/lib/authGoogle'
 import { applyGoogleNicknameIfNeeded } from '@/lib/googleProfileNickname'
@@ -235,6 +236,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     scheduleAfterFirstPaint(() => {
       void runLocalDexieGc()
     })
+    if (typeof window === 'undefined') return
+    const bootId = initialShell.bootstrapUserId
+    if (bootId && initialShell.phase === 'authenticated' && !isGuestId(bootId)) {
+      bootstrapAvatarDisplaySession(bootId)
+    }
   }, [])
 
   useEffect(() => {
@@ -353,6 +359,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (options?.signedOut) {
       clearLastAuthUserId()
+      useAvatarDisplayStore.getState().clearSession()
       if (options.formerAuthUserId) {
         await reconcileGuestDexieAfterSignOut(gid, options.formerAuthUserId)
       }
@@ -552,6 +559,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastEnterGuestModeGidRef.current = null
       void hydrateProfileFromDexie(nextUser.id)
       scheduleStartupProfileFetch(nextUser.id)
+      bootstrapAvatarDisplaySession(nextUser.id, resolveUserAvatarUrl(nextUser))
       void cacheUserAvatarIfNeeded(nextUser)
       bumpReadDiscardGeneration('activate-authenticated-user')
     },
