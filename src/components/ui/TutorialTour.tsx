@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
-import Joyride, { ACTIONS, CallBackProps, STATUS, Step } from 'react-joyride'
+import { createPortal } from 'react-dom'
+import Joyride, { ACTIONS, CallBackProps, EVENTS, STATUS, Step } from 'react-joyride'
+import { useHasMounted } from '@/hooks/useHasMounted'
 
 interface TutorialTourProps {
   tourId: string
@@ -9,6 +11,8 @@ interface TutorialTourProps {
   run?: boolean
   onComplete?: () => void
   contentKey?: string | number // Changes when content changes to trigger re-check
+  /** For lists inside fixed/scrollable shells (home overlay, sticky headers). */
+  layoutMode?: 'default' | 'scrollable'
 }
 
 const SHOW_TUTORIAL_SESSION_PREFIX = 'familist_run_tutorial_'
@@ -61,12 +65,51 @@ function markTargetCompleted(tourId: string, target: string | null) {
   saveCompletedTargets(tourId, completedTargets)
 }
 
-function isTargetReady(target: string) {
-  const element = document.querySelector(target)
+function resolveTourTarget(target: Step['target']): Element | null {
+  if (typeof target === 'string') {
+    return document.querySelector(target)
+  }
+  if (target instanceof HTMLElement) {
+    return target
+  }
+  return null
+}
+
+function isTargetReady(target: Step['target']) {
+  const element = resolveTourTarget(target)
   if (!element) return false
 
   const rect = element.getBoundingClientRect()
   return rect.width > 0 && rect.height > 0
+}
+
+function scrollTourTargetIntoView(target: Step['target']) {
+  const element = resolveTourTarget(target)
+  if (!element) return
+
+  element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
+
+  let parent = element.parentElement
+  while (parent) {
+    const style = getComputedStyle(parent)
+    const scrollableY = /auto|scroll|overlay/.test(style.overflowY)
+    const scrollableX = /auto|scroll|overlay/.test(style.overflowX)
+    if (scrollableY || scrollableX) {
+      const elRect = element.getBoundingClientRect()
+      const parentRect = parent.getBoundingClientRect()
+      if (elRect.top < parentRect.top + 8) {
+        parent.scrollTop -= parentRect.top - elRect.top + 8
+      } else if (elRect.bottom > parentRect.bottom - 8) {
+        parent.scrollTop += elRect.bottom - parentRect.bottom + 8
+      }
+      if (elRect.left < parentRect.left + 8) {
+        parent.scrollLeft -= parentRect.left - elRect.left + 8
+      } else if (elRect.right > parentRect.right - 8) {
+        parent.scrollLeft += elRect.right - parentRect.right + 8
+      }
+    }
+    parent = parent.parentElement
+  }
 }
 
 function resetTourRuntimeState(args: {
@@ -98,7 +141,16 @@ function resetTourRuntimeState(args: {
   args.setFilteredSteps([])
 }
 
-export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentKey }: TutorialTourProps) {
+export function TutorialTour({
+  tourId,
+  steps,
+  run: runProp,
+  onComplete,
+  contentKey,
+  layoutMode = 'default',
+}: TutorialTourProps) {
+  const scrollableLayout = layoutMode === 'scrollable'
+  const hasMounted = useHasMounted()
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
@@ -146,29 +198,15 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
     return () => window.removeEventListener(SHOW_TUTORIAL_EVENT, handleShowTutorial)
   }, [tourId])
 
-  const waitForTargetAndAdvance = (target: string, attempt = 0) => {
-    clearWaitTimer()
-    pendingTargetRef.current = target
+  const refreshScrollableLayout = (target: Step['target']) => {
+    if (!scrollableLayout) return
+    scrollTourTargetIntoView(target)
     setRun(false)
-
-    if (!isTargetReady(target)) {
-      if (attempt >= 40) return
-
-      waitTimerRef.current = setTimeout(() => {
-        waitForTargetAndAdvance(target, attempt + 1)
-      }, 150)
-      return
-    }
-
-    const nextIndex = filteredStepsRef.current.findIndex(
-      step => typeof step.target === 'string' && step.target === target
-    )
-
-    if (nextIndex !== -1) {
-      pendingTargetRef.current = null
-      setStepIndex(nextIndex)
-      setRun(true)
-    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setRun(true)
+      })
+    })
   }
 
   useEffect(() => {
@@ -241,7 +279,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       setStepIndex(0)
       hasStartedRef.current = true
       setRun(true)
-    } else if (contentChanged && hasStartedRef.current && runRef.current) {
+    } else if (!scrollableLayout && contentChanged && hasStartedRef.current && runRef.current) {
       // DOM nodes may have been replaced (e.g. optimistic→real ID key swap).
       // Toggle run so Joyride re-queries the CSS selector for the current target.
       if (reanchorTimerRef.current) clearTimeout(reanchorTimerRef.current)
@@ -251,7 +289,7 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
         setRun(true)
       }, 50)
     }
-  }, [tourId, runProp, steps, contentKey, restartNonce])
+  }, [tourId, runProp, steps, contentKey, restartNonce, scrollableLayout])
 
   useEffect(() => {
     filteredStepsRef.current = filteredSteps
@@ -270,7 +308,11 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
   }, [])
 
   const handleCallback = (data: CallBackProps) => {
-    const { status, index, type } = data
+    const { status, index, type, step } = data
+
+    if (type === EVENTS.STEP_BEFORE && scrollableLayout) {
+      refreshScrollableLayout(step.target)
+    }
 
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
       // Mark shown steps as completed by their target
@@ -319,15 +361,16 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
 
   if (filteredSteps.length === 0) return null
 
-  return (
+  const joyride = (
     <Joyride
       steps={filteredSteps}
       run={run}
       stepIndex={stepIndex}
       continuous
       showSkipButton
-      disableScrollParentFix
-      disableScrolling
+      disableScrollParentFix={!scrollableLayout}
+      disableScrolling={!scrollableLayout}
+      scrollToFirstStep={scrollableLayout}
       callback={handleCallback}
       styles={{
         options: {
@@ -359,6 +402,12 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       }}
     />
   )
+
+  if (scrollableLayout && hasMounted) {
+    return createPortal(joyride, document.body)
+  }
+
+  return joyride
 }
 
 export function resetTutorial(tourId: string) {

@@ -646,52 +646,50 @@ export function MemberHeader({
         <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
           <div className="flex h-[40px] w-5 flex-shrink-0 items-center justify-center" aria-hidden />
           <div
-            className="relative h-[40px] flex-shrink-0 overflow-visible"
+            className="flex h-[40px] shrink-0 items-center gap-3 overflow-visible"
             style={{ width: headerItemNameSlotWidthPx }}
           >
-            <div className="absolute left-0 top-1/2 flex -translate-y-1/2 items-center gap-3">
-              {onItemNameFontStepChange && (
-                <div
-                  data-tour="list-font"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center"
+            {onItemNameFontStepChange && (
+              <div
+                data-tour="list-font"
+                className="flex h-10 w-10 shrink-0 items-center justify-center"
+              >
+                <button
+                  ref={itemNameFontBtnRef}
+                  type="button"
+                  onClick={handleItemNameFontButtonClick}
+                  className="flex h-10 w-10 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
+                  aria-label="Item display controls"
+                  aria-expanded={itemNameFontOpen}
                 >
-                  <button
-                    ref={itemNameFontBtnRef}
-                    type="button"
-                    onClick={handleItemNameFontButtonClick}
-                    className="flex h-10 w-10 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
-                    aria-label="Item display controls"
-                    aria-expanded={itemNameFontOpen}
-                  >
-                    <FontSizeIcon className="h-7 w-7 [&_*]:stroke-[3]" />
-                  </button>
-                </div>
-              )}
-              {onSaveCategorySettings && (
-                <div
-                  data-tour="list-category"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center"
+                  <FontSizeIcon className="h-7 w-7 [&_*]:stroke-[3]" />
+                </button>
+              </div>
+            )}
+            {onSaveCategorySettings && (
+              <div
+                data-tour="list-category"
+                className="flex h-10 w-10 shrink-0 items-center justify-center"
+              >
+                <button
+                  type="button"
+                  disabled={isOfflineActionsDisabled}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (isOfflineActionsDisabled) return
+                    setShowCategoryModal(true)
+                  }}
+                  className={`flex h-10 w-10 items-center justify-center rounded p-0 touch-manipulation hover:opacity-80 ${
+                    isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''
+                  }`}
+                  aria-label={isOfflineActionsDisabled ? 'Categories (unavailable offline)' : 'Open categories'}
+                  title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : 'Categories and list sort'}
                 >
-                  <button
-                    type="button"
-                    disabled={isOfflineActionsDisabled}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      if (isOfflineActionsDisabled) return
-                      setShowCategoryModal(true)
-                    }}
-                    className={`flex h-10 w-10 items-center justify-center rounded p-0 touch-manipulation hover:opacity-80 ${
-                      isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''
-                    }`}
-                    aria-label={isOfflineActionsDisabled ? 'Categories (unavailable offline)' : 'Open categories'}
-                    title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : 'Categories and list sort'}
-                  >
-                    <CategoryEditorIcon className="h-7 w-7" />
-                  </button>
-                </div>
-              )}
-            </div>
+                  <CategoryEditorIcon className="h-7 w-7" />
+                </button>
+              </div>
+            )}
           </div>
           
           {/* Members section — dimmed and non-interactive while offline or recovering */}

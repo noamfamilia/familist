@@ -1123,10 +1123,11 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       </div>
       
       {/* Tutorial - shows available steps, resumes when new targets appear */}
-      <TutorialTour 
-        tourId="list" 
+      <TutorialTour
+        tourId="list"
         steps={listTourSteps}
-        contentKey={`${items.map(item => `${item.id}:${item.archived ? 'archived' : 'active'}`).join('|')}::${members.map(member => member.id).join('|')}`}
+        layoutMode="scrollable"
+        contentKey={listId}
       />
 
       <ConfirmModal
