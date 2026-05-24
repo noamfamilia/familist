@@ -38,7 +38,7 @@ interface CategoryNamesModalProps {
   isOpen: boolean
   onClose: () => void
   anchorPos: { top: number; left: number } | null
-  anchorRef?: React.RefObject<HTMLElement | null>
+  popoverRef?: React.RefObject<HTMLDivElement | null>
   categoryNames: CategoryNames
   categoryOrder: number[]
   onSave: (
@@ -114,7 +114,7 @@ export const CategoryNamesModal = forwardRef<CategoryNamesModalHandle, CategoryN
       isOpen,
       onClose,
       anchorPos,
-      anchorRef,
+      popoverRef,
       categoryNames,
       categoryOrder,
       onSave,
@@ -125,7 +125,6 @@ export const CategoryNamesModal = forwardRef<CategoryNamesModalHandle, CategoryN
     const { error: showError } = useToast()
     const [names, setNames] = useState<CategoryNames>({ ...categoryNames })
     const [order, setOrder] = useState<number[]>([...categoryOrder])
-    const popoverRef = useRef<HTMLDivElement>(null)
     const wasOpenRef = useRef(false)
     const savingRef = useRef(false)
 
@@ -215,18 +214,6 @@ export const CategoryNamesModal = forwardRef<CategoryNamesModalHandle, CategoryN
       return () => document.removeEventListener('keydown', onKeyDown)
     }, [handleDone, isOpen])
 
-    useEffect(() => {
-      if (!isOpen) return
-      const onMouseDown = (e: MouseEvent) => {
-        const target = e.target as Node
-        if (popoverRef.current?.contains(target)) return
-        if (anchorRef?.current?.contains(target)) return
-        void handleDone()
-      }
-      document.addEventListener('mousedown', onMouseDown, true)
-      return () => document.removeEventListener('mousedown', onMouseDown, true)
-    }, [anchorRef, handleDone, isOpen])
-
     if (!menuAnim.mounted || !anchorPosStableRef.current || typeof document === 'undefined') {
       return null
     }
@@ -243,7 +230,6 @@ export const CategoryNamesModal = forwardRef<CategoryNamesModalHandle, CategoryN
         style={{ top: pos.top, left: pos.left }}
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="mb-3 text-center text-sm font-semibold text-teal">Categories</p>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
@@ -258,7 +244,7 @@ export const CategoryNamesModal = forwardRef<CategoryNamesModalHandle, CategoryN
             </div>
           </SortableContext>
         </DndContext>
-        <div className="mt-4 flex justify-center">
+        <div className="mt-3 flex justify-center">
           <button
             type="button"
             onClick={() => void handleSortClick()}

@@ -156,8 +156,10 @@ export function MemberHeader({
   const [actionsMenuPos, setActionsMenuPos] = useState<{ top: number; right: number } | null>(null)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [categoryModalPos, setCategoryModalPos] = useState<{ top: number; left: number } | null>(null)
+  const headerCardRef = useRef<HTMLDivElement>(null)
   const categoryBtnRef = useRef<HTMLButtonElement>(null)
   const categoryModalRef = useRef<CategoryNamesModalHandle>(null)
+  const categoryModalPopoverRef = useRef<HTMLDivElement>(null)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
   const actionsButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -165,6 +167,14 @@ export function MemberHeader({
     setActionsOpen(false)
     setActionsMenuPos(null)
   }
+
+  const computeDisplayPopoverPos = useCallback((anchorEl: HTMLElement, popoverWidth: number) => {
+    const btnRect = anchorEl.getBoundingClientRect()
+    const cardLeft = headerCardRef.current?.getBoundingClientRect().left ?? btnRect.left
+    const vw = window.innerWidth
+    const left = Math.min(Math.max(8, cardLeft), vw - popoverWidth - 8)
+    return { top: btnRect.bottom + 6, left }
+  }, [])
 
   const handleCategoryButtonClick = useCallback(
     (e: React.MouseEvent) => {
@@ -178,15 +188,11 @@ export function MemberHeader({
       requestAnimationFrame(() => {
         const el = categoryBtnRef.current
         if (!el) return
-        const r = el.getBoundingClientRect()
-        const vw = window.innerWidth
-        const popoverWidth = 240
-        const left = Math.min(Math.max(8, r.left), vw - popoverWidth - 8)
-        setCategoryModalPos({ top: r.bottom + 6, left })
+        setCategoryModalPos(computeDisplayPopoverPos(el, 240))
         setShowCategoryModal(true)
       })
     },
-    [isOfflineActionsDisabled, showCategoryModal],
+    [computeDisplayPopoverPos, isOfflineActionsDisabled, showCategoryModal],
   )
 
   const closeCategoryModal = useCallback(() => {
@@ -420,7 +426,6 @@ export function MemberHeader({
   const memberMenuDisplayMember = openMember ?? lastOpenMemberRef.current
 
   const memberMenuRef = useRef<HTMLDivElement>(null)
-  const headerCardRef = useRef<HTMLDivElement>(null)
   const chipRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
   const [memberMenuPos, setMemberMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
   const [renamePopoverPos, setRenamePopoverPos] = useState<{ top: number; left: number } | null>(null)
@@ -510,15 +515,11 @@ export function MemberHeader({
       requestAnimationFrame(() => {
         const el = itemNameFontBtnRef.current
         if (!el) return
-        const r = el.getBoundingClientRect()
-        const vw = window.innerWidth
-        const popoverWidth = 180
-        const left = Math.min(Math.max(8, r.left), vw - popoverWidth - 8)
-        setItemNameFontPos({ top: r.bottom + 6, left })
+        setItemNameFontPos(computeDisplayPopoverPos(el, 200))
         setItemNameFontOpen(true)
       })
     },
-    [itemNameFontOpen, onItemNameFontStepChange],
+    [computeDisplayPopoverPos, itemNameFontOpen, onItemNameFontStepChange],
   )
 
   const handleFontBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -570,15 +571,19 @@ export function MemberHeader({
 
   // Unified outside-click: clicks inside header area are allowed, clicks outside close popups and are blocked
   useEffect(() => {
-    const anyOpen = !!openMenuId || isAdding || actionsOpen || itemNameFontOpen
+    const anyOpen = !!openMenuId || isAdding || actionsOpen || itemNameFontOpen || showCategoryModal
     if (!anyOpen) return
 
     const isInsideFloating = (target: Node) => {
       const fontFloating =
         itemNameFontOpen &&
         (itemNameFontPopoverRef.current?.contains(target) || itemNameFontBtnRef.current?.contains(target))
+      const categoryFloating =
+        showCategoryModal &&
+        (categoryModalPopoverRef.current?.contains(target) || categoryBtnRef.current?.contains(target))
       return (
         fontFloating ||
+        categoryFloating ||
         memberMenuRef.current?.contains(target) ||
         actionsMenuRef.current?.contains(target) ||
         actionsButtonRef.current?.contains(target) ||
@@ -596,6 +601,17 @@ export function MemberHeader({
 
     const handleMouseDown = (e: MouseEvent) => {
       const target = e.target as Node
+
+      if (showCategoryModal) {
+        if (categoryModalPopoverRef.current?.contains(target) || categoryBtnRef.current?.contains(target)) {
+          return
+        }
+        e.preventDefault()
+        e.stopPropagation()
+        blockNextClickRef.current = true
+        void categoryModalRef.current?.saveAndClose()
+        return
+      }
 
       if (itemNameFontOpen) {
         if (itemNameFontPopoverRef.current?.contains(target) || itemNameFontBtnRef.current?.contains(target)) {
@@ -621,7 +637,7 @@ export function MemberHeader({
 
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
-  }, [openMenuId, isAdding, actionsOpen, itemNameFontOpen, editingMemberId, closeMemberMenu, handleCancelEdit])
+  }, [openMenuId, isAdding, actionsOpen, itemNameFontOpen, showCategoryModal, editingMemberId, closeMemberMenu, handleCancelEdit])
 
   useEffect(() => {
     if (!itemNameFontOpen || !onItemNameFontStepChange) return
@@ -1317,10 +1333,10 @@ export function MemberHeader({
       {onSaveCategorySettings && categoryNames && (
         <CategoryNamesModal
           ref={categoryModalRef}
+          popoverRef={categoryModalPopoverRef}
           isOpen={showCategoryModal}
           onClose={closeCategoryModal}
           anchorPos={categoryModalPos}
-          anchorRef={categoryBtnRef}
           categoryNames={categoryNames}
           categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
           onSave={async (names, order, options) => onSaveCategorySettings(names, order, options)}
