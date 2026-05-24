@@ -290,6 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** Heal rare desync: authenticated phase but React user state missing while session exists. */
   useEffect(() => {
     if (authPhase !== 'authenticated' || user) return
+    if (localAccountBootRef.current) return
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
     void supabase.auth.getSession().then(({ data }) => {
       const sessionUser = data.session?.user

@@ -32,7 +32,7 @@ export type SessionExpiredToastCode =
   | '444'
 
 /** Boot-time session verification failures (local actor kept; Dexie lists stay visible). */
-export type BootSessionVerifyCode = '450' | '451' | '452'
+export type BootSessionVerifyCode = '450' | '451' | '452' | '453'
 
 export function formatSessionExpiredToast(
   code: SessionExpiredToastCode | BootSessionVerifyCode,
