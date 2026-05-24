@@ -248,7 +248,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const { error: showError } = useToast()
   const hasMounted = useHasMounted()
-  const { offlineAssetsReady, swControlled, internetReachable, online, isOffline, isRecovering } =
+  const { offlineAssetsReady, swControlled, online, isOffline, isRecovering } =
     useConnectivity()
   const {
     list,

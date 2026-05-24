@@ -51,11 +51,9 @@ const SW_FALLBACK_REGISTER_GRACE_MS = 600
 /** When PWA debug is off, short poll only — do not block startup on long Serwist wait */
 const SW_QUIET_MAX_WAIT_MS = 3_000
 const SW_QUIET_POLL_MS = 500
-const BOOT_ONLINE_GRACE_MS = 1_500
 const OFFLINE_BANNER_DEBOUNCE_MS = 3_000
-/** Online heartbeat + offline backoff probes (see recovery health 10s). */
+/** Offline recovery probes via `/api/reachability` (see recovery health 10s). */
 const REACHABILITY_PROBE_TIMEOUT_MS = 5_000
-const ONLINE_HEARTBEAT_INTERVAL_MS = 15_000
 /** Minimum time the recovering icon stays visible after health succeeds, before going online. */
 const RECOVERY_MIN_VISIBLE_MS = 1_000
 const PWA_ENABLED = process.env.NEXT_PUBLIC_PWA_ENABLED === 'true'
@@ -127,7 +125,6 @@ function logFallbackSwRegister() {
 type ConnectivityContextType = {
   status: ConnectivityStatus
   online: boolean
-  internetReachable: boolean | null
   /** True when connectivity status is `offline` (show offline indicator). */
   isOffline: boolean
   /** True when connectivity status is `recovering` (show cloud-only indicator). */
@@ -183,16 +180,10 @@ async function probeInternetReachable(): Promise<boolean> {
 
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
   const { dismissToast } = useToast()
-  const [hasMounted, setHasMounted] = useState(false)
   const [status, setStatus] = useState<ConnectivityStatus>('online')
   const [offlineAssetsReady, setOfflineAssetsReady] = useState(false)
   const [swControlled, setSwControlled] = useState(false)
-  const [internetReachable, setInternetReachable] = useState<boolean | null>(null)
   const [showOfflineBanner, setShowOfflineBanner] = useState(false)
-
-  useEffect(() => {
-    setHasMounted(true)
-  }, [])
 
   useLayoutEffect(() => {
     if (bootLoggedRef.current) return
@@ -253,7 +244,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const startRecoveryHealthCheckRef = useRef<() => void>(() => {})
 
   const statusRef = useRef<ConnectivityStatus>('online')
-  const bootStartedAtRef = useRef(Date.now())
   const bootLoggedRef = useRef(false)
   const offlineBannerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
@@ -317,8 +307,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   const probeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const probeInFlightRef = useRef(false)
   const probeStepRef = useRef(0)
-  const consecutiveProbeFailuresRef = useRef(0)
-  const lastNetworkSuccessAtRef = useRef(Date.now())
   /** After `window` `online` (or tab visible while browser reports online), next probe uses POST_ONLINE_PROBE_DELAY_MS. */
   const useNextProbeDelay1sRef = useRef(false)
   /** While true, first probe failure after post-online schedule must not advance backoff step (next wait stays 1s). */
@@ -363,12 +351,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     dismissSyncingToast()
     clearProbeSchedule()
     probeStepRef.current = 0
-    consecutiveProbeFailuresRef.current = 0
     probeInFlightRef.current = false
     useNextProbeDelay1sRef.current = false
     skipNextProbeStepIncrementRef.current = false
-    lastNetworkSuccessAtRef.current = Date.now()
-    setInternetReachable(true)
     statusRef.current = 'online'
     setStatus('online')
     try {
@@ -462,12 +447,10 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
           return
         }
         probeInFlightRef.current = true
-        const probeStartedAt = performance.now()
         const ok = await probeInternetReachable()
         probeInFlightRef.current = false
         // `statusRef` can flip to `online` while the probe fetch runs; ref type does not model that.
         if ((statusRef.current as ConnectivityStatus) === 'online') return
-        const s = statusRef.current
 
         if (!ok) {
           if (skipNextProbeStepIncrementRef.current) {
@@ -480,12 +463,9 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
         }
 
         probeStepRef.current = 0
-        consecutiveProbeFailuresRef.current = 0
         skipNextProbeStepIncrementRef.current = false
-        lastNetworkSuccessAtRef.current = Date.now()
         if (statusRef.current === 'offline') {
           startRecoveryHealthCheckRef.current()
-        } else {
         }
       })()
     }, delay)
@@ -502,19 +482,16 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const enterOffline = useCallback((cause = 'unknown') => {
-    const prev = statusRef.current
     cancelRecoveryHealth()
     clearSyncTimeout()
     dismissSyncingToast()
     clearProbeSchedule()
     probeStepRef.current = 0
-    consecutiveProbeFailuresRef.current = 0
     probeInFlightRef.current = false
     useNextProbeDelay1sRef.current = false
     skipNextProbeStepIncrementRef.current = false
     bumpReadDiscardGeneration(`enter-offline:${cause}`)
     serverLastProgressAtRef.current = Date.now()
-    setInternetReachable(false)
     statusRef.current = 'offline'
     setStatus('offline')
     try {
@@ -649,53 +626,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
     return () => {
       cancelled = true
       disposers.forEach((d) => d())
-    }
-  }, [])
-
-  useEffect(() => {
-    const withinBootGrace = Date.now() - bootStartedAtRef.current < BOOT_ONLINE_GRACE_MS
-    const navigatorOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
-    const computedOnline = withinBootGrace || internetReachable !== false
-  }, [internetReachable, offlineAssetsReady, swControlled])
-
-  useEffect(() => {
-    let cancelled = false
-    const runOnlineHeartbeat = async (cause: string) => {
-      if (cancelled) return
-      if (statusRef.current !== 'online') return
-      if (!navigatorReportsOnline()) return
-
-      const firstAttemptStartedAt = performance.now()
-      let ok = await probeInternetReachable()
-      const firstAttemptMs = Math.round(performance.now() - firstAttemptStartedAt)
-      const sinceBootMs = Date.now() - bootStartedAtRef.current
-      if (!ok && firstAttemptMs < 250 && sinceBootMs < BOOT_ONLINE_GRACE_MS + 1_000) {
-        await sleep(300)
-        if (cancelled) return
-        ok = await probeInternetReachable()
-      }
-      if (cancelled) return
-      if (statusRef.current !== 'online') return
-
-      setInternetReachable(ok)
-      if (ok) {
-        lastNetworkSuccessAtRef.current = Date.now()
-        return
-      }
-
-      if (sinceBootMs < BOOT_ONLINE_GRACE_MS) {
-        return
-      }
-
-      enterOfflineRef.current(`heartbeat-failed:${cause}`)
-    }
-    void runOnlineHeartbeat('initial')
-    const id = window.setInterval(() => {
-      void runOnlineHeartbeat('interval')
-    }, ONLINE_HEARTBEAT_INTERVAL_MS)
-    return () => {
-      cancelled = true
-      window.clearInterval(id)
     }
   }, [])
 
@@ -1023,7 +953,6 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       value={{
         status,
         online: status === 'online',
-        internetReachable,
         isOffline: status === 'offline',
         isRecovering: status === 'recovering',
         isOfflineActionsDisabled: false,

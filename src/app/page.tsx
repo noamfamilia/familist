@@ -113,7 +113,6 @@ function HomeContent() {
   const {
     offlineAssetsReady,
     online,
-    internetReachable,
     isOffline,
     isRecovering,
   } = useConnectivity()
