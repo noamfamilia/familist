@@ -7,11 +7,11 @@ import { ProfileAvatar } from '@/components/auth/ProfileAvatar'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
 import { shareMyFamilistApp } from '@/lib/shareFamilistApp'
 
-/** Matches list title typography in ListCard */
-const menuTextClass =
-  'font-medium text-lg text-primary dark:text-gray-100'
+/** Matches list title typography in ListCard (identity row only) */
+const identityNameClass = 'font-medium text-lg text-primary dark:text-gray-100'
 
-const menuItemClass = `block w-full px-4 py-3 text-left transition-colors duration-150 hover:bg-gray-50 hover:text-teal dark:hover:bg-neutral-800 ${menuTextClass}`
+const menuItemClass =
+  'block w-full px-4 py-2.5 text-left text-sm text-gray-900 transition-colors duration-150 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800'
 
 type ProfileHomeMenuProps = {
   user: User | null
@@ -19,9 +19,13 @@ type ProfileHomeMenuProps = {
   isGuest: boolean
   profileMenuNeedsSession: boolean
   menuClassName: string
+  themeToggleLabel: string
   onCloseMenu: () => void
   onRequestSignIn: () => void
+  onToggleTheme: () => void
+  onShowTutorial: () => void
   onRequestImport?: () => void
+  onRequestFeedback?: () => void
   importDisabled?: boolean
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   updateActorProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
@@ -36,9 +40,13 @@ export function ProfileHomeMenu({
   isGuest,
   profileMenuNeedsSession,
   menuClassName,
+  themeToggleLabel,
   onCloseMenu,
   onRequestSignIn,
+  onToggleTheme,
+  onShowTutorial,
   onRequestImport,
+  onRequestFeedback,
   importDisabled = false,
   updateProfile,
   updateActorProfile,
@@ -173,7 +181,7 @@ export function ProfileHomeMenu({
           onClick={openNicknameEditor}
         >
           <ProfileAvatar user={user} guest={isGuest} size={32} className="h-8 w-8 shrink-0" />
-          <span className={`min-w-0 flex-1 truncate ${menuTextClass}`}>{displayNickname}</span>
+          <span className={`min-w-0 flex-1 truncate ${identityNameClass}`}>{displayNickname}</span>
           <svg
             width="14"
             height="14"
@@ -205,7 +213,7 @@ export function ProfileHomeMenu({
                 if (e.key === 'Escape') cancelNicknameEdit()
               }}
               disabled={savingNickname}
-              className={`mb-2 w-full rounded-lg border border-teal px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:opacity-60 ${menuTextClass}`}
+              className={`mb-2 w-full rounded-lg border border-teal px-2 py-1 text-center text-lg font-medium text-primary focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:opacity-60 dark:text-gray-100`}
               aria-label="Display name"
             />
             <div className="flex gap-1.5">
@@ -232,7 +240,7 @@ export function ProfileHomeMenu({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto py-1">
+      <div className="overflow-y-auto py-1">
         {isGuest ? (
           <button
             type="button"
@@ -252,54 +260,91 @@ export function ProfileHomeMenu({
             Sign in
           </button>
         ) : (
-          <>
-            <button
-              type="button"
-              disabled={signingOut || profileMenuNeedsSession}
-              className={`${menuItemClass} ${
-                signingOut || profileMenuNeedsSession
-                  ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
-                  : ''
-              }`}
-              role="menuitem"
-              onClick={() => void handleSignOut()}
-            >
-              {signingOut ? 'Signing out…' : 'Sign out'}
-            </button>
-            {onRequestImport ? (
-              <button
-                type="button"
-                disabled={importDisabled || profileMenuNeedsSession}
-                className={`${menuItemClass} ${
-                  importDisabled || profileMenuNeedsSession
-                    ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
-                    : ''
-                }`}
-                role="menuitem"
-                title={
-                  profileMenuNeedsSession
-                    ? 'Restoring session…'
-                    : importDisabled
-                      ? 'Requires an internet connection'
-                      : undefined
-                }
-                onClick={handleImport}
-              >
-                Import List
-              </button>
-            ) : null}
-          </>
+          <button
+            type="button"
+            disabled={signingOut || profileMenuNeedsSession}
+            className={`${menuItemClass} ${
+              signingOut || profileMenuNeedsSession
+                ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
+                : ''
+            }`}
+            role="menuitem"
+            onClick={() => void handleSignOut()}
+          >
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </button>
         )}
-      </div>
 
-      <button
-        type="button"
-        className={`${menuItemClass} shrink-0 border-t border-gray-100 dark:border-neutral-700`}
-        role="menuitem"
-        onClick={handleShare}
-      >
-        Share My Familist
-      </button>
+        <button
+          type="button"
+          className={menuItemClass}
+          role="menuitem"
+          onClick={() => {
+            onCloseMenu()
+            onToggleTheme()
+          }}
+        >
+          {themeToggleLabel}
+        </button>
+
+        {!isGuest && onRequestImport ? (
+          <button
+            type="button"
+            disabled={importDisabled || profileMenuNeedsSession}
+            className={`${menuItemClass} ${
+              importDisabled || profileMenuNeedsSession
+                ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
+                : ''
+            }`}
+            role="menuitem"
+            title={
+              profileMenuNeedsSession
+                ? 'Restoring session…'
+                : importDisabled
+                  ? 'Requires an internet connection'
+                  : undefined
+            }
+            onClick={handleImport}
+          >
+            Import List
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          className={menuItemClass}
+          role="menuitem"
+          onClick={() => {
+            onCloseMenu()
+            onShowTutorial()
+          }}
+        >
+          Show tutorial
+        </button>
+
+        {!isGuest && onRequestFeedback ? (
+          <button
+            type="button"
+            className={menuItemClass}
+            role="menuitem"
+            onClick={() => {
+              onCloseMenu()
+              onRequestFeedback()
+            }}
+          >
+            User feedback
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          className={menuItemClass}
+          role="menuitem"
+          onClick={handleShare}
+        >
+          Share My Familist
+        </button>
+      </div>
     </aside>
   )
 }

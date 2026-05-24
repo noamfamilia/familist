@@ -43,10 +43,23 @@ const delayedAdvanceTargets: Record<string, string> = {
   '[data-tour="create-list"]': '[data-tour="list-card"]',
 }
 
+const SHOW_TUTORIAL_SESSION_PREFIX = 'familist_run_tutorial_'
+
+function consumeShowTutorialRequest(tourId: string): boolean {
+  if (typeof window === 'undefined') return false
+  const key = `${SHOW_TUTORIAL_SESSION_PREFIX}${tourId}`
+  if (sessionStorage.getItem(key) === '1') {
+    sessionStorage.removeItem(key)
+    return true
+  }
+  return false
+}
+
 export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentKey }: TutorialTourProps) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [filteredSteps, setFilteredSteps] = useState<Step[]>([])
+  const shouldRunRef = useRef(runProp === true || consumeShowTutorialRequest(tourId))
   const prevStepsKey = useRef('')
   const prevContentKey = useRef<string | number | undefined>(undefined)
   const filteredStepsRef = useRef<Step[]>([])
@@ -90,8 +103,8 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
 
   useEffect(() => {
     const isFullyComplete = localStorage.getItem(`tutorial_${tourId}`) === 'true'
-    
-    if (isFullyComplete || runProp === false) {
+
+    if (isFullyComplete || !shouldRunRef.current) {
       return
     }
 
@@ -279,6 +292,15 @@ export function resetTutorial(tourId: string) {
   localStorage.removeItem(`tutorial_${tourId}`)
   localStorage.removeItem(`tutorial_${tourId}_completed`)
   localStorage.removeItem(`tutorial_${tourId}_targets`)
+}
+
+/** Clears tutorial progress and queues home + list tours to run on next page load. */
+export function requestShowTutorial() {
+  if (typeof window === 'undefined') return
+  resetTutorial('home')
+  resetTutorial('list')
+  sessionStorage.setItem(`${SHOW_TUTORIAL_SESSION_PREFIX}home`, '1')
+  sessionStorage.setItem(`${SHOW_TUTORIAL_SESSION_PREFIX}list`, '1')
 }
 
 export function hasSeenTutorial(tourId: string): boolean {

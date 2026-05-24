@@ -21,9 +21,11 @@ import { ProfileHomeMenu } from '@/components/profile/ProfileHomeMenu'
 import { ListDetailHomeOverlay } from '@/components/lists/ListDetailHomeOverlay'
 
 import { Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useTheme } from 'next-themes'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
+import { requestShowTutorial } from '@/components/ui/TutorialTour'
 import { db } from '@/lib/db'
 import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { enqueueSyncQueueRecord, userQueueParent } from '@/lib/data/syncQueue'
@@ -129,7 +131,9 @@ function HomeContent() {
   const [feedbackText, setFeedbackText] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { success, error: showError, info } = useToast()
+  const { resolvedTheme, setTheme } = useTheme()
   const hasMounted = useHasMounted()
+  const [themeMounted, setThemeMounted] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
   const [selectedLabel, setSelectedLabel] = useState('Any')
   const lastHomeActorRef = useRef<string | null>(null)
@@ -173,6 +177,10 @@ function HomeContent() {
     setPendingProfileOpenAfterOAuth(false)
     setShowProfile(true)
   }, [pendingProfileOpenAfterOAuth, hasMounted, isGuest, user, authPhase, profileFetchPhase])
+
+  useEffect(() => {
+    setThemeMounted(true)
+  }, [])
 
   /** Re-apply per-actor home preferences when auth actor changes (sign-in / sign-out). */
   useEffect(() => {
@@ -772,14 +780,38 @@ function HomeContent() {
             isGuest={isGuest}
             profileMenuNeedsSession={profileMenuNeedsSession}
             menuClassName={profileMenuAnim.menuClassName}
+            themeToggleLabel={
+              themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'
+            }
             onCloseMenu={() => setProfileMenuOpen(false)}
             onRequestSignIn={() => {
               setAuthModalMode('signIn')
               setShowAuthModal(true)
             }}
+            onToggleTheme={() => {
+              const prev: 'light' | 'dark' =
+                themeMounted && resolvedTheme === 'dark' ? 'dark' : 'light'
+              const next: 'light' | 'dark' = prev === 'dark' ? 'light' : 'dark'
+              setTheme(next)
+              void updateActorProfile({ theme: next }).then(({ error: themeErr }) => {
+                if (themeErr) {
+                  setTheme(prev)
+                  showError(themeErr.message || 'Could not save theme')
+                }
+              })
+            }}
+            onShowTutorial={() => {
+              requestShowTutorial()
+              window.location.reload()
+            }}
             onRequestImport={
               !isGuest && user
                 ? () => setShowImport(true)
+                : undefined
+            }
+            onRequestFeedback={
+              !isGuest && user
+                ? () => setShowFeedback(true)
                 : undefined
             }
             importDisabled={isOffline || profileMenuNeedsSession}
