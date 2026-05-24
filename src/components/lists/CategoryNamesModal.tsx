@@ -1,13 +1,26 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
+import { createPortal } from 'react-dom'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
+import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import type { ItemCategory, CategoryNames } from '@/lib/supabase/types'
 
 function saveErrorMessage(error: unknown): string {
@@ -17,9 +30,15 @@ function saveErrorMessage(error: unknown): string {
   return 'Failed to save categories'
 }
 
+export type CategoryNamesModalHandle = {
+  saveAndClose: () => Promise<void>
+}
+
 interface CategoryNamesModalProps {
   isOpen: boolean
   onClose: () => void
+  anchorPos: { top: number; left: number } | null
+  anchorRef?: React.RefObject<HTMLElement | null>
   categoryNames: CategoryNames
   categoryOrder: number[]
   onSave: (
@@ -27,7 +46,6 @@ interface CategoryNamesModalProps {
     order: number[],
     options?: { reorderItems?: boolean },
   ) => Promise<{ error: unknown }>
-  /** Disables “Sort list by Category” (e.g. during bulk list operations). */
   sortDisabled?: boolean
 }
 
@@ -90,84 +108,142 @@ function SortableCategoryRow({
   )
 }
 
-export function CategoryNamesModal({
-  isOpen,
-  onClose,
-  categoryNames,
-  categoryOrder,
-  onSave,
-  sortDisabled = false,
-}: CategoryNamesModalProps) {
-  const { error: showError } = useToast()
-  const [names, setNames] = useState<CategoryNames>({ ...categoryNames })
-  const [order, setOrder] = useState<number[]>([...categoryOrder])
+export const CategoryNamesModal = forwardRef<CategoryNamesModalHandle, CategoryNamesModalProps>(
+  function CategoryNamesModal(
+    {
+      isOpen,
+      onClose,
+      anchorPos,
+      anchorRef,
+      categoryNames,
+      categoryOrder,
+      onSave,
+      sortDisabled = false,
+    },
+    ref,
+  ) {
+    const { error: showError } = useToast()
+    const [names, setNames] = useState<CategoryNames>({ ...categoryNames })
+    const [order, setOrder] = useState<number[]>([...categoryOrder])
+    const popoverRef = useRef<HTMLDivElement>(null)
+    const wasOpenRef = useRef(false)
+    const savingRef = useRef(false)
 
-  const wasOpenRef = useRef(false)
+    const anchorPosStableRef = useRef(anchorPos)
+    if (anchorPos) anchorPosStableRef.current = anchorPos
+    const menuAnim = useMenuOpenAnimation(isOpen && !!anchorPosStableRef.current)
 
-  // Snapshot from props only when the modal transitions to open — not when Zustand/realtime
-  // updates categoryOrder or categoryNames while the editor is already open (that was resetting drag state).
-  useEffect(() => {
-    if (isOpen && !wasOpenRef.current) {
-      setNames({ ...categoryNames })
-      setOrder([...categoryOrder])
-    }
-    wasOpenRef.current = isOpen
-  }, [isOpen, categoryNames, categoryOrder])
+    useEffect(() => {
+      if (isOpen && !wasOpenRef.current) {
+        setNames({ ...categoryNames })
+        setOrder([...categoryOrder])
+      }
+      wasOpenRef.current = isOpen
+    }, [isOpen, categoryNames, categoryOrder])
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+    const sensors = useSensors(
+      useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+      useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    )
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (over && active.id !== over.id) {
-      const oldIndex = order.indexOf(Number(active.id))
-      const newIndex = order.indexOf(Number(over.id))
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const next = [...order]
-        const [removed] = next.splice(oldIndex, 1)
-        next.splice(newIndex, 0, removed)
-        setOrder(next)
+    const handleDragEnd = (event: DragEndEvent) => {
+      const { active, over } = event
+      if (over && active.id !== over.id) {
+        const oldIndex = order.indexOf(Number(active.id))
+        const newIndex = order.indexOf(Number(over.id))
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const next = [...order]
+          const [removed] = next.splice(oldIndex, 1)
+          next.splice(newIndex, 0, removed)
+          setOrder(next)
+        }
       }
     }
-  }
 
-  const handleDone = async () => {
-    const trimmed: CategoryNames = {}
-    for (const [k, v] of Object.entries(names)) {
-      trimmed[k] = v.trim()
-    }
-    const saveRes = await onSave(trimmed, order)
-    if (saveRes.error) {
-      const msg = saveErrorMessage(saveRes.error)
-      if (shouldShowConnectivityRelatedMutationToast(msg)) {
-        showError(msg || 'Failed to save categories', { serverError: saveRes.error })
+    const handleDone = useCallback(async () => {
+      if (savingRef.current) return
+      savingRef.current = true
+      try {
+        const trimmed: CategoryNames = {}
+        for (const [k, v] of Object.entries(names)) {
+          trimmed[k] = v.trim()
+        }
+        const saveRes = await onSave(trimmed, order)
+        if (saveRes.error) {
+          const msg = saveErrorMessage(saveRes.error)
+          if (shouldShowConnectivityRelatedMutationToast(msg)) {
+            showError(msg || 'Failed to save categories', { serverError: saveRes.error })
+          }
+          return
+        }
+        onClose()
+      } finally {
+        savingRef.current = false
       }
-      return
-    }
-    onClose()
-  }
+    }, [names, onClose, onSave, order, showError])
 
-  const handleSortClick = async () => {
-    const trimmed: CategoryNames = {}
-    for (const [k, v] of Object.entries(names)) {
-      trimmed[k] = v.trim()
-    }
-    const saveRes = await onSave(trimmed, order, { reorderItems: true })
-    if (saveRes.error) {
-      const msg = saveErrorMessage(saveRes.error)
-      if (shouldShowConnectivityRelatedMutationToast(msg)) {
-        showError(msg || 'Failed to save categories', { serverError: saveRes.error })
+    useImperativeHandle(ref, () => ({ saveAndClose: handleDone }), [handleDone])
+
+    const handleSortClick = async () => {
+      if (savingRef.current) return
+      savingRef.current = true
+      try {
+        const trimmed: CategoryNames = {}
+        for (const [k, v] of Object.entries(names)) {
+          trimmed[k] = v.trim()
+        }
+        const saveRes = await onSave(trimmed, order, { reorderItems: true })
+        if (saveRes.error) {
+          const msg = saveErrorMessage(saveRes.error)
+          if (shouldShowConnectivityRelatedMutationToast(msg)) {
+            showError(msg || 'Failed to save categories', { serverError: saveRes.error })
+          }
+          return
+        }
+        onClose()
+      } finally {
+        savingRef.current = false
       }
-      return
     }
-    onClose()
-  }
 
-  return (
-    <Modal isOpen={isOpen} onClose={() => void handleDone()} size="xs" title="Categories">
-      <div>
+    useEffect(() => {
+      if (!isOpen) return
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') void handleDone()
+      }
+      document.addEventListener('keydown', onKeyDown)
+      return () => document.removeEventListener('keydown', onKeyDown)
+    }, [handleDone, isOpen])
+
+    useEffect(() => {
+      if (!isOpen) return
+      const onMouseDown = (e: MouseEvent) => {
+        const target = e.target as Node
+        if (popoverRef.current?.contains(target)) return
+        if (anchorRef?.current?.contains(target)) return
+        void handleDone()
+      }
+      document.addEventListener('mousedown', onMouseDown, true)
+      return () => document.removeEventListener('mousedown', onMouseDown, true)
+    }, [anchorRef, handleDone, isOpen])
+
+    if (!menuAnim.mounted || !anchorPosStableRef.current || typeof document === 'undefined') {
+      return null
+    }
+
+    const pos = anchorPosStableRef.current
+
+    return createPortal(
+      <div
+        ref={popoverRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-label="Categories"
+        className={`fixed z-[10000] w-[240px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${menuAnim.menuClassName}`}
+        style={{ top: pos.top, left: pos.left }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="mb-3 text-center text-sm font-semibold text-teal">Categories</p>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
@@ -189,10 +265,13 @@ export function CategoryNamesModal({
             disabled={sortDisabled}
             className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {'Sort list by Category'}
+            Sort list by Category
           </button>
         </div>
-      </div>
-    </Modal>
-  )
-}
+      </div>,
+      document.body,
+    )
+  },
+)
+
+CategoryNamesModal.displayName = 'CategoryNamesModal'

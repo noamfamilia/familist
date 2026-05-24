@@ -28,10 +28,12 @@ import {
 } from '@/lib/itemNameFontStep'
 import { ITEM_TEXT_WIDTH_MIN } from '@/lib/itemTextWidthFit'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
+import type { CategoryNamesModalHandle } from '@/components/lists/CategoryNamesModal'
 
-const CategoryNamesModal = dynamic(() => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal), {
-  ssr: false,
-})
+const CategoryNamesModal = dynamic(
+  () => import('@/components/lists/CategoryNamesModal').then(mod => mod.CategoryNamesModal),
+  { ssr: false },
+)
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -153,6 +155,9 @@ export function MemberHeader({
   const [actionsOpen, setActionsOpen] = useState(false)
   const [actionsMenuPos, setActionsMenuPos] = useState<{ top: number; right: number } | null>(null)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [categoryModalPos, setCategoryModalPos] = useState<{ top: number; left: number } | null>(null)
+  const categoryBtnRef = useRef<HTMLButtonElement>(null)
+  const categoryModalRef = useRef<CategoryNamesModalHandle>(null)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
   const actionsButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -160,6 +165,34 @@ export function MemberHeader({
     setActionsOpen(false)
     setActionsMenuPos(null)
   }
+
+  const handleCategoryButtonClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (isOfflineActionsDisabled) return
+      if (showCategoryModal) {
+        void categoryModalRef.current?.saveAndClose()
+        return
+      }
+      requestAnimationFrame(() => {
+        const el = categoryBtnRef.current
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        const vw = window.innerWidth
+        const popoverWidth = 240
+        const left = Math.min(Math.max(8, r.left), vw - popoverWidth - 8)
+        setCategoryModalPos({ top: r.bottom + 6, left })
+        setShowCategoryModal(true)
+      })
+    },
+    [isOfflineActionsDisabled, showCategoryModal],
+  )
+
+  const closeCategoryModal = useCallback(() => {
+    setShowCategoryModal(false)
+    setCategoryModalPos(null)
+  }, [])
 
   const handleToggleActions = () => {
     if (isOfflineActionsDisabled) return
@@ -673,14 +706,10 @@ export function MemberHeader({
                 className="flex h-10 w-10 shrink-0 items-center justify-center"
               >
                 <button
+                  ref={categoryBtnRef}
                   type="button"
                   disabled={isOfflineActionsDisabled}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    if (isOfflineActionsDisabled) return
-                    setShowCategoryModal(true)
-                  }}
+                  onClick={handleCategoryButtonClick}
                   className={`flex h-10 w-10 items-center justify-center rounded p-0 touch-manipulation hover:opacity-80 ${
                     isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''
                   }`}
@@ -1287,8 +1316,11 @@ export function MemberHeader({
 
       {onSaveCategorySettings && categoryNames && (
         <CategoryNamesModal
+          ref={categoryModalRef}
           isOpen={showCategoryModal}
-          onClose={() => setShowCategoryModal(false)}
+          onClose={closeCategoryModal}
+          anchorPos={categoryModalPos}
+          anchorRef={categoryBtnRef}
           categoryNames={categoryNames}
           categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
           onSave={async (names, order, options) => onSaveCategorySettings(names, order, options)}
