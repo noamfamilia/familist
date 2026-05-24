@@ -5,7 +5,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import { Button } from '@/components/ui/Button'
 import { InstallAppButton } from '@/components/ui/InstallAppButton'
-import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
+import { shareMyFamilistApp } from '@/lib/shareFamilistApp'
 import { ThemedImage } from '@/components/ui/ThemedImage'
 import { Modal } from '@/components/ui/Modal'
 import { APP_VERSION } from '@/lib/appVersion'
@@ -219,36 +219,7 @@ export function ProfileModal({ isOpen, onClose, onRequestSignIn, onRequestSignUp
           <button
             type="button"
             className="hover:opacity-80 shrink-0"
-            onClick={async () => {
-              const url = 'https://myfamilist.com/'
-
-              const canUseNativeShare =
-                typeof navigator !== 'undefined' &&
-                typeof navigator.share === 'function' &&
-                isMobileDevice()
-
-              const copyOnly = async () => {
-                await copyTextToClipboard(url)
-                if (!isMobileDevice()) {
-                  success('Copied to clipboard')
-                }
-              }
-
-              if (!canUseNativeShare) {
-                await copyOnly()
-                return
-              }
-
-              try {
-                await navigator.share({ url })
-              } catch (err) {
-                const shareError = err as Error & { name?: string }
-                if (shareError.name === 'AbortError') return
-                console.error('Error sharing app link:', err)
-                showError('Failed to share')
-                await copyOnly()
-              }
-            }}
+            onClick={() => void shareMyFamilistApp({ success, error: showError })}
           >
             <ThemedImage src="/share.png" alt="Share MyFamiList" width={48} height={48} className="h-12 w-[92px]" />
           </button>

@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react'
 
-/** Matches `.menu` / `.menu-slide-ltr` transition duration in globals.css */
-export const MENU_OPEN_ANIMATION_MS = 300
+/** Matches transition duration in globals.css per variant */
+export const MENU_ANIMATION_MS = {
+  dropdown: 300,
+  'slide-ltr': 280,
+  'slide-panel-ltr': 480,
+} as const
 
-export type MenuOpenAnimationVariant = 'dropdown' | 'slide-ltr'
+export type MenuOpenAnimationVariant = keyof typeof MENU_ANIMATION_MS
+
+/** @deprecated use MENU_ANIMATION_MS.dropdown */
+export const MENU_OPEN_ANIMATION_MS = MENU_ANIMATION_MS.dropdown
 
 /**
  * Mount/unmount timing for animated menus (opacity + translate).
@@ -12,7 +19,14 @@ export type MenuOpenAnimationVariant = 'dropdown' | 'slide-ltr'
 export function useMenuOpenAnimation(isOpen: boolean, variant: MenuOpenAnimationVariant = 'dropdown') {
   const [mounted, setMounted] = useState(isOpen)
   const [openClass, setOpenClass] = useState(false)
-  const baseClass = variant === 'slide-ltr' ? 'menu-slide-ltr' : 'menu'
+  const durationMs = MENU_ANIMATION_MS[variant]
+  const baseClass =
+    variant === 'slide-panel-ltr'
+      ? 'menu-slide-panel-ltr'
+      : variant === 'slide-ltr'
+        ? 'menu-slide-ltr'
+        : 'menu'
+  const openSuffix = openClass ? ' open' : ''
 
   useEffect(() => {
     if (isOpen) {
@@ -27,13 +41,15 @@ export function useMenuOpenAnimation(isOpen: boolean, variant: MenuOpenAnimation
       }
     }
     setOpenClass(false)
-    const t = window.setTimeout(() => setMounted(false), MENU_OPEN_ANIMATION_MS)
+    const t = window.setTimeout(() => setMounted(false), durationMs)
     return () => window.clearTimeout(t)
-  }, [isOpen])
+  }, [durationMs, isOpen])
 
   return {
     mounted,
     /** Includes base animation class and `open` when fully visible */
-    menuClassName: `${baseClass}${openClass ? ' open' : ''}`,
+    menuClassName: `${baseClass}${openSuffix}`,
+    backdropClassName:
+      variant === 'slide-panel-ltr' ? `menu-slide-panel-backdrop${openSuffix}` : undefined,
   }
 }

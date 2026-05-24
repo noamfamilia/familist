@@ -17,14 +17,13 @@ import { ProfileAvatar } from '@/components/auth/ProfileAvatar'
 import { ListsView } from '@/components/lists/ListsView'
 import { ThemedImage } from '@/components/ui/ThemedImage'
 import { ProfileModal } from '@/components/profile/ProfileModal'
+import { ProfileHomeMenu } from '@/components/profile/ProfileHomeMenu'
 import { ListDetailHomeOverlay } from '@/components/lists/ListDetailHomeOverlay'
 
 import { Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { useTheme } from 'next-themes'
 import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
-import { resetTutorial } from '@/components/ui/TutorialTour'
 import { db } from '@/lib/db'
 import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { enqueueSyncQueueRecord, userQueueParent } from '@/lib/data/syncQueue'
@@ -104,9 +103,9 @@ function HomeContent() {
     isGuest,
     sessionRestoring,
     profileFetchPhase,
-    guestMigrationPromptActive,
     updateProfile,
     updateActorProfile,
+    signOut,
   } = useAuth()
   const [authModalMode, setAuthModalMode] = useState<'signIn' | 'signUp'>('signIn')
   const {
@@ -130,9 +129,7 @@ function HomeContent() {
   const [feedbackText, setFeedbackText] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { success, error: showError, info } = useToast()
-  const { resolvedTheme, setTheme } = useTheme()
   const hasMounted = useHasMounted()
-  const [themeMounted, setThemeMounted] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
   const [selectedLabel, setSelectedLabel] = useState('Any')
   const lastHomeActorRef = useRef<string | null>(null)
@@ -149,7 +146,7 @@ function HomeContent() {
   const addLabelInputRef = useRef<HTMLInputElement>(null)
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
 
-  const profileMenuAnim = useMenuOpenAnimation(profileMenuOpen, 'slide-ltr')
+  const profileMenuAnim = useMenuOpenAnimation(profileMenuOpen, 'slide-panel-ltr')
   const labelDropdownAnim = useMenuOpenAnimation(labelDropdownOpen)
   const addLabelHomeAnim = useMenuOpenAnimation(addingLabel && !labelDropdownOpen)
 
@@ -172,15 +169,10 @@ function HomeContent() {
   useEffect(() => {
     if (!pendingProfileOpenAfterOAuth) return
     if (!hasMounted || isGuest || !user || authPhase !== 'authenticated') return
-    if (guestMigrationPromptActive) return
     if (profileFetchPhase === 'loading') return
     setPendingProfileOpenAfterOAuth(false)
     setShowProfile(true)
-  }, [pendingProfileOpenAfterOAuth, hasMounted, isGuest, user, authPhase, profileFetchPhase, guestMigrationPromptActive])
-
-  useEffect(() => {
-    setThemeMounted(true)
-  }, [])
+  }, [pendingProfileOpenAfterOAuth, hasMounted, isGuest, user, authPhase, profileFetchPhase])
 
   /** Re-apply per-actor home preferences when auth actor changes (sign-in / sign-out). */
   useEffect(() => {
@@ -274,16 +266,6 @@ function HomeContent() {
       setShowAuthModal(true)
     }
   }, [loading, user, inviteToken, isGuest])
-
-  useEffect(() => {
-    if (!profileMenuOpen) return
-    const close = (e: MouseEvent) => {
-      const el = profileMenuRef.current
-      if (el && !el.contains(e.target as Node)) setProfileMenuOpen(false)
-    }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [profileMenuOpen])
 
   useEffect(() => {
     if (!profileMenuOpen) return
@@ -488,123 +470,6 @@ function HomeContent() {
                 aria-hidden
               />
             ) : null}
-            {profileMenuAnim.mounted && (
-              <div
-                className={`absolute left-0 top-full z-50 mt-2 min-w-[240px] origin-top-left overflow-hidden rounded-xl border border-gray-200/90 bg-white py-1.5 shadow-xl shadow-black/10 dark:border-neutral-600/90 dark:bg-neutral-900 dark:shadow-black/50 ${profileMenuAnim.menuClassName}`}
-                role="menu"
-              >
-                {isGuest ? (
-                  <button
-                    type="button"
-                    disabled={profileMenuNeedsSession}
-                    className={`w-full text-left block px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-neutral-800 ${
-                      profileMenuNeedsSession
-                        ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
-                        : 'text-gray-900 dark:text-gray-100'
-                    }`}
-                    role="menuitem"
-                    onClick={() => {
-                      if (profileMenuNeedsSession) return
-                      setProfileMenuOpen(false)
-                      setAuthModalMode('signIn')
-                      setShowAuthModal(true)
-                    }}
-                  >
-                    Sign-in
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={profileMenuNeedsSession}
-                    className={`w-full text-left block px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-neutral-800 ${
-                      profileMenuNeedsSession
-                        ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
-                        : 'text-gray-900 dark:text-gray-100'
-                    }`}
-                    role="menuitem"
-                    onClick={() => {
-                      if (profileMenuNeedsSession) return
-                      setProfileMenuOpen(false)
-                      setShowProfile(true)
-                    }}
-                  >
-                    Profile settings
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="w-full text-left block px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                  role="menuitem"
-                  onClick={() => {
-                    const prev: 'light' | 'dark' =
-                      themeMounted && resolvedTheme === 'dark' ? 'dark' : 'light'
-                    const next: 'light' | 'dark' = prev === 'dark' ? 'light' : 'dark'
-                    setProfileMenuOpen(false)
-                    setTheme(next)
-                    void updateActorProfile({ theme: next }).then(({ error: themeErr }) => {
-                      if (themeErr) {
-                        setTheme(prev)
-                        showError(themeErr.message || 'Could not save theme')
-                      }
-                    })
-                  }}
-                >
-                  {themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}
-                </button>
-                {!isGuest ? (
-                  <button
-                    type="button"
-                    disabled={isOffline || profileMenuNeedsSession}
-                    className={`w-full text-left block px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-neutral-800 ${
-                      isOffline || profileMenuNeedsSession
-                        ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
-                        : 'text-gray-900 dark:text-gray-100'
-                    }`}
-                    role="menuitem"
-                    onClick={() => {
-                      if (isOffline || profileMenuNeedsSession) return
-                      setProfileMenuOpen(false)
-                      setShowImport(true)
-                    }}
-                    title={
-                      profileMenuNeedsSession
-                        ? 'Restoring session…'
-                        : isOffline
-                          ? 'Requires an internet connection'
-                          : undefined
-                    }
-                  >
-                    Import from Google Sheet
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                  onClick={() => {
-                    setProfileMenuOpen(false)
-                    resetTutorial('home')
-                    resetTutorial('list')
-                    window.location.reload()
-                  }}
-                >
-                  Replay tutorial
-                </button>
-                {!isGuest ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
-                    onClick={() => {
-                      setProfileMenuOpen(false)
-                      setShowFeedback(true)
-                    }}
-                  >
-                    User feedback
-                  </button>
-                ) : null}
-              </div>
-            )}
           </div>
         ) : (
           <button
@@ -892,6 +757,40 @@ function HomeContent() {
       />
 
       <GuestShareSignInModal isOpen={showGuestInviteModal} onClose={dismissGuestInviteModal} />
+
+      {showListsShell && profileMenuAnim.mounted && (
+        <>
+          <button
+            type="button"
+            aria-label="Close account menu"
+            className={`absolute inset-0 z-40 bg-black/20 dark:bg-black/40 ${profileMenuAnim.backdropClassName ?? ''}`}
+            onClick={() => setProfileMenuOpen(false)}
+          />
+          <ProfileHomeMenu
+            user={user}
+            profile={profile}
+            isGuest={isGuest}
+            profileMenuNeedsSession={profileMenuNeedsSession}
+            menuClassName={profileMenuAnim.menuClassName}
+            onCloseMenu={() => setProfileMenuOpen(false)}
+            onRequestSignIn={() => {
+              setAuthModalMode('signIn')
+              setShowAuthModal(true)
+            }}
+            onRequestImport={
+              !isGuest && user
+                ? () => setShowImport(true)
+                : undefined
+            }
+            importDisabled={isOffline || profileMenuNeedsSession}
+            updateProfile={updateProfile}
+            updateActorProfile={updateActorProfile}
+            signOut={signOut}
+            success={success}
+            showError={showError}
+          />
+        </>
+      )}
     </div>
   )
 }

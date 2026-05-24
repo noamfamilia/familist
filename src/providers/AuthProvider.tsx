@@ -46,7 +46,6 @@ import {
 import { linkGoogleIdentity as startGoogleLink, signInWithGoogle as startGoogleOAuth, type GoogleAuthIntent } from '@/lib/authGoogle'
 import { applyGoogleNicknameIfNeeded } from '@/lib/googleProfileNickname'
 import { MigrationOverlay } from '@/components/auth/MigrationOverlay'
-import { GuestMigrateConfirmModal } from '@/components/auth/GuestMigrateConfirmModal'
 export type ProfileFetchPhase = 'idle' | 'loading' | 'done' | 'error' | 'timeout'
 export type { AuthPhase } from '@/lib/authBootStorage'
 
@@ -69,8 +68,6 @@ interface AuthContextType {
   displayName: string
   activeActorId: string | null
   profileFetchPhase: ProfileFetchPhase
-  /** Guest-list migration prompt is blocking the home shell. */
-  guestMigrationPromptActive: boolean
   /** Ensure Supabase session is fully activated (lists, profile fetch). */
   activateAuthenticatedSession: (user: User, source: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
@@ -90,12 +87,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const PROFILE_FETCH_STARTUP_TIMEOUT_MS = 2_000
 const PROFILE_FETCH_TIMEOUT_MESSAGE = 'profile fetch timeout'
 const AUTH_RECOVERY_ONCE_KEY = 'familist_auth_recovery_done_once'
-
-type GuestMigrationPromptState = {
-  guestId: string
-  userId: string
-  listCount: number
-}
 
 function errorMessageOf(err: unknown): string {
   if (err instanceof Error) return err.message
@@ -200,7 +191,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const guestIdRef = useRef<string | null>(null)
   const bootstrapUserIdRef = useRef<string | null>(null)
   const profileFetchGenRef = useRef(0)
-  const guestMigrationChoiceRef = useRef<((migrate: boolean) => void) | null>(null)
   const lastAppliedUserIdRef = useRef<string | null>(null)
   const signUpActivationHandledRef = useRef<string | null>(null)
   /** Skip duplicate enterGuestMode(same gid) when signOut + SIGNED_OUT both fire. */
@@ -214,7 +204,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hardRecoveryInProgressRef = useRef(false)
   const loadingRef = useRef(true)
   loadingRef.current = loading
-  const [guestMigrationPrompt, setGuestMigrationPrompt] = useState<GuestMigrationPromptState | null>(null)
 
   const setAuthPhaseBoth = useCallback((phase: AuthPhase) => {
     authPhaseRef.current = phase
@@ -365,25 +354,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (mountedRef.current) setIsMigrating(false)
     }
-  }, [])
-
-  const promptGuestMigrationChoice = useCallback((guestId: string, userId: string, listCount: number) => {
-    return new Promise<boolean>((resolve) => {
-      guestMigrationChoiceRef.current = resolve
-      setGuestMigrationPrompt({ guestId, userId, listCount })
-    })
-  }, [])
-
-  const handleGuestMigrationMigrate = useCallback(() => {
-    setGuestMigrationPrompt(null)
-    guestMigrationChoiceRef.current?.(true)
-    guestMigrationChoiceRef.current = null
-  }, [])
-
-  const handleGuestMigrationSkip = useCallback(() => {
-    setGuestMigrationPrompt(null)
-    guestMigrationChoiceRef.current?.(false)
-    guestMigrationChoiceRef.current = null
   }, [])
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -586,12 +556,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (listCount <= 0) return
 
       markGuestMigrationPromptOffered(guestId, nextUser.id)
-      const shouldMigrate = await promptGuestMigrationChoice(guestId, nextUser.id, listCount)
-      if (shouldMigrate) {
-        await runGuestMigration(guestId, nextUser.id)
-      }
+      await runGuestMigration(guestId, nextUser.id)
     },
-    [activateAuthenticatedUserCore, promptGuestMigrationChoice, runGuestMigration],
+    [activateAuthenticatedUserCore, runGuestMigration],
   )
 
   const { transitionToAuthenticated, transitionToGuest } = useAuthPhaseBootstrap(
@@ -800,7 +767,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         displayName,
         activeActorId,
         profileFetchPhase,
-        guestMigrationPromptActive: guestMigrationPrompt !== null,
         activateAuthenticatedSession: transitionToAuthenticated,
         signIn,
         signUp,
@@ -813,14 +779,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updatePassword,
       }}
     >
-      {guestMigrationPrompt ? (
-        <GuestMigrateConfirmModal
-          isOpen
-          listCount={guestMigrationPrompt.listCount}
-          onMigrate={handleGuestMigrationMigrate}
-          onSkip={handleGuestMigrationSkip}
-        />
-      ) : null}
       {isMigrating ? <MigrationOverlay /> : null}
       {children}
     </AuthContext.Provider>

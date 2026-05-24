@@ -175,7 +175,7 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Import from Google Sheet" contentClassName="!overflow-visible" hideClose>
+    <Modal isOpen={isOpen} onClose={onClose} title="Import List" contentClassName="!overflow-visible" hideClose>
       <div className="space-y-5">
         <p className="text-sm text-gray-500 dark:text-gray-400">
           First row must include an <strong>Items</strong> column. Optional:{' '}

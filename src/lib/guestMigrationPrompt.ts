@@ -1,4 +1,4 @@
-/** sessionStorage: guest-list migration prompt already shown for guestId → userId this tab. */
+/** sessionStorage: guest-list migration already ran for guestId → userId this tab. */
 
 function promptKey(guestId: string, userId: string): string {
   return `familist_guest_migration_prompt_${guestId}_${userId}`
