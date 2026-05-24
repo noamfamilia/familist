@@ -466,7 +466,13 @@ function HomeContent() {
                   : (user?.email ?? (sessionRestoring ? 'Restoring session…' : 'Account'))
               }
             >
-              <ProfileAvatar user={user} guest={isGuest} size={32} className="w-8 h-8" />
+              <ProfileAvatar
+                user={user}
+                guest={isGuest}
+                actorUserId={isGuest ? null : activeActorId}
+                size={32}
+                className="w-8 h-8"
+              />
             </button>
             {isGuest ? (
               <button
