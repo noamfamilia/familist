@@ -1126,7 +1126,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       <TutorialTour
         tourId="list"
         steps={listTourSteps}
-        layoutMode="scrollable"
+        portalToBody
+        disableScrollParentFix={false}
         contentKey={listId}
       />
 

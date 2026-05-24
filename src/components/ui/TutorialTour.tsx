@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import Joyride, { ACTIONS, CallBackProps, EVENTS, STATUS, Step } from 'react-joyride'
+import Joyride, { ACTIONS, CallBackProps, STATUS, Step } from 'react-joyride'
 import { useHasMounted } from '@/hooks/useHasMounted'
 
 interface TutorialTourProps {
@@ -11,8 +11,10 @@ interface TutorialTourProps {
   run?: boolean
   onComplete?: () => void
   contentKey?: string | number // Changes when content changes to trigger re-check
-  /** For lists inside fixed/scrollable shells (home overlay, sticky headers). */
-  layoutMode?: 'default' | 'scrollable'
+  /** Render Joyride on document.body (helps targets inside fixed overlays). */
+  portalToBody?: boolean
+  /** When false, Joyride adjusts spotlight position inside scrollable parents. */
+  disableScrollParentFix?: boolean
 }
 
 const SHOW_TUTORIAL_SESSION_PREFIX = 'familist_run_tutorial_'
@@ -45,14 +47,12 @@ function clearTutorialRunRequest(tourId: string) {
   tutorialRunRequested.delete(tourId)
 }
 
-// Get completed targets from localStorage
 function getCompletedTargets(tourId: string): Set<string> {
   if (typeof window === 'undefined') return new Set()
   const stored = localStorage.getItem(`tutorial_${tourId}_targets`)
   return stored ? new Set(JSON.parse(stored)) : new Set()
 }
 
-// Save completed targets to localStorage
 function saveCompletedTargets(tourId: string, targets: Set<string>) {
   localStorage.setItem(`tutorial_${tourId}_targets`, JSON.stringify([...targets]))
 }
@@ -65,51 +65,12 @@ function markTargetCompleted(tourId: string, target: string | null) {
   saveCompletedTargets(tourId, completedTargets)
 }
 
-function resolveTourTarget(target: Step['target']): Element | null {
-  if (typeof target === 'string') {
-    return document.querySelector(target)
-  }
-  if (target instanceof HTMLElement) {
-    return target
-  }
-  return null
-}
-
-function isTargetReady(target: Step['target']) {
-  const element = resolveTourTarget(target)
+function isTargetReady(target: string) {
+  const element = document.querySelector(target)
   if (!element) return false
 
   const rect = element.getBoundingClientRect()
   return rect.width > 0 && rect.height > 0
-}
-
-function scrollTourTargetIntoView(target: Step['target']) {
-  const element = resolveTourTarget(target)
-  if (!element) return
-
-  element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
-
-  let parent = element.parentElement
-  while (parent) {
-    const style = getComputedStyle(parent)
-    const scrollableY = /auto|scroll|overlay/.test(style.overflowY)
-    const scrollableX = /auto|scroll|overlay/.test(style.overflowX)
-    if (scrollableY || scrollableX) {
-      const elRect = element.getBoundingClientRect()
-      const parentRect = parent.getBoundingClientRect()
-      if (elRect.top < parentRect.top + 8) {
-        parent.scrollTop -= parentRect.top - elRect.top + 8
-      } else if (elRect.bottom > parentRect.bottom - 8) {
-        parent.scrollTop += elRect.bottom - parentRect.bottom + 8
-      }
-      if (elRect.left < parentRect.left + 8) {
-        parent.scrollLeft -= parentRect.left - elRect.left + 8
-      } else if (elRect.right > parentRect.right - 8) {
-        parent.scrollLeft += elRect.right - parentRect.right + 8
-      }
-    }
-    parent = parent.parentElement
-  }
 }
 
 function resetTourRuntimeState(args: {
@@ -147,9 +108,9 @@ export function TutorialTour({
   run: runProp,
   onComplete,
   contentKey,
-  layoutMode = 'default',
+  portalToBody = false,
+  disableScrollParentFix = true,
 }: TutorialTourProps) {
-  const scrollableLayout = layoutMode === 'scrollable'
   const hasMounted = useHasMounted()
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -198,17 +159,6 @@ export function TutorialTour({
     return () => window.removeEventListener(SHOW_TUTORIAL_EVENT, handleShowTutorial)
   }, [tourId])
 
-  const refreshScrollableLayout = (target: Step['target']) => {
-    if (!scrollableLayout) return
-    scrollTourTargetIntoView(target)
-    setRun(false)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setRun(true)
-      })
-    })
-  }
-
   useEffect(() => {
     if (runProp === true || isTutorialRunRequested(tourId)) {
       acknowledgeTutorialRunRequest(tourId)
@@ -225,7 +175,6 @@ export function TutorialTour({
 
     const completedTargets = getCompletedTargets(tourId)
 
-    // Filter steps: target exists in DOM AND hasn't been completed
     const availableSteps = steps.filter(step => {
       if (typeof step.target === 'string') {
         const notCompleted = !completedTargets.has(step.target)
@@ -234,7 +183,6 @@ export function TutorialTour({
       return true
     })
 
-    // Create a key to detect changes in available steps
     const stepsKey = availableSteps.map(s => s.target).join(',')
 
     const stepsChanged = stepsKey !== prevStepsKey.current
@@ -279,9 +227,7 @@ export function TutorialTour({
       setStepIndex(0)
       hasStartedRef.current = true
       setRun(true)
-    } else if (!scrollableLayout && contentChanged && hasStartedRef.current && runRef.current) {
-      // DOM nodes may have been replaced (e.g. optimistic→real ID key swap).
-      // Toggle run so Joyride re-queries the CSS selector for the current target.
+    } else if (contentChanged && hasStartedRef.current && runRef.current) {
       if (reanchorTimerRef.current) clearTimeout(reanchorTimerRef.current)
       setRun(false)
       reanchorTimerRef.current = setTimeout(() => {
@@ -289,7 +235,7 @@ export function TutorialTour({
         setRun(true)
       }, 50)
     }
-  }, [tourId, runProp, steps, contentKey, restartNonce, scrollableLayout])
+  }, [tourId, runProp, steps, contentKey, restartNonce])
 
   useEffect(() => {
     filteredStepsRef.current = filteredSteps
@@ -301,6 +247,24 @@ export function TutorialTour({
   }, [filteredSteps, stepIndex])
 
   useEffect(() => {
+    if (!run || !portalToBody) return
+
+    let frame = 0
+    const notifyResize = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+    }
+
+    window.addEventListener('scroll', notifyResize, true)
+  return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', notifyResize, true)
+    }
+  }, [run, portalToBody])
+
+  useEffect(() => {
     return () => {
       clearWaitTimer()
       if (reanchorTimerRef.current) clearTimeout(reanchorTimerRef.current)
@@ -308,14 +272,9 @@ export function TutorialTour({
   }, [])
 
   const handleCallback = (data: CallBackProps) => {
-    const { status, index, type, step } = data
-
-    if (type === EVENTS.STEP_BEFORE && scrollableLayout) {
-      refreshScrollableLayout(step.target)
-    }
+    const { status, index, type } = data
 
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
-      // Mark shown steps as completed by their target
       const completedTargets = getCompletedTargets(tourId)
       filteredSteps.forEach(step => {
         if (typeof step.target === 'string') {
@@ -324,7 +283,6 @@ export function TutorialTour({
       })
       saveCompletedTargets(tourId, completedTargets)
 
-      // Check if all steps have been completed or skipped
       if (completedTargets.size >= steps.length || status === STATUS.SKIPPED) {
         localStorage.setItem(`tutorial_${tourId}`, 'true')
       }
@@ -368,9 +326,8 @@ export function TutorialTour({
       stepIndex={stepIndex}
       continuous
       showSkipButton
-      disableScrollParentFix={!scrollableLayout}
-      disableScrolling={!scrollableLayout}
-      scrollToFirstStep={scrollableLayout}
+      disableScrollParentFix={disableScrollParentFix}
+      disableScrolling
       callback={handleCallback}
       styles={{
         options: {
@@ -403,7 +360,7 @@ export function TutorialTour({
     />
   )
 
-  if (scrollableLayout && hasMounted) {
+  if (portalToBody && hasMounted) {
     return createPortal(joyride, document.body)
   }
 
