@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build && node scripts/verify-pwa-output.cjs",
     "generate:pwa-icons": "node scripts/generate-pwa-icons.cjs",
+    "optimize:assets": "node scripts/optimize-public-images.mjs",
     "start": "next start",
     "lint": "next lint"
   },
@@ -35,6 +36,7 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.21",
     "postcss": "^8.4.49",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.16",
     "typescript": "^5.7.2"
   }

@@ -48,6 +48,11 @@ import {
   cleanupDexieAfterMemberServerDeleted,
 } from '@/lib/data/shadowDeleteDexieCleanup'
 import { resetFailedSyncQueueRows, updateSyncQueueProcessingDetail } from '@/lib/data/syncQueue'
+import {
+  filterActiveOutboundRows,
+  isGuestOutboundQueueEnabled,
+  isGuestOutboundRowMuted,
+} from '@/lib/data/guestOutboundQueuePolicy'
 import { getGuestOwnedListIdSet, isGuestOutboundQueueRow } from '@/lib/data/syncQueueUserScope'
 import { subscribeOutboundSyncKick } from '@/lib/outboundSyncKick'
 import { normalizeServerSyncableFields, upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
@@ -362,7 +367,12 @@ type SyncStoreState = {
 
 export function useSyncStore(): SyncStoreState {
   const allRows = useLiveQuery(async () => db.sync_queue.orderBy('updated_at').toArray(), [], [])
-  const rows = useMemo(() => allRows ?? [], [allRows])
+  const activeRows = useLiveQuery(
+    async () => filterActiveOutboundRows(allRows ?? []),
+    [allRows],
+    [],
+  )
+  const rows = useMemo(() => activeRows ?? [], [activeRows])
   const hadPendingOutboundRef = useRef(false)
   useLayoutEffect(() => {
     const { hasPendingOutbound } = refreshOutboundReadQuietState(rows, {
@@ -1154,6 +1164,7 @@ export function useSyncStore(): SyncStoreState {
           const batch = await db.sync_queue.orderBy('updated_at').toArray()
           const eligible = batch
             .filter((r) => isEligibleForSync(r, tick, batch))
+            .filter((r) => !isGuestOutboundRowMuted(r, guestOwnedListIds))
             .sort((a, b) => a.updated_at - b.updated_at)
 
           if (process.env.NODE_ENV === 'development' && batch.length > 0) {
@@ -1183,7 +1194,16 @@ export function useSyncStore(): SyncStoreState {
           if (!claimed) continue
 
           if (isGuestOutboundQueueRow(claimed, guestOwnedListIds)) {
-            await db.sync_queue.delete(claimed.id)
+            if (isGuestOutboundQueueEnabled()) {
+              await db.sync_queue.delete(claimed.id)
+            } else {
+              await db.sync_queue.update(claimed.id, {
+                status: 'queued',
+                locked_at: null,
+                processing_detail: null,
+                updated_at: Date.now(),
+              })
+            }
             continue
           }
 

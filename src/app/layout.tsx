@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     siteName: 'MyFamiList',
     images: [
       {
-        url: '/og-image.png',
+        url: '/og-image.jpg',
         width: 1200,
         height: 630,
         alt: 'MyFamiList - Shared lists for family and friends',
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'MyFamiList',
     description: 'Shared list application for family and friends',
-    images: ['/og-image.png'],
+    images: ['/og-image.jpg'],
   },
   appleWebApp: {
     capable: true,

@@ -1,11 +1,11 @@
 import { getActiveCacheUserId } from '@/lib/cache'
 import { db, type DbSyncQueueRow, type SyncQueueEntity, type SyncQueueKind, type SyncQueueStatus } from '@/lib/db'
 import { isGuestId } from '@/lib/guestSession'
-import { getSessionMode } from '@/lib/sessionPolicy'
 import { allocateQueueDisplayIndex } from '@/lib/serverQueueModalState'
 import { clearListUserSyncError, clearListUserSyncErrorsForEnqueueRow } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
 import { bumpListReconcileGenerationsForEnqueue } from '@/lib/data/listReconcilePolicy'
+import { shouldSkipOutboundEnqueueForInput } from '@/lib/data/guestOutboundQueuePolicy'
 import {
   catalogRpcPayloadMatchesScope,
   mergeCatalogRpcPayload,
@@ -257,7 +257,7 @@ type EnqueueInput = Omit<
 }
 
 export async function enqueueSyncQueueRecord(input: EnqueueInput): Promise<void> {
-  if (getSessionMode() === 'guest') return
+  if (shouldSkipOutboundEnqueueForInput(input)) return
 
   const ts = input.updated_at ?? Date.now()
   const id = input.id ?? crypto.randomUUID()

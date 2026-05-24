@@ -21,6 +21,7 @@ import type {
 } from '@/lib/supabase/types'
 import { getCachedLists } from '@/lib/cache'
 import { compareListsCatalogSortOrder, listCatalogSortOrderForVisualIndex } from '@/lib/data/listCatalogSort'
+import { filterActiveOutboundRows } from '@/lib/data/guestOutboundQueuePolicy'
 
 const PATCH_OVERLAY_STATUSES: readonly SyncQueueStatus[] = ['queued', 'processing', 'failed']
 
@@ -295,7 +296,7 @@ export async function buildListsCatalogFromDexie(userId: string): Promise<ListWi
   }
 
   const cardStats = buildListCardStatsByListId(listIds, items, members)
-  const queueRows = await db.sync_queue.toArray()
+  const queueRows = await filterActiveOutboundRows(await db.sync_queue.toArray())
 
   const ownerIds = new Set<string>()
   for (const { listUser, row } of listRows) {

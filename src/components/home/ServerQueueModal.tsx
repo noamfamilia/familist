@@ -11,6 +11,7 @@ import {
   type OutboundQueueStatusTone,
 } from '@/lib/data/outboundQueueStatus'
 import { isOutboundRowPending } from '@/lib/data/syncQueueListScope'
+import { filterActiveOutboundRows } from '@/lib/data/guestOutboundQueuePolicy'
 import { clearServerQueueModalState } from '@/lib/serverQueueModalState'
 import { useServerSessionLog } from '@/hooks/useServerSessionLog'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
@@ -173,7 +174,8 @@ function ServerActivityRow({ entry }: { entry: ServerSessionEntry }) {
 export function ServerQueueModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { status: connectivityStatus } = useConnectivity()
   const { entries: serverSessionEntries, revision: serverLogRevision } = useServerSessionLog()
-  const rows = useLiveQuery(() => db.sync_queue.orderBy('updated_at').toArray(), [], []) ?? []
+  const allRows = useLiveQuery(() => db.sync_queue.orderBy('updated_at').toArray(), [], []) ?? []
+  const rows = useLiveQuery(async () => filterActiveOutboundRows(allRows), [allRows], []) ?? []
   const [displayRows, setDisplayRows] = useState<RowDisplay[]>([])
   const [copyHint, setCopyHint] = useState<string | null>(null)
 
