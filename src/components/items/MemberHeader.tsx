@@ -649,39 +649,49 @@ export function MemberHeader({
             className="relative h-[40px] flex-shrink-0 overflow-visible"
             style={{ width: headerItemNameSlotWidthPx }}
           >
-            {onItemNameFontStepChange && (
-              <button
-                ref={itemNameFontBtnRef}
-                type="button"
-                onClick={handleItemNameFontButtonClick}
-                className="absolute left-0 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-start rounded p-0 text-teal touch-manipulation hover:opacity-80"
-                aria-label="Item display controls"
-                aria-expanded={itemNameFontOpen}
-                data-tour="item-text-width"
-              >
-                <FontSizeIcon className="h-7 w-7 [&_*]:stroke-[3]" />
-              </button>
-            )}
-            {onSaveCategorySettings && (
-              <button
-                type="button"
-                data-tour="category-sort"
-                disabled={isOfflineActionsDisabled}
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  if (isOfflineActionsDisabled) return
-                  setShowCategoryModal(true)
-                }}
-                className={`absolute top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded p-0 touch-manipulation hover:opacity-80 ${
-                  isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''
-                } ${onItemNameFontStepChange ? 'left-[70px]' : 'left-0'}`}
-                aria-label={isOfflineActionsDisabled ? 'Categories (unavailable offline)' : 'Open categories'}
-                title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : 'Categories and list sort'}
-              >
-                <CategoryEditorIcon className="h-7 w-7" />
-              </button>
-            )}
+            <div className="absolute left-0 top-1/2 flex -translate-y-1/2 items-center gap-3">
+              {onItemNameFontStepChange && (
+                <div
+                  data-tour="list-font"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center"
+                >
+                  <button
+                    ref={itemNameFontBtnRef}
+                    type="button"
+                    onClick={handleItemNameFontButtonClick}
+                    className="flex h-10 w-10 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
+                    aria-label="Item display controls"
+                    aria-expanded={itemNameFontOpen}
+                  >
+                    <FontSizeIcon className="h-7 w-7 [&_*]:stroke-[3]" />
+                  </button>
+                </div>
+              )}
+              {onSaveCategorySettings && (
+                <div
+                  data-tour="list-category"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center"
+                >
+                  <button
+                    type="button"
+                    disabled={isOfflineActionsDisabled}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      if (isOfflineActionsDisabled) return
+                      setShowCategoryModal(true)
+                    }}
+                    className={`flex h-10 w-10 items-center justify-center rounded p-0 touch-manipulation hover:opacity-80 ${
+                      isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : ''
+                    }`}
+                    aria-label={isOfflineActionsDisabled ? 'Categories (unavailable offline)' : 'Open categories'}
+                    title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : 'Categories and list sort'}
+                  >
+                    <CategoryEditorIcon className="h-7 w-7" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           
           {/* Members section — dimmed and non-interactive while offline or recovering */}
@@ -706,7 +716,6 @@ export function MemberHeader({
                         ? 'bg-cyan border-cyan text-white'
                         : 'bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-600'
                     } ${!canEdit && !isMenuOpen ? 'opacity-50' : ''} ${!isRenaming ? 'cursor-pointer' : ''}`}
-                    data-tour="member-chip"
                     onClick={() => {
                       if (!isRenaming) handleChipClick(member.id)
                     }}
@@ -769,23 +778,28 @@ export function MemberHeader({
           <div className="flex-shrink-0 flex items-center ml-auto pl-2.5">
           {showActionsMenu && (
             <div className="relative">
-              <button
-                ref={actionsButtonRef}
-                type="button"
-                disabled={isOfflineActionsDisabled || actionsMenuLoading}
-                onClick={handleToggleActions}
-                className={`flex items-center justify-center rounded-lg w-[40px] h-[40px] touch-manipulation bg-transparent text-teal hover:bg-teal/10 disabled:pointer-events-none ${
-                  isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'disabled:opacity-50'
-                }`}
-                aria-label={
-                  isOfflineActionsDisabled ? 'List actions (unavailable while offline or reconnecting)' : 'List actions'
-                }
-                title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : undefined}
-                aria-expanded={actionsOpen}
-                aria-haspopup="menu"
+              <div
+                data-tour="list-gear"
+                className="flex h-10 w-10 shrink-0 items-center justify-center"
               >
-                <GearIcon className="w-[30px] h-[30px]" />
-              </button>
+                <button
+                  ref={actionsButtonRef}
+                  type="button"
+                  disabled={isOfflineActionsDisabled || actionsMenuLoading}
+                  onClick={handleToggleActions}
+                  className={`flex h-10 w-10 items-center justify-center rounded-lg touch-manipulation bg-transparent text-teal hover:bg-teal/10 disabled:pointer-events-none ${
+                    isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'disabled:opacity-50'
+                  }`}
+                  aria-label={
+                    isOfflineActionsDisabled ? 'List actions (unavailable while offline or reconnecting)' : 'List actions'
+                  }
+                  title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : undefined}
+                  aria-expanded={actionsOpen}
+                  aria-haspopup="menu"
+                >
+                  <GearIcon className="w-[30px] h-[30px]" />
+                </button>
+              </div>
               {actionsMenuAnim.mounted && (actionsMenuPos ?? actionsMenuPosStableRef.current) && (
                 <div
                   ref={actionsMenuRef}
@@ -843,7 +857,6 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      data-tour="add-member"
                       disabled={isOfflineActionsDisabled}
                       className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm ${
                         isOfflineActionsDisabled

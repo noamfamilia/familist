@@ -117,51 +117,28 @@ const GOALS_OPTIONS: { value: 'hide' | 'mine' | 'all'; label: string }[] = [
   { value: 'all', label: 'Show all Tasks' },
 ]
 
-// All list tour steps - shown progressively as targets become available (filtered by DOM).
-// Order: add-item → item-text-width → row (name, drag, item menu, quantity); +Goal then sort; member kebab.
+// List tour steps — targets use fixed-size wrappers in MemberHeader for accurate spotlights
 const listTourSteps: Step[] = [
   {
     target: '[data-tour="share-settings"]',
-    content: 'Share this list with others.',
+    content: 'List sharing',
     disableBeacon: true,
+    spotlightPadding: 4,
   },
   {
-    target: '[data-tour="add-item"]',
-    content: 'Add items to your list',
+    target: '[data-tour="list-font"]',
+    content: 'Font size and width',
+    spotlightPadding: 4,
   },
   {
-    target: '[data-tour="item-text-width"]',
-    content: 'Use ◀ and ▶ to give item names more or less space.',
+    target: '[data-tour="list-category"]',
+    content: 'Categories names and sorting',
+    spotlightPadding: 4,
   },
   {
-    target: '[data-tour="item-name"]',
-    content: 'Click the item name to archive/restore it.',
-  },
-  {
-    target: '[data-tour="drag-handle"]',
-    content: 'Drag to re-arrange items.',
-    spotlightPadding: 2,
-  },
-  {
-    target: '[data-tour="item-menu"]',
-    content: 'Item menu options',
-  },
-  {
-    target: '[data-tour="item-state"]',
-    content: 'Edit quantity and status.',
-  },
-  {
-    target: '[data-tour="add-member"]',
-    content: 'Set your own tasks',
-  },
-  {
-    target: '[data-tour="category-sort"]',
-    content: 'List actions menu.',
-  },
-  {
-    target: '[data-tour="member-chip"]',
-    content: 'Tap a member to view, edit and filter.',
-    spotlightPadding: 2,
+    target: '[data-tour="list-gear"]',
+    content: 'Add goals per user and more options',
+    spotlightPadding: 4,
   },
 ]
 
@@ -803,29 +780,35 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           ) : null}
         </div>
         {isListOwner && (
-          <button
-            type="button"
-            disabled={shareSettingsOfflineBlocked}
-            onClick={() => {
-              if (isGuest) {
-                setShowGuestShareSignInModal(true)
-                return
-              }
-              if (shareSettingsOfflineBlocked) return
-              setShowShareModal(true)
-            }}
-            className={`text-teal ${shareSettingsOfflineBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
-            aria-label={
-              shareSettingsOfflineBlocked
-                ? isRecovering
-                  ? 'Share settings (unavailable while reconnecting)'
-                  : 'Share settings (unavailable offline)'
-                : 'Share settings'
-            }
+          <div
             data-tour="share-settings"
+            className="flex h-10 w-10 shrink-0 items-center justify-center"
           >
-            <ShareCardIcon className="w-[30px] h-[30px]" emphasized />
-          </button>
+            <button
+              type="button"
+              disabled={shareSettingsOfflineBlocked}
+              onClick={() => {
+                if (isGuest) {
+                  setShowGuestShareSignInModal(true)
+                  return
+                }
+                if (shareSettingsOfflineBlocked) return
+                setShowShareModal(true)
+              }}
+              className={`flex h-10 w-10 items-center justify-center text-teal ${
+                shareSettingsOfflineBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'
+              }`}
+              aria-label={
+                shareSettingsOfflineBlocked
+                  ? isRecovering
+                    ? 'Share settings (unavailable while reconnecting)'
+                    : 'Share settings (unavailable offline)'
+                  : 'Share settings'
+              }
+            >
+              <ShareCardIcon className="w-[30px] h-[30px]" emphasized />
+            </button>
+          </div>
         )}
       </div>
 
@@ -986,7 +969,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           {!searchText ? (
           <div
             className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}`}
-            data-tour="members-header"
           >
             <MemberHeader
               members={filteredMembers}

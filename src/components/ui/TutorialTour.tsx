@@ -69,10 +69,6 @@ function isTargetReady(target: string) {
   return rect.width > 0 && rect.height > 0
 }
 
-const delayedAdvanceTargets: Record<string, string> = {
-  '[data-tour="create-list"]': '[data-tour="list-card"]',
-}
-
 function resetTourRuntimeState(args: {
   shouldRunRef: MutableRefObject<boolean>
   hasStartedRef: MutableRefObject<boolean>
@@ -313,12 +309,6 @@ export function TutorialTour({ tourId, steps, run: runProp, onComplete, contentK
       const currentStep = filteredSteps[index]
       const currentTarget = typeof currentStep?.target === 'string' ? currentStep.target : null
       markTargetCompleted(tourId, currentTarget)
-      const delayedTarget = currentTarget ? delayedAdvanceTargets[currentTarget] : null
-      if (typeof delayedTarget === 'string') {
-        waitForTargetAndAdvance(delayedTarget)
-        return
-      }
-
       setStepIndex(nextIndex)
     }
 

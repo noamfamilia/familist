@@ -49,31 +49,18 @@ const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod =
 const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
   ssr: false,
 })
-// All home tour steps - list steps only shown when lists exist
+// Home tour steps — list-specific steps only appear when list targets exist in the DOM
 const homeTourSteps: Step[] = [
   {
-    target: '[data-tour="home-profile-menu"]',
-    content: 'App settings',
-    disableBeacon: true,
-  },
-  {
     target: '[data-tour="home-label-filter"]',
-    content: 'Show lists by labels (open list menu to edit its label)',
-  },
-  {
-    target: '[data-tour="create-list"]',
-    content: 'Create a new list.',
-  },
-  {
-    target: '[data-tour="list-card"]',
-    content: 'Click list to view and manage items',
+    content: 'Filter lists by labels',
+    disableBeacon: true,
   },
   {
     target: '[data-tour="list-drag-handle"]',
     content: 'Drag to re-arrange lists.',
     spotlightPadding: 2,
   },
-  // List-specific steps - only shown when list targets exist
   {
     target: '[data-tour="list-archive"]',
     content: 'Use ▼/▲ to archive/restore a list.',
@@ -81,7 +68,7 @@ const homeTourSteps: Step[] = [
   },
   {
     target: '[data-tour="list-menu"]',
-    content: 'List menu options',
+    content: 'List menu: delete, duplicate, comments, label',
     spotlightPadding: 2,
   },
 ]
