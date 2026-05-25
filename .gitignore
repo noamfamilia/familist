@@ -30,6 +30,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local commit-message scratch files
+.git-commit-msg.txt
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
