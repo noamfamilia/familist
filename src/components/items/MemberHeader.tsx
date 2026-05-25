@@ -855,14 +855,8 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      disabled={isOfflineActionsDisabled}
-                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm ${
-                        isOfflineActionsDisabled
-                          ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
-                          : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800'
-                      }`}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800"
                       onClick={() => {
-                        if (isOfflineActionsDisabled) return
                         closeActions()
                         onEnableSumItems?.()
                       }}
@@ -875,14 +869,8 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      disabled={isOfflineActionsDisabled}
-                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm ${
-                        isOfflineActionsDisabled
-                          ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
-                          : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800'
-                      }`}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800"
                       onClick={() => {
-                        if (isOfflineActionsDisabled) return
                         closeActions()
                         onDisableSumItems?.()
                       }}

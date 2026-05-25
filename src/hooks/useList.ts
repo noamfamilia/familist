@@ -2197,7 +2197,7 @@ export function useList(listId: string) {
     if (!mutationUserId) {
       return { error: new Error('Not signed in') }
     }
-    if (!tryBeginMutation()) {
+    if (!tryBeginItemQueueableMutation()) {
       return { error: new Error(blockedMutationMessage()) }
     }
     const prev = sumScope
