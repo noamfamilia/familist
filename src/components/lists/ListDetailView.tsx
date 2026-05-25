@@ -266,6 +266,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     renameCategory,
     reorderCategories,
     sortItemsByCategory,
+    itemsAlreadySortedByCategory,
     categorySettingsMutationPending,
     lastViewedMembers,
     createTargets,
@@ -983,7 +984,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               onItemNameFontStepChange={previewItemNameFontStep}
               showActionsMenu
               actionsMenuLoading={categorySettingsMutationPending || bulkLoading}
-              categoryEditorSortDisabled={bulkLoading}
+              categoryEditorSortDisabled={bulkLoading || itemsAlreadySortedByCategory}
               hasArchivedItems={archivedItems.length > 0}
               onExpandAll={handleExpandAll}
               onCollapseAll={handleCollapseAll}

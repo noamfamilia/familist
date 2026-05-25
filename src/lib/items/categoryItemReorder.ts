@@ -38,3 +38,13 @@ export function computeItemsReorderedByCategory(items: ItemWithState[], category
   const sortedActive = currentFull.filter(i => !i.archived).sort(byCategory)
   return reorderByCategory(currentFull, sortedActive)
 }
+
+/** True when active items already follow category order (sort would be a no-op). */
+export function areItemsSortedByCategory(items: ItemWithState[], categoryOrder: number[]): boolean {
+  if (items.length <= 1) return true
+  const currentIds = [...items]
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((item) => item.id)
+  const reorderedIds = computeItemsReorderedByCategory(items, categoryOrder).map((item) => item.id)
+  return currentIds.every((id, index) => id === reorderedIds[index])
+}

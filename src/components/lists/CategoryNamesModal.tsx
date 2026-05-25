@@ -276,12 +276,16 @@ export function CategoryNamesModal({
           </div>
         </SortableContext>
       </DndContext>
-      <div className="mt-3 flex justify-center">
+      <div className="mt-1.5">
         <button
           type="button"
           onClick={() => void handleSortClick()}
           disabled={sortDisabled}
-          className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white touch-manipulation hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className={`w-full touch-manipulation flex items-center justify-center overflow-hidden rounded-lg px-2 py-1 text-sm font-normal ${
+            sortDisabled
+              ? 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-neutral-700 dark:text-gray-500'
+              : 'bg-teal text-white hover:opacity-90'
+          }`}
         >
           Sort items
         </button>

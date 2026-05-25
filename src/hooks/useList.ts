@@ -8,7 +8,10 @@ import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { getActiveCacheUserId, getCachedList, setCachedList, removeCachedList } from '@/lib/cache'
 import { useShallow } from 'zustand/react/shallow'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
-import { computeItemsReorderedByCategory } from '@/lib/items/categoryItemReorder'
+import {
+  areItemsSortedByCategory,
+  computeItemsReorderedByCategory,
+} from '@/lib/items/categoryItemReorder'
 import { replaceListPreservingClientMirror, subscribeListDataL2Bridge, useListDataStore, warmListData } from '@/stores/listDataStore'
 import {
   addItemMutation,
@@ -2360,6 +2363,11 @@ export function useList(listId: string) {
     }
   }
 
+  const itemsAlreadySortedByCategory = useMemo(
+    () => areItemsSortedByCategory(items, categoryOrder),
+    [items, categoryOrder],
+  )
+
   const sortItemsByCategory = async () => {
     if (!mutationUserId) {
       return { error: { message: 'Not authenticated' } }
@@ -2369,7 +2377,7 @@ export function useList(listId: string) {
     const itemsSnapshot = [...useListDataStore.getState().items]
     const order = categoryOrderRef.current
     try {
-      if (itemsSnapshot.length === 0) {
+      if (itemsSnapshot.length === 0 || areItemsSortedByCategory(itemsSnapshot, order)) {
         return { error: null }
       }
       const fullOrder = computeItemsReorderedByCategory(itemsSnapshot, order)
@@ -2549,6 +2557,7 @@ export function useList(listId: string) {
     renameCategory,
     reorderCategories,
     sortItemsByCategory,
+    itemsAlreadySortedByCategory,
     categorySettingsMutationPending,
     lastViewedMembers,
     createTargets,
