@@ -9,8 +9,8 @@ import {
   outboundQueueRowStatusLabel,
   type OutboundQueueStatusTone,
 } from '@/lib/data/outboundQueueStatus'
-import { isOutboundRowPending } from '@/lib/data/syncQueueListScope'
 import { filterActiveOutboundRows } from '@/lib/data/guestOutboundQueuePolicy'
+import type { DbSyncQueueRow } from '@/lib/db'
 import { clearServerQueueModalState } from '@/lib/serverQueueModalState'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { copyTextToClipboard } from '@/lib/clipboard'
@@ -35,6 +35,12 @@ function rowStatusClass(tone: OutboundQueueStatusTone): string {
   if (tone === 'success') return 'text-green-600 dark:text-green-500'
   if (tone === 'failure') return 'text-red-500 dark:text-red-500'
   return 'text-gray-500 dark:text-gray-500'
+}
+
+function queueStatusDisplayLabel(row: DbSyncQueueRow): { label: string; tone: OutboundQueueStatusTone } {
+  if (row.status === 'completed') return { label: 'completed', tone: 'success' }
+  if (row.status === 'failed') return { label: 'fail', tone: 'failure' }
+  return outboundQueueRowStatusLabel(row)
 }
 
 function formatRowTime(ts: number): string {
@@ -132,10 +138,9 @@ export function PendingQueueStatusSection() {
     const now = Date.now()
     void (async () => {
       const queueSnapshot = rows
-      const pendingOnly = queueSnapshot.filter((r) => isOutboundRowPending(r))
       const next = await Promise.all(
-        pendingOnly.map(async (r, i) => {
-          const { label, tone } = outboundQueueRowStatusLabel(r)
+        queueSnapshot.map(async (r, i) => {
+          const { label, tone } = queueStatusDisplayLabel(r)
           return {
             id: r.id,
             displayIndex:
