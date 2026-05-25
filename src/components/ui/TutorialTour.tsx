@@ -227,13 +227,31 @@ export function TutorialTour({
       setStepIndex(0)
       hasStartedRef.current = true
       setRun(true)
-    } else if (contentChanged && hasStartedRef.current && runRef.current) {
+      return
+    }
+
+    if (contentChanged && hasStartedRef.current && runRef.current) {
       if (reanchorTimerRef.current) clearTimeout(reanchorTimerRef.current)
       setRun(false)
       reanchorTimerRef.current = setTimeout(() => {
         reanchorTimerRef.current = null
         setRun(true)
       }, 50)
+      return
+    }
+
+    // Targets aren't in the DOM yet (e.g. tour mounted before async data loaded).
+    // Poll so the tour can start once they render, without relying on contentKey churn.
+    if (availableSteps.length === 0 && !runRef.current) {
+      const hasIncompleteTargets = steps.some(step =>
+        typeof step.target !== 'string' || !completedTargets.has(step.target)
+      )
+      if (!hasIncompleteTargets) return
+
+      const timer = setTimeout(() => {
+        setRestartNonce(n => n + 1)
+      }, 500)
+      return () => clearTimeout(timer)
     }
   }, [tourId, runProp, steps, contentKey, restartNonce])
 
