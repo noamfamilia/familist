@@ -12,7 +12,13 @@ import {
 import { filterActiveOutboundRows } from '@/lib/data/guestOutboundQueuePolicy'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { copyTextToClipboard } from '@/lib/clipboard'
-import { consumeQueueRowTerminalOutcome } from '@/lib/data/queueTerminalOutcomes'
+import {
+  consumeQueueRowTerminalOutcome,
+  getQueueHistoryRows,
+  recordQueueRowHistoryFromSnapshot,
+  subscribeQueueHistory,
+  type QueueHistoryRow,
+} from '@/lib/data/queueTerminalOutcomes'
 
 type RowDisplay = {
   id: string
@@ -108,49 +114,38 @@ function QueueModalRow({ row }: { row: RowDisplay }) {
   )
 }
 
-/**
- * Session-scoped cache of rows that left the live queue (sync_queue rows are deleted on success or
- * terminal failure). Resets on full page reload.
- */
-const queueHistoryRows = new Map<string, RowDisplay>()
-const queueHistoryListeners = new Set<() => void>()
-
-function emitQueueHistoryChange(): void {
-  for (const fn of queueHistoryListeners) fn()
-}
-
-function recordQueueHistoryRow(row: RowDisplay): void {
-  queueHistoryRows.set(row.id, row)
-  emitQueueHistoryChange()
-}
-
-function subscribeQueueHistory(fn: () => void): () => void {
-  queueHistoryListeners.add(fn)
-  return () => {
-    queueHistoryListeners.delete(fn)
+function historyRowToDisplay(row: QueueHistoryRow): RowDisplay {
+  return {
+    id: row.id,
+    displayIndex: row.displayIndex,
+    description: row.description,
+    statusLabel: row.statusLabel,
+    statusTone: row.outcome === 'success' ? 'success' : 'failure',
+    detailTail: '',
+    updatedAt: row.recordedAt,
   }
 }
 
 /**
- * Resolve the final label for a row that just disappeared from the live queue.
+ * Fallback classifier for rows that disappear from the live query without the sync drain
+ * writing an authoritative entry (e.g. queue coalescing, terminal scrub of dependent rows).
  *
  * Preference order:
- *   1. Authoritative outcome recorded by the sync engine immediately before it deleted the row.
- *      This is the only reliable signal: `last_error` on a Dexie row is NOT cleared when a
- *      later retry succeeds, so reading it from the previous snapshot would mark rows that
- *      succeeded on retry (e.g. after a connectivity blip) as failures.
- *   2. Fallback heuristic for rows that vanished outside the drain (coalesced, scrubbed): a
- *      row whose last observed status is 'failed' is shown as fail; everything else as completed.
+ *   1. Authoritative outcome recorded by the sync engine (consumed before fallback).
+ *   2. `status === 'failed'` on the last observed snapshot. We intentionally do NOT use
+ *      `last_error` as a fail signal: it persists across retries and would mislabel rows
+ *      that recovered after a transient failure.
  */
 function classifyTerminalRow(rowId: string, prev: DbSyncQueueRow): {
   label: string
   tone: OutboundQueueStatusTone
+  outcome: 'success' | 'failure'
 } {
   const outcome = consumeQueueRowTerminalOutcome(rowId)
-  if (outcome === 'success') return { label: 'completed', tone: 'success' }
-  if (outcome === 'failure') return { label: 'fail', tone: 'failure' }
-  if (prev.status === 'failed') return { label: 'fail', tone: 'failure' }
-  return { label: 'completed', tone: 'success' }
+  if (outcome === 'success') return { label: 'completed', tone: 'success', outcome: 'success' }
+  if (outcome === 'failure') return { label: 'fail', tone: 'failure', outcome: 'failure' }
+  if (prev.status === 'failed') return { label: 'fail', tone: 'failure', outcome: 'failure' }
+  return { label: 'completed', tone: 'success', outcome: 'success' }
 }
 
 function QueueSection({
@@ -195,8 +190,8 @@ export function PendingQueueStatusSection() {
   const allRows = useLiveQuery(() => db.sync_queue.orderBy('updated_at').toArray(), [], []) ?? []
   const rows = useLiveQuery(async () => filterActiveOutboundRows(allRows), [allRows], []) ?? []
   const [activeDisplayRows, setActiveDisplayRows] = useState<RowDisplay[]>([])
-  const [historyDisplayRows, setHistoryDisplayRows] = useState<RowDisplay[]>(
-    () => [...queueHistoryRows.values()],
+  const [historyDisplayRows, setHistoryDisplayRows] = useState<RowDisplay[]>(() =>
+    getQueueHistoryRows().map(historyRowToDisplay),
   )
   const [copyHint, setCopyHint] = useState<string | null>(null)
 
@@ -205,7 +200,7 @@ export function PendingQueueStatusSection() {
 
   useEffect(() => {
     return subscribeQueueHistory(() => {
-      setHistoryDisplayRows([...queueHistoryRows.values()])
+      setHistoryDisplayRows(getQueueHistoryRows().map(historyRowToDisplay))
     })
   }, [])
 
@@ -240,17 +235,10 @@ export function PendingQueueStatusSection() {
 
       for (const [id, prevRow] of prevDisplay) {
         if (currentIds.has(id)) continue
-        if (queueHistoryRows.has(id)) continue
         const lastRaw = prevRaw.get(id)
         if (!lastRaw) continue
-        const { label, tone } = classifyTerminalRow(id, lastRaw)
-        recordQueueHistoryRow({
-          ...prevRow,
-          statusLabel: label,
-          statusTone: tone,
-          detailTail: '',
-          updatedAt: Date.now(),
-        })
+        const { outcome } = classifyTerminalRow(id, lastRaw)
+        recordQueueRowHistoryFromSnapshot(id, prevRow.description, outcome)
       }
 
       previousDisplayRowsRef.current = new Map(next.map((r) => [r.id, r]))

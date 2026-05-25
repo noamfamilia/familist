@@ -5,6 +5,7 @@ import type { User } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { notifyBootSessionVerifyFailed } from '@/lib/authBootToastBridge'
 import { isBrowserOnline, resolveLocalBootActor } from '@/lib/authLocalBoot'
+import { isLikelyConnectivityError } from '@/lib/connectivityErrors'
 import {
   clearLastAuthUserId,
   hasUsableAuthBlob,
@@ -168,25 +169,37 @@ export function useAuthPhaseBootstrap(
     hasSessionUser: boolean,
   ) => {
     const code = bootSessionVerifyCodeFromGetSession(sessionError, hadAuthBlob, hasSessionUser)
+    const connectivityShaped = sessionError != null && isLikelyConnectivityError(sessionError)
+    const browserOnline = isBrowserOnline()
     appendConnectivityDebugLine(
-      `[auth] boot-verify-failed code=${code ?? 'none'} hadBlob=${hadAuthBlob} err=${sessionError instanceof Error ? sessionError.message : String(sessionError ?? 'null-session')}`,
+      `[auth] boot-verify-failed code=${code ?? 'none'} hadBlob=${hadAuthBlob} online=${browserOnline} connErr=${connectivityShaped} err=${sessionError instanceof Error ? sessionError.message : String(sessionError ?? 'null-session')}`,
     )
-    if (code) {
-      notifyBootSessionVerifyFailed(code)
-    }
     refs.loadingRef.current = false
     actionsRef.current.setLoading(false)
 
+    // Authoritative refresh-token rejection: server (or local SDK with cached metadata) said
+    // the refresh token is gone. This is final regardless of online state.
+    const authoritativeRejection = code === '450'
+
+    // Other server-side "no session" replies (code 451/452) are only trustworthy when we were
+    // actually online AND the error is not network-shaped. Otherwise it's likely connectivity.
+    const serverSaidNoSession =
+      code != null && code !== '450' && browserOnline && !connectivityShaped
+
+    if (!authoritativeRejection && !serverSaidNoSession) {
+      // Ambiguous (offline, connectivity-shaped error, or no code at all). Keep the
+      // optimistic local boot; the `online` listener will re-run the session pipeline.
+      return
+    }
+
+    if (code) notifyBootSessionVerifyFailed(code)
+
     if (refs.authPhaseRef.current === 'authenticated' && !refs.userRef.current) {
+      const source = `boot-verify-failed-${code ?? 'no-session'}`
       if (refs.localAccountBootRef.current || hadAuthBlob) {
-        void dropOptimisticAccountToGuestRef.current(
-          code ? `boot-verify-failed-${code}` : 'boot-verify-failed-no-session',
-        )
+        void dropOptimisticAccountToGuestRef.current(source)
       } else {
-        void transitionToGuestRef.current({
-          source: code ? `boot-verify-failed-${code}` : 'boot-verify-failed-no-session',
-          guestPath: 'C',
-        })
+        void transitionToGuestRef.current({ source, guestPath: 'C' })
       }
     }
   }
@@ -288,16 +301,11 @@ export function useAuthPhaseBootstrap(
 
     const runSessionPipeline = async (mode: 'account-local' | 'signed-out-check'): Promise<void> => {
       if (!isBrowserOnline()) {
+        // Offline is ambiguous, not a rejection. Keep the optimistic local boot in place;
+        // the `online` window listener registered below re-runs this pipeline on reconnect.
         appendConnectivityDebugLine(`[auth] session-pipeline skipped offline mode=${mode}`)
         refs.loadingRef.current = false
         actionsRef.current.setLoading(false)
-        if (
-          (mode === 'account-local' || refs.localAccountBootRef.current) &&
-          refs.authPhaseRef.current === 'authenticated' &&
-          !refs.userRef.current
-        ) {
-          void dropOptimisticAccountToGuest('session-pipeline-offline')
-        }
         return
       }
 
@@ -321,19 +329,23 @@ export function useAuthPhaseBootstrap(
         })
       } catch (error) {
         if (!effectMounted) return
+        const browserOnline = isBrowserOnline()
         appendConnectivityDebugLine(
-          `[auth] INITIAL_SESSION timeout mode=${mode} err=${error instanceof Error ? error.message : String(error)}`,
+          `[auth] INITIAL_SESSION timeout mode=${mode} online=${browserOnline} err=${error instanceof Error ? error.message : String(error)}`,
         )
         if (mode === 'account-local' || refs.localAccountBootRef.current || hasUsableAuthBlob()) {
-          notifyBootSessionVerifyFailed('453')
+          // Timeout is ambiguous — it can be a slow / dead network just as easily as a real
+          // server problem. We never have a server response to point at. Keep the optimistic
+          // boot in place and let `onOnline` (or a later INITIAL_SESSION delivery) settle it.
+          // Surface the toast only when we were online, so the user knows something is off.
           refs.loadingRef.current = false
           actionsRef.current.setLoading(false)
-          if (refs.authPhaseRef.current === 'authenticated' && !refs.userRef.current) {
-            void dropOptimisticAccountToGuest('INITIAL_SESSION-timeout')
+          if (browserOnline) {
+            notifyBootSessionVerifyFailed('453')
           }
           return
         }
-        if (refs.authPhaseRef.current === 'resolving') {
+        if (refs.authPhaseRef.current === 'resolving' && browserOnline) {
           await transitionToGuestRef.current({
             source: 'INITIAL_SESSION-timeout',
             guestPath: 'A',
