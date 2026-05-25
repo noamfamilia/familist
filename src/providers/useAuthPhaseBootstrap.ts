@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { notifyBootSessionVerifyFailed } from '@/lib/authBootToastBridge'
 import { isBrowserOnline, resolveLocalBootActor } from '@/lib/authLocalBoot'
 import {
+  clearLastAuthUserId,
   hasUsableAuthBlob,
   registerAuthPhaseGetter,
   setLastAuthUserId,
@@ -74,6 +75,7 @@ export function useAuthPhaseBootstrap(
   const handleBootVerifyFailureRef = useRef(
     (_sessionError: unknown, _hadAuthBlob: boolean, _hasSessionUser: boolean) => {},
   )
+  const dropOptimisticAccountToGuestRef = useRef(async (_source: string) => {})
 
   transitionToAuthenticatedRef.current = async (nextUser: User, source: string) => {
     const r = refs
@@ -166,13 +168,24 @@ export function useAuthPhaseBootstrap(
     hasSessionUser: boolean,
   ) => {
     const code = bootSessionVerifyCodeFromGetSession(sessionError, hadAuthBlob, hasSessionUser)
-    if (!code) return
     appendConnectivityDebugLine(
-      `[auth] boot-verify-failed code=${code} hadBlob=${hadAuthBlob} err=${sessionError instanceof Error ? sessionError.message : String(sessionError ?? 'null-session')}`,
+      `[auth] boot-verify-failed code=${code ?? 'none'} hadBlob=${hadAuthBlob} err=${sessionError instanceof Error ? sessionError.message : String(sessionError ?? 'null-session')}`,
     )
-    notifyBootSessionVerifyFailed(code)
+    if (code) {
+      notifyBootSessionVerifyFailed(code)
+    }
     refs.loadingRef.current = false
     actionsRef.current.setLoading(false)
+
+    if (
+      refs.authPhaseRef.current === 'authenticated' &&
+      !refs.userRef.current &&
+      (refs.localAccountBootRef.current || hadAuthBlob)
+    ) {
+      void dropOptimisticAccountToGuestRef.current(
+        code ? `boot-verify-failed-${code}` : 'boot-verify-failed-no-session',
+      )
+    }
   }
 
   useEffect(() => {
@@ -220,6 +233,18 @@ export function useAuthPhaseBootstrap(
       })
     }
 
+    const dropOptimisticAccountToGuest = async (source: string) => {
+      appendConnectivityDebugLine(`[auth] drop-optimistic-account-to-guest source=${source}`)
+      try {
+        await supabase.auth.signOut({ scope: 'local' })
+      } catch {
+        // best effort — clear stale blob so the next load does not re-enter optimistic account boot
+      }
+      clearLastAuthUserId()
+      await transitionToGuestRef.current({ source, guestPath: 'C' })
+    }
+    dropOptimisticAccountToGuestRef.current = dropOptimisticAccountToGuest
+
     const runGetSessionVerdict = async (
       source: string,
       onNoSession: () => void,
@@ -263,6 +288,13 @@ export function useAuthPhaseBootstrap(
         appendConnectivityDebugLine(`[auth] session-pipeline skipped offline mode=${mode}`)
         refs.loadingRef.current = false
         actionsRef.current.setLoading(false)
+        if (
+          (mode === 'account-local' || refs.localAccountBootRef.current) &&
+          refs.authPhaseRef.current === 'authenticated' &&
+          !refs.userRef.current
+        ) {
+          void dropOptimisticAccountToGuest('session-pipeline-offline')
+        }
         return
       }
 
@@ -293,6 +325,9 @@ export function useAuthPhaseBootstrap(
           notifyBootSessionVerifyFailed('453')
           refs.loadingRef.current = false
           actionsRef.current.setLoading(false)
+          if (refs.authPhaseRef.current === 'authenticated' && !refs.userRef.current) {
+            void dropOptimisticAccountToGuest('INITIAL_SESSION-timeout')
+          }
           return
         }
         if (refs.authPhaseRef.current === 'resolving') {
