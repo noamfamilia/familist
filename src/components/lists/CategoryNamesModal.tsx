@@ -73,9 +73,9 @@ function SortableCategoryCard({
           e.stopPropagation()
           onCardClick()
         }}
-        className={`h-7 min-w-0 flex-1 px-2 rounded-md touch-manipulation flex items-center justify-center text-xs leading-none overflow-hidden ${ITEM_CATEGORY_STYLES[catId as ItemCategory].swatch} text-gray-500 hover:opacity-90 dark:hover:opacity-90`}
+        className={`min-w-0 flex-1 touch-manipulation flex items-center overflow-hidden rounded-lg px-2 py-1 text-left text-sm font-normal text-gray-900 dark:text-gray-100 hover:opacity-90 dark:hover:opacity-90 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
       >
-        <span className="truncate">{label}</span>
+        <span className="truncate">{label || '\u00A0'}</span>
       </button>
     </div>
   )

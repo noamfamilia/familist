@@ -732,17 +732,7 @@ function HomeContent() {
         <ListDetailHomeOverlay listId={activeListId} onClose={closeListModal} />
       ) : null}
 
-      <AboutModal
-        isOpen={showAbout}
-        onClose={() => setShowAbout(false)}
-        user={user}
-        profile={profile}
-        guestId={guestId}
-        bootstrapUserId={bootstrapUserId}
-        isGuest={isGuest}
-        success={success}
-        showError={showError}
-      />
+      <AboutModal isOpen={showAbout} onClose={() => setShowAbout(false)} />
 
       <GoogleOneTapPrompt
         enabled={!showAuthModal && !showGuestInviteModal && authPhase !== 'resolving'}
