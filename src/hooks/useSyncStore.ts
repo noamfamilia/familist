@@ -38,6 +38,7 @@ import { upsertProfileFromServer } from '@/lib/data/serverDexieParity'
 import { readProfileFromDexie } from '@/lib/profileDexieHydrate'
 import { refreshOutboundReadQuietState } from '@/lib/data/outboundReadQuiet'
 import { scrubAfterTerminalOutboundFailure } from '@/lib/data/outboundTerminalScrub'
+import { recordQueueRowTerminalOutcome } from '@/lib/data/queueTerminalOutcomes'
 import { applyListUserSyncErrorForListIds } from '@/lib/data/listUserSyncStatus'
 import { clearListSyncErrorMessages, setListSyncErrorMessages } from '@/lib/data/listSyncErrorMessage'
 import { isoNow } from '@/lib/data/base_sync_fields'
@@ -1216,6 +1217,7 @@ export function useSyncStore(): SyncStoreState {
             const queueBeforeDelete = await db.sync_queue.toArray()
             await executeOutboundRow(claimed)
             await clearListSyncErrorMessages(listIdsTouchingOutboundRow(claimed))
+            recordQueueRowTerminalOutcome(claimed.id, 'success')
             await db.sync_queue.delete(claimed.id)
             if (syncUserId) {
               const flushedListIds = listIdsTouchingOutboundRow(claimed).filter(
@@ -1247,6 +1249,7 @@ export function useSyncStore(): SyncStoreState {
               if (syncUserId) {
                 await applyListUserSyncErrorForListIds(listIdsTouchingOutboundRow(claimed), syncUserId, false)
               }
+              recordQueueRowTerminalOutcome(claimed.id, 'failure')
               await db.sync_queue.delete(claimed.id)
               const terminalListIds = listIdsTouchingOutboundRow(claimed).filter(
                 (id) => !isVirtualUserListKey(id),

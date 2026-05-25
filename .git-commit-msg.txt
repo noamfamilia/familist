@@ -1,0 +1,15 @@
+Record authoritative terminal outcomes for sync queue history
+
+The queue history was inferring success/failure from the last live-query snapshot
+before a sync_queue row was deleted, and treated any non-empty `last_error` as a
+failure. `last_error` is never cleared between attempts, so any row that hit a
+transient error (e.g. a connectivity blip during online recovery) and then
+succeeded on retry was shown as `fail` even though the server-side change went
+through correctly.
+
+Move the truth into the sync engine: when the drain loop physically deletes a
+row, it records the row's final outcome (`success` after `executeOutboundRow`
+resolves, `failure` after `scrubAfterTerminalOutboundFailure`). The queue history
+UI consumes that outcome by row id and falls back only when no outcome was
+recorded — and the fallback now ignores `last_error` and uses `status === 'failed'`
+as the sole failure signal.

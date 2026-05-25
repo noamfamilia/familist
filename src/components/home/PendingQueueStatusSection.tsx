@@ -12,6 +12,7 @@ import {
 import { filterActiveOutboundRows } from '@/lib/data/guestOutboundQueuePolicy'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { copyTextToClipboard } from '@/lib/clipboard'
+import { consumeQueueRowTerminalOutcome } from '@/lib/data/queueTerminalOutcomes'
 
 type RowDisplay = {
   id: string
@@ -130,10 +131,25 @@ function subscribeQueueHistory(fn: () => void): () => void {
   }
 }
 
-function classifyTerminalRow(prev: DbSyncQueueRow): { label: string; tone: OutboundQueueStatusTone } {
-  if (prev.status === 'failed' || (prev.last_error && prev.last_error.trim().length > 0)) {
-    return { label: 'fail', tone: 'failure' }
-  }
+/**
+ * Resolve the final label for a row that just disappeared from the live queue.
+ *
+ * Preference order:
+ *   1. Authoritative outcome recorded by the sync engine immediately before it deleted the row.
+ *      This is the only reliable signal: `last_error` on a Dexie row is NOT cleared when a
+ *      later retry succeeds, so reading it from the previous snapshot would mark rows that
+ *      succeeded on retry (e.g. after a connectivity blip) as failures.
+ *   2. Fallback heuristic for rows that vanished outside the drain (coalesced, scrubbed): a
+ *      row whose last observed status is 'failed' is shown as fail; everything else as completed.
+ */
+function classifyTerminalRow(rowId: string, prev: DbSyncQueueRow): {
+  label: string
+  tone: OutboundQueueStatusTone
+} {
+  const outcome = consumeQueueRowTerminalOutcome(rowId)
+  if (outcome === 'success') return { label: 'completed', tone: 'success' }
+  if (outcome === 'failure') return { label: 'fail', tone: 'failure' }
+  if (prev.status === 'failed') return { label: 'fail', tone: 'failure' }
   return { label: 'completed', tone: 'success' }
 }
 
@@ -227,7 +243,7 @@ export function PendingQueueStatusSection() {
         if (queueHistoryRows.has(id)) continue
         const lastRaw = prevRaw.get(id)
         if (!lastRaw) continue
-        const { label, tone } = classifyTerminalRow(lastRaw)
+        const { label, tone } = classifyTerminalRow(id, lastRaw)
         recordQueueHistoryRow({
           ...prevRow,
           statusLabel: label,
