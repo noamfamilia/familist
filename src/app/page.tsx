@@ -422,7 +422,9 @@ function HomeContent() {
   const effectiveUserId = activeActorId
   const showListsShell = !!effectiveUserId
   const profileMenuNeedsSession = sessionRestoring
-  const profileMenuDisabled = isOffline || profileMenuNeedsSession
+  const avatarClickDisabled = profileMenuNeedsSession
+  const guestSignInDisabled = isOffline || profileMenuNeedsSession
+  const avatarDimmed = isOffline
 
   if (!hasMounted || authPhase === 'resolving') {
     return (
@@ -442,18 +444,22 @@ function HomeContent() {
             <button
               type="button"
               onClick={() => {
-                if (profileMenuDisabled) return
+                if (avatarClickDisabled) return
                 setProfileMenuOpen(o => !o)
               }}
-              disabled={profileMenuDisabled}
-              className="h-8 flex items-center rounded-lg hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50"
+              disabled={avatarClickDisabled}
+              className={`h-8 flex items-center rounded-lg hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 ${
+                avatarDimmed ? 'opacity-50 hover:opacity-50' : ''
+              }`}
               aria-label="Account menu"
               aria-expanded={profileMenuOpen}
               aria-haspopup="menu"
               title={
-                isOffline
-                  ? 'Account menu unavailable offline'
-                  : (user?.email ?? (sessionRestoring ? 'Restoring session…' : 'Account'))
+                sessionRestoring
+                  ? 'Restoring session…'
+                  : isOffline
+                    ? 'Offline'
+                    : (user?.email ?? 'Account')
               }
             >
               <ProfileAvatar
@@ -468,25 +474,26 @@ function HomeContent() {
               <button
                 type="button"
                 onClick={() => {
-                  if (profileMenuDisabled) return
+                  if (guestSignInDisabled) return
                   setProfileMenuOpen(false)
                   setAuthModalMode('signIn')
                   setShowAuthModal(true)
                 }}
-                disabled={profileMenuDisabled}
+                disabled={guestSignInDisabled}
                 className="text-sm text-teal font-medium hover:opacity-80 max-w-[140px] truncate text-left whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Sign in"
               >
                 Guest (sign in)
               </button>
             ) : null}
-            {!isOffline && profileMenuAnim.mounted && (
+            {profileMenuAnim.mounted && (
               <div className="absolute left-0 top-full z-50 mt-2">
                 <ProfileHomeMenu
                   user={user}
                   profile={profile}
                   isGuest={isGuest}
                   profileMenuNeedsSession={profileMenuNeedsSession}
+                  isOffline={isOffline}
                   menuClassName={profileMenuAnim.menuClassName}
                   themeToggleLabel={
                     themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'
@@ -521,7 +528,6 @@ function HomeContent() {
                   updateProfile={updateProfile}
                   updateActorProfile={updateActorProfile}
                   signOut={signOut}
-                  success={success}
                   showError={showError}
                 />
               </div>

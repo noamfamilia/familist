@@ -5,7 +5,6 @@ import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import { ProfileAvatar } from '@/components/auth/ProfileAvatar'
 import { resolveAuthDisplayName } from '@/lib/authDisplayName'
-import { shareMyFamilistApp } from '@/lib/shareFamilistApp'
 
 const menuTextClass = 'text-base font-normal text-gray-900 dark:text-gray-100'
 
@@ -16,6 +15,7 @@ type ProfileHomeMenuProps = {
   profile: Profile | null
   isGuest: boolean
   profileMenuNeedsSession: boolean
+  isOffline?: boolean
   menuClassName: string
   themeToggleLabel: string
   onCloseMenu: () => void
@@ -28,7 +28,6 @@ type ProfileHomeMenuProps = {
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   updateActorProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   signOut: () => Promise<{ error: Error | null }>
-  success: (message: string) => void
   showError: (message: string) => void
 }
 
@@ -37,6 +36,7 @@ export function ProfileHomeMenu({
   profile,
   isGuest,
   profileMenuNeedsSession,
+  isOffline = false,
   menuClassName,
   themeToggleLabel,
   onCloseMenu,
@@ -49,9 +49,10 @@ export function ProfileHomeMenu({
   updateProfile,
   updateActorProfile,
   signOut,
-  success,
   showError,
 }: ProfileHomeMenuProps) {
+  const nicknameDisabled = profileMenuNeedsSession || isOffline
+  const signOutDisabledByOffline = isOffline
   const displayNickname = isGuest
     ? profile?.nickname?.trim() || 'Guest'
     : resolveAuthDisplayName(user, profile)
@@ -86,10 +87,10 @@ export function ProfileHomeMenu({
   }, [editingNickname, displayNickname])
 
   const openNicknameEditor = useCallback(() => {
-    if (profileMenuNeedsSession) return
+    if (nicknameDisabled) return
     setDraftNickname(displayNickname)
     setEditingNickname(true)
-  }, [displayNickname, profileMenuNeedsSession])
+  }, [displayNickname, nicknameDisabled])
 
   const cancelNicknameEdit = useCallback(() => {
     setDraftNickname(displayNickname)
@@ -126,7 +127,7 @@ export function ProfileHomeMenu({
   ])
 
   const handleSignOut = useCallback(async () => {
-    if (signingOut || profileMenuNeedsSession) return
+    if (signingOut || profileMenuNeedsSession || signOutDisabledByOffline) return
     setSigningOut(true)
     try {
       const { error } = await signOut()
@@ -138,12 +139,14 @@ export function ProfileHomeMenu({
     } finally {
       setSigningOut(false)
     }
-  }, [onCloseMenu, profileMenuNeedsSession, showError, signOut, signingOut])
-
-  const handleShare = useCallback(() => {
-    onCloseMenu()
-    void shareMyFamilistApp({ success, error: showError })
-  }, [onCloseMenu, showError, success])
+  }, [
+    onCloseMenu,
+    profileMenuNeedsSession,
+    showError,
+    signOut,
+    signOutDisabledByOffline,
+    signingOut,
+  ])
 
   const handleImport = useCallback(() => {
     if (importDisabled || profileMenuNeedsSession) return
@@ -161,11 +164,18 @@ export function ProfileHomeMenu({
         <div className="relative">
           <button
             type="button"
-            disabled={profileMenuNeedsSession}
+            disabled={nicknameDisabled}
             className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-neutral-800 ${
-              profileMenuNeedsSession ? 'cursor-not-allowed opacity-50' : ''
+              nicknameDisabled ? 'cursor-not-allowed opacity-50' : ''
             }`}
             role="menuitem"
+            title={
+              isOffline
+                ? 'Edit name unavailable offline'
+                : profileMenuNeedsSession
+                  ? 'Restoring session…'
+                  : undefined
+            }
             onClick={openNicknameEditor}
           >
             <ProfileAvatar user={user} guest={isGuest} size={32} className="h-8 w-8 shrink-0" />
@@ -249,13 +259,20 @@ export function ProfileHomeMenu({
         ) : (
           <button
             type="button"
-            disabled={signingOut || profileMenuNeedsSession}
+            disabled={signingOut || profileMenuNeedsSession || signOutDisabledByOffline}
             className={`${menuRowClass} ${
-              signingOut || profileMenuNeedsSession
+              signingOut || profileMenuNeedsSession || signOutDisabledByOffline
                 ? 'cursor-not-allowed text-gray-400 opacity-50 dark:text-gray-500'
                 : ''
             }`}
             role="menuitem"
+            title={
+              signOutDisabledByOffline
+                ? 'Sign out unavailable offline'
+                : profileMenuNeedsSession
+                  ? 'Restoring session…'
+                  : undefined
+            }
             onClick={() => void handleSignOut()}
           >
             {signingOut ? 'Signing out…' : 'Sign out'}
@@ -322,10 +339,6 @@ export function ProfileHomeMenu({
             About
           </button>
         ) : null}
-
-        <button type="button" className={menuRowClass} role="menuitem" onClick={handleShare}>
-          Share My Familist
-        </button>
       </div>
     </div>
   )

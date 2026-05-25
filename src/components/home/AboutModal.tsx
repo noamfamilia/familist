@@ -10,14 +10,9 @@ import { enqueueSyncQueueRecord, userQueueParent } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { normalizeServerSyncableFields } from '@/lib/data/serverDexieParity'
 import type { Profile } from '@/lib/supabase/types'
+import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 
-const sectionRuleClass = 'border-gray-200 dark:border-neutral-600'
-
-const ABOUT_MESSAGE = `I hope you enjoy the app.
-Share with me ideas for improvements.
-
-Yours,
-Noam Familia`
+const APP_SHARE_URL = 'https://myfamilist.com/'
 
 interface AboutModalProps {
   isOpen: boolean
@@ -48,6 +43,19 @@ export function AboutModal({
   const handleClose = () => {
     setFeedbackText('')
     onClose()
+  }
+
+  const handleCopyShareLink = async () => {
+    try {
+      await copyTextToClipboard(APP_SHARE_URL)
+      if (!isMobileDevice()) {
+        success('Link copied to clipboard')
+      } else {
+        success('Copied')
+      }
+    } catch {
+      showError('Failed to copy link')
+    }
   }
 
   const handleSubmitFeedback = async () => {
@@ -104,35 +112,42 @@ export function AboutModal({
       contentClassName="!max-w-lg max-sm:!max-w-none"
       fullScreenMobile
     >
-      <div className="flex flex-col gap-6 text-left">
-        <div className="flex flex-col gap-2">
-          <p className="whitespace-pre-line text-sm font-normal text-gray-800 dark:text-gray-200">
-            {ABOUT_MESSAGE}
-          </p>
-          {showFeedback ? (
-            <>
-              <textarea
-                value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
-                placeholder="Share your suggestions or feedback..."
-                className="w-full min-h-[120px] resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-teal focus:outline-none dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-200"
-                maxLength={2000}
-              />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  disabled={!feedbackText.trim() || submittingFeedback}
-                  onClick={() => void handleSubmitFeedback()}
-                  className="rounded-lg bg-teal px-4 py-1.5 text-sm font-medium text-white hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {submittingFeedback ? 'Submitting...' : 'Submit'}
-                </button>
-              </div>
-            </>
-          ) : null}
-        </div>
+      <div className="flex flex-col gap-5 text-left">
+        <button
+          type="button"
+          onClick={() => void handleCopyShareLink()}
+          className="self-start text-left text-sm font-normal text-teal hover:underline focus:underline focus:outline-none"
+          aria-label="Copy app link to clipboard"
+        >
+          If you like the app, share it with friends.
+        </button>
 
-        <hr className={sectionRuleClass} aria-hidden />
+        {showFeedback ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-normal text-gray-800 dark:text-gray-200">Leave feedback</p>
+            <textarea
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="Share your suggestions or feedback..."
+              className="w-full min-h-[120px] resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-teal focus:outline-none dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-200"
+              maxLength={2000}
+            />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                disabled={!feedbackText.trim() || submittingFeedback}
+                onClick={() => void handleSubmitFeedback()}
+                className="rounded-lg bg-teal px-4 py-1.5 text-sm font-medium text-white hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submittingFeedback ? 'Submitting...' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <p className="whitespace-pre-line text-sm font-normal text-gray-800 dark:text-gray-200">
+          {`Yours,\nNoam Familia`}
+        </p>
 
         <PendingQueueStatusSection />
       </div>
