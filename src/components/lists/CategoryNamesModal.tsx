@@ -58,29 +58,30 @@ function SortableCategoryCard({
   }
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-1.5"
-    >
+    <div ref={setNodeRef} style={style}>
       <div
-        className="text-gray-400 dark:text-gray-500 cursor-grab select-none text-lg tracking-tighter touch-none flex-shrink-0"
-        {...attributes}
-        {...listeners}
+        className={`relative flex items-center overflow-hidden rounded-lg px-2 py-1 min-h-10 text-sm font-normal text-gray-900 dark:text-gray-100 hover:opacity-90 dark:hover:opacity-90 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
       >
-        ⋮⋮
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onCardClick()
+          }}
+          className="min-w-0 flex-1 touch-manipulation text-left"
+        >
+          <span className="block truncate">{label || '\u00A0'}</span>
+        </button>
+        <div
+          className="ml-2 flex-shrink-0 cursor-grab select-none text-lg leading-none tracking-tighter opacity-50 hover:opacity-80 touch-none"
+          aria-label="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          ⋮⋮
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onCardClick()
-        }}
-        className={`min-w-0 flex-1 touch-manipulation flex items-center overflow-hidden rounded-lg px-2 py-1 min-h-10 text-left text-sm font-normal text-gray-900 dark:text-gray-100 hover:opacity-90 dark:hover:opacity-90 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
-      >
-        <span className="truncate">{label || '\u00A0'}</span>
-      </button>
     </div>
   )
 }
