@@ -146,7 +146,6 @@ export function useAuthPhaseBootstrap(
       options.formerAuthUserId ?? r.userRef.current?.id ?? r.lastAppliedUserIdRef.current
 
     r.localAccountBootRef.current = false
-    a.setAuthPhaseBoth('guest')
     r.authenticatedEstablishedRef.current = false
     await a.enterGuestMode({
       freshGuest: options.freshGuest === true,
@@ -155,6 +154,7 @@ export function useAuthPhaseBootstrap(
     })
 
     if (!r.mountedRef.current) return
+    a.setAuthPhaseBoth('guest')
     r.loadingRef.current = false
     a.setLoading(false)
     if (options.guestPath === 'B') {
@@ -177,14 +177,17 @@ export function useAuthPhaseBootstrap(
     refs.loadingRef.current = false
     actionsRef.current.setLoading(false)
 
-    if (
-      refs.authPhaseRef.current === 'authenticated' &&
-      !refs.userRef.current &&
-      (refs.localAccountBootRef.current || hadAuthBlob)
-    ) {
-      void dropOptimisticAccountToGuestRef.current(
-        code ? `boot-verify-failed-${code}` : 'boot-verify-failed-no-session',
-      )
+    if (refs.authPhaseRef.current === 'authenticated' && !refs.userRef.current) {
+      if (refs.localAccountBootRef.current || hadAuthBlob) {
+        void dropOptimisticAccountToGuestRef.current(
+          code ? `boot-verify-failed-${code}` : 'boot-verify-failed-no-session',
+        )
+      } else {
+        void transitionToGuestRef.current({
+          source: code ? `boot-verify-failed-${code}` : 'boot-verify-failed-no-session',
+          guestPath: 'C',
+        })
+      }
     }
   }
 
@@ -366,6 +369,10 @@ export function useAuthPhaseBootstrap(
         refs.localAccountBootRef.current = false
         if (refs.authPhaseRef.current === 'resolving') {
           void transitionToGuestRef.current({ source: 'local-boot', guestPath: 'C' })
+        } else if (refs.authPhaseRef.current === 'guest') {
+          void actionsRef.current.enterGuestMode({})
+          refs.loadingRef.current = false
+          actionsRef.current.setLoading(false)
         } else {
           refs.loadingRef.current = false
           actionsRef.current.setLoading(false)

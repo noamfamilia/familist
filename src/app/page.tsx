@@ -424,7 +424,11 @@ function HomeContent() {
   const profileMenuNeedsSession = sessionRestoring
   const profileMenuDisabled = isOffline || profileMenuNeedsSession
 
-  if (!hasMounted || authPhase === 'resolving') {
+  if (
+    !hasMounted ||
+    authPhase === 'resolving' ||
+    (authPhase === 'guest' && !activeActorId)
+  ) {
     return (
       <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 p-8 w-full sm:min-w-[300px] min-h-screen sm:min-h-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal"></div>

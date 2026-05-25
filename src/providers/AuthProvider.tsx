@@ -1,6 +1,14 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  useRef,
+} from 'react'
 import { useTheme } from 'next-themes'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -204,7 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const mountedRef = useRef(true)
   const userRef = useRef<User | null>(null)
   const guestIdRef = useRef<string | null>(null)
-  const bootstrapUserIdRef = useRef<string | null>(null)
+  const bootstrapUserIdRef = useRef<string | null>(initialShell.bootstrapUserId)
   const profileFetchGenRef = useRef(0)
   const lastAppliedUserIdRef = useRef<string | null>(null)
   /** Skip duplicate enterGuestMode(same gid) when signOut + SIGNED_OUT both fire. */
@@ -218,7 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const localAccountBootRef = useRef(initialShell.localAccountBoot)
   const loadingRef = useRef(initialShell.loading)
   loadingRef.current = loading
-  bootstrapUserIdRef.current = initialShell.bootstrapUserId
 
   const setAuthPhaseBoth = useCallback((phase: AuthPhase) => {
     authPhaseRef.current = phase
@@ -249,6 +256,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mountedRef.current = false
     }
   }, [])
+
+  /** SSR starts in resolving; sync guest shell before paint when local storage has no account. */
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    const shell = readInitialAuthShell()
+    if (shell.phase !== 'guest') return
+
+    const gid = shell.bootstrapUserId ?? ensureGuestId()
+    const phase = authPhaseRef.current
+    if (phase !== 'resolving' && phase !== 'guest') return
+
+    guestIdRef.current = gid
+    bootstrapUserIdRef.current = gid
+    setGuestId(gid)
+    setBootstrapUserId(gid)
+    setActiveCacheUserId(gid)
+    if (phase === 'resolving') {
+      setAuthPhaseBoth('guest')
+    }
+    setLoading(false)
+    loadingRef.current = false
+  }, [setAuthPhaseBoth])
 
   useEffect(() => {
     userRef.current = user
@@ -350,10 +379,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (
       !options?.freshGuest &&
+      !options?.signedOut &&
       userRef.current === null &&
-      lastEnterGuestModeGidRef.current === gid
+      lastEnterGuestModeGidRef.current === gid &&
+      guestIdRef.current === gid &&
+      bootstrapUserIdRef.current === gid
     ) {
-      if (options?.signedOut) setSignedOutToGuest(true)
       return
     }
 
