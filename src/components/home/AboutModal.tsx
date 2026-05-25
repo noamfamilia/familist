@@ -116,10 +116,10 @@ export function AboutModal({
         <button
           type="button"
           onClick={() => void handleCopyShareLink()}
-          className="self-start text-left text-sm font-normal text-teal hover:underline focus:underline focus:outline-none"
+          className="self-start text-left text-sm font-normal text-blue-600 hover:underline focus:underline focus:outline-none dark:text-blue-400"
           aria-label="Copy app link to clipboard"
         >
-          If you like the app, share it with friends.
+          Click to share the app
         </button>
 
         {showFeedback ? (
@@ -146,7 +146,7 @@ export function AboutModal({
         ) : null}
 
         <p className="whitespace-pre-line text-sm font-normal text-gray-800 dark:text-gray-200">
-          {`Yours,\nNoam Familia`}
+          {`Enjoy the app,\nNoam Familia`}
         </p>
 
         <PendingQueueStatusSection />
