@@ -77,7 +77,7 @@ function SortableCategoryCard({
           e.stopPropagation()
           onCardClick()
         }}
-        className={`min-w-0 flex-1 touch-manipulation flex items-center overflow-hidden rounded-lg px-2 py-1 min-h-8 text-left text-sm font-normal text-gray-900 dark:text-gray-100 hover:opacity-90 dark:hover:opacity-90 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
+        className={`min-w-0 flex-1 touch-manipulation flex items-center overflow-hidden rounded-lg px-2 py-1 min-h-10 text-left text-sm font-normal text-gray-900 dark:text-gray-100 hover:opacity-90 dark:hover:opacity-90 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
       >
         <span className="truncate">{label || '\u00A0'}</span>
       </button>
@@ -248,7 +248,7 @@ export function CategoryNamesModal({
       tabIndex={-1}
       role="dialog"
       aria-label="Categories"
-      className={`fixed z-[10000] w-[192px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${menuAnim.menuClassName}`}
+      className={`fixed z-[10000] w-[230px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${menuAnim.menuClassName}`}
       style={{ top: pos.top, left: pos.left }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -264,7 +264,7 @@ export function CategoryNamesModal({
                 />
                 {renamingCatId === c && (
                   <div
-                    className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[180px]"
+                    className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[216px]"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <input
@@ -312,7 +312,7 @@ export function CategoryNamesModal({
           type="button"
           onClick={() => void handleSortClick()}
           disabled={effectiveSortDisabled}
-          className={`inline-flex min-h-8 touch-manipulation items-center justify-center rounded-lg px-4 text-sm font-medium ${
+          className={`inline-flex min-h-10 touch-manipulation items-center justify-center rounded-lg px-4 text-sm font-medium ${
             effectiveSortDisabled
               ? 'text-white/75 bg-teal/35 cursor-not-allowed'
               : 'text-white bg-teal hover:opacity-80'

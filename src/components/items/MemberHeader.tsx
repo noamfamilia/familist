@@ -169,9 +169,13 @@ export function MemberHeader({
 
   const computeDisplayPopoverPos = useCallback((anchorEl: HTMLElement, popoverWidth: number) => {
     const btnRect = anchorEl.getBoundingClientRect()
+    // Align popover left with the item-name column (~card.left + pl-2 + drag-handle w-5 + gap-0.5
+    // = ~30px), so the popover lines up with the first letter of each item name rather than with
+    // the card edge.
+    const itemNameLeftPx = 30
     const cardLeft = headerCardRef.current?.getBoundingClientRect().left ?? btnRect.left
     const vw = window.innerWidth
-    const left = Math.min(Math.max(8, cardLeft), vw - popoverWidth - 8)
+    const left = Math.min(Math.max(8, cardLeft + itemNameLeftPx), vw - popoverWidth - 8)
     return { top: btnRect.bottom + 6, left }
   }, [])
 
@@ -192,7 +196,7 @@ export function MemberHeader({
       requestAnimationFrame(() => {
         const el = categoryBtnRef.current
         if (!el) return
-        setCategoryModalPos(computeDisplayPopoverPos(el, 192))
+        setCategoryModalPos(computeDisplayPopoverPos(el, 230))
         setShowCategoryModal(true)
       })
     },
