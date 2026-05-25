@@ -70,7 +70,6 @@ interface MemberHeaderProps {
   itemNameFontStep?: number
   onItemNameFontStepChange?: (step: number) => void
   showActionsMenu?: boolean
-  actionsMenuLoading?: boolean
   hasArchivedItems?: boolean
   /** Disables “Sort items” in the Categories popover only (e.g. bulk operations). */
   categoryEditorSortDisabled?: boolean
@@ -118,7 +117,6 @@ export function MemberHeader({
   itemNameFontStep = ITEM_NAME_FONT_DEFAULT,
   onItemNameFontStepChange,
   showActionsMenu = false,
-  actionsMenuLoading = false,
   hasArchivedItems = false,
   categoryEditorSortDisabled = false,
   onExpandAll,
@@ -834,15 +832,9 @@ export function MemberHeader({
                 <button
                   ref={actionsButtonRef}
                   type="button"
-                  disabled={isOfflineActionsDisabled || actionsMenuLoading}
                   onClick={handleToggleActions}
-                  className={`flex h-10 w-10 items-center justify-center rounded-lg touch-manipulation bg-transparent text-teal hover:bg-teal/10 disabled:pointer-events-none ${
-                    isOfflineActionsDisabled ? 'cursor-not-allowed opacity-40' : 'disabled:opacity-50'
-                  }`}
-                  aria-label={
-                    isOfflineActionsDisabled ? 'List actions (unavailable while offline or reconnecting)' : 'List actions'
-                  }
-                  title={isOfflineActionsDisabled ? 'Unavailable while offline or reconnecting' : undefined}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg touch-manipulation bg-transparent text-teal hover:bg-teal/10"
+                  aria-label="List actions"
                   aria-expanded={actionsOpen}
                   aria-haspopup="menu"
                 >
