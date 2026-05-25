@@ -73,7 +73,7 @@ function SortableCategoryCard({
           e.stopPropagation()
           onCardClick()
         }}
-        className={`min-w-0 flex-1 touch-manipulation flex items-center overflow-hidden rounded-lg px-2 py-1 text-left text-sm font-normal text-gray-900 dark:text-gray-100 hover:opacity-90 dark:hover:opacity-90 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
+        className={`min-w-0 flex-1 touch-manipulation flex items-center overflow-hidden rounded-lg px-2 py-1 min-h-8 text-left text-sm font-normal text-gray-900 dark:text-gray-100 hover:opacity-90 dark:hover:opacity-90 ${ITEM_CATEGORY_STYLES[catId as ItemCategory].modal}`}
       >
         <span className="truncate">{label || '\u00A0'}</span>
       </button>
@@ -276,14 +276,14 @@ export function CategoryNamesModal({
           </div>
         </SortableContext>
       </DndContext>
-      <div className="mt-1.5">
+      <div className="mt-3 flex justify-center">
         <button
           type="button"
           onClick={() => void handleSortClick()}
           disabled={sortDisabled}
-          className={`w-full touch-manipulation flex items-center justify-center overflow-hidden rounded-lg px-2 py-1 text-sm font-normal ${
+          className={`inline-flex min-h-8 touch-manipulation items-center justify-center rounded-lg px-4 text-sm font-normal ${
             sortDisabled
-              ? 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-neutral-700 dark:text-gray-500'
+              ? 'cursor-not-allowed bg-teal text-white opacity-40 dark:opacity-35'
               : 'bg-teal text-white hover:opacity-90'
           }`}
         >
