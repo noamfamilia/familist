@@ -15,6 +15,7 @@ const sectionRuleClass = 'border-gray-200 dark:border-neutral-600'
 
 const ABOUT_MESSAGE = `I hope you enjoy the app.
 Share with me ideas for improvements.
+
 Yours,
 Noam Familia`
 
@@ -104,32 +105,32 @@ export function AboutModal({
       fullScreenMobile
     >
       <div className="flex flex-col gap-6 text-left">
-        <p className="whitespace-pre-line text-sm font-normal text-gray-800 dark:text-gray-200">
-          {ABOUT_MESSAGE}
-        </p>
-
-        {showFeedback ? (
-          <section className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">User feedback</h3>
-            <textarea
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              placeholder="Share your suggestions or feedback..."
-              className="w-full min-h-[120px] resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-teal focus:outline-none dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-200"
-              maxLength={2000}
-            />
-            <div className="flex justify-end">
-              <button
-                type="button"
-                disabled={!feedbackText.trim() || submittingFeedback}
-                onClick={() => void handleSubmitFeedback()}
-                className="rounded-lg bg-teal px-4 py-1.5 text-sm font-medium text-white hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {submittingFeedback ? 'Submitting...' : 'Submit'}
-              </button>
-            </div>
-          </section>
-        ) : null}
+        <div className="flex flex-col gap-2">
+          <p className="whitespace-pre-line text-sm font-normal text-gray-800 dark:text-gray-200">
+            {ABOUT_MESSAGE}
+          </p>
+          {showFeedback ? (
+            <>
+              <textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="Share your suggestions or feedback..."
+                className="w-full min-h-[120px] resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-teal focus:outline-none dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-200"
+                maxLength={2000}
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  disabled={!feedbackText.trim() || submittingFeedback}
+                  onClick={() => void handleSubmitFeedback()}
+                  className="rounded-lg bg-teal px-4 py-1.5 text-sm font-medium text-white hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submittingFeedback ? 'Submitting...' : 'Submit'}
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
 
         <hr className={sectionRuleClass} aria-hidden />
 

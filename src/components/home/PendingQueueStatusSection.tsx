@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/lib/db'
+import { db, type DbSyncQueueRow } from '@/lib/db'
 import { describeOutboundSyncRow } from '@/lib/data/outboundSyncDescription'
 import {
   outboundQueueRowDetailTail,
@@ -10,7 +10,6 @@ import {
   type OutboundQueueStatusTone,
 } from '@/lib/data/outboundQueueStatus'
 import { filterActiveOutboundRows } from '@/lib/data/guestOutboundQueuePolicy'
-import type { DbSyncQueueRow } from '@/lib/db'
 import { clearServerQueueModalState } from '@/lib/serverQueueModalState'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { copyTextToClipboard } from '@/lib/clipboard'
@@ -35,12 +34,6 @@ function rowStatusClass(tone: OutboundQueueStatusTone): string {
   if (tone === 'success') return 'text-green-600 dark:text-green-500'
   if (tone === 'failure') return 'text-red-500 dark:text-red-500'
   return 'text-gray-500 dark:text-gray-500'
-}
-
-function queueStatusDisplayLabel(row: DbSyncQueueRow): { label: string; tone: OutboundQueueStatusTone } {
-  if (row.status === 'completed') return { label: 'completed', tone: 'success' }
-  if (row.status === 'failed') return { label: 'fail', tone: 'failure' }
-  return outboundQueueRowStatusLabel(row)
 }
 
 function formatRowTime(ts: number): string {
@@ -126,12 +119,56 @@ function PendingQueueRow({ row }: { row: RowDisplay }) {
   )
 }
 
+/**
+ * Session-scoped cache of rows that left the live queue (sync_queue rows are deleted on success or
+ * terminal failure). Keeps them visible in the modal until the user clicks Clear or the page reloads.
+ */
+const terminalQueueRows = new Map<string, RowDisplay>()
+const terminalQueueListeners = new Set<() => void>()
+
+function emitTerminalQueueChange(): void {
+  for (const fn of terminalQueueListeners) fn()
+}
+
+function recordTerminalQueueRow(row: RowDisplay): void {
+  terminalQueueRows.set(row.id, row)
+  emitTerminalQueueChange()
+}
+
+function clearTerminalQueueRows(): void {
+  if (terminalQueueRows.size === 0) return
+  terminalQueueRows.clear()
+  emitTerminalQueueChange()
+}
+
+function subscribeTerminalQueueRows(fn: () => void): () => void {
+  terminalQueueListeners.add(fn)
+  return () => {
+    terminalQueueListeners.delete(fn)
+  }
+}
+
+function classifyTerminalRow(prev: DbSyncQueueRow): { label: string; tone: OutboundQueueStatusTone } {
+  if (prev.status === 'failed' || (prev.last_error && prev.last_error.trim().length > 0)) {
+    return { label: 'fail', tone: 'failure' }
+  }
+  return { label: 'completed', tone: 'success' }
+}
+
 export function PendingQueueStatusSection() {
   const { status: connectivityStatus } = useConnectivity()
   const allRows = useLiveQuery(() => db.sync_queue.orderBy('updated_at').toArray(), [], []) ?? []
   const rows = useLiveQuery(async () => filterActiveOutboundRows(allRows), [allRows], []) ?? []
-  const [displayRows, setDisplayRows] = useState<RowDisplay[]>([])
+  const [activeDisplayRows, setActiveDisplayRows] = useState<RowDisplay[]>([])
   const [copyHint, setCopyHint] = useState<string | null>(null)
+  const [, setTerminalVersion] = useState(0)
+
+  const previousRawRowsRef = useRef<Map<string, DbSyncQueueRow>>(new Map())
+  const previousDisplayRowsRef = useRef<Map<string, RowDisplay>>(new Map())
+
+  useEffect(() => {
+    return subscribeTerminalQueueRows(() => setTerminalVersion((v) => v + 1))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -140,7 +177,7 @@ export function PendingQueueStatusSection() {
       const queueSnapshot = rows
       const next = await Promise.all(
         queueSnapshot.map(async (r, i) => {
-          const { label, tone } = queueStatusDisplayLabel(r)
+          const { label, tone } = outboundQueueRowStatusLabel(r)
           return {
             id: r.id,
             displayIndex:
@@ -156,17 +193,44 @@ export function PendingQueueStatusSection() {
           }
         }),
       )
-      if (!cancelled) setDisplayRows(next)
+      if (cancelled) return
+
+      const currentIds = new Set(next.map((r) => r.id))
+      const prevDisplay = previousDisplayRowsRef.current
+      const prevRaw = previousRawRowsRef.current
+
+      for (const [id, prevRow] of prevDisplay) {
+        if (currentIds.has(id)) continue
+        if (terminalQueueRows.has(id)) continue
+        const lastRaw = prevRaw.get(id)
+        if (!lastRaw) continue
+        const { label, tone } = classifyTerminalRow(lastRaw)
+        recordTerminalQueueRow({
+          ...prevRow,
+          statusLabel: label,
+          statusTone: tone,
+          detailTail: '',
+          updatedAt: Date.now(),
+        })
+      }
+
+      previousDisplayRowsRef.current = new Map(next.map((r) => [r.id, r]))
+      previousRawRowsRef.current = new Map(queueSnapshot.map((r) => [r.id, r]))
+      setActiveDisplayRows(next)
     })()
     return () => {
       cancelled = true
     }
   }, [rows, connectivityStatus])
 
-  const sortedDisplayRows = useMemo(
-    () => [...displayRows].sort((a, b) => a.displayIndex - b.displayIndex || a.id.localeCompare(b.id)),
-    [displayRows],
-  )
+  const sortedDisplayRows = useMemo(() => {
+    const map = new Map<string, RowDisplay>()
+    for (const r of terminalQueueRows.values()) map.set(r.id, r)
+    for (const r of activeDisplayRows) map.set(r.id, r)
+    return [...map.values()].sort(
+      (a, b) => a.displayIndex - b.displayIndex || a.id.localeCompare(b.id),
+    )
+  }, [activeDisplayRows])
 
   const copyText = useMemo(
     () => formatPendingQueueSectionCopy(sortedDisplayRows, connectivityStatus),
@@ -184,6 +248,9 @@ export function PendingQueueStatusSection() {
   }
 
   const clearAll = async () => {
+    clearTerminalQueueRows()
+    previousDisplayRowsRef.current = new Map()
+    previousRawRowsRef.current = new Map()
     await clearServerQueueModalState()
     flashCopyHint('Cleared')
   }
