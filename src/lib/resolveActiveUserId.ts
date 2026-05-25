@@ -1,4 +1,5 @@
 import { getCachedAuthenticatedUserId } from '@/lib/authBootstrap'
+import type { AuthPhase } from '@/lib/authBootStorage'
 import { isGuestId } from '@/lib/guestSession'
 import { getSessionMode } from '@/lib/sessionPolicy'
 
@@ -10,11 +11,12 @@ export function resolveActiveUserId(
   userId: string | null | undefined,
   guestId: string | null | undefined,
   bootstrapUserId?: string | null | undefined,
+  authPhase?: AuthPhase | null,
 ): string | null {
   if (userId) return userId
 
   const boot = bootstrapUserId ?? null
-  const mode = getSessionMode()
+  const mode = authPhase ?? getSessionMode()
 
   if (mode === 'guest') {
     if (boot && isGuestId(boot)) return boot

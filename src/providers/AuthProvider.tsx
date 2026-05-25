@@ -236,7 +236,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const sessionMode: SessionMode =
     authPhase === 'resolving' ? 'resolving' : authPhase === 'guest' ? 'guest' : 'authenticated'
   const isGuest = authPhase === 'guest'
-  const activeActorId = resolveActiveUserId(user?.id, guestId, bootstrapUserId)
+  const activeActorId = resolveActiveUserId(
+    user?.id,
+    guestId ?? guestIdRef.current,
+    bootstrapUserId ?? bootstrapUserIdRef.current,
+    authPhase,
+  )
   const displayName =
     sessionRestoring ? '' : isGuest ? 'Guest' : resolveAuthDisplayName(user, profile)
   useEffect(() => {
@@ -377,14 +382,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }) => {
     const gid = options?.freshGuest ? rotateGuestId() : ensureGuestId()
 
-    if (
+    const alreadyHydrated =
       !options?.freshGuest &&
       !options?.signedOut &&
       userRef.current === null &&
       lastEnterGuestModeGidRef.current === gid &&
       guestIdRef.current === gid &&
       bootstrapUserIdRef.current === gid
-    ) {
+
+    if (alreadyHydrated) {
+      setGuestId(gid)
+      setBootstrapUserId(gid)
       return
     }
 
