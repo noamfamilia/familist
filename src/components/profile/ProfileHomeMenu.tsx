@@ -23,7 +23,7 @@ type ProfileHomeMenuProps = {
   onToggleTheme: () => void
   onShowTutorial: () => void
   onRequestImport?: () => void
-  onRequestFeedback?: () => void
+  onRequestAbout?: () => void
   importDisabled?: boolean
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
   updateActorProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>
@@ -44,7 +44,7 @@ export function ProfileHomeMenu({
   onToggleTheme,
   onShowTutorial,
   onRequestImport,
-  onRequestFeedback,
+  onRequestAbout,
   importDisabled = false,
   updateProfile,
   updateActorProfile,
@@ -309,17 +309,17 @@ export function ProfileHomeMenu({
           Show tutorial
         </button>
 
-        {!isGuest && onRequestFeedback ? (
+        {onRequestAbout ? (
           <button
             type="button"
             className={menuRowClass}
             role="menuitem"
             onClick={() => {
               onCloseMenu()
-              onRequestFeedback()
+              onRequestAbout()
             }}
           >
-            User feedback
+            About
           </button>
         ) : null}
 

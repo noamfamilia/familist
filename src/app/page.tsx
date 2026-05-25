@@ -26,16 +26,9 @@ import dynamic from 'next/dynamic'
 import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
 import { requestShowTutorial } from '@/components/ui/TutorialTour'
-import { db } from '@/lib/db'
-import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
-import { enqueueSyncQueueRecord, userQueueParent } from '@/lib/data/syncQueue'
-import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
-import { normalizeServerSyncableFields } from '@/lib/data/serverDexieParity'
 import { useToast } from '@/components/ui/Toast'
 import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
-import { OfflineIcon } from '@/components/icons/OfflineIcon'
-import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueIndicator'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import {
@@ -46,7 +39,7 @@ import { useShallow } from 'zustand/react/shallow'
 const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
   ssr: false,
 })
-const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
+const AboutModal = dynamic(() => import('@/components/home/AboutModal').then(mod => mod.AboutModal), {
   ssr: false,
 })
 // Home tour steps — list-specific steps only appear when list targets exist in the DOM
@@ -101,7 +94,6 @@ function HomeContent() {
     offlineAssetsReady,
     online,
     isOffline,
-    isRecovering,
   } = useConnectivity()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
@@ -112,10 +104,8 @@ function HomeContent() {
   const [showProfile, setShowProfile] = useState(false)
   const [pendingProfileOpenAfterOAuth, setPendingProfileOpenAfterOAuth] = useState(false)
   const [showImport, setShowImport] = useState(false)
-  const [showFeedback, setShowFeedback] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
   const [showGuestInviteModal, setShowGuestInviteModal] = useState(false)
-  const [feedbackText, setFeedbackText] = useState('')
-  const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { success, error: showError, info } = useToast()
   const { resolvedTheme, setTheme } = useTheme()
   const hasMounted = useHasMounted()
@@ -490,14 +480,6 @@ function HomeContent() {
                 Guest (sign in)
               </button>
             ) : null}
-            <OutboundQueueIndicator />
-            {isOffline || isRecovering ? (
-              <OfflineIcon
-                variant={isOffline ? 'offline' : 'recovering'}
-                className="h-8 w-8 shrink-0"
-                aria-hidden
-              />
-            ) : null}
             {!isOffline && profileMenuAnim.mounted && (
               <div className="absolute left-0 top-full z-50 mt-2">
                 <ProfileHomeMenu
@@ -534,11 +516,7 @@ function HomeContent() {
                       ? () => setShowImport(true)
                       : undefined
                   }
-                  onRequestFeedback={
-                    !isGuest && user
-                      ? () => setShowFeedback(true)
-                      : undefined
-                  }
+                  onRequestAbout={() => setShowAbout(true)}
                   importDisabled={isOffline || profileMenuNeedsSession}
                   updateProfile={updateProfile}
                   updateActorProfile={updateActorProfile}
@@ -754,80 +732,17 @@ function HomeContent() {
         <ListDetailHomeOverlay listId={activeListId} onClose={closeListModal} />
       ) : null}
 
-      <Modal
-        isOpen={showFeedback}
-        onClose={() => { setShowFeedback(false); setFeedbackText('') }}
-        title="User Feedback"
-        size="sm"
-        hideClose
-      >
-        <textarea
-          value={feedbackText}
-          onChange={(e) => setFeedbackText(e.target.value)}
-          placeholder="Share your suggestions or feedback..."
-          className="w-full min-h-[120px] px-3 py-2 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg focus:outline-none focus:border-teal bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-200 resize-y"
-          maxLength={2000}
-        />
-        <div className="flex justify-end gap-2 mt-3">
-          <button
-            type="button"
-            onClick={() => { setShowFeedback(false); setFeedbackText('') }}
-            className="px-4 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!feedbackText.trim() || submittingFeedback}
-            onClick={async () => {
-              const feedbackUserId = resolveCatalogMutationUserId(user?.id, guestId, bootstrapUserId)
-              if (!feedbackText.trim() || !feedbackUserId) return
-              setSubmittingFeedback(true)
-              try {
-                const id = crypto.randomUUID()
-                const t = isoNow()
-                const sync = syncFieldsForLocalInsert({ client_created_at: t })
-                const feedbackEmail = user?.email ?? profile?.email ?? ''
-                const base = {
-                  id,
-                  user_id: feedbackUserId,
-                  email: feedbackEmail,
-                  message: feedbackText.trim(),
-                  ...sync,
-                }
-                const normalized = normalizeServerSyncableFields(base as Record<string, unknown>)
-                await db.transaction('rw', db.feedback, db.lists, db.sync_queue, db.list_users, async () => {
-                  await db.feedback.put({ ...base, ...normalized } as never)
-                  await enqueueSyncQueueRecord({
-                    entity: 'feedback',
-                    entity_id: id,
-                    kind: 'create',
-                    payload: {
-                      id,
-                      user_id: feedbackUserId,
-                      email: feedbackEmail,
-                      message: base.message,
-                      client_created_at: sync.client_created_at,
-                    },
-                    ...userQueueParent(feedbackUserId),
-                    status: 'queued',
-                  })
-                })
-                success('Thank you for your feedback!')
-                setFeedbackText('')
-                setShowFeedback(false)
-              } catch {
-                showError('Failed to submit feedback')
-              } finally {
-                setSubmittingFeedback(false)
-              }
-            }}
-            className="px-4 py-1.5 text-sm font-medium text-white bg-teal rounded-lg hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submittingFeedback ? 'Submitting...' : 'Submit'}
-          </button>
-        </div>
-      </Modal>
+      <AboutModal
+        isOpen={showAbout}
+        onClose={() => setShowAbout(false)}
+        user={user}
+        profile={profile}
+        guestId={guestId}
+        bootstrapUserId={bootstrapUserId}
+        isGuest={isGuest}
+        success={success}
+        showError={showError}
+      />
 
       <GoogleOneTapPrompt
         enabled={!showAuthModal && !showGuestInviteModal && authPhase !== 'resolving'}

@@ -16,8 +16,6 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
-import { OfflineIcon } from '@/components/icons/OfflineIcon'
-import { OutboundQueueIndicator } from '@/components/connectivity/OutboundQueueIndicator'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useToast } from '@/components/ui/Toast'
@@ -226,7 +224,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const { error: showError } = useToast()
   const hasMounted = useHasMounted()
-  const { offlineAssetsReady, swControlled, online, isOffline, isRecovering } =
+  const { offlineAssetsReady, swControlled, online } =
     useConnectivity()
   const {
     list,
@@ -773,14 +771,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           >
             <span>← Back</span>
           </button>
-          <OutboundQueueIndicator />
-          {isOffline || isRecovering ? (
-            <OfflineIcon
-              variant={isOffline ? 'offline' : 'recovering'}
-              className="h-8 w-8 shrink-0"
-              aria-hidden
-            />
-          ) : null}
         </div>
         {isListOwner && (
           <TourViewportTarget
@@ -803,9 +793,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               }`}
               aria-label={
                 shareSettingsOfflineBlocked
-                  ? isRecovering
-                    ? 'Share settings (unavailable while reconnecting)'
-                    : 'Share settings (unavailable offline)'
+                  ? 'Share settings (unavailable while offline or reconnecting)'
                   : 'Share settings'
               }
             >
