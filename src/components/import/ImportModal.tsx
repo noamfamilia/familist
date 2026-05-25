@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
-import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { Spinner } from '@/components/ui/Spinner'
 import { parseSheetCsv, resolveImportListName } from '@/lib/sheetImport/parseSheetCsv'
 import { useToast } from '@/components/ui/Toast'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
@@ -174,9 +174,18 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
     }
   }
 
+  const canImport = sheetUrl.trim().length > 0 && !busy
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Import List" contentClassName="!overflow-visible" hideClose>
-      <div className="space-y-5">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Import List"
+      size="lg"
+      contentClassName="!max-w-lg max-sm:!max-w-none !overflow-visible"
+      fullScreenMobile
+    >
+      <div className="space-y-5 text-left">
         <p className="text-sm text-gray-500 dark:text-gray-400">
           First row must include an <strong>Items</strong> column. Optional:{' '}
           <strong>comments</strong>, <strong>category</strong>, <strong>quantity</strong>. Share the sheet so anyone with the link can view.
@@ -306,14 +315,31 @@ export function ImportModal({ isOpen, onClose, labels, currentFilter = 'Any', on
         <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg"
+            disabled={!canImport}
+            aria-busy={busy}
+            onClick={() => {
+              if (!canImport) return
+              void runImport()
+            }}
+            className={`inline-flex min-h-[2.5rem] min-w-[4.5rem] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
+              busy
+                ? 'cursor-wait text-white bg-teal'
+                : canImport
+                  ? 'text-white bg-teal hover:opacity-80'
+                  : 'text-white/75 bg-teal/35 cursor-not-allowed'
+            }`}
           >
-            Cancel
+            {busy ? (
+              <>
+                <span className="sr-only">Importing</span>
+                <span aria-hidden="true" className="inline-flex shrink-0">
+                  <Spinner size="sm" className="h-5 w-5 border-2 border-white border-t-transparent" />
+                </span>
+              </>
+            ) : (
+              'Import'
+            )}
           </button>
-          <Button type="button" className="bg-teal hover:opacity-80" loading={busy} onClick={() => void runImport()}>
-            Import
-          </Button>
         </div>
       </div>
     </Modal>

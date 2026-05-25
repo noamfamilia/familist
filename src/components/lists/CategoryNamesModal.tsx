@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import {
@@ -14,7 +14,8 @@ import { useToast } from '@/components/ui/Toast'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
-import type { ItemCategory, CategoryNames } from '@/lib/supabase/types'
+import { areItemsSortedByCategory } from '@/lib/items/categoryItemReorder'
+import type { ItemCategory, CategoryNames, ItemWithState } from '@/lib/supabase/types'
 
 function saveErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
@@ -30,9 +31,12 @@ interface CategoryNamesModalProps {
   popoverRef?: React.RefObject<HTMLDivElement | null>
   categoryNames: CategoryNames
   categoryOrder: number[]
+  /** Active items for re-evaluating "Sort items" enablement after a category reorder. */
+  items?: ItemWithState[]
   onRenameCategory: (catId: number, name: string) => Promise<{ error: unknown }>
   onReorderCategories: (order: number[]) => Promise<{ error: unknown }>
   onSortItems: () => Promise<{ error: unknown }>
+  /** External force-disable (e.g. bulk delete/restore). Always honored. */
   sortDisabled?: boolean
 }
 
@@ -88,6 +92,7 @@ export function CategoryNamesModal({
   popoverRef,
   categoryNames,
   categoryOrder,
+  items,
   onRenameCategory,
   onReorderCategories,
   onSortItems,
@@ -98,10 +103,30 @@ export function CategoryNamesModal({
   const [renameText, setRenameText] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
   const actionRef = useRef(false)
+  // Optimistic local copy of `categoryOrder` so the visual card order AND the "Sort items" disabled
+  // state update the instant a drag completes, without waiting for the async parent persistence
+  // to flush back through props. Stays in sync with the prop on external changes.
+  const [localCategoryOrder, setLocalCategoryOrder] = useState<number[]>(categoryOrder)
+  useEffect(() => {
+    setLocalCategoryOrder((prev) => {
+      if (prev.length === categoryOrder.length && prev.every((v, i) => v === categoryOrder[i])) {
+        return prev
+      }
+      return categoryOrder
+    })
+  }, [categoryOrder])
 
   const anchorPosStableRef = useRef(anchorPos)
   if (anchorPos) anchorPosStableRef.current = anchorPos
   const menuAnim = useMenuOpenAnimation(isOpen && !!anchorPosStableRef.current)
+
+  const itemsSortedByLocalOrder = useMemo(() => {
+    if (!items || items.length === 0) return true
+    return areItemsSortedByCategory(items, localCategoryOrder)
+  }, [items, localCategoryOrder])
+  // External override (e.g. bulk-delete in progress) still wins; otherwise we derive from the
+  // current optimistic order so reordering cards re-evaluates immediately.
+  const effectiveSortDisabled = sortDisabled || itemsSortedByLocalOrder
 
   useEffect(() => {
     if (!isOpen) {
@@ -134,17 +159,23 @@ export function CategoryNamesModal({
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIndex = categoryOrder.indexOf(Number(active.id))
-    const newIndex = categoryOrder.indexOf(Number(over.id))
+    const oldIndex = localCategoryOrder.indexOf(Number(active.id))
+    const newIndex = localCategoryOrder.indexOf(Number(over.id))
     if (oldIndex === -1 || newIndex === -1) return
-    const next = [...categoryOrder]
+    const next = [...localCategoryOrder]
     const [removed] = next.splice(oldIndex, 1)
     next.splice(newIndex, 0, removed)
     if (actionRef.current) return
     actionRef.current = true
+    const prevOrder = localCategoryOrder
+    setLocalCategoryOrder(next)
     try {
       const res = await onReorderCategories(next)
-      if (res.error) reportError(res.error, 'Failed to reorder categories')
+      if (res.error) {
+        // Revert optimistic order on failure so the visual / disabled state stays truthful.
+        setLocalCategoryOrder(prevOrder)
+        reportError(res.error, 'Failed to reorder categories')
+      }
     } finally {
       actionRef.current = false
     }
@@ -176,7 +207,7 @@ export function CategoryNamesModal({
   }
 
   const handleSortClick = async () => {
-    if (actionRef.current || sortDisabled) return
+    if (actionRef.current || effectiveSortDisabled) return
     actionRef.current = true
     try {
       const res = await onSortItems()
@@ -222,9 +253,9 @@ export function CategoryNamesModal({
       onClick={(e) => e.stopPropagation()}
     >
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void handleDragEnd(e)}>
-        <SortableContext items={categoryOrder} strategy={verticalListSortingStrategy}>
+        <SortableContext items={localCategoryOrder} strategy={verticalListSortingStrategy}>
           <div className="space-y-1.5">
-            {categoryOrder.map((c) => (
+            {localCategoryOrder.map((c) => (
               <div key={c} className="relative">
                 <SortableCategoryCard
                   catId={c}
@@ -280,11 +311,11 @@ export function CategoryNamesModal({
         <button
           type="button"
           onClick={() => void handleSortClick()}
-          disabled={sortDisabled}
-          className={`inline-flex min-h-8 touch-manipulation items-center justify-center rounded-lg px-4 text-sm font-normal ${
-            sortDisabled
-              ? 'cursor-not-allowed bg-teal text-white opacity-40 dark:opacity-35'
-              : 'bg-teal text-white hover:opacity-90'
+          disabled={effectiveSortDisabled}
+          className={`inline-flex min-h-8 touch-manipulation items-center justify-center rounded-lg px-4 text-sm font-medium ${
+            effectiveSortDisabled
+              ? 'text-white/75 bg-teal/35 cursor-not-allowed'
+              : 'text-white bg-teal hover:opacity-80'
           }`}
         >
           Sort items

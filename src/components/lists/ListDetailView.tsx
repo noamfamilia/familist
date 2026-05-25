@@ -995,6 +995,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               onCreateTargets={createTargets}
               categoryNames={categoryNames}
               categoryOrder={categoryOrder}
+              itemsForCategorySort={activeItems}
               onRenameCategory={renameCategory}
               onReorderCategories={reorderCategories}
               onSortItemsByCategory={sortItemsByCategory}

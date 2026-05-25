@@ -7,7 +7,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
 import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNameUniqueness'
-import type { CategoryNames, Member, MemberWithCreator } from '@/lib/supabase/types'
+import type { CategoryNames, ItemWithState, Member, MemberWithCreator } from '@/lib/supabase/types'
 import { GearIcon } from '@/components/icons/GearIcon'
 import { FilterIcon } from '@/components/icons/FilterIcon'
 import { AddMemberOutlineIcon } from '@/components/icons/AddMemberOutlineIcon'
@@ -81,6 +81,8 @@ interface MemberHeaderProps {
   isOwner?: boolean
   categoryNames?: CategoryNames
   categoryOrder?: number[]
+  /** Active items, used by the Categories popover to live-evaluate "Sort items" after each reorder. */
+  itemsForCategorySort?: ItemWithState[]
   onRenameCategory?: (catId: number, name: string) => Promise<{ error: unknown }>
   onReorderCategories?: (order: number[]) => Promise<{ error: unknown }>
   onSortItemsByCategory?: () => Promise<{ error: unknown }>
@@ -126,6 +128,7 @@ export function MemberHeader({
   isOwner = false,
   categoryNames,
   categoryOrder,
+  itemsForCategorySort,
   onRenameCategory,
   onReorderCategories,
   onSortItemsByCategory,
@@ -1340,6 +1343,7 @@ export function MemberHeader({
           anchorPos={categoryModalPos}
           categoryNames={categoryNames}
           categoryOrder={categoryOrder || [1, 2, 3, 4, 5, 6]}
+          items={itemsForCategorySort}
           onRenameCategory={onRenameCategory}
           onReorderCategories={onReorderCategories}
           onSortItems={onSortItemsByCategory}
