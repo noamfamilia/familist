@@ -6,10 +6,6 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useToast } from '@/components/ui/Toast'
 import {
   generateGoogleOneTapNonce,
-  googleEmailMatchesAccount,
-  GOOGLE_EMAIL_MISMATCH_MESSAGE,
-  linkGoogleOneTapCredential,
-  parseGoogleIdTokenEmail,
   signInWithGoogleOneTapCredential,
 } from '@/lib/authGoogleOneTap'
 import {
@@ -17,7 +13,6 @@ import {
   consumeOpenProfileAfterOAuthSignUp,
 } from '@/lib/authOAuthPostRedirect'
 import { createClient } from '@/lib/supabase/client'
-import { userHasGoogleIdentity } from '@/lib/googleProfileNickname'
 
 type CredentialResponse = { credential?: string }
 
@@ -40,9 +35,13 @@ type GoogleOneTapPromptProps = {
   onNewGoogleSignUp?: () => void
 }
 
+/**
+ * Google One Tap is for guest sign-in only. Signed-in email/password users link Google
+ * from Profile (OAuth), not FedCM One Tap — avoids FedCM abort noise and session churn.
+ */
 export function GoogleOneTapPrompt({ enabled = true, onNewGoogleSignUp }: GoogleOneTapPromptProps) {
-  const { user, authPhase, loading, isGuest, sessionRestoring, activateAuthenticatedSession } = useAuth()
-  const { error: showError, success } = useToast()
+  const { authPhase, loading, isGuest, sessionRestoring, activateAuthenticatedSession } = useAuth()
+  const { error: showError } = useToast()
   const rawNonceRef = useRef<string | null>(null)
   const initializedRef = useRef(false)
   const initInFlightRef = useRef(false)
@@ -51,19 +50,14 @@ export function GoogleOneTapPrompt({ enabled = true, onNewGoogleSignUp }: Google
   const [scriptReady, setScriptReady] = useState(false)
 
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
-  const canLinkGoogle =
-    !!user &&
-    authPhase === 'authenticated' &&
-    !userHasGoogleIdentity(user) &&
-    !!user.email?.trim()
 
   const shouldOffer =
     enabled &&
     !!clientId &&
+    isGuest &&
+    authPhase === 'guest' &&
     !loading &&
-    !sessionRestoring &&
-    authPhase !== 'resolving' &&
-    (!user || canLinkGoogle)
+    !sessionRestoring
 
   const initializeOneTap = useCallback(async () => {
     if (!shouldOffer || !window.google?.accounts?.id || initializedRef.current || initInFlightRef.current) {
@@ -73,13 +67,11 @@ export function GoogleOneTapPrompt({ enabled = true, onNewGoogleSignUp }: Google
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      const allowDespiteSession = canLinkGoogle
-      if (session && !allowDespiteSession) return
+      if (session) return
       if (!shouldOffer || initializedRef.current || !window.google?.accounts?.id) return
 
       const [raw, hashed] = await generateGoogleOneTapNonce()
       rawNonceRef.current = raw
-      const openProfileAfterSignUp = isGuest
 
       window.google.accounts.id.initialize({
         client_id: clientId,
@@ -90,37 +82,8 @@ export function GoogleOneTapPrompt({ enabled = true, onNewGoogleSignUp }: Google
           const nonce = rawNonceRef.current
           if (!token || !nonce) return
 
-          const { data: sessionData } = await supabase.auth.getSession()
-          const sessionUser = sessionData.session?.user ?? null
-          const linking =
-            !!sessionUser &&
-            !userHasGoogleIdentity(sessionUser) &&
-            !!sessionUser.email?.trim()
-
-          if (linking) {
-            if (!parseGoogleIdTokenEmail(token)) {
-              showError('Could not read an email from this Google account.')
-              return
-            }
-            if (!googleEmailMatchesAccount(sessionUser.email, token)) {
-              showError(GOOGLE_EMAIL_MISMATCH_MESSAGE)
-              return
-            }
-
-            const { data, error } = await linkGoogleOneTapCredential(token, nonce)
-            if (error) {
-              showError(error.message)
-              return
-            }
-            if (data.user) {
-              await activateAuthenticatedSession(data.user, 'google-one-tap-link')
-              success('Google account linked.')
-            }
-            return
-          }
-
           const { data, error } = await signInWithGoogleOneTapCredential(token, nonce, {
-            openProfileAfterSignUp,
+            openProfileAfterSignUp: true,
           })
           if (error) {
             showError(error.message)
@@ -131,7 +94,7 @@ export function GoogleOneTapPrompt({ enabled = true, onNewGoogleSignUp }: Google
             await activateAuthenticatedSession(data.user, 'google-one-tap')
           }
 
-          if (openProfileAfterSignUp && data.user) {
+          if (data.user) {
             if (applyOAuthSignUpDowngradeForExistingAccount(data.user)) {
               // Existing account: info toast handled on home via sessionStorage notice.
             } else if (consumeOpenProfileAfterOAuthSignUp()) {
@@ -146,26 +109,20 @@ export function GoogleOneTapPrompt({ enabled = true, onNewGoogleSignUp }: Google
     } finally {
       initInFlightRef.current = false
     }
-  }, [
-    shouldOffer,
-    clientId,
-    isGuest,
-    canLinkGoogle,
-    showError,
-    success,
-    activateAuthenticatedSession,
-  ])
+  }, [shouldOffer, clientId, showError, activateAuthenticatedSession])
 
   useEffect(() => {
     if (!shouldOffer) {
-      window.google?.accounts.id.cancel()
+      if (initializedRef.current) {
+        window.google?.accounts.id.cancel()
+      }
       return
     }
     if (!scriptReady) return
     void initializeOneTap()
   }, [shouldOffer, scriptReady, initializeOneTap])
 
-  if (!clientId) return null
+  if (!clientId || !isGuest) return null
 
   return (
     <Script
