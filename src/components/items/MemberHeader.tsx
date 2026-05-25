@@ -174,6 +174,11 @@ export function MemberHeader({
     return { top: btnRect.bottom + 6, left }
   }, [])
 
+  const closeCategoryModal = useCallback(() => {
+    setShowCategoryModal(false)
+    setCategoryModalPos(null)
+  }, [])
+
   const handleCategoryButtonClick = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
@@ -192,11 +197,6 @@ export function MemberHeader({
     },
     [computeDisplayPopoverPos, closeCategoryModal, isOfflineActionsDisabled, showCategoryModal],
   )
-
-  const closeCategoryModal = useCallback(() => {
-    setShowCategoryModal(false)
-    setCategoryModalPos(null)
-  }, [])
 
   const handleToggleActions = () => {
     if (isOfflineActionsDisabled) return
