@@ -80,10 +80,9 @@ export function formatPendingQueueSectionCopy(
   connectivityStatus: 'online' | 'recovering' | 'offline',
 ): string {
   return formatRowsCopy(
-    PENDING_QUEUE_TITLE,
+    `${PENDING_QUEUE_TITLE} (${connectivityStatus})`,
     rows,
     'Nothing is waiting to sync.',
-    `connectivity: ${connectivityStatus}`,
   )
 }
 
@@ -140,26 +139,28 @@ function classifyTerminalRow(prev: DbSyncQueueRow): { label: string; tone: Outbo
 
 function QueueSection({
   title,
+  titleSuffix,
   rows,
   emptyMessage,
   onCopy,
-  preface,
 }: {
   title: string
+  titleSuffix?: React.ReactNode
   rows: RowDisplay[]
   emptyMessage: string
   onCopy: () => void
-  preface?: React.ReactNode
 }) {
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {title}
+          {titleSuffix ? <span className={`ml-1.5 font-normal ${rowMetaClass}`}>{titleSuffix}</span> : null}
+        </h3>
         <button type="button" onClick={onCopy} className={actionBtnClass}>
           Copy
         </button>
       </div>
-      {preface}
       {rows.length === 0 ? (
         <p className="text-sm text-gray-800 dark:text-gray-200">{emptyMessage}</p>
       ) : (
@@ -282,10 +283,10 @@ export function PendingQueueStatusSection() {
 
       <QueueSection
         title={PENDING_QUEUE_TITLE}
+        titleSuffix={`(${connectivityStatus})`}
         rows={sortedActiveRows}
         emptyMessage="Nothing is waiting to sync."
         onCopy={() => void copyPending()}
-        preface={<p className={`text-xs ${rowMetaClass}`}>connectivity: {connectivityStatus}</p>}
       />
 
       <hr className={sectionRuleClass} aria-hidden />
