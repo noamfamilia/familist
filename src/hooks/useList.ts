@@ -1336,7 +1336,7 @@ export function useList(listId: string) {
         useListDataStore.getState().setItems((prev) => [...prev, ...optimisticRows])
         await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
           await db.items.bulkAdd(rows)
-          await touchListContentUpdateInDexie(listId, t)
+          await touchListContentUpdateInDexie(listId, mutationUserId, t)
           await enqueueSyncQueueRecord({
             entity: 'list',
             entity_id: newBatchEntityId(),
@@ -1419,7 +1419,7 @@ export function useList(listId: string) {
 
       await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
         await db.items.update(itemId, dbPatch)
-        await touchListContentUpdateInDexie(listId, nowIso)
+        await touchListContentUpdateInDexie(listId, mutationUserId, nowIso)
         const payload: Record<string, unknown> = { id: itemId }
         if (persistedUpdates.text !== undefined) payload.text = persistedUpdates.text
         if (persistedUpdates.comment !== undefined) payload.comment = persistedUpdates.comment
@@ -1595,7 +1595,7 @@ export function useList(listId: string) {
         if (normalizedMemberUpdates.is_target !== undefined) memberPatch.is_target = normalizedMemberUpdates.is_target
         if (normalizedMemberUpdates.sort_order !== undefined) memberPatch.sort_order = normalizedMemberUpdates.sort_order
         await db.members.update(memberId, memberPatch)
-        await touchListContentUpdateInDexie(listId, nowIso)
+        await touchListContentUpdateInDexie(listId, mutationUserId, nowIso)
         await enqueueSyncQueueRecord({
           entity: 'member',
           entity_id: memberId,
@@ -1657,7 +1657,7 @@ export function useList(listId: string) {
             deleted_at: nowIso,
           })
         }
-        await touchListContentUpdateInDexie(listId, nowIso)
+        await touchListContentUpdateInDexie(listId, mutationUserId, nowIso)
         await enqueueSyncQueueRecord({
           entity: 'member',
           entity_id: memberId,
@@ -1711,7 +1711,7 @@ export function useList(listId: string) {
             created_by: mutationUserId,
             updated_at: nowIso,
           })
-          await touchListContentUpdateInDexie(listId, nowIso)
+          await touchListContentUpdateInDexie(listId, mutationUserId, nowIso)
           await enqueueSyncQueueRecord({
             entity: 'list',
             entity_id: newBatchEntityId(),
@@ -1788,6 +1788,7 @@ export function useList(listId: string) {
         ),
       )
       await toggleItemMemberStateMutation({
+        user_id: mutationUserId,
         list_id: listId,
         item_id: itemId,
         member_id: memberId,
@@ -1847,6 +1848,7 @@ export function useList(listId: string) {
         ),
       )
       await toggleItemMemberStateMutation({
+        user_id: mutationUserId,
         list_id: listId,
         item_id: itemId,
         member_id: memberId,
@@ -1878,7 +1880,7 @@ export function useList(listId: string) {
       useListDataStore.getState().setItems((prev) => prev.filter((i) => !archivedIds.has(i.id)))
       bumpListMutationGeneration()
       skipRealtimeUntilRef.current = Date.now() + 3000
-      await bulkSoftDeleteArchivedItemsMutation(listId, [...archivedIds])
+      await bulkSoftDeleteArchivedItemsMutation(mutationUserId, listId, [...archivedIds])
       await markCurrentListViewed()
       persistListSnapshotToDetailCache(mutationUserId, listId)
       return { error: null, count: archivedIds.size }
@@ -1921,7 +1923,7 @@ export function useList(listId: string) {
             updated_at: nowIso,
           })
         }
-        await touchListContentUpdateInDexie(listId, nowIso)
+        await touchListContentUpdateInDexie(listId, mutationUserId, nowIso)
         await enqueueSyncQueueRecord({
           entity: 'list',
           entity_id: newBatchEntityId(),
@@ -1970,7 +1972,7 @@ export function useList(listId: string) {
             updated_at: nowIso,
           })
         }
-        await touchListContentUpdateInDexie(listId, nowIso)
+        await touchListContentUpdateInDexie(listId, mutationUserId, nowIso)
         await enqueueSyncQueueRecord({
           entity: 'list',
           entity_id: newBatchEntityId(),
@@ -2400,7 +2402,7 @@ export function useList(listId: string) {
             updated_at: nowIso,
           })
         }
-        await touchListContentUpdateInDexie(listId, nowIso)
+        await touchListContentUpdateInDexie(listId, mutationUserId, nowIso)
       })
 
       if (userId) {
@@ -2488,6 +2490,7 @@ export function useList(listId: string) {
         )
 
         await seedItemMemberStatesForMemberMutation({
+          user_id: mutationUserId,
           list_id: listId,
           member_id: memberId,
         })

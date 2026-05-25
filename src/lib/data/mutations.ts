@@ -18,7 +18,7 @@ import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniquen
 import { withDeletionNameSuffix } from '@/lib/data/deletionRename'
 
 export async function addItemMutation(input: {
-  user_id: string
+  user_id: string | null | undefined
   list_id: string
   text: string
   category: ItemCategory
@@ -54,7 +54,7 @@ export async function addItemMutation(input: {
 
   await db.transaction('rw', db.items, db.lists, db.sync_queue, db.list_users, async () => {
     await db.items.put(row)
-    await touchListContentUpdateInDexie(input.list_id, t)
+    await touchListContentUpdateInDexie(input.list_id, input.user_id, t)
     await enqueueSyncQueueRecord({
       entity: 'item',
       entity_id: id,
@@ -76,7 +76,7 @@ export async function addItemMutation(input: {
 }
 
 export async function softDeleteItemMutation(
-  _user_id: string,
+  user_id: string | null | undefined,
   list_id: string,
   item_id: string,
   options?: { skipEnqueue?: boolean },
@@ -93,7 +93,7 @@ export async function softDeleteItemMutation(
       deleted_at: t,
       updated_at: t,
     })
-    await touchListContentUpdateInDexie(list_id, t)
+    await touchListContentUpdateInDexie(list_id, user_id, t)
     if (!options?.skipEnqueue) {
       await enqueueSyncQueueRecord({
         entity: 'item',
@@ -112,7 +112,11 @@ export async function softDeleteItemMutation(
  * one `deleteArchivedItems` RPC. After the RPC succeeds, the sync worker runs `cleanupDexieAfterItemServerDeleted`
  * per `item_id` (hard local delete), matching the single-item delete lifecycle.
  */
-export async function bulkSoftDeleteArchivedItemsMutation(list_id: string, itemIds: readonly string[]) {
+export async function bulkSoftDeleteArchivedItemsMutation(
+  user_id: string | null | undefined,
+  list_id: string,
+  itemIds: readonly string[],
+) {
   const ids = [...new Set(itemIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
   if (ids.length === 0) return
   const idSet = new Set(ids)
@@ -130,7 +134,7 @@ export async function bulkSoftDeleteArchivedItemsMutation(list_id: string, itemI
         updated_at: t,
       })
     }
-    await touchListContentUpdateInDexie(list_id, t)
+    await touchListContentUpdateInDexie(list_id, user_id, t)
     await enqueueSyncQueueRecord({
       entity: 'list',
       entity_id: newBatchEntityId(),
@@ -143,6 +147,7 @@ export async function bulkSoftDeleteArchivedItemsMutation(list_id: string, itemI
 }
 
 export async function toggleItemMemberStateMutation(input: {
+  user_id: string | null | undefined
   list_id: string
   item_id: string
   member_id: string
@@ -166,7 +171,7 @@ export async function toggleItemMemberStateMutation(input: {
       ...sync,
       updated_at: t,
     })
-    await touchListContentUpdateInDexie(input.list_id, t)
+    await touchListContentUpdateInDexie(input.list_id, input.user_id, t)
     await enqueueSyncQueueRecord({
       entity: 'item_member_state',
       entity_id: itemMemberStateOutboxKey(input.item_id, input.member_id),
@@ -186,7 +191,11 @@ export async function toggleItemMemberStateMutation(input: {
 }
 
 /** Local Dexie mirror + one outbound RPC to seed default IMS for every non-deleted item (Qty target flow). */
-export async function seedItemMemberStatesForMemberMutation(input: { list_id: string; member_id: string }) {
+export async function seedItemMemberStatesForMemberMutation(input: {
+  user_id: string | null | undefined
+  list_id: string
+  member_id: string
+}) {
   const t = isoNow()
   const sync = syncFieldsForLocalInsert({ client_created_at: t })
   const itemRows = await db.items
@@ -217,7 +226,7 @@ export async function seedItemMemberStatesForMemberMutation(input: { list_id: st
         updated_at: t,
       })
     }
-    await touchListContentUpdateInDexie(input.list_id, t)
+    await touchListContentUpdateInDexie(input.list_id, input.user_id, t)
     await enqueueSyncQueueRecord({
       entity: 'list',
       entity_id: newBatchEntityId(),
@@ -267,7 +276,7 @@ export async function addMemberMutation(input: {
 
   await db.transaction('rw', db.members, db.lists, db.sync_queue, db.list_users, async () => {
     await db.members.put(row)
-    await touchListContentUpdateInDexie(input.list_id, t)
+    await touchListContentUpdateInDexie(input.list_id, input.user_id, t)
     await enqueueSyncQueueRecord({
       entity: 'member',
       entity_id: id,

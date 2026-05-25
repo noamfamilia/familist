@@ -240,6 +240,7 @@ export async function duplicateListLocalFirst(input: DuplicateListLocalInput): P
     ...sync,
     updated_at: now,
     last_content_update: now,
+    last_content_update_by: mutationUserId,
     cached_at: Date.now(),
     app_version: APP_VERSION,
   }
@@ -351,6 +352,7 @@ export async function duplicateListLocalFirst(input: DuplicateListLocalInput): P
     ...sync,
     updated_at: now,
     last_content_update: now,
+    last_content_update_by: mutationUserId,
     role: 'owner',
     userArchived: false,
     userArchivedAt: null,

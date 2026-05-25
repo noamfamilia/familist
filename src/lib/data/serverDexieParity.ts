@@ -10,7 +10,7 @@ import {
   pendingCreateForItemMemberStateComposite,
   pendingRpcTouchesList,
 } from '@/lib/data/syncPruneGuards'
-import { maxIsoTimestamp } from '@/lib/data/listActivity'
+import { maxIsoTimestamp, pickLastContentUpdateBy } from '@/lib/data/listActivity'
 import {
   reconcileListDetailPayloadWithPendingSyncPatches,
   reconcileUserListsSummaryRowsWithPendingCatalogQueue,
@@ -199,6 +199,9 @@ export async function upsertListsSummaryFromServer(userId: string, rows: GetUser
               existingList?.last_content_update,
               row.updated_at,
             ),
+            // Server is authoritative once it has stamped an author; only fall back to the
+            // local value while server still returns null (pre-deploy rows).
+            last_content_update_by: row.last_content_update_by ?? existingList?.last_content_update_by ?? null,
             comment: row.comment ?? null,
             category_names: existingList?.category_names ?? null,
             category_order: existingList?.category_order ?? null,
@@ -295,6 +298,10 @@ export async function upsertListDataPayloadFromServer(
             existingListRow?.last_content_update,
             payloadReconciled.list.updated_at,
           ),
+          last_content_update_by: pickLastContentUpdateBy([
+            { ts: payloadReconciled.list.last_content_update, by: payloadReconciled.list.last_content_update_by },
+            { ts: existingListRow?.last_content_update, by: existingListRow?.last_content_update_by },
+          ]),
           cached_at: now,
           app_version: APP_VERSION,
           ...(typeof keepMsg === 'string' && keepMsg.trim() !== '' ? { sync_error_message: keepMsg } : {}),
@@ -388,6 +395,10 @@ export async function upsertListDataPayloadFromMirror(
             existingListRow?.last_content_update,
             payloadReconciled.list.updated_at,
           ),
+          last_content_update_by: pickLastContentUpdateBy([
+            { ts: payloadReconciled.list.last_content_update, by: payloadReconciled.list.last_content_update_by },
+            { ts: existingListRow?.last_content_update, by: existingListRow?.last_content_update_by },
+          ]),
           cached_at: now,
           app_version: APP_VERSION,
           ...(typeof keepMsg === 'string' && keepMsg.trim() !== '' ? { sync_error_message: keepMsg } : {}),

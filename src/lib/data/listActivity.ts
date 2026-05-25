@@ -29,19 +29,55 @@ export function maxIsoTimestamp(...candidates: (string | null | undefined)[]): s
 }
 
 /**
- * Advance `lists.last_content_update` when list content changes locally (items, members, IMS).
- * Mirrors server `update_list_timestamp` triggers. Call inside a Dexie transaction that includes `db.lists`.
+ * Pair `last_content_update` with its `last_content_update_by` when merging server + local.
+ * Returns the `by` value belonging to whichever `[ts, by]` pair has the newest timestamp; falls back
+ * to either side's `by` when a side lacks a timestamp, then to null.
+ */
+export function pickLastContentUpdateBy(
+  pairs: { ts: string | null | undefined; by: string | null | undefined }[],
+): string | null {
+  let bestMs = -Infinity
+  let best: string | null = null
+  let fallback: string | null = null
+  for (const { ts, by } of pairs) {
+    if (by != null && fallback == null) fallback = by
+    if (ts == null || ts === '') continue
+    const ms = Date.parse(String(ts))
+    if (!Number.isFinite(ms)) continue
+    if (ms > bestMs) {
+      bestMs = ms
+      best = by ?? null
+    }
+  }
+  return best ?? fallback
+}
+
+/**
+ * Advance `lists.last_content_update` when list content changes locally (items, members, IMS),
+ * and stamp `last_content_update_by` with the local actor so the home "new activity" LED can
+ * suppress for the author before the server round-trip completes.
+ *
+ * Mirrors the server `update_list_timestamp` trigger. Call inside a Dexie transaction that
+ * includes `db.lists`.
  */
 export async function touchListContentUpdateInDexie(
   listId: string,
+  actorUserId: string | null | undefined,
   touchedAt?: string,
 ): Promise<string | null> {
   const touch = touchedAt ?? isoNow()
   const list = await db.lists.get(listId)
   if (!list || isTombstoned(list.deleted_at ?? null)) return null
   const next = maxIsoTimestamp(touch, list.last_content_update)
-  if (next === list.last_content_update) return next
-  await db.lists.update(listId, { last_content_update: next })
+  const author = actorUserId ?? null
+  const patch: { last_content_update: string; last_content_update_by?: string | null } = {
+    last_content_update: next,
+  }
+  // Stamp author whenever we know who's editing — even when the timestamp didn't advance,
+  // so a chain of same-millisecond edits still attributes correctly.
+  if (author != null) patch.last_content_update_by = author
+  if (next === list.last_content_update && list.last_content_update_by === author) return next
+  await db.lists.update(listId, patch)
   return next
 }
 

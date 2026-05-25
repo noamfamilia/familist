@@ -54,11 +54,27 @@ const ActivityLed = memo(function ActivityLed({ show }: { show: boolean }) {
   )
 })
 
-function hasNewListActivity(list: ListWithRole): boolean {
+/**
+ * Home "new activity" LED rule.
+ *
+ * Server stamps `lists.last_content_update` AFTER our optimistic local edit + `last_viewed` write
+ * have already happened, so a self-authored reorder/edit can race into `content > viewed` and
+ * light the LED for the very user who made the change. `last_content_update_by` carries the
+ * server-recorded author for the latest content change (and is also stamped locally by
+ * `touchListContentUpdateInDexie` for instant attribution), so we suppress the LED whenever the
+ * current actor authored the most recent change.
+ *
+ * Falls back to the pure timestamp check when `last_content_update_by` is missing — covers rows
+ * that pre-date the field, guest mode (no stable actor id), and the brief window after a fresh
+ * install before the first `get_user_lists` populates the column.
+ */
+function hasNewListActivity(list: ListWithRole, currentActorId: string | null | undefined): boolean {
   const contentMs = Date.parse(String(list.last_content_update ?? ''))
   const viewedMs = Date.parse(String(list.last_viewed ?? list.client_created_at ?? ''))
   if (!Number.isFinite(contentMs) || !Number.isFinite(viewedMs)) return false
-  return contentMs > viewedMs
+  if (contentMs <= viewedMs) return false
+  if (currentActorId && list.last_content_update_by === currentActorId) return false
+  return true
 }
 
 function subscribeNavigatorOnline(cb: () => void) {
@@ -136,6 +152,7 @@ function ListCardInner({
   onClearCreateInput,
   onClearCreateInputIfTyped,
   isOfflineActionsDisabled = false,
+  mutationUserId = null,
 }: ListCardProps) {
   const { error: showError } = useToast()
   const setActiveListId = useActiveListUiStore((s) => s.setActiveListId)
@@ -587,7 +604,7 @@ function ListCardInner({
   const showSumCounts = listCardShowsSumRowMetadata(list)
   const activeCount = list.activeItemCount ?? 0
   const archivedCount = list.archivedItemCount ?? 0
-  const showActivityLed = hasNewListActivity(list)
+  const showActivityLed = hasNewListActivity(list, mutationUserId ?? null)
 
   return (
     <>

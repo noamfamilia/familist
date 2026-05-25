@@ -78,6 +78,11 @@ export interface Database {
           join_use_count: number
           updated_at: string
           last_content_update: string
+          /**
+           * Author of the most recent content change. Drives the home "new activity" LED
+           * suppression rule (own edits do not light the LED). NULL for service-role / pre-feature rows.
+           */
+          last_content_update_by: string | null
           /** Client + Dexie only: last terminal outbound sync error for this list (not on Postgres). */
           sync_error_message?: string | null
         } & DbSyncableFields
@@ -97,6 +102,7 @@ export interface Database {
           join_use_count?: number
           updated_at?: string
           last_content_update?: string
+          last_content_update_by?: string | null
           sync_error_message?: string | null
         } & DbSyncableFieldsPartial
         Update: {
@@ -115,6 +121,7 @@ export interface Database {
           join_use_count?: number
           updated_at?: string
           last_content_update?: string
+          last_content_update_by?: string | null
           sync_error_message?: string | null
         } & DbSyncableFieldsPartial
         Relationships: []
@@ -324,6 +331,7 @@ export interface Database {
           archived: boolean
           updated_at: string
           last_content_update: string
+          last_content_update_by: string | null
           client_created_at: string
           server_created_at: string | null
           deleted_at: string | null

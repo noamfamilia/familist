@@ -32,6 +32,7 @@ export function listCardModelEqual(a: ListWithRole, b: ListWithRole): boolean {
     (a.sumScope ?? 'none') === (b.sumScope ?? 'none') &&
     String(a.updated_at ?? '') === String(b.updated_at ?? '') &&
     String(a.last_content_update ?? '') === String(b.last_content_update ?? '') &&
+    (a.last_content_update_by ?? null) === (b.last_content_update_by ?? null) &&
     String(a.last_viewed ?? '') === String(b.last_viewed ?? '') &&
     String(a.server_created_at ?? '') === String(b.server_created_at ?? '') &&
     String(a.client_created_at ?? '') === String(b.client_created_at ?? '') &&
