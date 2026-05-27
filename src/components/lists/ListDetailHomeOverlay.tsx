@@ -2,15 +2,10 @@
 
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import dynamic from 'next/dynamic'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import { popBodyScrollLock, pushBodyScrollLock } from '@/lib/bodyScrollLock'
 import { syncHomeListHistoryPath } from '@/lib/navigation/backToHome'
-
-const ListDetailView = dynamic(
-  () => import('./ListDetailView').then((m) => ({ default: m.ListDetailView })),
-  { ssr: false },
-)
+import { ListDetailView } from './ListDetailView'
 
 export type ListDetailHomeOverlayProps = {
   listId: string
@@ -27,6 +22,10 @@ export type ListDetailHomeOverlayProps = {
  *
  * URL bar is synced to `/list/[id]` via one `pushState` per open session; switching lists uses
  * `replaceState`. UI close pops that entry (`closeHomeListOverlay`); system Back uses `popstate`.
+ *
+ * `ListDetailView` is statically imported (not `next/dynamic`). The dynamic + React.lazy +
+ * Suspense first-resolved cycle added ~300 ms to the first visible list-open; static import
+ * removes that wrapper cost at the expense of a larger home shell bundle.
  */
 export function ListDetailHomeOverlay({ listId, onClose }: ListDetailHomeOverlayProps) {
   const mounted = useHasMounted()
