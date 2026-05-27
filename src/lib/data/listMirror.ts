@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
@@ -14,14 +13,14 @@ import {
 } from '@/lib/data/serverReadPolicy'
 import { shouldDeferServerReadsForOutboundList } from '@/lib/data/outboundReadQuiet'
 import { releaseListMirrorLock, waitForListMirrorLock } from '@/lib/data/listMirrorLock'
-
-const supabase = createClient()
+import { rpcGetListData } from '@/lib/data/inFlightServerReads'
 
 export const LIST_MIRROR_QUEUE_META_ID = 'list_mirror_queue'
 const PRIORITY_META_ID = 'list_mirror_priority_list_id'
 const MIRROR_DETAIL_VERSION_PREFIX = 'mirror_detail_list_version:'
 export const LIST_MIRROR_RUNNING_META_ID = 'list_mirror_running'
 export const LIST_MIRROR_LAST_SUCCESS_LIST_ID_META_ID = 'list_mirror_last_success'
+const LIST_MIRROR_FORCE_DETAIL_META_ID = 'list_mirror_force_detail_ids'
 
 /** Stable per-tab owner for list mirror locks (fetchList + background worker share this). */
 export const LIST_MIRROR_SESSION_OWNER =
@@ -79,8 +78,48 @@ export async function getListMirrorPriorityListId(): Promise<string | null> {
   return typeof row?.value === 'string' && row.value.length > 0 ? row.value : null
 }
 
+async function mergeForceDetailMirrorIds(listIds: string[]): Promise<void> {
+  if (listIds.length === 0) return
+  await db.transaction('rw', db.meta, async () => {
+    const row = await db.meta.get(LIST_MIRROR_FORCE_DETAIL_META_ID)
+    const prev = (row?.value as string[] | undefined) ?? []
+    const merged = [...new Set([...listIds, ...prev])]
+    await db.meta.put({
+      id: LIST_MIRROR_FORCE_DETAIL_META_ID,
+      value: merged,
+      updated_at: Date.now(),
+    })
+  })
+}
+
+async function shouldForceFullDetailMirror(listId: string): Promise<boolean> {
+  const row = await db.meta.get(LIST_MIRROR_FORCE_DETAIL_META_ID)
+  const ids = (row?.value as string[] | undefined) ?? []
+  return ids.includes(listId)
+}
+
+async function clearForceFullDetailMirror(listId: string): Promise<void> {
+  await db.transaction('rw', db.meta, async () => {
+    const row = await db.meta.get(LIST_MIRROR_FORCE_DETAIL_META_ID)
+    const ids = (row?.value as string[] | undefined) ?? []
+    const next = ids.filter((id) => id !== listId)
+    if (next.length === 0) {
+      await db.meta.delete(LIST_MIRROR_FORCE_DETAIL_META_ID)
+    } else {
+      await db.meta.put({
+        id: LIST_MIRROR_FORCE_DETAIL_META_ID,
+        value: next,
+        updated_at: Date.now(),
+      })
+    }
+  })
+}
+
 /** Merge list ids into the Dexie-backed mirror queue (deduped). */
-export async function enqueueListMirrorJobs(listIds: string[]): Promise<void> {
+export async function enqueueListMirrorJobs(
+  listIds: string[],
+  options?: { forceFullDetail?: boolean },
+): Promise<void> {
   const queue = await db.sync_queue.toArray()
   const unique = [...new Set(listIds.filter((id) => id && id.length > 0))].filter(
     (id) => !shouldDeferServerReadsForOutboundList(id, queue),
@@ -92,6 +131,9 @@ export async function enqueueListMirrorJobs(listIds: string[]): Promise<void> {
     const merged = [...new Set([...unique, ...prev])]
     await db.meta.put({ id: LIST_MIRROR_QUEUE_META_ID, value: { ids: merged } satisfies QueuePayload, updated_at: Date.now() })
   })
+  if (options?.forceFullDetail) {
+    await mergeForceDetailMirrorIds(unique)
+  }
 }
 
 export async function peekListMirrorQueue(): Promise<string[]> {
@@ -163,7 +205,8 @@ export async function runListMirrorJob(
       typeof list.last_content_update === 'string' &&
       list.last_content_update.length > 0 &&
       list.last_content_update !== lastMirroredContentUpdate
-    const bypass = options?.bypassVersionGate === true
+    const forceFullDetail = await shouldForceFullDetailMirror(listId)
+    const bypass = options?.bypassVersionGate === true || forceFullDetail
     if (!bypass && !(list.version > lastMirrored) && !contentChanged) {
       return false
     }
@@ -171,7 +214,7 @@ export async function runListMirrorJob(
     rpcT0 = performance.now()
     const readFlightGen = captureReadFlightGeneration()
     const listReconcileGen = captureListReconcileGeneration(listId)
-    const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
+    const { data, error } = await rpcGetListData(listId)
     if (error) throw error
     if (shouldDiscardReadFlightResult(readFlightGen)) {
       logServerRoundTrip({
@@ -225,6 +268,9 @@ export async function runListMirrorJob(
       durationMs: performance.now() - rpcT0,
       respondsTo: 'Background list mirror',
     })
+    if (forceFullDetail) {
+      await clearForceFullDetailMirror(listId)
+    }
     return true
   } catch (e) {
     logServerRoundTrip({

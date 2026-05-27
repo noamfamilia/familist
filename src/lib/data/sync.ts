@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/client'
 import {
   upsertListDataPayloadFromServer,
   upsertListsSummaryFromServer,
@@ -14,15 +13,14 @@ import {
   shouldDiscardReadFlightResult,
 } from '@/lib/data/serverReadPolicy'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
-
-const supabase = createClient()
+import { rpcGetListData, rpcGetUserLists } from '@/lib/data/inFlightServerReads'
 
 export async function syncLists(userId: string, respondsTo: string) {
   if (!canFetchFromServerNow()) return
   const readFlightGen = captureReadFlightGeneration()
   const t0 = performance.now()
   try {
-    const { data, error } = await supabase.rpc('get_user_lists')
+    const { data, error } = await rpcGetUserLists()
     if (error) throw error
     if (shouldDiscardReadFlightResult(readFlightGen)) return
     await upsertListsSummaryFromServer(userId, data ?? [])
@@ -51,7 +49,7 @@ export async function syncListDetail(userId: string, listId: string, respondsTo:
   const listReconcileGen = captureListReconcileGeneration(listId)
   const t0 = performance.now()
   try {
-    const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
+    const { data, error } = await rpcGetListData(listId)
     if (error) throw error
     if (shouldDiscardReadFlightResult(readFlightGen)) return
     if (shouldDiscardListReconcileResult(listId, listReconcileGen)) {

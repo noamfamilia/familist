@@ -25,6 +25,7 @@ import {
   requestListsCatalogRealtimeFlush,
 } from '@/lib/data/listsCatalogRealtimeBridge'
 import { enqueueListMirrorJobs } from '@/lib/data/listMirror'
+import { rpcGetUserLists } from '@/lib/data/inFlightServerReads'
 import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
 import {
   canFetchFromServer,
@@ -294,6 +295,13 @@ export function useLists() {
         return
       }
       hasInitialDataRef.current = useListsCatalogStore.getState().lists.length > 0
+      const sessionUserId = user?.id ?? null
+      const pendingServerCatalogSync =
+        !isGuest && sessionUserId != null && sessionUserId === userId
+      if (!pendingServerCatalogSync) {
+        setIsFetching(false)
+        setHasCompletedInitialFetch(true)
+      }
     })()
 
     const unsub = subscribeListsCatalogL2Bridge(userId)
@@ -423,7 +431,7 @@ export function useLists() {
     const listsRpcT0 = performance.now()
     try {
       // Catalog: lists + list_users (counts come from Dexie liveQuery after mirror fills items/members)
-      const { data, error: rpcError } = await supabase.rpc('get_user_lists')
+      const { data, error: rpcError } = await rpcGetUserLists()
 
       if (rpcError) throw rpcError
 
@@ -492,7 +500,7 @@ export function useLists() {
 
       setCachedLists(userId, listsData)
       await upsertListsSummaryFromServer(userId, rawRows)
-      void enqueueListMirrorJobs(mirrorListIds)
+      void enqueueListMirrorJobs(mirrorListIds, { forceFullDetail: true })
       const catalog = useListsCatalogStore.getState()
       if (catalog.activeUserId === userId) {
         await warmListsCatalog(userId, catalog.catalogSessionEpoch, 'fetchLists-rpc-success')
@@ -563,18 +571,21 @@ export function useLists() {
     void fetchLists()
   }, [fetchLists])
 
-  // Initial fetch
+  const sessionUserId = user?.id ?? null
+
+  /** Server catalog sync (`get_user_lists` + mirror enqueue) — only after Supabase `user` exists. */
   useEffect(() => {
-    fetchLists()
-  }, [fetchLists])
+    if (!sessionUserId || !userId || sessionUserId !== userId) return
+    void fetchLists()
+  }, [fetchLists, sessionUserId, userId])
 
   const lastCatalogRefreshGenRef = useRef(0)
   useEffect(() => {
-    if (!userId) return
+    if (!sessionUserId || !userId || sessionUserId !== userId) return
     if (recoveryFetchGeneration <= lastCatalogRefreshGenRef.current) return
     lastCatalogRefreshGenRef.current = recoveryFetchGeneration
     void fetchLists()
-  }, [recoveryFetchGeneration, fetchLists, userId])
+  }, [recoveryFetchGeneration, fetchLists, sessionUserId, userId])
 
   useEffect(() => {
     if (!userId || !catalogMatchesActor) return
@@ -585,7 +596,7 @@ export function useLists() {
   }, [userId, catalogMatchesActor, actorLists])
 
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !sessionUserId || sessionUserId !== userId) {
       registerListsCatalogFetchHandler(null)
       return
     }
@@ -595,7 +606,7 @@ export function useLists() {
     return () => {
       registerListsCatalogFetchHandler(null)
     }
-  }, [fetchLists, userId])
+  }, [fetchLists, sessionUserId, userId])
 
   const createList = async (name: string, label?: string) => {
     if (!mutationUserId) return { error: new Error('Not authenticated') }

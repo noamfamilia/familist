@@ -1,5 +1,5 @@
 import { setCachedList } from '@/lib/cache'
-import { createClient } from '@/lib/supabase/client'
+import { rpcGetListData } from '@/lib/data/inFlightServerReads'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { serverListDetailDiffersFromDexie } from '@/lib/data/listDetailServerDexieDiff'
 import { upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
@@ -16,8 +16,6 @@ import { shouldDeferServerReadsForOutboundList } from '@/lib/data/outboundReadQu
 import { db } from '@/lib/db'
 import { normalizeItemsCategory } from '@/lib/items/normalizeItemsCategory'
 import type { ItemWithState, List, MemberWithCreator } from '@/lib/supabase/types'
-
-const supabase = createClient()
 
 /** Derive affected list UUIDs from home-catalog realtime payloads. */
 export function extractListIdsFromCatalogRealtimePayload(payload: {
@@ -62,7 +60,7 @@ export async function prefetchListDetailsFromServer(
         continue
       }
       const listReconcileGen = captureListReconcileGeneration(listId)
-      const { data, error } = await supabase.rpc('get_list_data', { p_list_id: listId })
+      const { data, error } = await rpcGetListData(listId)
       if (shouldDiscardReadFlightResult(readFlightGen)) {
         return
       }

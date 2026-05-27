@@ -29,6 +29,7 @@ import {
   upsertListPrefsFromServer,
 } from '@/lib/data/serverDexieParity'
 import { LIST_MIRROR_SESSION_OWNER, setLastMirroredListDetailVersion } from '@/lib/data/listMirror'
+import { rpcGetListData } from '@/lib/data/inFlightServerReads'
 import { releaseListMirrorLock, waitForListMirrorLock } from '@/lib/data/listMirrorLock'
 import { formatQuotedListName, logServerRoundTrip } from '@/lib/serverActionLog'
 import { serverListDetailDiffersFromDexie } from '@/lib/data/listDetailServerDexieDiff'
@@ -716,6 +717,7 @@ export function useList(listId: string) {
     }
 
     if (fetchingRef.current) {
+      await rpcGetListData(listId)
       return
     }
     if (
@@ -757,12 +759,10 @@ export function useList(listId: string) {
 
       const rpcPromise = (async () => {
         const rpcT0 = performance.now()
-        let data: Awaited<ReturnType<typeof supabase.rpc<'get_list_data'>>>['data']
-        let rpcError: Awaited<ReturnType<typeof supabase.rpc<'get_list_data'>>>['error']
+        let data: Awaited<ReturnType<typeof rpcGetListData>>['data']
+        let rpcError: Awaited<ReturnType<typeof rpcGetListData>>['error']
         try {
-          const r = await supabase.rpc('get_list_data', {
-            p_list_id: listId,
-          })
+          const r = await rpcGetListData(listId)
           data = r.data
           rpcError = r.error
         } finally {
