@@ -125,7 +125,22 @@ function isCollaborativeMirrorList(
   return list.owner_id === userId && list.visibility === 'link'
 }
 
-/** Priority list first, then collaborative lists, then private-owned; stable within each tier. */
+function lastViewedMs(lastViewed: string | null | undefined): number {
+  const ms = Date.parse(String(lastViewed ?? ''))
+  return Number.isFinite(ms) ? ms : 0
+}
+
+/** Most recently viewed lists first (higher `last_viewed`); never-viewed/null last. */
+function sortListIdsByLastViewedDesc(
+  listIds: string[],
+  lastViewedByListId: Map<string, string | null | undefined>,
+): string[] {
+  return [...listIds].sort(
+    (a, b) => lastViewedMs(lastViewedByListId.get(b)) - lastViewedMs(lastViewedByListId.get(a)),
+  )
+}
+
+/** Open-list priority, then collaborative vs private; within each group, most recently viewed first. */
 export async function orderListMirrorQueueIds(
   ids: string[],
   userId: string,
@@ -140,6 +155,7 @@ export async function orderListMirrorQueueIds(
     .filter((lu) => idSet.has(lu.list_id))
     .toArray()
   const roleByListId = new Map(memberships.map((m) => [m.list_id, m.role]))
+  const lastViewedByListId = new Map(memberships.map((m) => [m.list_id, m.last_viewed]))
 
   const lists = await db.lists.where('id').anyOf(ids).toArray()
   const listById = new Map(lists.map((l) => [l.id, l]))
@@ -162,7 +178,11 @@ export async function orderListMirrorQueueIds(
     }
   }
 
-  return [...priority, ...collaborative, ...rest]
+  return [
+    ...priority,
+    ...sortListIdsByLastViewedDesc(collaborative, lastViewedByListId),
+    ...sortListIdsByLastViewedDesc(rest, lastViewedByListId),
+  ]
 }
 
 /** Merge list ids into the Dexie-backed mirror queue (deduped). */
