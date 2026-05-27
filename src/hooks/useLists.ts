@@ -500,7 +500,7 @@ export function useLists() {
 
       setCachedLists(userId, listsData)
       await upsertListsSummaryFromServer(userId, rawRows)
-      void enqueueListMirrorJobs(mirrorListIds, { forceFullDetail: true })
+      void enqueueListMirrorJobs(userId, mirrorListIds, { forceFullDetail: true })
       const catalog = useListsCatalogStore.getState()
       if (catalog.activeUserId === userId) {
         await warmListsCatalog(userId, catalog.catalogSessionEpoch, 'fetchLists-rpc-success')

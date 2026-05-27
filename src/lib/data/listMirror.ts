@@ -115,8 +115,59 @@ async function clearForceFullDetailMirror(listId: string): Promise<void> {
   })
 }
 
+/** Shared-with-me, or owned with link visibility — likely to have remote edits. */
+function isCollaborativeMirrorList(
+  list: { owner_id: string; visibility: string },
+  role: string | undefined,
+  userId: string,
+): boolean {
+  if (role !== 'owner') return true
+  return list.owner_id === userId && list.visibility === 'link'
+}
+
+/** Priority list first, then collaborative lists, then private-owned; stable within each tier. */
+export async function orderListMirrorQueueIds(
+  ids: string[],
+  userId: string,
+  priorityListId: string | null,
+): Promise<string[]> {
+  if (ids.length <= 1) return ids
+
+  const idSet = new Set(ids)
+  const memberships = await db.list_users
+    .where('user_id')
+    .equals(userId)
+    .filter((lu) => idSet.has(lu.list_id))
+    .toArray()
+  const roleByListId = new Map(memberships.map((m) => [m.list_id, m.role]))
+
+  const lists = await db.lists.where('id').anyOf(ids).toArray()
+  const listById = new Map(lists.map((l) => [l.id, l]))
+
+  const priority: string[] = []
+  const collaborative: string[] = []
+  const rest: string[] = []
+
+  for (const id of ids) {
+    if (priorityListId && id === priorityListId) {
+      priority.push(id)
+      continue
+    }
+    const list = listById.get(id)
+    const role = roleByListId.get(id)
+    if (list && isCollaborativeMirrorList(list, role, userId)) {
+      collaborative.push(id)
+    } else {
+      rest.push(id)
+    }
+  }
+
+  return [...priority, ...collaborative, ...rest]
+}
+
 /** Merge list ids into the Dexie-backed mirror queue (deduped). */
 export async function enqueueListMirrorJobs(
+  userId: string,
   listIds: string[],
   options?: { forceFullDetail?: boolean },
 ): Promise<void> {
@@ -125,11 +176,15 @@ export async function enqueueListMirrorJobs(
     (id) => !shouldDeferServerReadsForOutboundList(id, queue),
   )
   if (unique.length === 0) return
-  await db.transaction('rw', db.meta, async () => {
-    const row = await db.meta.get(LIST_MIRROR_QUEUE_META_ID)
-    const prev = (row?.value as QueuePayload | undefined)?.ids ?? []
-    const merged = [...new Set([...unique, ...prev])]
-    await db.meta.put({ id: LIST_MIRROR_QUEUE_META_ID, value: { ids: merged } satisfies QueuePayload, updated_at: Date.now() })
+  const row = await db.meta.get(LIST_MIRROR_QUEUE_META_ID)
+  const prev = (row?.value as QueuePayload | undefined)?.ids ?? []
+  const merged = [...new Set([...unique, ...prev])]
+  const priorityListId = await getListMirrorPriorityListId()
+  const ordered = await orderListMirrorQueueIds(merged, userId, priorityListId)
+  await db.meta.put({
+    id: LIST_MIRROR_QUEUE_META_ID,
+    value: { ids: ordered } satisfies QueuePayload,
+    updated_at: Date.now(),
   })
   if (options?.forceFullDetail) {
     await mergeForceDetailMirrorIds(unique)
@@ -157,11 +212,6 @@ export async function popListMirrorQueueHead(listId: string): Promise<void> {
       })
     }
   })
-}
-
-function sortQueueWithPriority(ids: string[], priority: string | null): string[] {
-  if (!priority || !ids.includes(priority)) return ids
-  return [priority, ...ids.filter((id) => id !== priority)]
 }
 
 /**
@@ -295,8 +345,15 @@ export async function drainListMirrorQueueOnce(userId: string): Promise<{ proces
   const priority = await getListMirrorPriorityListId()
   const raw = await peekListMirrorQueue()
   if (raw.length === 0) return { processed: 0, succeeded: false }
-  const ordered = sortQueueWithPriority(raw, priority)
+  const ordered = await orderListMirrorQueueIds(raw, userId, priority)
   const head = ordered[0]
+  if (ordered.length > 1 && ordered[0] !== raw[0]) {
+    await db.meta.put({
+      id: LIST_MIRROR_QUEUE_META_ID,
+      value: { ids: ordered } satisfies QueuePayload,
+      updated_at: Date.now(),
+    })
+  }
   if (!head) return { processed: 0, succeeded: false }
   const outboundQueue = await db.sync_queue.toArray()
   if (shouldDeferServerReadsForOutboundList(head, outboundQueue)) {

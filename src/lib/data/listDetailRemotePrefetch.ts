@@ -1,5 +1,6 @@
 import { setCachedList } from '@/lib/cache'
 import { rpcGetListData } from '@/lib/data/inFlightServerReads'
+import { orderListMirrorQueueIds } from '@/lib/data/listMirror'
 import { isTombstoned } from '@/lib/data/base_sync_fields'
 import { serverListDetailDiffersFromDexie } from '@/lib/data/listDetailServerDexieDiff'
 import { upsertListDataPayloadFromServer } from '@/lib/data/serverDexieParity'
@@ -49,8 +50,9 @@ export async function prefetchListDetailsFromServer(
   if (!userId) return
   if (!canFetchFromServerNow()) return
   const readFlightGen = captureReadFlightGeneration()
-  const listIds = [...new Set(rawListIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
-  if (listIds.length === 0) return
+  const unique = [...new Set(rawListIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+  if (unique.length === 0) return
+  const listIds = await orderListMirrorQueueIds(unique, userId, null)
 
   const outboundQueue = await db.sync_queue.toArray()
 
