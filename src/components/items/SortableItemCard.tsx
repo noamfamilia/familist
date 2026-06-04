@@ -1,10 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ItemCard } from './ItemCard'
-import { dragDebugPointerRef, recordDragSnap } from '@/lib/dragSnapDebugLog'
 import type { CategoryNames, Item, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 
 interface SortableItemCardProps {
@@ -28,12 +26,9 @@ interface SortableItemCardProps {
   allowItemMutationQueue?: boolean
   /** Hide in-list row while DragOverlay shows the dragged card. */
   useDragOverlay?: boolean
-  dragDebugSurface?: 'page' | 'home_modal'
-  dragDebugItemsCount?: number
-  dragDebugActiveItemIds?: string[]
 }
 
-export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, useDragOverlay = false, dragDebugSurface, dragDebugItemsCount, dragDebugActiveItemIds }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, useDragOverlay = false }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -43,24 +38,6 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
     isDragging,
   } = useSortable({ id: item.id, disabled: isOfflineActionsDisabled })
 
-  const wasDraggingRef = useRef(false)
-  useEffect(() => {
-    if (!dragDebugSurface || dragDebugItemsCount == null || !dragDebugActiveItemIds) return
-    const ptr = dragDebugPointerRef.current
-    if (wasDraggingRef.current && !isDragging && ptr && ptr.buttons !== 0) {
-      recordDragSnap({
-        reason: 'isDragging_false_while_pointer_down',
-        itemId: item.id,
-        surface: dragDebugSurface,
-        itemsCount: dragDebugItemsCount,
-        activeItemIds: dragDebugActiveItemIds,
-        activeIndex: dragDebugActiveItemIds.indexOf(item.id),
-        transform,
-      })
-    }
-    wasDraggingRef.current = isDragging
-  }, [isDragging, transform, item.id, dragDebugSurface, dragDebugItemsCount, dragDebugActiveItemIds])
-
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -68,12 +45,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
   }
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      data-sortable-id={item.id}
-      className={members.length === 0 ? 'block min-w-full w-max' : undefined}
-    >
+    <div ref={setNodeRef} style={style} className={members.length === 0 ? 'block min-w-full w-max' : undefined}>
       <ItemCard
         item={item}
         members={members}

@@ -21,10 +21,7 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  DragCancelEvent,
   DragStartEvent,
-  DragMoveEvent,
-  DragOverEvent,
 } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
@@ -47,16 +44,6 @@ import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNam
 import { inMemoryItemsHaveExactNormalizedText } from '@/lib/data/localItemTextUniqueness'
 import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
-import {
-  dragDebugPointerRef,
-  beginDragDebugSession,
-  endDragDebugSession,
-  recordDragSnap,
-  setDragDebugModalIsOpen,
-  subscribeDragSnapDebug,
-  trackDragDebugMove,
-  updateDragDebugSession,
-} from '@/lib/dragSnapDebugLog'
 
 import { Button } from '@/components/ui/Button'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
@@ -79,10 +66,6 @@ const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(m
 const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
   ssr: false,
 })
-const DragSnapDebugModal = dynamic(
-  () => import('@/components/lists/DragSnapDebugModal').then(mod => mod.DragSnapDebugModal),
-  { ssr: false },
-)
 
 /**
  * Drag-and-drop: move one item in the full list. Archived items never move.
@@ -454,33 +437,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const [showShareModal, setShowShareModal] = useState(false)
   const [showGuestShareSignInModal, setShowGuestShareSignInModal] = useState(false)
   const [showWidthBoundaryGuide, setShowWidthBoundaryGuide] = useState(false)
-  const [dragSnapDebugOpen, setDragSnapDebugOpen] = useState(false)
   const widthBoundaryGuideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      dragDebugPointerRef.current = { x: e.clientX, y: e.clientY, buttons: e.buttons }
-    }
-    window.addEventListener('pointermove', onMove, { passive: true })
-    return () => window.removeEventListener('pointermove', onMove)
-  }, [])
-
-  useEffect(() => {
-    return subscribeDragSnapDebug(() => {
-      const ptr = dragDebugPointerRef.current
-      if (ptr?.buttons !== 0) {
-        const openOnUp = () => setDragSnapDebugOpen(true)
-        window.addEventListener('pointerup', openOnUp, { once: true })
-        window.addEventListener('pointercancel', openOnUp, { once: true })
-        return
-      }
-      setDragSnapDebugOpen(true)
-    })
-  }, [])
-
-  useEffect(() => {
-    setDragDebugModalIsOpen(dragSnapDebugOpen)
-  }, [dragSnapDebugOpen])
 
   const shareSettingsOfflineBlocked = !online
 
@@ -782,82 +739,34 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     }
   }
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragItemId(String(event.active.id))
+  }
+
   const handleDragEnd = async (event: DragEndEvent) => {
-    if (isOfflineActionsDisabled) return
-    const { active, over } = event
+    try {
+      if (isOfflineActionsDisabled) return
+      const { active, over } = event
 
-    if (over && active.id !== over.id) {
-      const oldIndex = activeItems.findIndex(i => i.id === active.id)
-      const newIndex = activeItems.findIndex(i => i.id === over.id)
+      if (over && active.id !== over.id) {
+        const oldIndex = activeItems.findIndex(i => i.id === active.id)
+        const newIndex = activeItems.findIndex(i => i.id === over.id)
 
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const newActiveOrder = [...activeItems]
-        const [removed] = newActiveOrder.splice(oldIndex, 1)
-        newActiveOrder.splice(newIndex, 0, removed)
-        const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-        const fullOrder = reorderWithDrag(currentFull, newActiveOrder, active.id as string)
-        const { error: reorderError } = await reorderItems(fullOrder)
-        if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
-          showError(reorderError.message || 'Failed to reorder items', { serverError: reorderError })
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newActiveOrder = [...activeItems]
+          const [removed] = newActiveOrder.splice(oldIndex, 1)
+          newActiveOrder.splice(newIndex, 0, removed)
+          const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          const fullOrder = reorderWithDrag(currentFull, newActiveOrder, active.id as string)
+          const { error: reorderError } = await reorderItems(fullOrder)
+          if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
+            showError(reorderError.message || 'Failed to reorder items', { serverError: reorderError })
+          }
         }
       }
+    } finally {
+      setActiveDragItemId(null)
     }
-  }
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const itemId = String(event.active.id)
-    setActiveDragItemId(itemId)
-    beginDragDebugSession({
-      itemId,
-      surface,
-      activeIndex: activeItems.findIndex((i) => i.id === itemId),
-      activeItemIds: activeItems.map((i) => i.id),
-      activatorEvent: event.activatorEvent,
-    })
-  }
-
-  const handleDragMove = (event: DragMoveEvent) => {
-    const overId = event.over ? String(event.over.id) : null
-    trackDragDebugMove({
-      overId,
-      overIndex: overId ? activeItems.findIndex((i) => i.id === overId) : null,
-      delta: { x: event.delta.x, y: event.delta.y },
-      activeTranslatedRect: event.active.rect.current,
-      overRect: event.over?.rect ?? null,
-    })
-  }
-
-  const handleDragOver = (event: DragOverEvent) => {
-    updateDragDebugSession({
-      lastEvent: 'over',
-      overId: event.over ? String(event.over.id) : null,
-    })
-  }
-
-  const handleDragCancel = (event: DragCancelEvent) => {
-    const itemId = String(event.active.id)
-    const overId = event.over ? String(event.over.id) : null
-    updateDragDebugSession({ lastEvent: 'cancel' })
-    recordDragSnap({
-      reason: 'drag_cancel',
-      itemId,
-      surface,
-      itemsCount: activeItems.length,
-      activeItemIds: activeItems.map((i) => i.id),
-      activeIndex: activeItems.findIndex((i) => i.id === itemId),
-      overIndex: overId ? activeItems.findIndex((i) => i.id === overId) : null,
-      activeTranslatedRect: event.active.rect.current,
-      overRect: event.over?.rect ?? null,
-    })
-    setActiveDragItemId(null)
-    endDragDebugSession()
-  }
-
-  const handleDragEndWithDebug = (event: DragEndEvent) => {
-    updateDragDebugSession({ lastEvent: 'end' })
-    setActiveDragItemId(null)
-    endDragDebugSession()
-    void handleDragEnd(event)
   }
 
   const activeDragItem = activeDragItemId
@@ -1073,7 +982,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           {/* Members header with hide done toggles — hidden while add-field filters the list */}
           {!searchText ? (
           <div
-            data-drag-debug-sticky-header
             className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}`}
           >
             <MemberHeader
@@ -1147,10 +1055,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                 collisionDetection={closestCenter}
                 autoScroll={false}
                 onDragStart={handleDragStart}
-                onDragMove={handleDragMove}
-                onDragOver={handleDragOver}
-                onDragCancel={handleDragCancel}
-                onDragEnd={handleDragEndWithDebug}
+                onDragCancel={() => setActiveDragItemId(null)}
+                onDragEnd={(e) => void handleDragEnd(e)}
               >
                 <SortableContext items={activeItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
                   {activeItems.map(item => (
@@ -1175,9 +1081,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       isOfflineActionsDisabled={isOfflineActionsDisabled}
                       allowItemMutationQueue={allowItemMutationQueue}
                       useDragOverlay={Boolean(activeDragItemId)}
-                      dragDebugSurface={surface}
-                      dragDebugItemsCount={activeItems.length}
-                      dragDebugActiveItemIds={activeItems.map((i) => i.id)}
                     />
                   ))}
                 </SortableContext>
@@ -1333,8 +1236,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         isOpen={showGuestShareSignInModal}
         onClose={() => setShowGuestShareSignInModal(false)}
       />
-
-      <DragSnapDebugModal isOpen={dragSnapDebugOpen} onClose={() => setDragSnapDebugOpen(false)} />
 
       {isListOwner && !isGuest && list && (
         <ShareModal
