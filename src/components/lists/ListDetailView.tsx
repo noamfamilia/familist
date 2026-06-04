@@ -12,7 +12,20 @@ import { usePathname, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragCancelEvent, DragStartEvent, DragMoveEvent, DragOverEvent } from '@dnd-kit/core'
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragCancelEvent,
+  DragStartEvent,
+  DragMoveEvent,
+  DragOverEvent,
+} from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
@@ -415,6 +428,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
+  const [activeDragItemId, setActiveDragItemId] = useState<string | null>(null)
   const [newItemText, setNewItemText] = useState('')
   const [addItemBulkMode, setAddItemBulkMode] = useState(false)
   const showAddItemCategoryPicker =
@@ -792,6 +806,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const handleDragStart = (event: DragStartEvent) => {
     const itemId = String(event.active.id)
+    setActiveDragItemId(itemId)
     beginDragDebugSession({
       itemId,
       surface,
@@ -834,14 +849,20 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       activeTranslatedRect: event.active.rect.current,
       overRect: event.over?.rect ?? null,
     })
+    setActiveDragItemId(null)
     endDragDebugSession()
   }
 
   const handleDragEndWithDebug = (event: DragEndEvent) => {
     updateDragDebugSession({ lastEvent: 'end' })
+    setActiveDragItemId(null)
     endDragDebugSession()
     void handleDragEnd(event)
   }
+
+  const activeDragItem = activeDragItemId
+    ? activeItems.find((i) => i.id === activeDragItemId)
+    : undefined
 
   const noMemberColumns = filteredMembers.length === 0
   const openMutatingModal = (open: () => void) => {
@@ -1124,6 +1145,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
+                autoScroll={false}
                 onDragStart={handleDragStart}
                 onDragMove={handleDragMove}
                 onDragOver={handleDragOver}
@@ -1152,12 +1174,40 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       itemNameFontStep={itemNameFontStep}
                       isOfflineActionsDisabled={isOfflineActionsDisabled}
                       allowItemMutationQueue={allowItemMutationQueue}
+                      useDragOverlay={Boolean(activeDragItemId)}
                       dragDebugSurface={surface}
                       dragDebugItemsCount={activeItems.length}
                       dragDebugActiveItemIds={activeItems.map((i) => i.id)}
                     />
                   ))}
                 </SortableContext>
+                <DragOverlay dropAnimation={null}>
+                  {activeDragItem ? (
+                    <div className={noMemberColumns ? 'block min-w-full w-max' : undefined}>
+                      <ItemCard
+                        item={activeDragItem}
+                        members={filteredMembers}
+                        hideDone={hideDone}
+                        hideNotRelevant={hideNotRelevant}
+                        onUpdateItem={updateItem}
+                        onDeleteItem={deleteItem}
+                        onChangeQuantity={changeQuantity}
+                        onUpdateMemberState={updateMemberState}
+                        isDraggable={false}
+                        itemTextWidth={itemTextWidth}
+                        expandSignal={expandSignal}
+                        collapseSignal={collapseSignal}
+                        categoryNames={categoryNames}
+                        categoryOrder={categoryOrder}
+                        onClearAddItemDraft={handleClearAddItemDraftIfTyped}
+                        itemNameFontClassName={itemNameFontClassName}
+                        itemNameFontStep={itemNameFontStep}
+                        isOfflineActionsDisabled={isOfflineActionsDisabled}
+                        allowItemMutationQueue={allowItemMutationQueue}
+                      />
+                    </div>
+                  ) : null}
+                </DragOverlay>
               </DndContext>
             ) : items.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic">

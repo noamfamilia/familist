@@ -26,12 +26,14 @@ interface SortableItemCardProps {
   itemNameFontStep?: number
   isOfflineActionsDisabled?: boolean
   allowItemMutationQueue?: boolean
+  /** Hide in-list row while DragOverlay shows the dragged card. */
+  useDragOverlay?: boolean
   dragDebugSurface?: 'page' | 'home_modal'
   dragDebugItemsCount?: number
   dragDebugActiveItemIds?: string[]
 }
 
-export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, dragDebugSurface, dragDebugItemsCount, dragDebugActiveItemIds }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, useDragOverlay = false, dragDebugSurface, dragDebugItemsCount, dragDebugActiveItemIds }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -62,7 +64,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging && useDragOverlay ? 0 : isDragging ? 0.5 : 1,
   }
 
   return (
