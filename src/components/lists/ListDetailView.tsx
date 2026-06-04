@@ -12,24 +12,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import {
-  DndContext,
-  DragOverlay,
-  closestCorners,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragCancelEvent,
-  type DragEndEvent,
-  type DragStartEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useList, nextListUserSumScope } from '@/hooks/useList'
@@ -417,7 +401,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
-  const [activeDragItemId, setActiveDragItemId] = useState<string | null>(null)
   const [newItemText, setNewItemText] = useState('')
   const [addItemBulkMode, setAddItemBulkMode] = useState(false)
   const showAddItemCategoryPicker =
@@ -745,43 +728,27 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     }
   }
 
-  const clearItemDrag = () => setActiveDragItemId(null)
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveDragItemId(String(event.active.id))
-  }
-
-  const handleDragCancel = (_event: DragCancelEvent) => {
-    clearItemDrag()
-  }
-
   const handleDragEnd = async (event: DragEndEvent) => {
-    try {
-      if (isOfflineActionsDisabled) return
-      const { active, over } = event
+    if (isOfflineActionsDisabled) return
+    const { active, over } = event
 
-      if (over && active.id !== over.id) {
-        const oldIndex = activeItems.findIndex((i) => i.id === active.id)
-        const newIndex = activeItems.findIndex((i) => i.id === over.id)
+    if (over && active.id !== over.id) {
+      const oldIndex = activeItems.findIndex(i => i.id === active.id)
+      const newIndex = activeItems.findIndex(i => i.id === over.id)
 
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const newActiveOrder = arrayMove(activeItems, oldIndex, newIndex)
-          const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          const fullOrder = reorderWithDrag(currentFull, newActiveOrder, active.id as string)
-          const { error: reorderError } = await reorderItems(fullOrder)
-          if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
-            showError(reorderError.message || 'Failed to reorder items', { serverError: reorderError })
-          }
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newActiveOrder = [...activeItems]
+        const [removed] = newActiveOrder.splice(oldIndex, 1)
+        newActiveOrder.splice(newIndex, 0, removed)
+        const currentFull = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        const fullOrder = reorderWithDrag(currentFull, newActiveOrder, active.id as string)
+        const { error: reorderError } = await reorderItems(fullOrder)
+        if (reorderError && shouldShowConnectivityRelatedMutationToast(reorderError.message)) {
+          showError(reorderError.message || 'Failed to reorder items', { serverError: reorderError })
         }
       }
-    } finally {
-      clearItemDrag()
     }
   }
-
-  const activeDragItem = activeDragItemId
-    ? activeItems.find((i) => i.id === activeDragItemId)
-    : undefined
 
   const noMemberColumns = filteredMembers.length === 0
   const openMutatingModal = (open: () => void) => {
@@ -992,7 +959,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           {/* Members header with hide done toggles — hidden while add-field filters the list */}
           {!searchText ? (
           <div
-            className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}${activeDragItemId ? ' pointer-events-none' : ''}`}
+            className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}`}
           >
             <MemberHeader
               members={filteredMembers}
@@ -1062,10 +1029,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             {activeItems.length > 0 ? (
               <DndContext
                 sensors={sensors}
-                collisionDetection={closestCorners}
-                autoScroll
-                onDragStart={handleDragStart}
-                onDragCancel={handleDragCancel}
+                collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext items={activeItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
@@ -1090,37 +1054,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       itemNameFontStep={itemNameFontStep}
                       isOfflineActionsDisabled={isOfflineActionsDisabled}
                       allowItemMutationQueue={allowItemMutationQueue}
-                      useDragOverlay={Boolean(activeDragItemId)}
                     />
                   ))}
                 </SortableContext>
-                <DragOverlay dropAnimation={null}>
-                  {activeDragItem ? (
-                    <div className={noMemberColumns ? 'block min-w-full w-max' : undefined}>
-                      <ItemCard
-                        item={activeDragItem}
-                        members={filteredMembers}
-                        hideDone={hideDone}
-                        hideNotRelevant={hideNotRelevant}
-                        onUpdateItem={updateItem}
-                        onDeleteItem={deleteItem}
-                        onChangeQuantity={changeQuantity}
-                        onUpdateMemberState={updateMemberState}
-                        isDraggable={false}
-                        itemTextWidth={itemTextWidth}
-                        expandSignal={expandSignal}
-                        collapseSignal={collapseSignal}
-                        categoryNames={categoryNames}
-                        categoryOrder={categoryOrder}
-                        onClearAddItemDraft={handleClearAddItemDraftIfTyped}
-                        itemNameFontClassName={itemNameFontClassName}
-                        itemNameFontStep={itemNameFontStep}
-                        isOfflineActionsDisabled={isOfflineActionsDisabled}
-                        allowItemMutationQueue={allowItemMutationQueue}
-                      />
-                    </div>
-                  ) : null}
-                </DragOverlay>
               </DndContext>
             ) : items.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic">
