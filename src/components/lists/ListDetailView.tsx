@@ -12,7 +12,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragCancelEvent, DragStartEvent, DragMoveEvent, DragOverEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
@@ -34,6 +34,14 @@ import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNam
 import { inMemoryItemsHaveExactNormalizedText } from '@/lib/data/localItemTextUniqueness'
 import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
+import { isDragDebugEnabled } from '@/lib/dragDebug'
+import {
+  dragDebugPointerRef,
+  recordDragSnap,
+  resetDragDebugSession,
+  subscribeDragSnapDebug,
+  updateDragDebugSession,
+} from '@/lib/dragSnapDebugLog'
 
 import { Button } from '@/components/ui/Button'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
@@ -56,6 +64,10 @@ const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(m
 const Modal = dynamic(() => import('@/components/ui/Modal').then(mod => mod.Modal), {
   ssr: false,
 })
+const DragSnapDebugModal = dynamic(
+  () => import('@/components/lists/DragSnapDebugModal').then(mod => mod.DragSnapDebugModal),
+  { ssr: false },
+)
 
 /**
  * Drag-and-drop: move one item in the full list. Archived items never move.
@@ -426,7 +438,23 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const [showShareModal, setShowShareModal] = useState(false)
   const [showGuestShareSignInModal, setShowGuestShareSignInModal] = useState(false)
   const [showWidthBoundaryGuide, setShowWidthBoundaryGuide] = useState(false)
+  const [dragSnapDebugOpen, setDragSnapDebugOpen] = useState(false)
   const widthBoundaryGuideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dragDebugEnabled = hasMounted && isDragDebugEnabled()
+
+  useEffect(() => {
+    if (!dragDebugEnabled) return
+    const onMove = (e: PointerEvent) => {
+      dragDebugPointerRef.current = { x: e.clientX, y: e.clientY, buttons: e.buttons }
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [dragDebugEnabled])
+
+  useEffect(() => {
+    if (!dragDebugEnabled) return
+    return subscribeDragSnapDebug(() => setDragSnapDebugOpen(true))
+  }, [dragDebugEnabled])
 
   const shareSettingsOfflineBlocked = !online
 
@@ -750,6 +778,52 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     }
   }
 
+  const handleDragStart = (event: DragStartEvent) => {
+    if (!dragDebugEnabled) return
+    resetDragDebugSession()
+    updateDragDebugSession({
+      lastEvent: 'start',
+      activeId: String(event.active.id),
+      overId: null,
+      delta: null,
+    })
+  }
+
+  const handleDragMove = (event: DragMoveEvent) => {
+    if (!dragDebugEnabled) return
+    updateDragDebugSession({
+      lastEvent: 'move',
+      delta: { x: event.delta.x, y: event.delta.y },
+      overId: event.over ? String(event.over.id) : null,
+    })
+  }
+
+  const handleDragOver = (event: DragOverEvent) => {
+    if (!dragDebugEnabled) return
+    updateDragDebugSession({
+      lastEvent: 'over',
+      overId: event.over ? String(event.over.id) : null,
+    })
+  }
+
+  const handleDragCancel = (event: DragCancelEvent) => {
+    if (!dragDebugEnabled) return
+    updateDragDebugSession({ lastEvent: 'cancel' })
+    recordDragSnap({
+      reason: 'drag_cancel',
+      itemId: String(event.active.id),
+      surface,
+      itemsCount: activeItems.length,
+    })
+  }
+
+  const handleDragEndWithDebug = (event: DragEndEvent) => {
+    if (dragDebugEnabled) {
+      updateDragDebugSession({ lastEvent: 'end' })
+    }
+    void handleDragEnd(event)
+  }
+
   const noMemberColumns = filteredMembers.length === 0
   const openMutatingModal = (open: () => void) => {
     if (isOfflineActionsDisabled) {
@@ -1030,7 +1104,11 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
+                onDragStart={handleDragStart}
+                onDragMove={handleDragMove}
+                onDragOver={handleDragOver}
+                onDragCancel={handleDragCancel}
+                onDragEnd={handleDragEndWithDebug}
               >
                 <SortableContext items={activeItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
                   {activeItems.map(item => (
@@ -1054,6 +1132,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       itemNameFontStep={itemNameFontStep}
                       isOfflineActionsDisabled={isOfflineActionsDisabled}
                       allowItemMutationQueue={allowItemMutationQueue}
+                      dragDebugSurface={dragDebugEnabled ? surface : undefined}
+                      dragDebugItemsCount={dragDebugEnabled ? activeItems.length : undefined}
                     />
                   ))}
                 </SortableContext>
@@ -1182,6 +1262,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         isOpen={showGuestShareSignInModal}
         onClose={() => setShowGuestShareSignInModal(false)}
       />
+
+      {dragDebugEnabled ? (
+        <DragSnapDebugModal isOpen={dragSnapDebugOpen} onClose={() => setDragSnapDebugOpen(false)} />
+      ) : null}
 
       {isListOwner && !isGuest && list && (
         <ShareModal
