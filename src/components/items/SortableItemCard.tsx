@@ -4,7 +4,6 @@ import { useEffect, useRef } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ItemCard } from './ItemCard'
-import { isDragDebugEnabled } from '@/lib/dragDebug'
 import { dragDebugPointerRef, recordDragSnap } from '@/lib/dragSnapDebugLog'
 import type { CategoryNames, Item, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 
@@ -43,7 +42,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
 
   const wasDraggingRef = useRef(false)
   useEffect(() => {
-    if (!isDragDebugEnabled() || !dragDebugSurface || dragDebugItemsCount == null) return
+    if (!dragDebugSurface || dragDebugItemsCount == null) return
     const ptr = dragDebugPointerRef.current
     if (wasDraggingRef.current && !isDragging && ptr && ptr.buttons !== 0) {
       recordDragSnap({

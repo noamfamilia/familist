@@ -1,6 +1,6 @@
 /**
  * In-memory drag snap diagnostics for DragSnapDebugModal.
- * Active only when isDragDebugEnabled(); cleared via modal Clear control.
+ * Cleared via the modal Clear control.
  */
 
 import type { Transform } from '@dnd-kit/utilities'

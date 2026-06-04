@@ -13,6 +13,9 @@ import { copyTextToClipboard } from '@/lib/clipboard'
 const actionBtnClass =
   'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 touch-manipulation hover:bg-gray-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-200 dark:hover:bg-neutral-700'
 
+const primaryBtnClass =
+  'rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-white touch-manipulation hover:opacity-90'
+
 const rowMetaClass = 'text-gray-500 dark:text-gray-500'
 const logPreClass =
   'max-h-[min(60vh,28rem)] overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200'
@@ -32,6 +35,11 @@ export function DragSnapDebugModal({
     [lastSnap, lines],
   )
 
+  const lastSnapCopyText = useMemo(
+    () => (lastSnap ? JSON.stringify(lastSnap, null, 2) : ''),
+    [lastSnap],
+  )
+
   const flashCopyHint = (label: string) => {
     setCopyHint(label)
     window.setTimeout(() => setCopyHint(null), 1500)
@@ -39,7 +47,13 @@ export function DragSnapDebugModal({
 
   const copyAll = async () => {
     await copyTextToClipboard(fullCopyText)
-    flashCopyHint('Copied')
+    flashCopyHint('Copied all')
+  }
+
+  const copyLastSnap = async () => {
+    if (!lastSnapCopyText) return
+    await copyTextToClipboard(lastSnapCopyText)
+    flashCopyHint('Copied snapshot')
   }
 
   const clearAll = () => {
@@ -57,18 +71,23 @@ export function DragSnapDebugModal({
       fullScreenMobile
     >
       <div className="flex flex-col gap-4">
-        <p className={`text-xs ${rowMetaClass}`}>
-          Enable with <code className="text-gray-700 dark:text-gray-300">?debugDrag=1</code> or{' '}
-          <code className="text-gray-700 dark:text-gray-300">localStorage.DEBUG_DRAG=&quot;1&quot;</code>
-        </p>
-
-        <div className="flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={() => void copyAll()} className={actionBtnClass}>
-            Copy
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => void copyLastSnap()}
+            disabled={!lastSnap}
+            className={primaryBtnClass}
+          >
+            Copy snapshot
           </button>
-          <button type="button" onClick={() => void clearAll()} className={actionBtnClass}>
-            Clear
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void copyAll()} className={actionBtnClass}>
+              Copy all
+            </button>
+            <button type="button" onClick={() => void clearAll()} className={actionBtnClass}>
+              Clear
+            </button>
+          </div>
         </div>
 
         <section className="flex flex-col gap-2">
@@ -79,7 +98,7 @@ export function DragSnapDebugModal({
                 reason: {lastSnap.reason} · item: {lastSnap.itemId} · surface: {lastSnap.surface}
               </p>
               <pre className={logPreClass} aria-label="Last drag snap snapshot">
-                {JSON.stringify(lastSnap, null, 2)}
+                {lastSnapCopyText}
               </pre>
             </>
           ) : (

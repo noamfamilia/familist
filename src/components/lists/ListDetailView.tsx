@@ -34,7 +34,6 @@ import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNam
 import { inMemoryItemsHaveExactNormalizedText } from '@/lib/data/localItemTextUniqueness'
 import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
-import { isDragDebugEnabled } from '@/lib/dragDebug'
 import {
   dragDebugPointerRef,
   recordDragSnap,
@@ -440,21 +439,16 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const [showWidthBoundaryGuide, setShowWidthBoundaryGuide] = useState(false)
   const [dragSnapDebugOpen, setDragSnapDebugOpen] = useState(false)
   const widthBoundaryGuideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const dragDebugEnabled = hasMounted && isDragDebugEnabled()
 
   useEffect(() => {
-    if (!dragDebugEnabled) return
     const onMove = (e: PointerEvent) => {
       dragDebugPointerRef.current = { x: e.clientX, y: e.clientY, buttons: e.buttons }
     }
     window.addEventListener('pointermove', onMove, { passive: true })
     return () => window.removeEventListener('pointermove', onMove)
-  }, [dragDebugEnabled])
+  }, [])
 
-  useEffect(() => {
-    if (!dragDebugEnabled) return
-    return subscribeDragSnapDebug(() => setDragSnapDebugOpen(true))
-  }, [dragDebugEnabled])
+  useEffect(() => subscribeDragSnapDebug(() => setDragSnapDebugOpen(true)), [])
 
   const shareSettingsOfflineBlocked = !online
 
@@ -779,7 +773,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const handleDragStart = (event: DragStartEvent) => {
-    if (!dragDebugEnabled) return
     resetDragDebugSession()
     updateDragDebugSession({
       lastEvent: 'start',
@@ -790,7 +783,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const handleDragMove = (event: DragMoveEvent) => {
-    if (!dragDebugEnabled) return
     updateDragDebugSession({
       lastEvent: 'move',
       delta: { x: event.delta.x, y: event.delta.y },
@@ -799,7 +791,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const handleDragOver = (event: DragOverEvent) => {
-    if (!dragDebugEnabled) return
     updateDragDebugSession({
       lastEvent: 'over',
       overId: event.over ? String(event.over.id) : null,
@@ -807,7 +798,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const handleDragCancel = (event: DragCancelEvent) => {
-    if (!dragDebugEnabled) return
     updateDragDebugSession({ lastEvent: 'cancel' })
     recordDragSnap({
       reason: 'drag_cancel',
@@ -818,9 +808,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const handleDragEndWithDebug = (event: DragEndEvent) => {
-    if (dragDebugEnabled) {
-      updateDragDebugSession({ lastEvent: 'end' })
-    }
+    updateDragDebugSession({ lastEvent: 'end' })
     void handleDragEnd(event)
   }
 
@@ -1132,8 +1120,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       itemNameFontStep={itemNameFontStep}
                       isOfflineActionsDisabled={isOfflineActionsDisabled}
                       allowItemMutationQueue={allowItemMutationQueue}
-                      dragDebugSurface={dragDebugEnabled ? surface : undefined}
-                      dragDebugItemsCount={dragDebugEnabled ? activeItems.length : undefined}
+                      dragDebugSurface={surface}
+                      dragDebugItemsCount={activeItems.length}
                     />
                   ))}
                 </SortableContext>
@@ -1263,9 +1251,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         onClose={() => setShowGuestShareSignInModal(false)}
       />
 
-      {dragDebugEnabled ? (
-        <DragSnapDebugModal isOpen={dragSnapDebugOpen} onClose={() => setDragSnapDebugOpen(false)} />
-      ) : null}
+      <DragSnapDebugModal isOpen={dragSnapDebugOpen} onClose={() => setDragSnapDebugOpen(false)} />
 
       {isListOwner && !isGuest && list && (
         <ShareModal
