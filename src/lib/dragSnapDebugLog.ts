@@ -19,6 +19,40 @@ type SerializedRect = {
   right: number
 }
 
+/** Raw rect component for JSON (NaN/non-finite shown as strings). */
+type RawRectComponent = number | 'NaN' | 'non-finite'
+
+export type RectDebugInfo = {
+  isMissing: boolean
+  hasNaN: boolean
+  invalidFields: string[]
+  raw: {
+    top: RawRectComponent
+    left: RawRectComponent
+    width: RawRectComponent
+    height: RawRectComponent
+    bottom: RawRectComponent
+    right: RawRectComponent
+  } | null
+  rounded: SerializedRect | null
+}
+
+type RectAnomalyLogEntry = {
+  msSinceDragStart: number
+  moveEventCount: number
+  delta: { x: number; y: number }
+  invalidFields: string[]
+  isMissing: boolean
+  hasNaN: boolean
+  raw: RectDebugInfo['raw']
+}
+
+type RectHealthCheckpoint = {
+  msSinceDragStart: number
+  moveEventCount: number
+  rect: RectDebugInfo
+}
+
 export type DragSnapSnapshot = {
   at: string
   reason: DragSnapReason
@@ -73,6 +107,13 @@ export type DragSnapSnapshot = {
     activeTranslatedRect: SerializedRect | null
     overRect: SerializedRect | null
   }
+  measuring: {
+    activeTranslatedRect: RectDebugInfo
+    overRect: RectDebugInfo
+    firstInvalidActiveRect: RectHealthCheckpoint | null
+    lastValidActiveRect: RectHealthCheckpoint | null
+    rectAnomalyLog: RectAnomalyLogEntry[]
+  }
   hitTest: { elementTag: string; elementClass: string } | null
   stickyHeaderRect: SerializedRect | null
   activeRect: SerializedRect | null
@@ -87,6 +128,7 @@ export type DragSnapSnapshot = {
 
 const LOG_CAP = 20
 const SCROLL_EVENT_CAP = 30
+const RECT_ANOMALY_CAP = 25
 const lines: string[] = []
 const listeners = new Set<() => void>()
 
@@ -113,6 +155,11 @@ type DragDebugSession = {
   scrollEventsDuringDrag: DragSnapSnapshot['scrollEventsDuringDrag']
   activeTranslatedRect: SerializedRect | null
   overRect: SerializedRect | null
+  activeTranslatedRectDebug: RectDebugInfo | null
+  overRectDebug: RectDebugInfo | null
+  firstInvalidActiveRect: RectHealthCheckpoint | null
+  lastValidActiveRect: RectHealthCheckpoint | null
+  rectAnomalyLog: RectAnomalyLogEntry[]
 }
 
 let session: DragDebugSession = emptySession()
@@ -143,6 +190,11 @@ function emptySession(): DragDebugSession {
     scrollEventsDuringDrag: [],
     activeTranslatedRect: null,
     overRect: null,
+    activeTranslatedRectDebug: null,
+    overRectDebug: null,
+    firstInvalidActiveRect: null,
+    lastValidActiveRect: null,
+    rectAnomalyLog: [],
   }
 }
 
@@ -158,13 +210,90 @@ function notify(): void {
 
 function serializeRect(rect: DOMRect | ClientRect | null | undefined): SerializedRect | null {
   if (!rect) return null
+  const info = analyzeClientRect(rect)
+  return info.rounded
+}
+
+function rawRectComponent(value: number): RawRectComponent {
+  if (Number.isNaN(value)) return 'NaN'
+  if (!Number.isFinite(value)) return 'non-finite'
+  return value
+}
+
+export function analyzeClientRect(rect: DOMRect | ClientRect | null | undefined): RectDebugInfo {
+  if (rect == null) {
+    return {
+      isMissing: true,
+      hasNaN: false,
+      invalidFields: ['rect'],
+      raw: null,
+      rounded: null,
+    }
+  }
+
+  const raw = {
+    top: rawRectComponent(rect.top),
+    left: rawRectComponent(rect.left),
+    width: rawRectComponent(rect.width),
+    height: rawRectComponent(rect.height),
+    bottom: rawRectComponent(rect.bottom),
+    right: rawRectComponent(rect.right),
+  }
+
+  const invalidFields: string[] = []
+  for (const [key, val] of Object.entries(raw)) {
+    if (val === 'NaN' || val === 'non-finite') invalidFields.push(key)
+  }
+
+  const hasNaN = invalidFields.length > 0
+  const rounded: SerializedRect | null = hasNaN
+    ? null
+    : {
+        top: Math.round(rect.top),
+        left: Math.round(rect.left),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        bottom: Math.round(rect.bottom),
+        right: Math.round(rect.right),
+      }
+
   return {
-    top: Math.round(rect.top),
-    left: Math.round(rect.left),
-    width: Math.round(rect.width),
-    height: Math.round(rect.height),
-    bottom: Math.round(rect.bottom),
-    right: Math.round(rect.right),
+    isMissing: false,
+    hasNaN,
+    invalidFields,
+    raw,
+    rounded,
+  }
+}
+
+function msSinceDragStartNow(): number {
+  return session.dragStartPerf == null ? 0 : Math.round(performance.now() - session.dragStartPerf)
+}
+
+function noteActiveRectHealth(activeDebug: RectDebugInfo, delta: { x: number; y: number }): void {
+  const msSinceDragStart = msSinceDragStartNow()
+  const moveEventCount = session.moveEventCount
+
+  if (!activeDebug.isMissing && !activeDebug.hasNaN) {
+    session.lastValidActiveRect = { msSinceDragStart, moveEventCount, rect: activeDebug }
+    return
+  }
+
+  if (!session.firstInvalidActiveRect) {
+    session.firstInvalidActiveRect = { msSinceDragStart, moveEventCount, rect: activeDebug }
+  }
+
+  session.rectAnomalyLog.push({
+    msSinceDragStart,
+    moveEventCount,
+    delta: { ...delta },
+    invalidFields: [...activeDebug.invalidFields],
+    isMissing: activeDebug.isMissing,
+    hasNaN: activeDebug.hasNaN,
+    raw: activeDebug.raw,
+  })
+  if (session.rectAnomalyLog.length > RECT_ANOMALY_CAP) {
+    session.rectAnomalyLog.shift()
   }
 }
 
@@ -353,6 +482,9 @@ export function trackDragDebugMove(args: {
   activeTranslatedRect?: ClientRect | null
   overRect?: ClientRect | null
 }): void {
+  const activeDebug = analyzeClientRect(args.activeTranslatedRect)
+  const overDebug = analyzeClientRect(args.overRect)
+
   session = {
     ...session,
     lastEvent: 'move',
@@ -360,9 +492,13 @@ export function trackDragDebugMove(args: {
     overId: args.overId,
     overIndex: args.overIndex,
     delta: args.delta,
-    activeTranslatedRect: serializeRect(args.activeTranslatedRect),
-    overRect: serializeRect(args.overRect),
+    activeTranslatedRect: activeDebug.rounded,
+    overRect: overDebug.rounded,
+    activeTranslatedRectDebug: activeDebug,
+    overRectDebug: overDebug,
   }
+
+  noteActiveRectHealth(activeDebug, args.delta)
 }
 
 export function recordDragSnap(args: {
@@ -385,11 +521,23 @@ export function recordDragSnap(args: {
   const msSinceDragStart =
     session.dragStartPerf == null ? null : Math.round(performance.now() - session.dragStartPerf)
 
-  if (args.activeTranslatedRect != null) {
-    session.activeTranslatedRect = serializeRect(args.activeTranslatedRect)
+  const activeDebug =
+    args.activeTranslatedRect !== undefined
+      ? analyzeClientRect(args.activeTranslatedRect)
+      : session.activeTranslatedRectDebug ?? analyzeClientRect(null)
+  const overDebug =
+    args.overRect !== undefined
+      ? analyzeClientRect(args.overRect)
+      : session.overRectDebug ?? analyzeClientRect(null)
+
+  if (args.activeTranslatedRect !== undefined) {
+    session.activeTranslatedRect = activeDebug.rounded
+    session.activeTranslatedRectDebug = activeDebug
+    noteActiveRectHealth(activeDebug, session.delta ?? { x: 0, y: 0 })
   }
-  if (args.overRect != null) {
-    session.overRect = serializeRect(args.overRect)
+  if (args.overRect !== undefined) {
+    session.overRect = overDebug.rounded
+    session.overRectDebug = overDebug
   }
 
   const stickyEl = document.querySelector('[data-drag-debug-sticky-header]')
@@ -424,8 +572,25 @@ export function recordDragSnap(args: {
       overId: session.overId,
       delta: session.delta ? { ...session.delta } : null,
       transform: serializeTransform(args.transform),
-      activeTranslatedRect: session.activeTranslatedRect,
-      overRect: session.overRect,
+      activeTranslatedRect: activeDebug.rounded,
+      overRect: overDebug.rounded,
+    },
+    measuring: {
+      activeTranslatedRect: activeDebug,
+      overRect: overDebug,
+      firstInvalidActiveRect: session.firstInvalidActiveRect
+        ? {
+            ...session.firstInvalidActiveRect,
+            rect: { ...session.firstInvalidActiveRect.rect },
+          }
+        : null,
+      lastValidActiveRect: session.lastValidActiveRect
+        ? {
+            ...session.lastValidActiveRect,
+            rect: { ...session.lastValidActiveRect.rect },
+          }
+        : null,
+      rectAnomalyLog: session.rectAnomalyLog.map((entry) => ({ ...entry })),
     },
     hitTest: ptr ? hitTestAtPointer(ptr.x, ptr.y) : null,
     stickyHeaderRect: serializeRect(stickyEl?.getBoundingClientRect() ?? null),
