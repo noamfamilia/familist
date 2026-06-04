@@ -28,9 +28,10 @@ interface SortableItemCardProps {
   allowItemMutationQueue?: boolean
   dragDebugSurface?: 'page' | 'home_modal'
   dragDebugItemsCount?: number
+  dragDebugActiveItemIds?: string[]
 }
 
-export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, dragDebugSurface, dragDebugItemsCount }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, dragDebugSurface, dragDebugItemsCount, dragDebugActiveItemIds }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -42,7 +43,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
 
   const wasDraggingRef = useRef(false)
   useEffect(() => {
-    if (!dragDebugSurface || dragDebugItemsCount == null) return
+    if (!dragDebugSurface || dragDebugItemsCount == null || !dragDebugActiveItemIds) return
     const ptr = dragDebugPointerRef.current
     if (wasDraggingRef.current && !isDragging && ptr && ptr.buttons !== 0) {
       recordDragSnap({
@@ -50,11 +51,13 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
         itemId: item.id,
         surface: dragDebugSurface,
         itemsCount: dragDebugItemsCount,
+        activeItemIds: dragDebugActiveItemIds,
+        activeIndex: dragDebugActiveItemIds.indexOf(item.id),
         transform,
       })
     }
     wasDraggingRef.current = isDragging
-  }, [isDragging, transform, item.id, dragDebugSurface, dragDebugItemsCount])
+  }, [isDragging, transform, item.id, dragDebugSurface, dragDebugItemsCount, dragDebugActiveItemIds])
 
   const style = {
     transform: CSS.Transform.toString(transform),

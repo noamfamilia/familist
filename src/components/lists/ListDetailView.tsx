@@ -36,9 +36,12 @@ import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
 import {
   dragDebugPointerRef,
+  beginDragDebugSession,
+  endDragDebugSession,
   recordDragSnap,
-  resetDragDebugSession,
+  setDragDebugModalIsOpen,
   subscribeDragSnapDebug,
+  trackDragDebugMove,
   updateDragDebugSession,
 } from '@/lib/dragSnapDebugLog'
 
@@ -448,7 +451,22 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     return () => window.removeEventListener('pointermove', onMove)
   }, [])
 
-  useEffect(() => subscribeDragSnapDebug(() => setDragSnapDebugOpen(true)), [])
+  useEffect(() => {
+    return subscribeDragSnapDebug(() => {
+      const ptr = dragDebugPointerRef.current
+      if (ptr?.buttons !== 0) {
+        const openOnUp = () => setDragSnapDebugOpen(true)
+        window.addEventListener('pointerup', openOnUp, { once: true })
+        window.addEventListener('pointercancel', openOnUp, { once: true })
+        return
+      }
+      setDragSnapDebugOpen(true)
+    })
+  }, [])
+
+  useEffect(() => {
+    setDragDebugModalIsOpen(dragSnapDebugOpen)
+  }, [dragSnapDebugOpen])
 
   const shareSettingsOfflineBlocked = !online
 
@@ -773,20 +791,24 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const handleDragStart = (event: DragStartEvent) => {
-    resetDragDebugSession()
-    updateDragDebugSession({
-      lastEvent: 'start',
-      activeId: String(event.active.id),
-      overId: null,
-      delta: null,
+    const itemId = String(event.active.id)
+    beginDragDebugSession({
+      itemId,
+      surface,
+      activeIndex: activeItems.findIndex((i) => i.id === itemId),
+      activeItemIds: activeItems.map((i) => i.id),
+      activatorEvent: event.activatorEvent,
     })
   }
 
   const handleDragMove = (event: DragMoveEvent) => {
-    updateDragDebugSession({
-      lastEvent: 'move',
+    const overId = event.over ? String(event.over.id) : null
+    trackDragDebugMove({
+      overId,
+      overIndex: overId ? activeItems.findIndex((i) => i.id === overId) : null,
       delta: { x: event.delta.x, y: event.delta.y },
-      overId: event.over ? String(event.over.id) : null,
+      activeTranslatedRect: event.active.rect.current,
+      overRect: event.over?.rect ?? null,
     })
   }
 
@@ -798,17 +820,26 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   const handleDragCancel = (event: DragCancelEvent) => {
+    const itemId = String(event.active.id)
+    const overId = event.over ? String(event.over.id) : null
     updateDragDebugSession({ lastEvent: 'cancel' })
     recordDragSnap({
       reason: 'drag_cancel',
-      itemId: String(event.active.id),
+      itemId,
       surface,
       itemsCount: activeItems.length,
+      activeItemIds: activeItems.map((i) => i.id),
+      activeIndex: activeItems.findIndex((i) => i.id === itemId),
+      overIndex: overId ? activeItems.findIndex((i) => i.id === overId) : null,
+      activeTranslatedRect: event.active.rect.current,
+      overRect: event.over?.rect ?? null,
     })
+    endDragDebugSession()
   }
 
   const handleDragEndWithDebug = (event: DragEndEvent) => {
     updateDragDebugSession({ lastEvent: 'end' })
+    endDragDebugSession()
     void handleDragEnd(event)
   }
 
@@ -1021,6 +1052,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           {/* Members header with hide done toggles — hidden while add-field filters the list */}
           {!searchText ? (
           <div
+            data-drag-debug-sticky-header
             className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}`}
           >
             <MemberHeader
@@ -1122,6 +1154,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       allowItemMutationQueue={allowItemMutationQueue}
                       dragDebugSurface={surface}
                       dragDebugItemsCount={activeItems.length}
+                      dragDebugActiveItemIds={activeItems.map((i) => i.id)}
                     />
                   ))}
                 </SortableContext>
