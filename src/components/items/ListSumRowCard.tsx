@@ -5,8 +5,9 @@ import type { ItemWithState, ListUserSumScope, MemberWithCreator } from '@/lib/s
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import {
   compactRowCardWidthCss,
+  ITEM_ROW_LEADING_INSET_PX,
+  itemNameColumnRightEdgePx,
   measureCompactManualSumRowContentWidthPx,
-  measureItemNameNaturalWidthPx,
   itemRowArchiveSlotClassName,
   itemRowDragArchiveGroupClassName,
   itemRowDragHandleClassName,
@@ -84,11 +85,6 @@ export function ListSumRowCard({
   const compactAutoLayout = compactRow && itemTextWidthMode === 'auto'
   const scoped = useMemo(() => itemsInScope(sumScope, items), [sumScope, items])
   const title = sumRowTitleLabel(sumScope, scoped.length)
-  const titleWidthPx = useMemo(
-    () => measureItemNameNaturalWidthPx(title, itemNameFontStep),
-    [title, itemNameFontStep],
-  )
-  const nameColumnWidthPx = compactAutoLayout ? titleWidthPx : itemTextWidth
   const compactRowContentWidthPx =
     compactAutoLayout ? itemTextWidth : measureCompactManualSumRowContentWidthPx(itemTextWidth)
   const compactFixedLayout = compactRow
@@ -112,6 +108,9 @@ export function ListSumRowCard({
   }, [members, scoped])
 
   const qtyTextClass = `${itemNameFontClassName} text-teal dark:text-teal-300`
+  const sumTitleMaxWidthPx = compactAutoLayout
+    ? undefined
+    : itemNameColumnRightEdgePx(itemTextWidth) - ITEM_ROW_LEADING_INSET_PX
 
   return (
     <div
@@ -142,31 +141,35 @@ export function ListSumRowCard({
               ⋮⋮
             </div>
 
-            <span
-              className={`${itemRowArchiveSlotClassName} invisible select-none`}
-              aria-hidden
-            >
-              ▼
-            </span>
+            <div className="relative shrink-0">
+              <span
+                className={`${itemRowArchiveSlotClassName} invisible select-none`}
+                aria-hidden
+              >
+                ▼
+              </span>
+              <button
+                type="button"
+                className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center ${itemNameFontClassName} text-teal dark:text-teal-300 cursor-pointer hover:opacity-80 ${compactAutoLayout ? 'whitespace-nowrap' : 'truncate'}`}
+                style={sumTitleMaxWidthPx != null ? { maxWidth: sumTitleMaxWidthPx } : undefined}
+                onClick={e => {
+                  e.stopPropagation()
+                  onCycleScope()
+                }}
+                title="Click to switch between all, active, and archived"
+              >
+                {title}
+              </button>
+            </div>
           </div>
 
-          <div
-            className="relative flex-shrink-0 text-left"
-            style={{ width: nameColumnWidthPx }}
-            dir="ltr"
-          >
-            <button
-              type="button"
-              className={`block w-full text-left ${itemNameFontClassName} text-teal dark:text-teal-300 cursor-pointer hover:opacity-80 ${compactAutoLayout ? 'whitespace-nowrap' : 'truncate'}`}
-              onClick={e => {
-                e.stopPropagation()
-                onCycleScope()
-              }}
-              title="Click to switch between all, active, and archived"
-            >
-              {title}
-            </button>
-          </div>
+          {members.length > 0 ? (
+            <div
+              className="shrink-0"
+              style={{ width: itemTextWidth }}
+              aria-hidden
+            />
+          ) : null}
 
           {members.length > 0 ? (
             <div className={itemRowMemberLeadingClassName}>

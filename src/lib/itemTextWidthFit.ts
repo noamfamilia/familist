@@ -239,7 +239,7 @@ export function measureCompactSumRowContentWidthPx(title: string, fontStep: numb
 
 /** Sum row in manual compact layout (fixed name column). */
 export function measureCompactManualSumRowContentWidthPx(nameColumnWidthPx: number): number {
-  return ITEM_ROW_LEADING_INSET_PX + nameColumnWidthPx + ITEM_ROW_TRAILING_PADDING_PX
+  return itemNameColumnRightEdgePx(nameColumnWidthPx) + ITEM_ROW_TRAILING_PADDING_PX
 }
 
 function maxRowContentWidth(
