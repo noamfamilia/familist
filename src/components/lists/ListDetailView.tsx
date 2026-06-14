@@ -545,6 +545,45 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     setNewItemText('')
   }, [])
 
+  const filteredMembers = useMemo(
+    () =>
+      memberFilter === 'all'
+        ? members
+        : memberFilter === 'mine'
+          ? members.filter(m => m.created_by === user?.id)
+          : [],
+    [memberFilter, members, user?.id],
+  )
+  const noMemberColumns = filteredMembers.length === 0
+  const listPageRef = useRef<HTMLDivElement>(null)
+  const [compactRowPageMinWidthPx, setCompactRowPageMinWidthPx] = useState(0)
+
+  useLayoutEffect(() => {
+    if (!noMemberColumns) {
+      setCompactRowPageMinWidthPx(0)
+      return
+    }
+
+    const sync = () => {
+      const el = listPageRef.current
+      if (!el) return
+      setCompactRowPageMinWidthPx(measureListPageContentWidthPx(el))
+    }
+
+    sync()
+    const el = listPageRef.current
+    if (!el) return
+
+    const ro = new ResizeObserver(sync)
+    ro.observe(el)
+    if (el.parentElement) ro.observe(el.parentElement)
+    window.addEventListener('resize', sync)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', sync)
+    }
+  }, [noMemberColumns, listId, itemTextWidth, itemTextWidthMode, items.length])
+
   const blockOnListData =
     listDataStatus !== 'ready' && !list && !error
 
@@ -715,12 +754,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const hasTargetMember = members.some(m => m.is_target)
 
-  const filteredMembers = memberFilter === 'all'
-    ? members
-    : memberFilter === 'mine'
-    ? members.filter(m => m.created_by === user?.id)
-    : []
-
   const toggleHideDone = (memberId: string) => {
     setHideDone(prev => ({
       ...prev,
@@ -799,35 +832,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     ? activeItems.find((i) => i.id === activeDragItemId)
     : undefined
 
-  const noMemberColumns = filteredMembers.length === 0
-  const listPageRef = useRef<HTMLDivElement>(null)
-  const [compactRowPageMinWidthPx, setCompactRowPageMinWidthPx] = useState(0)
-
-  useLayoutEffect(() => {
-    if (!noMemberColumns) {
-      setCompactRowPageMinWidthPx(0)
-      return
-    }
-
-    const sync = () => {
-      const el = listPageRef.current
-      if (!el) return
-      setCompactRowPageMinWidthPx(measureListPageContentWidthPx(el))
-    }
-
-    sync()
-    const el = listPageRef.current
-    if (!el) return
-
-    const ro = new ResizeObserver(sync)
-    ro.observe(el)
-    if (el.parentElement) ro.observe(el.parentElement)
-    window.addEventListener('resize', sync)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', sync)
-    }
-  }, [noMemberColumns, listId, itemTextWidth, itemTextWidthMode, items.length])
   const openMutatingModal = (open: () => void) => {
     if (isOfflineActionsDisabled) {
       return
