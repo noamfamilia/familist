@@ -234,7 +234,7 @@ export function measureCompactRowRowContentWidthPx(
 /** Sum row without members: drag spacer + title only. */
 export function measureCompactSumRowContentWidthPx(title: string, fontStep: number = ITEM_NAME_FONT_DEFAULT): number {
   const nameWidth = measureItemNameNaturalWidthPx(title, fontStep)
-  return ITEM_ROW_LEADING_INSET_PX + nameWidth + ITEM_ROW_TRAILING_PADDING_PX
+  return itemNameColumnLeftEdgePx() + nameWidth + ITEM_ROW_TRAILING_PADDING_PX
 }
 
 /** Sum row in manual compact layout (fixed name column). */
