@@ -51,7 +51,13 @@ import { ItemCard } from '@/components/items/ItemCard'
 import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import { itemCardRowHeightWithMembersPx, itemNameFontClassForStep } from '@/lib/itemNameFontStep'
-import { itemNameColumnRightEdgePx, itemNameWidthBoundaryGuideLeftPx, measureListPageContentWidthPx } from '@/lib/itemTextWidthFit'
+import {
+  itemNameColumnRightEdgePx,
+  itemNameWidthBoundaryGuideLeftPx,
+  measureCompactManualRowContentWidthPx,
+  measureCompactRowExpandWidthDeltaPx,
+  measureListPageContentWidthPx,
+} from '@/lib/itemTextWidthFit'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
 import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import { LayerMultiIcon } from '@/components/icons/LayerMultiIcon'
@@ -557,6 +563,61 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const noMemberColumns = filteredMembers.length === 0
   const listPageRef = useRef<HTMLDivElement>(null)
   const [compactRowPageMinWidthPx, setCompactRowPageMinWidthPx] = useState(0)
+  const [expandedCompactItemIds, setExpandedCompactItemIds] = useState<Set<string>>(() => new Set())
+
+  useEffect(() => {
+    setExpandedCompactItemIds(new Set())
+  }, [listId])
+
+  const handleCompactRowExpandedChange = useCallback((itemId: string, expanded: boolean) => {
+    setExpandedCompactItemIds(prev => {
+      const next = new Set(prev)
+      if (expanded) next.add(itemId)
+      else next.delete(itemId)
+      return next
+    })
+  }, [])
+
+  const compactRowCardWidthOverridePx = useMemo(() => {
+    if (!noMemberColumns || expandedCompactItemIds.size === 0) return undefined
+
+    let maxWidth = itemTextWidthMode === 'auto' ? itemTextWidth : 0
+
+    for (const id of expandedCompactItemIds) {
+      const item = items.find(i => i.id === id)
+      if (!item) continue
+      const categoryTitle = categoryNames[String(item.category ?? 1)]?.trim() ?? ''
+      const hasComment = Boolean(item.comment?.trim())
+      const rowInput = { categoryTitle, hasComment }
+
+      if (itemTextWidthMode === 'auto') {
+        maxWidth = Math.max(
+          maxWidth,
+          itemTextWidth + measureCompactRowExpandWidthDeltaPx(rowInput),
+        )
+      } else {
+        maxWidth = Math.max(
+          maxWidth,
+          measureCompactManualRowContentWidthPx(itemTextWidth, rowInput, true),
+        )
+      }
+    }
+
+    if (itemTextWidthMode === 'auto') {
+      return maxWidth > itemTextWidth ? maxWidth : undefined
+    }
+    return maxWidth > 0 ? maxWidth : undefined
+  }, [
+    noMemberColumns,
+    expandedCompactItemIds,
+    items,
+    categoryNames,
+    itemTextWidth,
+    itemTextWidthMode,
+  ])
+
+  const compactRowListFixedLayout =
+    noMemberColumns && (itemTextWidthMode === 'auto' || compactRowCardWidthOverridePx != null)
 
   useLayoutEffect(() => {
     if (!noMemberColumns) {
@@ -1050,7 +1111,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           {/* Members header with hide done toggles — hidden while add-field filters the list */}
           {!searchText ? (
           <div
-            className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}`}
+            className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${
+              compactRowListFixedLayout ? ' block min-w-full w-max' : noMemberColumns ? ' block w-max' : ''
+            }`}
           >
             <MemberHeader
               members={filteredMembers}
@@ -1070,6 +1133,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               itemTextWidthMode={itemTextWidthMode}
               itemTextWidthMin={itemTextWidthMin}
               compactRowPageMinWidthPx={compactRowPageMinWidthPx}
+              compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
               onWidthChange={handleWidthChange}
               onWidthModeToggle={handleWidthModeToggle}
               itemNameFontStep={itemNameFontStep}
@@ -1109,7 +1173,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           <div
             className={
               noMemberColumns
-                ? itemTextWidthMode === 'auto'
+                ? compactRowListFixedLayout
                   ? 'flex w-max min-w-full flex-col gap-2'
                   : 'flex w-max flex-col gap-2'
                 : 'space-y-2'
@@ -1123,6 +1187,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                 itemTextWidth={itemTextWidth}
                 itemTextWidthMode={itemTextWidthMode}
                 compactRowPageMinWidthPx={compactRowPageMinWidthPx}
+                compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
                 itemNameFontClassName={itemNameFontClassName}
                 itemNameFontStep={itemNameFontStep}
                 onCycleScope={() => void persistSumScope(nextListUserSumScope(sumScope))}
@@ -1153,6 +1218,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       itemTextWidth={itemTextWidth}
                       itemTextWidthMode={itemTextWidthMode}
                       compactRowPageMinWidthPx={compactRowPageMinWidthPx}
+                      compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
+                      onCompactRowExpandedChange={handleCompactRowExpandedChange}
                       expandSignal={expandSignal}
                       collapseSignal={collapseSignal}
                       categoryNames={categoryNames}
@@ -1171,7 +1238,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                     <div
                       className={
                         noMemberColumns
-                          ? itemTextWidthMode === 'auto'
+                          ? compactRowListFixedLayout
                             ? 'block min-w-full w-max'
                             : 'block w-max'
                           : undefined
@@ -1190,6 +1257,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                         itemTextWidth={itemTextWidth}
                         itemTextWidthMode={itemTextWidthMode}
                         compactRowPageMinWidthPx={compactRowPageMinWidthPx}
+                        compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
+                        onCompactRowExpandedChange={handleCompactRowExpandedChange}
                         expandSignal={expandSignal}
                         collapseSignal={collapseSignal}
                         categoryNames={categoryNames}
@@ -1226,7 +1295,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               <div
                 className={
                   noMemberColumns
-                    ? itemTextWidthMode === 'auto'
+                    ? compactRowListFixedLayout
                       ? 'flex w-max min-w-full flex-col gap-2'
                       : 'flex w-max flex-col gap-2'
                     : 'space-y-2'
@@ -1252,6 +1321,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                     itemTextWidth={itemTextWidth}
                     itemTextWidthMode={itemTextWidthMode}
                     compactRowPageMinWidthPx={compactRowPageMinWidthPx}
+                    compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
+                    onCompactRowExpandedChange={handleCompactRowExpandedChange}
                     expandSignal={expandSignal}
                     collapseSignal={collapseSignal}
                     categoryNames={categoryNames}

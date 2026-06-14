@@ -38,6 +38,9 @@ interface ItemCardProps {
   itemTextWidthMode?: 'auto' | 'manual'
   /** List page inner width floor for compact auto layout (px). */
   compactRowPageMinWidthPx?: number
+  /** Wider compact list width when a row is expanded (px). */
+  compactRowCardWidthOverridePx?: number
+  onCompactRowExpandedChange?: (itemId: string, expanded: boolean) => void
   expandSignal?: number
   collapseSignal?: number
   categoryNames?: CategoryNames
@@ -184,7 +187,7 @@ function QtyTargetDoneChecks({ doneRatio, checkSizePx = QTY_CHECK_SIZE }: { done
   )
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = ITEM_TEXT_WIDTH_MIN, itemTextWidthMode = 'auto', compactRowPageMinWidthPx = 0, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = ITEM_TEXT_WIDTH_MIN, itemTextWidthMode = 'auto', compactRowPageMinWidthPx = 0, compactRowCardWidthOverridePx, onCompactRowExpandedChange, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -338,7 +341,21 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     [item.text, itemNameFontStep],
   )
   const nameColumnWidthPx = compactAutoLayout ? naturalNameWidthPx : itemTextWidth
-  const compactCardWidthCss = compactAutoLayout ? compactRowCardWidthCss(itemTextWidth, compactRowPageMinWidthPx) : undefined
+  const compactLayoutWidthPx = compactRowCardWidthOverridePx ?? itemTextWidth
+  const compactFixedLayout =
+    compactRow && (compactAutoLayout || compactRowCardWidthOverridePx != null)
+  const compactWidthCss = compactFixedLayout
+    ? compactRowCardWidthCss(compactLayoutWidthPx, compactRowPageMinWidthPx)
+    : undefined
+
+  useEffect(() => {
+    if (members.length > 0) return
+    if (!showMenu) return
+    onCompactRowExpandedChange?.(item.id, true)
+    return () => {
+      onCompactRowExpandedChange?.(item.id, false)
+    }
+  }, [members.length, item.id, onCompactRowExpandedChange, showMenu])
 
   const itemRowHeightPx = useMemo(() => itemCardRowHeightWithMembersPx(itemNameFontStep), [itemNameFontStep])
   const memberCellPx = useMemo(() => itemMemberCellHeightPx(itemNameFontStep), [itemNameFontStep])
@@ -544,29 +561,29 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   return (
     <div
       className={
-        compactAutoLayout ? 'block min-w-full' : compactRow ? 'block w-max' : 'min-w-full'
+        compactFixedLayout ? 'block min-w-full' : compactRow ? 'block w-max' : 'min-w-full'
       }
       onClick={onClearAddItemDraft}
     >
       {/* Main card content — auto: at least list page width; manual: shrink with column */}
       <div
         className={`block rounded-lg ${shellClass} ${item.archived ? 'opacity-60' : ''} ${
-          compactAutoLayout ? 'min-w-full' : compactRow ? 'w-max' : 'min-w-full w-max'
+          compactFixedLayout ? 'min-w-full' : compactRow ? 'w-max' : 'min-w-full w-max'
         }`}
-        style={compactAutoLayout ? { width: compactCardWidthCss } : undefined}
+        style={compactWidthCss ? { width: compactWidthCss } : undefined}
       >
         {/* Card row */}
         <div
           className={
             compactRow
-              ? compactAutoLayout
+              ? compactFixedLayout
                 ? 'box-border flex min-w-full flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
                 : 'box-border flex w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
               : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
           style={{
             height: itemRowHeightPx,
-            ...(compactAutoLayout ? { width: compactCardWidthCss } : undefined),
+            ...(compactWidthCss ? { width: compactWidthCss } : undefined),
           }}
           data-tour="item-row"
         >
