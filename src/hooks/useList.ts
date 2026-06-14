@@ -65,7 +65,7 @@ import {
 } from '@/lib/data/localItemTextUniqueness'
 import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
 import { APP_VERSION } from '@/lib/appVersion'
-import { ITEM_TEXT_WIDTH_MAX, ITEM_TEXT_WIDTH_MIN, measureCompactRowAutoViewWidthPx, measureCompactRowTightestNameWidthPx, measureCompactSumRowContentWidthPx, measureFitItemTextWidthPx, type CompactRowItemMeasureInput } from '@/lib/itemTextWidthFit'
+import { ITEM_TEXT_WIDTH_MAX, ITEM_TEXT_WIDTH_MANUAL_MIN, ITEM_TEXT_WIDTH_MIN, measureCompactRowAutoViewWidthPx, measureCompactSumRowContentWidthPx, measureFitItemTextWidthPx, type CompactRowItemMeasureInput } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
   ITEM_NAME_FONT_MAX,
@@ -121,7 +121,7 @@ function parseWidthValue(raw: string | number | null | undefined): { mode: Width
   }
   const num = parseInt(String(raw), 10)
   if (isNaN(num)) return { mode: 'auto', width: ITEM_TEXT_WIDTH_MIN }
-  if (num < ITEM_TEXT_WIDTH_MIN) return { mode: 'manual', width: ITEM_TEXT_WIDTH_MIN }
+  if (num < ITEM_TEXT_WIDTH_MANUAL_MIN) return { mode: 'manual', width: ITEM_TEXT_WIDTH_MANUAL_MIN }
   return { mode: 'manual', width: Math.min(ITEM_TEXT_WIDTH_MAX, num) }
 }
 
@@ -220,15 +220,6 @@ function compactRowAutoViewWidthPx(
     width = Math.max(width, measureCompactSumRowContentWidthPx(title, fontStep))
   }
   return width
-}
-
-function compactRowManualMinWidthPx(
-  items: ItemWithState[],
-  categoryNames: CategoryNames,
-  fontStep: number,
-): number {
-  const rows = compactRowMeasureInputsForItems(items, categoryNames)
-  return Math.max(ITEM_TEXT_WIDTH_MIN, measureCompactRowTightestNameWidthPx(rows, fontStep))
 }
 
 function getCachedPrefs(listId: string, userId?: string | null) {
@@ -2100,16 +2091,12 @@ export function useList(listId: string) {
 
   const previewItemTextWidth = useCallback(
     (width: number) => {
-      const minWidth =
-        members.length === 0
-          ? compactRowManualMinWidthPx(items, categoryNamesRef.current, itemNameFontStepRef.current)
-          : ITEM_TEXT_WIDTH_MIN
-      const newWidth = Math.min(ITEM_TEXT_WIDTH_MAX, Math.max(minWidth, width))
+      const newWidth = Math.min(ITEM_TEXT_WIDTH_MAX, Math.max(ITEM_TEXT_WIDTH_MANUAL_MIN, width))
       setItemTextWidth(newWidth)
       setItemTextWidthMode('manual')
       setCachedPrefsLocalOnly(listId, { itemTextWidth: String(newWidth) }, userId)
     },
-    [items, listId, members.length, userId],
+    [listId, userId],
   )
 
   const previewItemTextWidthMode = useCallback(
@@ -2575,10 +2562,7 @@ export function useList(listId: string) {
     setItemTextWidth(fitWidth)
   }, [itemTextWidthMode, itemNameFontStep, sumScope, itemsForUi, members.length, categoryNames])
 
-  const itemTextWidthMin = useMemo(() => {
-    if (members.length > 0) return ITEM_TEXT_WIDTH_MIN
-    return compactRowManualMinWidthPx(itemsForUi, categoryNames, itemNameFontStep)
-  }, [members.length, itemsForUi, categoryNames, itemNameFontStep])
+  const itemTextWidthMin = ITEM_TEXT_WIDTH_MANUAL_MIN
 
   const adjustItemTextWidth = useCallback(
     (delta: number) => {

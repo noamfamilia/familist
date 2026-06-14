@@ -5,6 +5,8 @@ function canvasFontForItemName(px: number): string {
 }
 
 export const ITEM_TEXT_WIDTH_MIN = 120
+/** Lowest manual name-column width; names truncate below natural fit. */
+export const ITEM_TEXT_WIDTH_MANUAL_MIN = 80
 /** Keeps the name column from growing unbounded on very long single-line strings. */
 export const ITEM_TEXT_WIDTH_MAX = 560
 
@@ -246,7 +248,30 @@ export function measureCompactRowAutoViewWidthPx(
   return maxRowContentWidth(rows, fontStep)
 }
 
-/** CSS width for a compact row card: at least full container, grows when content requires. */
-export function compactRowCardWidthCss(viewWidthPx: number): string {
-  return `max(100%, ${Math.max(ITEM_TEXT_WIDTH_MIN, viewWidthPx)}px)`
+/** CSS width for a compact row card: at least list page content width, grows when content requires. */
+export function compactRowCardWidthCss(contentWidthPx: number, pageContentMinWidthPx = 0): string {
+  const content = Math.max(ITEM_TEXT_WIDTH_MIN, contentWidthPx)
+  if (pageContentMinWidthPx > 0) {
+    return `max(${Math.floor(pageContentMinWidthPx)}px, ${content}px)`
+  }
+  return `max(100%, ${content}px)`
+}
+
+/**
+ * Inner content width of the list detail shell (inside horizontal padding).
+ * Mobile: viewport minus shell padding. PC (`sm+`): measured list panel width.
+ */
+export function measureListPageContentWidthPx(shellEl: HTMLElement): number {
+  if (typeof window === 'undefined') return ITEM_TEXT_WIDTH_MIN
+
+  const style = getComputedStyle(shellEl)
+  const pl = parseFloat(style.paddingLeft) || 0
+  const pr = parseFloat(style.paddingRight) || 0
+  const isSm = window.matchMedia('(min-width: 640px)').matches
+
+  if (isSm) {
+    return Math.max(ITEM_TEXT_WIDTH_MIN, Math.floor(shellEl.clientWidth - pl - pr))
+  }
+
+  return Math.max(ITEM_TEXT_WIDTH_MIN, Math.floor(window.innerWidth - pl - pr))
 }

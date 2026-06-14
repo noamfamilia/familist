@@ -51,6 +51,7 @@ interface ListSumRowCardProps {
   members: MemberWithCreator[]
   itemTextWidth: number
   itemTextWidthMode?: 'auto' | 'manual'
+  compactRowPageMinWidthPx?: number
   itemNameFontClassName: string
   itemNameFontStep?: number
   onCycleScope: () => void
@@ -63,6 +64,7 @@ export function ListSumRowCard({
   members,
   itemTextWidth,
   itemTextWidthMode = 'auto',
+  compactRowPageMinWidthPx = 0,
   itemNameFontClassName,
   itemNameFontStep = ITEM_NAME_FONT_DEFAULT,
   onCycleScope,
@@ -70,14 +72,14 @@ export function ListSumRowCard({
 }: ListSumRowCardProps) {
   const compactRow = members.length === 0
   const compactAutoLayout = compactRow && itemTextWidthMode === 'auto'
+  const scoped = useMemo(() => itemsInScope(sumScope, items), [sumScope, items])
+  const title = sumRowTitleLabel(sumScope, scoped.length)
   const titleWidthPx = useMemo(
     () => measureItemNameNaturalWidthPx(title, itemNameFontStep),
     [title, itemNameFontStep],
   )
   const nameColumnWidthPx = compactAutoLayout ? titleWidthPx : itemTextWidth
-  const compactCardWidthCss = compactAutoLayout ? compactRowCardWidthCss(itemTextWidth) : undefined
-  const scoped = useMemo(() => itemsInScope(sumScope, items), [sumScope, items])
-  const title = sumRowTitleLabel(sumScope, scoped.length)
+  const compactCardWidthCss = compactAutoLayout ? compactRowCardWidthCss(itemTextWidth, compactRowPageMinWidthPx) : undefined
 
   const itemRowHeightPx = itemCardRowHeightWithMembersPx(itemNameFontStep)
   const memberCellPx = itemMemberCellHeightPx(itemNameFontStep)
@@ -98,17 +100,21 @@ export function ListSumRowCard({
 
   return (
     <div
-      className={compactRow ? 'block min-w-full w-max' : 'min-w-full'}
+      className={compactAutoLayout ? 'block min-w-full' : compactRow ? 'block w-max' : 'min-w-full'}
       onClick={onClearAddItemDraft}
     >
       <div
-        className={`block min-w-full rounded-lg ${DEFAULT_ITEM.shell} ${compactAutoLayout ? '' : 'w-max'}`}
+        className={`block rounded-lg ${DEFAULT_ITEM.shell} ${
+          compactAutoLayout ? 'min-w-full' : compactRow ? 'w-max' : 'min-w-full w-max'
+        }`}
         style={compactAutoLayout ? { width: compactCardWidthCss } : undefined}
       >
         <div
           className={
             compactRow
-              ? 'box-border flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              ? compactAutoLayout
+                ? 'box-border flex min-w-full flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+                : 'box-border flex w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
               : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
           style={{

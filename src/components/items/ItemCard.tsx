@@ -36,6 +36,8 @@ interface ItemCardProps {
   isDraggable?: boolean
   itemTextWidth?: number
   itemTextWidthMode?: 'auto' | 'manual'
+  /** List page inner width floor for compact auto layout (px). */
+  compactRowPageMinWidthPx?: number
   expandSignal?: number
   collapseSignal?: number
   categoryNames?: CategoryNames
@@ -182,7 +184,7 @@ function QtyTargetDoneChecks({ doneRatio, checkSizePx = QTY_CHECK_SIZE }: { done
   )
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = ITEM_TEXT_WIDTH_MIN, itemTextWidthMode = 'auto', expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = ITEM_TEXT_WIDTH_MIN, itemTextWidthMode = 'auto', compactRowPageMinWidthPx = 0, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -336,7 +338,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     [item.text, itemNameFontStep],
   )
   const nameColumnWidthPx = compactAutoLayout ? naturalNameWidthPx : itemTextWidth
-  const compactCardWidthCss = compactAutoLayout ? compactRowCardWidthCss(itemTextWidth) : undefined
+  const compactCardWidthCss = compactAutoLayout ? compactRowCardWidthCss(itemTextWidth, compactRowPageMinWidthPx) : undefined
 
   const itemRowHeightPx = useMemo(() => itemCardRowHeightWithMembersPx(itemNameFontStep), [itemNameFontStep])
   const memberCellPx = useMemo(() => itemMemberCellHeightPx(itemNameFontStep), [itemNameFontStep])
@@ -541,12 +543,16 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   return (
     <div
-      className={compactRow ? 'block min-w-full w-max' : 'min-w-full'}
+      className={
+        compactAutoLayout ? 'block min-w-full' : compactRow ? 'block w-max' : 'min-w-full'
+      }
       onClick={onClearAddItemDraft}
     >
-      {/* Main card content — min-w-full w-max matches list column: at least shell width, grows with wide rows */}
+      {/* Main card content — auto: at least list page width; manual: shrink with column */}
       <div
-        className={`block min-w-full rounded-lg ${shellClass} ${item.archived ? 'opacity-60' : ''} ${compactAutoLayout ? '' : 'w-max'}`}
+        className={`block rounded-lg ${shellClass} ${item.archived ? 'opacity-60' : ''} ${
+          compactAutoLayout ? 'min-w-full' : compactRow ? 'w-max' : 'min-w-full w-max'
+        }`}
         style={compactAutoLayout ? { width: compactCardWidthCss } : undefined}
       >
         {/* Card row */}
@@ -555,7 +561,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             compactRow
               ? compactAutoLayout
                 ? 'box-border flex min-w-full flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
-                : 'box-border flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+                : 'box-border flex w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
               : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
           style={{

@@ -16,6 +16,7 @@ interface SortableItemCardProps {
   onUpdateMemberState: (itemId: string, memberId: string, updates: { quantity?: number; done?: boolean }) => Promise<{ error?: { message?: string } | null }>
   itemTextWidth?: number
   itemTextWidthMode?: 'auto' | 'manual'
+  compactRowPageMinWidthPx?: number
   expandSignal?: number
   collapseSignal?: number
   categoryNames?: CategoryNames
@@ -29,7 +30,7 @@ interface SortableItemCardProps {
   useDragOverlay?: boolean
 }
 
-export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, itemTextWidthMode, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, useDragOverlay = false }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, itemTextWidthMode, compactRowPageMinWidthPx, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, useDragOverlay = false }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -60,6 +61,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
         isDraggable={!isOfflineActionsDisabled}
         itemTextWidth={itemTextWidth}
         itemTextWidthMode={itemTextWidthMode}
+        compactRowPageMinWidthPx={compactRowPageMinWidthPx}
         expandSignal={expandSignal}
         collapseSignal={collapseSignal}
         categoryNames={categoryNames}

@@ -26,7 +26,7 @@ import {
   ITEM_NAME_FONT_MIN,
   ITEM_NAME_FONT_DEFAULT,
 } from '@/lib/itemNameFontStep'
-import { ITEM_TEXT_WIDTH_MIN, itemNameColumnLeftEdgePx } from '@/lib/itemTextWidthFit'
+import { ITEM_TEXT_WIDTH_MANUAL_MIN, ITEM_TEXT_WIDTH_MIN, compactRowCardWidthCss, itemNameColumnLeftEdgePx } from '@/lib/itemTextWidthFit'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 
 const CategoryNamesModal = dynamic(
@@ -65,8 +65,10 @@ interface MemberHeaderProps {
   showAddMember?: boolean
   itemTextWidth?: number
   itemTextWidthMode?: 'auto' | 'manual'
-  /** Minimum manual name column width (compact lists use tightest-row floor). */
+  /** Minimum manual name column width (px). */
   itemTextWidthMin?: number
+  /** List page inner width floor for compact auto layout (px). */
+  compactRowPageMinWidthPx?: number
   onWidthChange?: (delta: number) => void
   onWidthModeToggle?: () => void
   itemNameFontStep?: number
@@ -114,7 +116,8 @@ export function MemberHeader({
   showAddMember = true,
   itemTextWidth = ITEM_TEXT_WIDTH_MIN,
   itemTextWidthMode = 'auto',
-  itemTextWidthMin = ITEM_TEXT_WIDTH_MIN,
+  itemTextWidthMin = ITEM_TEXT_WIDTH_MANUAL_MIN,
+  compactRowPageMinWidthPx = 0,
   onWidthChange,
   onWidthModeToggle,
   itemNameFontStep = ITEM_NAME_FONT_DEFAULT,
@@ -676,6 +679,9 @@ export function MemberHeader({
 
   // With member chips, keep the name column aligned with item rows. With none, keep the control slot compact.
   const headerItemNameSlotWidthPx = members.length > 0 ? itemTextWidth : ITEM_TEXT_WIDTH_MIN
+  const compactHeaderAutoLayout = members.length === 0 && itemTextWidthMode === 'auto'
+  const compactHeaderWidthCss =
+    compactHeaderAutoLayout ? compactRowCardWidthCss(itemTextWidth, compactRowPageMinWidthPx) : undefined
 
   const showSetSelfGoalsItem = showAddMember
   const showSetGroupGoalsItem = !!(onCreateTargets && !hasTargetMember)
@@ -697,9 +703,22 @@ export function MemberHeader({
       (hasArchivedItems && (onRestoreAllArchived || onDeleteAllArchived)))
 
   return (
-    <div className={members.length > 0 ? 'mb-3 min-w-full w-max' : 'mb-3 block min-w-full w-max'}>
+    <div
+      className={
+        members.length > 0
+          ? 'mb-3 min-w-full w-max'
+          : compactHeaderAutoLayout
+            ? 'mb-3 block min-w-full'
+            : 'mb-3 block w-max'
+      }
+      style={compactHeaderWidthCss ? { width: compactHeaderWidthCss } : undefined}
+    >
       {/* Header card container */}
-      <div ref={headerCardRef} className="bg-gray-50 dark:bg-neutral-900 rounded-lg">
+      <div
+        ref={headerCardRef}
+        className="bg-gray-50 dark:bg-neutral-900 rounded-lg"
+        style={compactHeaderWidthCss ? { width: compactHeaderWidthCss } : undefined}
+      >
         {/* Header row - matching item card styling */}
         <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
           <div className="flex h-[40px] w-5 flex-shrink-0 items-center justify-center" aria-hidden />

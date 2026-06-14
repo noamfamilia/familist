@@ -10,7 +10,7 @@
  */
 import { usePathname, useRouter } from 'next/navigation'
 import { navigateBackToHome } from '@/lib/navigation/backToHome'
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import {
   DndContext,
@@ -51,7 +51,7 @@ import { ItemCard } from '@/components/items/ItemCard'
 import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import { itemCardRowHeightWithMembersPx, itemNameFontClassForStep } from '@/lib/itemNameFontStep'
-import { itemNameWidthBoundaryGuideLeftPx } from '@/lib/itemTextWidthFit'
+import { itemNameWidthBoundaryGuideLeftPx, measureListPageContentWidthPx } from '@/lib/itemTextWidthFit'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
 import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import { LayerMultiIcon } from '@/components/icons/LayerMultiIcon'
@@ -800,6 +800,34 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     : undefined
 
   const noMemberColumns = filteredMembers.length === 0
+  const listPageRef = useRef<HTMLDivElement>(null)
+  const [compactRowPageMinWidthPx, setCompactRowPageMinWidthPx] = useState(0)
+
+  useLayoutEffect(() => {
+    if (!noMemberColumns) {
+      setCompactRowPageMinWidthPx(0)
+      return
+    }
+
+    const sync = () => {
+      const el = listPageRef.current
+      if (!el) return
+      setCompactRowPageMinWidthPx(measureListPageContentWidthPx(el))
+    }
+
+    sync()
+    const el = listPageRef.current
+    if (!el) return
+
+    const ro = new ResizeObserver(sync)
+    ro.observe(el)
+    if (el.parentElement) ro.observe(el.parentElement)
+    window.addEventListener('resize', sync)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', sync)
+    }
+  }, [noMemberColumns, listId, itemTextWidth, itemTextWidthMode, items.length])
   const openMutatingModal = (open: () => void) => {
     if (isOfflineActionsDisabled) {
       return
@@ -808,7 +836,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }
 
   return (
-    <div className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-fit max-w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8">
+    <div
+      ref={listPageRef}
+      className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-fit max-w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8"
+    >
       {/* Top bar with back button and member filter */}
       <div className="flex w-full min-w-0 items-center justify-between mb-4">
         <div className="flex min-w-0 items-center gap-1.5">
@@ -1029,6 +1060,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               itemTextWidth={itemTextWidth}
               itemTextWidthMode={itemTextWidthMode}
               itemTextWidthMin={itemTextWidthMin}
+              compactRowPageMinWidthPx={compactRowPageMinWidthPx}
               onWidthChange={handleWidthChange}
               onWidthModeToggle={handleWidthModeToggle}
               itemNameFontStep={itemNameFontStep}
@@ -1065,7 +1097,15 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           ) : null}
 
           {/* Active items — min-w-full w-max children so widest row sets column width */}
-          <div className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}>
+          <div
+            className={
+              noMemberColumns
+                ? itemTextWidthMode === 'auto'
+                  ? 'flex w-max min-w-full flex-col gap-2'
+                  : 'flex w-max flex-col gap-2'
+                : 'space-y-2'
+            }
+          >
             {!searchText && sumScope !== 'none' && (
               <ListSumRowCard
                 sumScope={sumScope}
@@ -1073,6 +1113,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                 members={filteredMembers}
                 itemTextWidth={itemTextWidth}
                 itemTextWidthMode={itemTextWidthMode}
+                compactRowPageMinWidthPx={compactRowPageMinWidthPx}
                 itemNameFontClassName={itemNameFontClassName}
                 itemNameFontStep={itemNameFontStep}
                 onCycleScope={() => void persistSumScope(nextListUserSumScope(sumScope))}
@@ -1102,6 +1143,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       onUpdateMemberState={updateMemberState}
                       itemTextWidth={itemTextWidth}
                       itemTextWidthMode={itemTextWidthMode}
+                      compactRowPageMinWidthPx={compactRowPageMinWidthPx}
                       expandSignal={expandSignal}
                       collapseSignal={collapseSignal}
                       categoryNames={categoryNames}
@@ -1117,7 +1159,15 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                 </SortableContext>
                 <DragOverlay dropAnimation={null}>
                   {activeDragItem ? (
-                    <div className={noMemberColumns ? 'block min-w-full w-max' : undefined}>
+                    <div
+                      className={
+                        noMemberColumns
+                          ? itemTextWidthMode === 'auto'
+                            ? 'block min-w-full w-max'
+                            : 'block w-max'
+                          : undefined
+                      }
+                    >
                       <ItemCard
                         item={activeDragItem}
                         members={filteredMembers}
@@ -1129,7 +1179,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                         onUpdateMemberState={updateMemberState}
                         isDraggable={false}
                         itemTextWidth={itemTextWidth}
-                      itemTextWidthMode={itemTextWidthMode}
+                        itemTextWidthMode={itemTextWidthMode}
+                        compactRowPageMinWidthPx={compactRowPageMinWidthPx}
                         expandSignal={expandSignal}
                         collapseSignal={collapseSignal}
                         categoryNames={categoryNames}
@@ -1164,7 +1215,13 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
               {/* Archived items list (no drag) */}
               <div
-                className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}
+                className={
+                  noMemberColumns
+                    ? itemTextWidthMode === 'auto'
+                      ? 'flex w-max min-w-full flex-col gap-2'
+                      : 'flex w-max flex-col gap-2'
+                    : 'space-y-2'
+                }
                 style={
                   searchText && activeItems.length > 0
                     ? { marginTop: filterArchivedGapPx }
@@ -1185,6 +1242,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                     isDraggable={false}
                     itemTextWidth={itemTextWidth}
                     itemTextWidthMode={itemTextWidthMode}
+                    compactRowPageMinWidthPx={compactRowPageMinWidthPx}
                     expandSignal={expandSignal}
                     collapseSignal={collapseSignal}
                     categoryNames={categoryNames}
