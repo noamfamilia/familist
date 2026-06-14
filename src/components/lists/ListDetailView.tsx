@@ -51,7 +51,7 @@ import { ItemCard } from '@/components/items/ItemCard'
 import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import { itemCardRowHeightWithMembersPx, itemNameFontClassForStep } from '@/lib/itemNameFontStep'
-import { itemNameWidthBoundaryGuideLeftPx, measureListPageContentWidthPx } from '@/lib/itemTextWidthFit'
+import { itemNameColumnRightEdgePx, itemNameWidthBoundaryGuideLeftPx, measureListPageContentWidthPx } from '@/lib/itemTextWidthFit'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
 import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import { LayerMultiIcon } from '@/components/icons/LayerMultiIcon'
@@ -1035,10 +1035,15 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             noMemberColumns ? 'relative inline-block w-max min-w-full' : 'relative inline-block min-w-full'
           }
         >
-          {showWidthBoundaryGuide && !noMemberColumns ? (
+          {showWidthBoundaryGuide &&
+          (!noMemberColumns || itemTextWidthMode === 'manual') ? (
             <div
               className="pointer-events-none absolute inset-y-0 z-30 w-px bg-teal/70 shadow-[0_0_4px_rgba(13,148,136,0.55)]"
-              style={{ left: itemNameWidthBoundaryGuideLeftPx(itemTextWidth) }}
+              style={{
+                left: noMemberColumns
+                  ? itemNameColumnRightEdgePx(itemTextWidth)
+                  : itemNameWidthBoundaryGuideLeftPx(itemTextWidth),
+              }}
               aria-hidden
             />
           ) : null}
