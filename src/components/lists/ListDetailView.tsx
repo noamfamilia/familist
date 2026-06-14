@@ -55,6 +55,7 @@ import {
   itemNameColumnRightEdgePx,
   itemNameWidthBoundaryGuideLeftPx,
   measureCompactManualRowContentWidthPx,
+  measureCompactManualSumRowContentWidthPx,
   measureCompactRowExpandWidthDeltaPx,
   measureListPageContentWidthPx,
 } from '@/lib/itemTextWidthFit'
@@ -578,6 +579,32 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     })
   }, [])
 
+  const compactRowManualListContentWidthPx = useMemo(() => {
+    if (!noMemberColumns || itemTextWidthMode !== 'manual') return undefined
+
+    let maxW = measureCompactManualRowContentWidthPx(
+      itemTextWidth,
+      { categoryTitle: '', hasComment: false },
+      false,
+    )
+    for (const item of items) {
+      const categoryTitle = categoryNames[String(item.category ?? 1)]?.trim() ?? ''
+      const hasComment = Boolean(item.comment?.trim())
+      maxW = Math.max(
+        maxW,
+        measureCompactManualRowContentWidthPx(
+          itemTextWidth,
+          { categoryTitle, hasComment },
+          false,
+        ),
+      )
+    }
+    if (sumScope !== 'none') {
+      maxW = Math.max(maxW, measureCompactManualSumRowContentWidthPx(itemTextWidth))
+    }
+    return maxW
+  }, [noMemberColumns, itemTextWidthMode, itemTextWidth, items, categoryNames, sumScope])
+
   const compactRowCardWidthOverridePx = useMemo(() => {
     if (!noMemberColumns || expandedCompactItemIds.size === 0) return undefined
 
@@ -606,7 +633,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     if (itemTextWidthMode === 'auto') {
       return maxWidth > itemTextWidth ? maxWidth : undefined
     }
-    return maxWidth > 0 ? maxWidth : undefined
+    const baseManual = compactRowManualListContentWidthPx ?? 0
+    return maxWidth > baseManual ? maxWidth : undefined
   }, [
     noMemberColumns,
     expandedCompactItemIds,
@@ -614,10 +642,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     categoryNames,
     itemTextWidth,
     itemTextWidthMode,
+    compactRowManualListContentWidthPx,
   ])
 
-  const compactRowListFixedLayout =
-    noMemberColumns && (itemTextWidthMode === 'auto' || compactRowCardWidthOverridePx != null)
+  const compactRowListFixedLayout = noMemberColumns
 
   useLayoutEffect(() => {
     if (!noMemberColumns) {
@@ -1134,6 +1162,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               itemTextWidthMin={itemTextWidthMin}
               compactRowPageMinWidthPx={compactRowPageMinWidthPx}
               compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
+              compactRowManualListContentWidthPx={compactRowManualListContentWidthPx}
               onWidthChange={handleWidthChange}
               onWidthModeToggle={handleWidthModeToggle}
               itemNameFontStep={itemNameFontStep}

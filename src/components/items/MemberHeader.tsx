@@ -71,6 +71,8 @@ interface MemberHeaderProps {
   compactRowPageMinWidthPx?: number
   /** Wider compact list width when a row is expanded (px). */
   compactRowCardWidthOverridePx?: number
+  /** Widest manual compact row content width (px), for header sync. */
+  compactRowManualListContentWidthPx?: number
   onWidthChange?: (delta: number) => void
   onWidthModeToggle?: () => void
   itemNameFontStep?: number
@@ -121,6 +123,7 @@ export function MemberHeader({
   itemTextWidthMin = ITEM_TEXT_WIDTH_MANUAL_MIN,
   compactRowPageMinWidthPx = 0,
   compactRowCardWidthOverridePx,
+  compactRowManualListContentWidthPx,
   onWidthChange,
   onWidthModeToggle,
   itemNameFontStep = ITEM_NAME_FONT_DEFAULT,
@@ -682,10 +685,12 @@ export function MemberHeader({
 
   // With member chips, keep the name column aligned with item rows. With none, keep the control slot compact.
   const headerItemNameSlotWidthPx = members.length > 0 ? itemTextWidth : ITEM_TEXT_WIDTH_MIN
-  const compactHeaderAutoLayout = members.length === 0 && itemTextWidthMode === 'auto'
-  const compactHeaderFixedLayout =
-    members.length === 0 && (compactHeaderAutoLayout || compactRowCardWidthOverridePx != null)
-  const compactLayoutWidthPx = compactRowCardWidthOverridePx ?? itemTextWidth
+  const compactHeaderFixedLayout = members.length === 0
+  const compactLayoutWidthPx =
+    compactRowCardWidthOverridePx ??
+    (itemTextWidthMode === 'auto'
+      ? itemTextWidth
+      : compactRowManualListContentWidthPx ?? itemTextWidth)
   const compactHeaderWidthCss = compactHeaderFixedLayout
     ? compactRowCardWidthCss(compactLayoutWidthPx, compactRowPageMinWidthPx)
     : undefined

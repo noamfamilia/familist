@@ -9,7 +9,13 @@ import { useAuth } from '@/providers/AuthProvider'
 import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
-import { ITEM_TEXT_WIDTH_MIN, compactRowCardWidthCss, measureCategoryLabelChipWidthPx, measureItemNameNaturalWidthPx } from '@/lib/itemTextWidthFit'
+import {
+  ITEM_TEXT_WIDTH_MIN,
+  compactRowCardWidthCss,
+  measureCategoryLabelChipWidthPx,
+  measureCompactManualRowContentWidthPx,
+  measureItemNameNaturalWidthPx,
+} from '@/lib/itemTextWidthFit'
 import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
 import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import {
@@ -307,6 +313,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   const category = normalizeItemCategory(item.category)
   const categoryTitle = categoryNames?.[String(category)]?.trim() ?? ''
+  const hasComment = Boolean(item.comment?.trim())
   const [categoryLabelChipWidthPx, setCategoryLabelChipWidthPx] = useState<number | null>(null)
 
   useLayoutEffect(() => {
@@ -341,11 +348,18 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     [item.text, itemNameFontStep],
   )
   const nameColumnWidthPx = compactAutoLayout ? naturalNameWidthPx : itemTextWidth
-  const compactLayoutWidthPx = compactRowCardWidthOverridePx ?? itemTextWidth
-  const compactFixedLayout =
-    compactRow && (compactAutoLayout || compactRowCardWidthOverridePx != null)
+  const compactRowContentWidthPx =
+    compactRowCardWidthOverridePx ??
+    (compactAutoLayout
+      ? itemTextWidth
+      : measureCompactManualRowContentWidthPx(
+          itemTextWidth,
+          { categoryTitle, hasComment },
+          showMenu,
+        ))
+  const compactFixedLayout = compactRow
   const compactWidthCss = compactFixedLayout
-    ? compactRowCardWidthCss(compactLayoutWidthPx, compactRowPageMinWidthPx)
+    ? compactRowCardWidthCss(compactRowContentWidthPx, compactRowPageMinWidthPx)
     : undefined
 
   useEffect(() => {
@@ -546,7 +560,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     setShowDeleteConfirm(false)
   }
 
-  const hasComment = item.comment && item.comment.trim().length > 0
   const shellClass = ITEM_CATEGORY_STYLES[category].shell
   const itemNameColorClass = item.archived ? '' : ITEM_CATEGORY_STYLES[category].itemName
 

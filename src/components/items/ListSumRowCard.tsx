@@ -3,7 +3,11 @@
 import { useMemo } from 'react'
 import type { ItemWithState, ListUserSumScope, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
-import { compactRowCardWidthCss, measureItemNameNaturalWidthPx } from '@/lib/itemTextWidthFit'
+import {
+  compactRowCardWidthCss,
+  measureCompactManualSumRowContentWidthPx,
+  measureItemNameNaturalWidthPx,
+} from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
   itemCardRowHeightWithMembersPx,
@@ -81,11 +85,12 @@ export function ListSumRowCard({
     [title, itemNameFontStep],
   )
   const nameColumnWidthPx = compactAutoLayout ? titleWidthPx : itemTextWidth
-  const compactLayoutWidthPx = compactRowCardWidthOverridePx ?? itemTextWidth
-  const compactFixedLayout =
-    compactRow && (compactAutoLayout || compactRowCardWidthOverridePx != null)
+  const compactRowContentWidthPx =
+    compactRowCardWidthOverridePx ??
+    (compactAutoLayout ? itemTextWidth : measureCompactManualSumRowContentWidthPx(itemTextWidth))
+  const compactFixedLayout = compactRow
   const compactWidthCss = compactFixedLayout
-    ? compactRowCardWidthCss(compactLayoutWidthPx, compactRowPageMinWidthPx)
+    ? compactRowCardWidthCss(compactRowContentWidthPx, compactRowPageMinWidthPx)
     : undefined
 
   const itemRowHeightPx = itemCardRowHeightWithMembersPx(itemNameFontStep)
