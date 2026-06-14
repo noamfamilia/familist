@@ -65,6 +65,8 @@ interface MemberHeaderProps {
   showAddMember?: boolean
   itemTextWidth?: number
   itemTextWidthMode?: 'auto' | 'manual'
+  /** Minimum manual name column width (compact lists use tightest-row floor). */
+  itemTextWidthMin?: number
   onWidthChange?: (delta: number) => void
   onWidthModeToggle?: () => void
   itemNameFontStep?: number
@@ -112,6 +114,7 @@ export function MemberHeader({
   showAddMember = true,
   itemTextWidth = ITEM_TEXT_WIDTH_MIN,
   itemTextWidthMode = 'auto',
+  itemTextWidthMin = ITEM_TEXT_WIDTH_MIN,
   onWidthChange,
   onWidthModeToggle,
   itemNameFontStep = ITEM_NAME_FONT_DEFAULT,
@@ -1235,7 +1238,7 @@ export function MemberHeader({
                     e.stopPropagation()
                     onWidthChange?.(-20)
                   }}
-                  disabled={itemTextWidth <= ITEM_TEXT_WIDTH_MIN}
+                  disabled={itemTextWidthMode === 'manual' && itemTextWidth <= itemTextWidthMin}
                   className={`flex h-8 items-center text-xl font-semibold touch-manipulation disabled:opacity-30 ${
                     itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
                   }`}

@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import type { ItemWithState, ListUserSumScope, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
+import { compactRowCardWidthCss, measureItemNameNaturalWidthPx } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
   itemCardRowHeightWithMembersPx,
@@ -49,6 +50,7 @@ interface ListSumRowCardProps {
   items: ItemWithState[]
   members: MemberWithCreator[]
   itemTextWidth: number
+  itemTextWidthMode?: 'auto' | 'manual'
   itemNameFontClassName: string
   itemNameFontStep?: number
   onCycleScope: () => void
@@ -60,12 +62,20 @@ export function ListSumRowCard({
   items,
   members,
   itemTextWidth,
+  itemTextWidthMode = 'auto',
   itemNameFontClassName,
   itemNameFontStep = ITEM_NAME_FONT_DEFAULT,
   onCycleScope,
   onClearAddItemDraft,
 }: ListSumRowCardProps) {
   const compactRow = members.length === 0
+  const compactAutoLayout = compactRow && itemTextWidthMode === 'auto'
+  const titleWidthPx = useMemo(
+    () => measureItemNameNaturalWidthPx(title, itemNameFontStep),
+    [title, itemNameFontStep],
+  )
+  const nameColumnWidthPx = compactAutoLayout ? titleWidthPx : itemTextWidth
+  const compactCardWidthCss = compactAutoLayout ? compactRowCardWidthCss(itemTextWidth) : undefined
   const scoped = useMemo(() => itemsInScope(sumScope, items), [sumScope, items])
   const title = sumRowTitleLabel(sumScope, scoped.length)
 
@@ -91,14 +101,20 @@ export function ListSumRowCard({
       className={compactRow ? 'block min-w-full w-max' : 'min-w-full'}
       onClick={onClearAddItemDraft}
     >
-      <div className={`block min-w-full w-max rounded-lg ${DEFAULT_ITEM.shell}`}>
+      <div
+        className={`block min-w-full rounded-lg ${DEFAULT_ITEM.shell} ${compactAutoLayout ? '' : 'w-max'}`}
+        style={compactAutoLayout ? { width: compactCardWidthCss } : undefined}
+      >
         <div
           className={
             compactRow
               ? 'box-border flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
               : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
-          style={{ height: itemRowHeightPx }}
+          style={{
+            height: itemRowHeightPx,
+            ...(compactAutoLayout ? { width: compactCardWidthCss } : undefined),
+          }}
         >
           <div
             className="w-5 flex-shrink-0 select-none text-lg tracking-tighter text-transparent"
@@ -115,12 +131,12 @@ export function ListSumRowCard({
 
           <div
             className="relative flex-shrink-0 text-left"
-            style={{ width: itemTextWidth }}
+            style={{ width: nameColumnWidthPx }}
             dir="ltr"
           >
             <button
               type="button"
-              className={`block w-full truncate text-left ${itemNameFontClassName} text-teal dark:text-teal-300 cursor-pointer hover:opacity-80`}
+              className={`block w-full text-left ${itemNameFontClassName} text-teal dark:text-teal-300 cursor-pointer hover:opacity-80 ${compactAutoLayout ? 'whitespace-nowrap' : 'truncate'}`}
               onClick={e => {
                 e.stopPropagation()
                 onCycleScope()

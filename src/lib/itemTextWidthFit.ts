@@ -109,3 +109,144 @@ export function measureCategoryLabelChipWidthPx(text: string): number {
   const w = Math.ceil(ctx.measureText(trimmed).width + CATEGORY_LABEL_CHIP_EXTRA_PX)
   return Math.min(CATEGORY_LABEL_CHIP_WIDTH_MAX, Math.max(CATEGORY_LABEL_CHIP_WIDTH_MIN, w))
 }
+
+/** Row `pr-2` (px). */
+export const ITEM_ROW_TRAILING_PADDING_PX = 8
+
+/** Flex `gap-0.5` between row siblings (px). */
+export const ITEM_ROW_FLEX_GAP_PX = 2
+
+/** Trailing cluster `pl-2` before category / comment / kebab (px). */
+export const ITEM_ROW_TRAILING_CLUSTER_LEADING_PX = 8
+
+/** Trailing `gap-1` between comment, category, kebab (px). */
+export const ITEM_ROW_TRAILING_INNER_GAP_PX = 4
+
+/** Collapsed-row comment indicator (px). */
+export const ITEM_ROW_COMMENT_ICON_WIDTH_PX = 16
+
+/** Collapsed-row kebab control (px). */
+export const ITEM_ROW_KEBAB_WIDTH_PX = 28
+
+export type CompactRowItemMeasureInput = {
+  name: string
+  categoryTitle: string
+  hasComment: boolean
+}
+
+function measureSingleLineTextPx(text: string, font: string): number {
+  if (typeof window === 'undefined') return 0
+  const trimmed = text.trim()
+  if (!trimmed) return 0
+
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return 0
+
+  ctx.font = font
+  return ctx.measureText(trimmed).width
+}
+
+/** Natural item-name width for one row (auto mode, no shared column). */
+export function measureItemNameNaturalWidthPx(
+  text: string,
+  fontStep: number = ITEM_NAME_FONT_DEFAULT,
+): number {
+  const w = measureSingleLineTextPx(text, canvasFontForItemName(itemNameFontCanvasPx(fontStep)))
+  if (w <= 0) return ITEM_TEXT_WIDTH_MIN
+  return Math.max(ITEM_TEXT_WIDTH_MIN, Math.ceil(w + 2))
+}
+
+/** Trailing icons/labels after the name on compact (no-member) rows. */
+export function measureCompactRowTrailingWidthPx(input: {
+  categoryTitle: string
+  hasComment: boolean
+}): number {
+  let w = ITEM_ROW_TRAILING_CLUSTER_LEADING_PX
+  let parts = 0
+
+  if (input.hasComment) {
+    w += ITEM_ROW_COMMENT_ICON_WIDTH_PX
+    parts += 1
+  }
+
+  const categoryTitle = input.categoryTitle.trim()
+  if (categoryTitle) {
+    if (parts > 0) w += ITEM_ROW_TRAILING_INNER_GAP_PX
+    w += measureCategoryLabelChipWidthPx(categoryTitle)
+    parts += 1
+  }
+
+  if (parts > 0) w += ITEM_ROW_TRAILING_INNER_GAP_PX
+  w += ITEM_ROW_KEBAB_WIDTH_PX
+  return w
+}
+
+/** Minimum card width so one compact row fits without truncating its name (px). */
+export function measureCompactRowRowContentWidthPx(
+  input: CompactRowItemMeasureInput,
+  fontStep: number = ITEM_NAME_FONT_DEFAULT,
+): number {
+  const nameWidth = measureItemNameNaturalWidthPx(input.name, fontStep)
+  const trailingWidth = measureCompactRowTrailingWidthPx({
+    categoryTitle: input.categoryTitle,
+    hasComment: input.hasComment,
+  })
+  return (
+    itemNameColumnLeftEdgePx() +
+    nameWidth +
+    ITEM_ROW_FLEX_GAP_PX +
+    trailingWidth +
+    ITEM_ROW_TRAILING_PADDING_PX
+  )
+}
+
+/** Sum row without members: drag spacer + title only. */
+export function measureCompactSumRowContentWidthPx(title: string, fontStep: number = ITEM_NAME_FONT_DEFAULT): number {
+  const nameWidth = measureItemNameNaturalWidthPx(title, fontStep)
+  return ITEM_ROW_LEADING_INSET_PX + nameWidth + ITEM_ROW_TRAILING_PADDING_PX
+}
+
+function maxRowContentWidth(
+  rows: CompactRowItemMeasureInput[],
+  fontStep: number,
+): number {
+  if (rows.length === 0) return ITEM_TEXT_WIDTH_MIN
+  let maxPx = ITEM_TEXT_WIDTH_MIN
+  for (const row of rows) {
+    maxPx = Math.max(maxPx, measureCompactRowRowContentWidthPx(row, fontStep))
+  }
+  return Math.max(ITEM_TEXT_WIDTH_MIN, maxPx)
+}
+
+/** Name width (px) on the tightest compact row — manual width must not go below this. */
+export function measureCompactRowTightestNameWidthPx(
+  rows: CompactRowItemMeasureInput[],
+  fontStep: number = ITEM_NAME_FONT_DEFAULT,
+): number {
+  if (rows.length === 0) return ITEM_TEXT_WIDTH_MIN
+
+  let tightestNameWidth = ITEM_TEXT_WIDTH_MIN
+  let maxRowNeed = -1
+  for (const row of rows) {
+    const rowNeed = measureCompactRowRowContentWidthPx(row, fontStep)
+    if (rowNeed > maxRowNeed) {
+      maxRowNeed = rowNeed
+      tightestNameWidth = measureItemNameNaturalWidthPx(row.name, fontStep)
+    }
+  }
+  return tightestNameWidth
+}
+
+/** Shared card width for auto mode on no-member lists (px). */
+export function measureCompactRowAutoViewWidthPx(
+  rows: CompactRowItemMeasureInput[],
+  fontStep: number = ITEM_NAME_FONT_DEFAULT,
+): number {
+  return maxRowContentWidth(rows, fontStep)
+}
+
+/** CSS width for a compact row card: at least full container, grows when content requires. */
+export function compactRowCardWidthCss(viewWidthPx: number): string {
+  return `max(100%, ${Math.max(ITEM_TEXT_WIDTH_MIN, viewWidthPx)}px)`
+}

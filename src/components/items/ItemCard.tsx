@@ -9,7 +9,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import type { CategoryNames, Item, ItemCategory, ItemWithState, MemberWithCreator } from '@/lib/supabase/types'
 import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
-import { ITEM_TEXT_WIDTH_MIN, measureCategoryLabelChipWidthPx } from '@/lib/itemTextWidthFit'
+import { ITEM_TEXT_WIDTH_MIN, compactRowCardWidthCss, measureCategoryLabelChipWidthPx, measureItemNameNaturalWidthPx } from '@/lib/itemTextWidthFit'
 import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
 import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import {
@@ -35,6 +35,7 @@ interface ItemCardProps {
   dragHandleProps?: Record<string, unknown>
   isDraggable?: boolean
   itemTextWidth?: number
+  itemTextWidthMode?: 'auto' | 'manual'
   expandSignal?: number
   collapseSignal?: number
   categoryNames?: CategoryNames
@@ -181,7 +182,7 @@ function QtyTargetDoneChecks({ doneRatio, checkSizePx = QTY_CHECK_SIZE }: { done
   )
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = ITEM_TEXT_WIDTH_MIN, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = ITEM_TEXT_WIDTH_MIN, itemTextWidthMode = 'auto', expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -328,6 +329,14 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   })
 
   const compactRow = members.length === 0
+  const compactAutoLayout = compactRow && itemTextWidthMode === 'auto'
+
+  const naturalNameWidthPx = useMemo(
+    () => measureItemNameNaturalWidthPx(item.text, itemNameFontStep),
+    [item.text, itemNameFontStep],
+  )
+  const nameColumnWidthPx = compactAutoLayout ? naturalNameWidthPx : itemTextWidth
+  const compactCardWidthCss = compactAutoLayout ? compactRowCardWidthCss(itemTextWidth) : undefined
 
   const itemRowHeightPx = useMemo(() => itemCardRowHeightWithMembersPx(itemNameFontStep), [itemNameFontStep])
   const memberCellPx = useMemo(() => itemMemberCellHeightPx(itemNameFontStep), [itemNameFontStep])
@@ -537,16 +546,22 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     >
       {/* Main card content — min-w-full w-max matches list column: at least shell width, grows with wide rows */}
       <div
-        className={`block min-w-full w-max rounded-lg ${shellClass} ${item.archived ? 'opacity-60' : ''}`}
+        className={`block min-w-full rounded-lg ${shellClass} ${item.archived ? 'opacity-60' : ''} ${compactAutoLayout ? '' : 'w-max'}`}
+        style={compactAutoLayout ? { width: compactCardWidthCss } : undefined}
       >
         {/* Card row */}
         <div
           className={
             compactRow
-              ? 'box-border flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              ? compactAutoLayout
+                ? 'box-border flex min-w-full flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+                : 'box-border flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
               : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
-          style={{ height: itemRowHeightPx }}
+          style={{
+            height: itemRowHeightPx,
+            ...(compactAutoLayout ? { width: compactCardWidthCss } : undefined),
+          }}
           data-tour="item-row"
         >
         {/* Drag handle - only shown for draggable (active) items */}
@@ -585,7 +600,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         {/* Item name — click to expand (collapsed) or rename (expanded) */}
         <TourViewportTarget target="item-name" className="relative flex-shrink-0 text-left">
         <div
-          style={{ width: itemTextWidth }}
+          style={{ width: nameColumnWidthPx }}
           dir="ltr"
         >
           {showMenu ? (
@@ -597,7 +612,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               }}
               className={`flex items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
             >
-              <span className="truncate">{item.text}</span>
+              <span className={compactAutoLayout ? 'whitespace-nowrap' : 'truncate'}>{item.text}</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
                 <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
               </svg>
@@ -608,7 +623,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 e.stopPropagation()
                 setShowMenu(true)
               }}
-              className={`block truncate ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              className={`block ${compactAutoLayout ? 'whitespace-nowrap' : 'truncate'} ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               title={`Expand: ${item.text}`}
             >
               {item.text}

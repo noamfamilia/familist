@@ -65,7 +65,7 @@ import {
 } from '@/lib/data/localItemTextUniqueness'
 import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
 import { APP_VERSION } from '@/lib/appVersion'
-import { ITEM_TEXT_WIDTH_MAX, ITEM_TEXT_WIDTH_MIN, measureFitItemTextWidthPx } from '@/lib/itemTextWidthFit'
+import { ITEM_TEXT_WIDTH_MAX, ITEM_TEXT_WIDTH_MIN, measureCompactRowAutoViewWidthPx, measureCompactRowTightestNameWidthPx, measureCompactSumRowContentWidthPx, measureFitItemTextWidthPx, type CompactRowItemMeasureInput } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
   ITEM_NAME_FONT_MAX,
@@ -194,6 +194,41 @@ function sumRowTitlesForAutoWidth(sumScope: ListUserSumScope, items: ItemWithSta
   if (sumScope === 'all') return [`${nAll} items`]
   if (sumScope === 'active') return [`${nActive} active items`]
   return [`${nArchived} archived item`]
+}
+
+function compactRowMeasureInputsForItems(
+  items: ItemWithState[],
+  categoryNames: CategoryNames,
+): CompactRowItemMeasureInput[] {
+  return items.map((item) => {
+    const category = normalizeItemCategory(item.category)
+    const categoryTitle = categoryNames[String(category)]?.trim() ?? ''
+    const hasComment = Boolean(item.comment?.trim())
+    return { name: item.text ?? '', categoryTitle, hasComment }
+  })
+}
+
+function compactRowAutoViewWidthPx(
+  items: ItemWithState[],
+  categoryNames: CategoryNames,
+  sumScope: ListUserSumScope,
+  fontStep: number,
+): number {
+  const rows = compactRowMeasureInputsForItems(items, categoryNames)
+  let width = measureCompactRowAutoViewWidthPx(rows, fontStep)
+  for (const title of sumRowTitlesForAutoWidth(sumScope, items)) {
+    width = Math.max(width, measureCompactSumRowContentWidthPx(title, fontStep))
+  }
+  return width
+}
+
+function compactRowManualMinWidthPx(
+  items: ItemWithState[],
+  categoryNames: CategoryNames,
+  fontStep: number,
+): number {
+  const rows = compactRowMeasureInputsForItems(items, categoryNames)
+  return Math.max(ITEM_TEXT_WIDTH_MIN, measureCompactRowTightestNameWidthPx(rows, fontStep))
 }
 
 function getCachedPrefs(listId: string, userId?: string | null) {
@@ -2065,18 +2100,38 @@ export function useList(listId: string) {
 
   const previewItemTextWidth = useCallback(
     (width: number) => {
-      const newWidth = Math.min(ITEM_TEXT_WIDTH_MAX, Math.max(ITEM_TEXT_WIDTH_MIN, width))
+      const minWidth =
+        members.length === 0
+          ? compactRowManualMinWidthPx(items, categoryNamesRef.current, itemNameFontStepRef.current)
+          : ITEM_TEXT_WIDTH_MIN
+      const newWidth = Math.min(ITEM_TEXT_WIDTH_MAX, Math.max(minWidth, width))
       setItemTextWidth(newWidth)
       setItemTextWidthMode('manual')
       setCachedPrefsLocalOnly(listId, { itemTextWidth: String(newWidth) }, userId)
     },
-    [listId, userId],
+    [items, listId, members.length, userId],
   )
 
   const previewItemTextWidthMode = useCallback(
     (mode: WidthMode) => {
       let widthForValue = itemTextWidth
       if (mode === 'auto') {
+        if (members.length === 0) {
+          widthForValue = compactRowAutoViewWidthPx(
+            items,
+            categoryNamesRef.current,
+            sumScope,
+            itemNameFontStepRef.current,
+          )
+        } else {
+          const texts = [
+            ...items.map((i) => i.text ?? ''),
+            ...sumRowTitlesForAutoWidth(sumScope, items),
+          ]
+          widthForValue = measureFitItemTextWidthPx(texts, itemNameFontStepRef.current)
+        }
+        setItemTextWidth(widthForValue)
+      } else if (members.length === 0) {
         const texts = [
           ...items.map((i) => i.text ?? ''),
           ...sumRowTitlesForAutoWidth(sumScope, items),
@@ -2088,7 +2143,7 @@ export function useList(listId: string) {
       const value = mode === 'auto' ? 'auto' : String(widthForValue)
       setCachedPrefsLocalOnly(listId, { itemTextWidth: value }, userId)
     },
-    [itemTextWidth, items, listId, sumScope, userId],
+    [itemTextWidth, items, listId, members.length, sumScope, userId],
   )
 
   const previewItemNameFontStep = useCallback(
@@ -2506,13 +2561,40 @@ export function useList(listId: string) {
   // Auto-fit width when mode is 'auto' and items change (include sumScope so cycling all/active/archived recalculates)
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
+    if (members.length === 0) {
+      setItemTextWidth(
+        compactRowAutoViewWidthPx(itemsForUi, categoryNames, sumScope, itemNameFontStep),
+      )
+      return
+    }
     const texts = [
       ...itemsForUi.map(i => i.text ?? ''),
       ...sumRowTitlesForAutoWidth(sumScope, itemsForUi),
     ]
     const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
     setItemTextWidth(fitWidth)
-  }, [itemTextWidthMode, itemNameFontStep, sumScope, itemsForUi])
+  }, [itemTextWidthMode, itemNameFontStep, sumScope, itemsForUi, members.length, categoryNames])
+
+  const itemTextWidthMin = useMemo(() => {
+    if (members.length > 0) return ITEM_TEXT_WIDTH_MIN
+    return compactRowManualMinWidthPx(itemsForUi, categoryNames, itemNameFontStep)
+  }, [members.length, itemsForUi, categoryNames, itemNameFontStep])
+
+  const adjustItemTextWidth = useCallback(
+    (delta: number) => {
+      if (itemTextWidthMode === 'auto') {
+        const texts = [
+          ...items.map((i) => i.text ?? ''),
+          ...sumRowTitlesForAutoWidth(sumScope, items),
+        ]
+        const start = measureFitItemTextWidthPx(texts, itemNameFontStepRef.current)
+        previewItemTextWidth(start + delta)
+        return
+      }
+      previewItemTextWidth(itemTextWidth + delta)
+    },
+    [itemTextWidth, itemTextWidthMode, items, previewItemTextWidth, sumScope],
+  )
 
   return {
     list,
@@ -2532,6 +2614,7 @@ export function useList(listId: string) {
     memberFilter,
     itemTextWidth,
     itemTextWidthMode,
+    itemTextWidthMin,
     itemNameFontStep,
     beginDisplayPrefsSession,
     commitDisplayPrefs,
@@ -2555,6 +2638,7 @@ export function useList(listId: string) {
     updateMemberFilter,
     previewItemTextWidth,
     previewItemTextWidthMode,
+    adjustItemTextWidth,
     updateCategoryNames: renameCategory,
     updateCategoryOrder: reorderCategories,
     renameCategory,

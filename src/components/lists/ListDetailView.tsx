@@ -277,6 +277,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     memberFilter,
     itemTextWidth,
     itemTextWidthMode,
+    itemTextWidthMin,
     itemNameFontStep,
     beginDisplayPrefsSession,
     commitDisplayPrefs,
@@ -300,6 +301,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     updateMemberFilter,
     previewItemTextWidth,
     previewItemTextWidthMode,
+    adjustItemTextWidth,
     renameCategory,
     reorderCategories,
     sortItemsByCategory,
@@ -511,10 +513,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const handleWidthChange = (delta: number) => {
     pulseWidthBoundaryGuide()
-    if (itemTextWidthMode === 'auto') {
-      previewItemTextWidthMode('manual')
-    }
-    previewItemTextWidth(itemTextWidth + delta)
+    adjustItemTextWidth(delta)
   }
 
   const handleWidthModeToggle = () => {
@@ -1001,7 +1000,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             noMemberColumns ? 'relative inline-block w-max min-w-full' : 'relative inline-block min-w-full'
           }
         >
-          {showWidthBoundaryGuide ? (
+          {showWidthBoundaryGuide && !noMemberColumns ? (
             <div
               className="pointer-events-none absolute inset-y-0 z-30 w-px bg-teal/70 shadow-[0_0_4px_rgba(13,148,136,0.55)]"
               style={{ left: itemNameWidthBoundaryGuideLeftPx(itemTextWidth) }}
@@ -1029,6 +1028,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               showAddMember={memberFilter !== 'hide'}
               itemTextWidth={itemTextWidth}
               itemTextWidthMode={itemTextWidthMode}
+              itemTextWidthMin={itemTextWidthMin}
               onWidthChange={handleWidthChange}
               onWidthModeToggle={handleWidthModeToggle}
               itemNameFontStep={itemNameFontStep}
@@ -1072,6 +1072,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                 items={items}
                 members={filteredMembers}
                 itemTextWidth={itemTextWidth}
+                itemTextWidthMode={itemTextWidthMode}
                 itemNameFontClassName={itemNameFontClassName}
                 itemNameFontStep={itemNameFontStep}
                 onCycleScope={() => void persistSumScope(nextListUserSumScope(sumScope))}
@@ -1100,6 +1101,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       onChangeQuantity={changeQuantity}
                       onUpdateMemberState={updateMemberState}
                       itemTextWidth={itemTextWidth}
+                      itemTextWidthMode={itemTextWidthMode}
                       expandSignal={expandSignal}
                       collapseSignal={collapseSignal}
                       categoryNames={categoryNames}
@@ -1127,6 +1129,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                         onUpdateMemberState={updateMemberState}
                         isDraggable={false}
                         itemTextWidth={itemTextWidth}
+                      itemTextWidthMode={itemTextWidthMode}
                         expandSignal={expandSignal}
                         collapseSignal={collapseSignal}
                         categoryNames={categoryNames}
@@ -1181,6 +1184,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                     onUpdateMemberState={updateMemberState}
                     isDraggable={false}
                     itemTextWidth={itemTextWidth}
+                    itemTextWidthMode={itemTextWidthMode}
                     expandSignal={expandSignal}
                     collapseSignal={collapseSignal}
                     categoryNames={categoryNames}
