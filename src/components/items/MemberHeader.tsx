@@ -25,8 +25,19 @@ import {
   ITEM_NAME_FONT_MAX,
   ITEM_NAME_FONT_MIN,
   ITEM_NAME_FONT_DEFAULT,
+  itemCardRowHeightWithMembersPx,
+  itemMemberCellHeightPx,
 } from '@/lib/itemNameFontStep'
-import { ITEM_TEXT_WIDTH_MANUAL_MIN, ITEM_TEXT_WIDTH_MIN, compactRowCardWidthCss, itemNameColumnLeftEdgePx } from '@/lib/itemTextWidthFit'
+import {
+  ITEM_TEXT_WIDTH_MANUAL_MIN,
+  ITEM_TEXT_WIDTH_MIN,
+  compactRowCardWidthCss,
+  itemNameColumnLeftEdgePx,
+  itemRowArchiveSlotClassName,
+  itemRowDragHandleClassName,
+  itemRowHorizontalPaddingClassName,
+  itemRowMemberLeadingClassName,
+} from '@/lib/itemTextWidthFit'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 
 const CategoryNamesModal = dynamic(
@@ -695,6 +706,9 @@ export function MemberHeader({
     ? compactRowCardWidthCss(compactLayoutWidthPx, compactRowPageMinWidthPx)
     : undefined
 
+  const headerRowHeightPx = itemCardRowHeightWithMembersPx(itemNameFontStep)
+  const memberChipHeightPx = itemMemberCellHeightPx(itemNameFontStep)
+
   const showSetSelfGoalsItem = showAddMember
   const showSetGroupGoalsItem = !!(onCreateTargets && !hasTargetMember)
   const showShowItemSum = !!(onEnableSumItems && sumScope === 'none')
@@ -731,12 +745,25 @@ export function MemberHeader({
         className="bg-gray-50 dark:bg-neutral-900 rounded-lg"
         style={compactHeaderWidthCss ? { width: compactHeaderWidthCss } : undefined}
       >
-        {/* Header row - matching item card styling */}
-        <div className="relative flex items-center gap-0.5 pl-2 pr-1 py-1 whitespace-nowrap">
-          <div className="flex h-[40px] w-5 flex-shrink-0 items-center justify-center" aria-hidden />
+        {/* Header row — drag → archive → name slot → members (matches item rows) */}
+        <div
+          className={`relative flex items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`}
+          style={{ height: headerRowHeightPx }}
+        >
+          <div className={itemRowDragHandleClassName} aria-hidden />
+          <span
+            className={`${itemRowArchiveSlotClassName} invisible select-none`}
+            aria-hidden
+          >
+            ▼
+          </span>
           <div
-            className="flex h-[40px] shrink-0 items-center gap-3 overflow-visible"
-            style={{ width: headerItemNameSlotWidthPx }}
+            className="flex shrink-0 items-center gap-3 overflow-visible"
+            style={
+              members.length > 0
+                ? { width: headerItemNameSlotWidthPx, height: memberChipHeightPx }
+                : { height: memberChipHeightPx }
+            }
           >
             {onItemNameFontStepChange && (
               <TourViewportTarget
@@ -776,15 +803,11 @@ export function MemberHeader({
               </TourViewportTarget>
             )}
           </div>
-          {members.length > 0 ? (
-            <span className="text-xl flex-shrink-0 leading-none invisible select-none" aria-hidden>
-              ▼
-            </span>
-          ) : null}
-          
+
           {/* Members section — dimmed and non-interactive while offline or recovering */}
+          {members.length > 0 ? (
           <div
-            className={`flex items-center ml-2.5 flex-shrink-0 gap-2.5 ${
+            className={`${itemRowMemberLeadingClassName} ${
               isOfflineActionsDisabled ? 'pointer-events-none cursor-not-allowed opacity-40' : ''
             }`}
             aria-disabled={isOfflineActionsDisabled || undefined}
@@ -799,11 +822,12 @@ export function MemberHeader({
                 <div key={member.id} className="relative">
                   <div
                     ref={(el) => { if (el) chipRefsMap.current.set(member.id, el); else chipRefsMap.current.delete(member.id) }}
-                    className={`relative flex items-center justify-center px-2 py-1 rounded-lg border w-[90px] h-[40px] ${
+                    className={`relative flex items-center justify-center px-2 py-1 rounded-lg border w-[90px] ${
                       isMenuOpen
                         ? 'bg-cyan border-cyan text-white'
                         : 'bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-600'
                     } ${!canEdit && !isMenuOpen ? 'opacity-50' : ''} ${!isRenaming ? 'cursor-pointer' : ''}`}
+                    style={{ height: memberChipHeightPx }}
                     onClick={() => {
                       if (!isRenaming) handleChipClick(member.id)
                     }}
@@ -861,6 +885,7 @@ export function MemberHeader({
               )
             })}
           </div>
+          ) : null}
 
           {/* Gear menu — goals + list actions */}
           <div className="flex-shrink-0 flex items-center ml-auto pl-2.5">

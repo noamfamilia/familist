@@ -15,6 +15,10 @@ import {
   measureCategoryLabelChipWidthPx,
   measureCompactManualRowContentWidthPx,
   measureItemNameNaturalWidthPx,
+  itemRowArchiveSlotClassName,
+  itemRowDragHandleClassName,
+  itemRowHorizontalPaddingClassName,
+  itemRowMemberLeadingClassName,
 } from '@/lib/itemTextWidthFit'
 import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
 import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
@@ -590,9 +594,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           className={
             compactRow
               ? compactFixedLayout
-                ? 'box-border flex min-w-full flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
-                : 'box-border flex w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
-              : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+                ? `box-border flex min-w-full flex-nowrap items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
+                : `box-border flex w-max flex-nowrap items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
+              : `box-border flex min-h-0 items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
           }
           style={{
             height: itemRowHeightPx,
@@ -603,7 +607,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         {/* Drag handle - only shown for draggable (active) items */}
         <TourViewportTarget
           target="drag-handle"
-          className={`w-5 flex-shrink-0 text-lg tracking-tighter text-gray-400 select-none touch-none dark:text-gray-500 ${isDraggable ? 'cursor-grab' : ''}`}
+          className={`${itemRowDragHandleClassName} ${isDraggable ? 'cursor-grab' : ''}`}
         >
           <div {...(isDraggable ? dragHandleProps : {})}>
             {isDraggable ? '⋮⋮' : ''}
@@ -619,7 +623,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               e.stopPropagation()
               void handleArchive()
             }}
-            className={`text-xl flex-shrink-0 leading-none text-coral ${archiveInteractionBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
+            className={`${itemRowArchiveSlotClassName} text-coral ${archiveInteractionBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
             title={
               archiveInteractionBlocked
                 ? undefined
@@ -712,7 +716,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         {members.length > 0 ? (
         <TourViewportTarget
           target="item-state"
-          className="ml-2.5 flex flex-shrink-0 items-center gap-2.5"
+          className={itemRowMemberLeadingClassName}
         >
           {members.map(member => {
             if (member.is_target) {

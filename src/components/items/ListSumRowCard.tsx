@@ -7,6 +7,10 @@ import {
   compactRowCardWidthCss,
   measureCompactManualSumRowContentWidthPx,
   measureItemNameNaturalWidthPx,
+  itemRowArchiveSlotClassName,
+  itemRowDragHandleClassName,
+  itemRowHorizontalPaddingClassName,
+  itemRowMemberLeadingClassName,
 } from '@/lib/itemTextWidthFit'
 import {
   ITEM_NAME_FONT_DEFAULT,
@@ -125,27 +129,25 @@ export function ListSumRowCard({
           className={
             compactRow
               ? compactFixedLayout
-                ? 'box-border flex min-w-full flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
-                : 'box-border flex w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
-              : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+                ? `box-border flex min-w-full flex-nowrap items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
+                : `box-border flex w-max flex-nowrap items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
+              : `box-border flex min-h-0 items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
           }
           style={{
             height: itemRowHeightPx,
             ...(compactWidthCss ? { width: compactWidthCss } : undefined),
           }}
         >
-          <div
-            className="w-5 flex-shrink-0 select-none text-lg tracking-tighter text-transparent"
-            aria-hidden
-          >
+          <div className={`${itemRowDragHandleClassName} select-none text-transparent`} aria-hidden>
             ⋮⋮
           </div>
 
-          {members.length > 0 ? (
-            <span className="text-xl flex-shrink-0 leading-none invisible select-none" aria-hidden>
-              ▼
-            </span>
-          ) : null}
+          <span
+            className={`${itemRowArchiveSlotClassName} invisible select-none`}
+            aria-hidden
+          >
+            ▼
+          </span>
 
           <div
             className="relative flex-shrink-0 text-left"
@@ -166,7 +168,7 @@ export function ListSumRowCard({
           </div>
 
           {members.length > 0 ? (
-            <div className="ml-2.5 flex flex-shrink-0 items-center gap-2.5">
+            <div className={itemRowMemberLeadingClassName}>
               {members.map(member => {
                 const value = memberSums.get(member.id) ?? 0
                 return (
