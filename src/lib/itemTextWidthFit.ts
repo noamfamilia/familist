@@ -231,10 +231,10 @@ export function measureCompactRowRowContentWidthPx(
   )
 }
 
-/** Sum row without members: drag spacer + title only. */
+/** Sum row without members: title anchored on archive slot, grows right. */
 export function measureCompactSumRowContentWidthPx(title: string, fontStep: number = ITEM_NAME_FONT_DEFAULT): number {
   const nameWidth = measureItemNameNaturalWidthPx(title, fontStep)
-  return itemNameColumnLeftEdgePx() + nameWidth + ITEM_ROW_TRAILING_PADDING_PX
+  return ITEM_ROW_LEADING_INSET_PX + nameWidth + ITEM_ROW_TRAILING_PADDING_PX
 }
 
 /** Sum row in manual compact layout (fixed name column). */
