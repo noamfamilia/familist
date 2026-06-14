@@ -191,7 +191,14 @@ export function MemberHeader({
 
   const computeDisplayPopoverPos = useCallback((anchorEl: HTMLElement, popoverWidth: number) => {
     const btnRect = anchorEl.getBoundingClientRect()
-    // Align popover left with the item-name column (after drag + archive on item rows).
+    const vw = window.innerWidth
+    const left = Math.min(Math.max(8, btnRect.left), vw - popoverWidth - 8)
+    return { top: btnRect.bottom + 6, left }
+  }, [])
+
+  const computeCategoryPopoverPos = useCallback((anchorEl: HTMLElement, popoverWidth: number) => {
+    const btnRect = anchorEl.getBoundingClientRect()
+    // Categories sit in the item-name column — align popover with that column.
     const itemNameLeftPx = itemNameColumnLeftEdgePx()
     const cardLeft = headerCardRef.current?.getBoundingClientRect().left ?? btnRect.left
     const vw = window.innerWidth
@@ -216,11 +223,11 @@ export function MemberHeader({
       requestAnimationFrame(() => {
         const el = categoryBtnRef.current
         if (!el) return
-        setCategoryModalPos(computeDisplayPopoverPos(el, 230))
+        setCategoryModalPos(computeCategoryPopoverPos(el, 230))
         setShowCategoryModal(true)
       })
     },
-    [computeDisplayPopoverPos, closeCategoryModal, isOfflineActionsDisabled, showCategoryModal],
+    [computeCategoryPopoverPos, closeCategoryModal, isOfflineActionsDisabled, showCategoryModal],
   )
 
   const handleToggleActions = () => {
@@ -750,12 +757,27 @@ export function MemberHeader({
         >
           <div className={itemRowDragArchiveGroupClassName}>
             <div className={itemRowDragHandleClassName} aria-hidden />
-            <span
-              className={`${itemRowArchiveSlotClassName} invisible select-none`}
-              aria-hidden
-            >
-              ▼
-            </span>
+            {onItemNameFontStepChange ? (
+              <TourViewportTarget target="list-font" className="flex-shrink-0">
+                <button
+                  ref={itemNameFontBtnRef}
+                  type="button"
+                  onClick={handleItemNameFontButtonClick}
+                  className={`${itemRowArchiveSlotClassName} flex items-center justify-center p-0 text-teal touch-manipulation hover:opacity-80`}
+                  aria-label="Item display controls"
+                  aria-expanded={itemNameFontOpen}
+                >
+                  <FontSizeIcon className="h-[1em] w-[1em] [&_*]:stroke-[3]" />
+                </button>
+              </TourViewportTarget>
+            ) : (
+              <span
+                className={`${itemRowArchiveSlotClassName} invisible select-none`}
+                aria-hidden
+              >
+                ▼
+              </span>
+            )}
           </div>
           <div
             className="flex shrink-0 items-center gap-3 overflow-visible"
@@ -765,23 +787,6 @@ export function MemberHeader({
                 : { height: memberChipHeightPx }
             }
           >
-            {onItemNameFontStepChange && (
-              <TourViewportTarget
-                target="list-font"
-                className="flex h-10 w-10 shrink-0 items-center justify-center"
-              >
-                <button
-                  ref={itemNameFontBtnRef}
-                  type="button"
-                  onClick={handleItemNameFontButtonClick}
-                  className="flex h-10 w-10 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
-                  aria-label="Item display controls"
-                  aria-expanded={itemNameFontOpen}
-                >
-                  <FontSizeIcon className="h-7 w-7 [&_*]:stroke-[3]" />
-                </button>
-              </TourViewportTarget>
-            )}
             {onRenameCategory && onReorderCategories && onSortItemsByCategory && (
               <TourViewportTarget
                 target="list-category"
