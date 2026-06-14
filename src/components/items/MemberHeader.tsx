@@ -714,6 +714,11 @@ export function MemberHeader({
   const headerRowHeightPx = itemCardRowHeightWithMembersPx(itemNameFontStep)
   const memberChipHeightPx = itemMemberCellHeightPx(itemNameFontStep)
 
+  const headerNameSlotClassName =
+    onRenameCategory && onReorderCategories && onSortItemsByCategory && onItemNameFontStepChange
+      ? 'pl-6'
+      : ''
+
   const showSetSelfGoalsItem = showAddMember
   const showSetGroupGoalsItem = !!(onCreateTargets && !hasTargetMember)
   const showShowItemSum = !!(onEnableSumItems && sumScope === 'none')
@@ -791,7 +796,7 @@ export function MemberHeader({
             )}
           </div>
           <div
-            className="flex shrink-0 items-center gap-3 overflow-visible"
+            className={`flex shrink-0 items-center overflow-visible ${headerNameSlotClassName}`}
             style={
               members.length > 0
                 ? { width: headerItemNameSlotWidthPx, height: memberChipHeightPx }
