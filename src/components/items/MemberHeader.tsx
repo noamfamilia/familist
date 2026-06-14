@@ -26,7 +26,7 @@ import {
   ITEM_NAME_FONT_MIN,
   ITEM_NAME_FONT_DEFAULT,
 } from '@/lib/itemNameFontStep'
-import { ITEM_TEXT_WIDTH_MIN } from '@/lib/itemTextWidthFit'
+import { ITEM_TEXT_WIDTH_MIN, itemNameColumnLeftEdgePx } from '@/lib/itemTextWidthFit'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 
 const CategoryNamesModal = dynamic(
@@ -169,10 +169,8 @@ export function MemberHeader({
 
   const computeDisplayPopoverPos = useCallback((anchorEl: HTMLElement, popoverWidth: number) => {
     const btnRect = anchorEl.getBoundingClientRect()
-    // Align popover left with the item-name column (~card.left + pl-2 + drag-handle w-5 + gap-0.5
-    // = ~30px), so the popover lines up with the first letter of each item name rather than with
-    // the card edge.
-    const itemNameLeftPx = 30
+    // Align popover left with the item-name column (after drag + archive on item rows).
+    const itemNameLeftPx = itemNameColumnLeftEdgePx()
     const cardLeft = headerCardRef.current?.getBoundingClientRect().left ?? btnRect.left
     const vw = window.innerWidth
     const left = Math.min(Math.max(8, cardLeft + itemNameLeftPx), vw - popoverWidth - 8)
@@ -744,6 +742,11 @@ export function MemberHeader({
               </TourViewportTarget>
             )}
           </div>
+          {members.length > 0 ? (
+            <span className="text-xl flex-shrink-0 leading-none invisible select-none" aria-hidden>
+              ▼
+            </span>
+          ) : null}
           
           {/* Members section — dimmed and non-interactive while offline or recovering */}
           <div

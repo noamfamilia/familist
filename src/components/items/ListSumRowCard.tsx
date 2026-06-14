@@ -107,6 +107,12 @@ export function ListSumRowCard({
             ⋮⋮
           </div>
 
+          {members.length > 0 ? (
+            <span className="text-xl flex-shrink-0 leading-none invisible select-none" aria-hidden>
+              ▼
+            </span>
+          ) : null}
+
           <div
             className="relative flex-shrink-0 text-left"
             style={{ width: itemTextWidth }}

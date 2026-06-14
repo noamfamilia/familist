@@ -6,12 +6,11 @@ import {
   closeHomeListOverlay,
   finalizeHomeAfterListClose,
   isGuestInviteDismissed,
-  markGuestInviteDismissed,
 } from '@/lib/navigation/backToHome'
 import { isLikelyListId, LIST_QUERY_PARAM, stripListQueryFromHref } from '@/lib/navigation/listQuery'
 import { useActiveListUiStore } from '@/stores/activeListUiStore'
+import { useAuthModalStore } from '@/stores/authModalStore'
 import { useAuth } from '@/providers/AuthProvider'
-import { GuestShareSignInModal } from '@/components/auth/GuestShareSignInModal'
 import { GoogleOneTapPrompt } from '@/components/auth/GoogleOneTapPrompt'
 import { ProfileAvatar } from '@/components/auth/ProfileAvatar'
 import { ListsView } from '@/components/lists/ListsView'
@@ -36,9 +35,6 @@ import {
   consumeOpenProfileAfterOAuthSignUp,
 } from '@/lib/authOAuthPostRedirect'
 import { useShallow } from 'zustand/react/shallow'
-const AuthModal = dynamic(() => import('@/components/auth/AuthModal').then(mod => mod.AuthModal), {
-  ssr: false,
-})
 const AboutModal = dynamic(() => import('@/components/home/AboutModal').then(mod => mod.AboutModal), {
   ssr: false,
 })
@@ -89,13 +85,13 @@ function HomeContent() {
     updateActorProfile,
     signOut,
   } = useAuth()
-  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'signUp'>('signIn')
+  const openAuthModal = useAuthModalStore(s => s.open)
+  const authModalOpen = useAuthModalStore(s => s.isOpen)
   const {
     offlineAssetsReady,
     online,
     isOffline,
   } = useConnectivity()
-  const [showAuthModal, setShowAuthModal] = useState(false)
   const inviteToken = searchParams.get('invite')
   const { activeListId, setActiveListId } = useActiveListUiStore(
     useShallow((s) => ({ activeListId: s.activeListId, setActiveListId: s.setActiveListId })),
@@ -105,7 +101,6 @@ function HomeContent() {
   const [pendingProfileOpenAfterOAuth, setPendingProfileOpenAfterOAuth] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
-  const [showGuestInviteModal, setShowGuestInviteModal] = useState(false)
   const { success, error: showError, info } = useToast()
   const { resolvedTheme, setTheme } = useTheme()
   const hasMounted = useHasMounted()
@@ -233,23 +228,10 @@ function HomeContent() {
   }, [searchParams, user, router])
 
   useEffect(() => {
-    if (!inviteToken || !isGuest) {
-      setShowGuestInviteModal(false)
-      return
-    }
-    if (isGuestInviteDismissed()) {
-      setShowGuestInviteModal(false)
-      return
-    }
-    if (authPhase === 'resolving' || sessionRestoring) return
-    setShowGuestInviteModal(true)
-  }, [inviteToken, isGuest, authPhase, sessionRestoring])
-
-  useEffect(() => {
     if (!loading && !user && inviteToken && !isGuest) {
-      setShowAuthModal(true)
+      openAuthModal('signIn')
     }
-  }, [loading, user, inviteToken, isGuest])
+  }, [loading, user, inviteToken, isGuest, openAuthModal])
 
   useEffect(() => {
     if (!profileMenuOpen) return
@@ -383,12 +365,6 @@ function HomeContent() {
     router.replace(`${url.pathname}${search ? `?${search}` : ''}${url.hash}`)
   }, [handleSelectLabel, router])
 
-  const dismissGuestInviteModal = useCallback(() => {
-    markGuestInviteDismissed()
-    setShowGuestInviteModal(false)
-    clearInviteState()
-  }, [clearInviteState])
-
   /** Legacy `/?list=<uuid>` opens the modal then strips the param so the shell stays on `/`. */
   useEffect(() => {
     const raw = searchParams.get(LIST_QUERY_PARAM)
@@ -476,8 +452,7 @@ function HomeContent() {
                 onClick={() => {
                   if (guestSignInDisabled) return
                   setProfileMenuOpen(false)
-                  setAuthModalMode('signIn')
-                  setShowAuthModal(true)
+                  openAuthModal('signIn')
                 }}
                 disabled={guestSignInDisabled}
                 className="text-sm text-teal font-medium hover:opacity-80 max-w-[140px] truncate text-left whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
@@ -499,10 +474,7 @@ function HomeContent() {
                     themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'
                   }
                   onCloseMenu={() => setProfileMenuOpen(false)}
-                  onRequestSignIn={() => {
-                    setAuthModalMode('signIn')
-                    setShowAuthModal(true)
-                  }}
+                  onRequestSignIn={() => openAuthModal('signIn')}
                   onToggleTheme={() => {
                     const prev: 'light' | 'dark' =
                       themeMounted && resolvedTheme === 'dark' ? 'dark' : 'light'
@@ -535,7 +507,7 @@ function HomeContent() {
           </div>
         ) : (
           <button
-            onClick={() => setShowAuthModal(true)}
+            onClick={() => openAuthModal('signIn')}
             className="h-8 flex items-center text-sm text-teal font-medium hover:bg-teal-light px-2 py-1 rounded"
             aria-label="Sign in"
           >
@@ -689,7 +661,7 @@ function HomeContent() {
           <ListsView 
             viewMode="all" 
             homeTourSteps={homeTourSteps}
-            showTutorial={!showAuthModal} 
+            showTutorial={!authModalOpen} 
             inviteToken={inviteToken}
             onInviteHandled={clearInviteState}
             selectedLabel={selectedLabel}
@@ -712,26 +684,11 @@ function HomeContent() {
         </div>
       )}
 
-      {/* Auth modal */}
-      {showAuthModal && !user ? (
-        <AuthModal
-          isOpen
-          initialMode={authModalMode}
-          onClose={() => setShowAuthModal(false)}
-        />
-      ) : null}
-
       <ProfileModal
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
-        onRequestSignIn={() => {
-          setAuthModalMode('signIn')
-          setShowAuthModal(true)
-        }}
-        onRequestSignUp={() => {
-          setAuthModalMode('signUp')
-          setShowAuthModal(true)
-        }}
+        onRequestSignIn={() => openAuthModal('signIn')}
+        onRequestSignUp={() => openAuthModal('signUp')}
       />
 
       {activeListId ? (
@@ -751,11 +708,10 @@ function HomeContent() {
       />
 
       <GoogleOneTapPrompt
-        enabled={!showAuthModal && !showGuestInviteModal && authPhase !== 'resolving'}
+        enabled={!authModalOpen && authPhase !== 'resolving'}
         onNewGoogleSignUp={handleGoogleOneTapNewSignUp}
       />
 
-      <GuestShareSignInModal isOpen={showGuestInviteModal} onClose={dismissGuestInviteModal} />
     </div>
   )
 }

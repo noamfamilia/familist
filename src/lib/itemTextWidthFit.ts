@@ -22,6 +22,49 @@ const CATEGORY_LABEL_FONT_PX = 10
 const CATEGORY_LABEL_CHIP_WIDTH_MIN = 24
 const CATEGORY_LABEL_CHIP_WIDTH_MAX = 200
 
+/** Card row `pl-2` + drag `w-5` + flex `gap-0.5` from card outer edge to archive / former name start (px). */
+export const ITEM_ROW_LEADING_INSET_PX = 30
+
+/** Flex `gap-0.5` between archive icon and item name column (px). */
+export const ITEM_ROW_ARCHIVE_NAME_GAP_PX = 2
+
+/** Width of the ▼/▲ archive control (`text-xl`) on item rows. */
+export function measureItemRowArchiveSlotWidthPx(): number {
+  if (typeof window === 'undefined') return 12
+
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return 12
+
+  return Math.ceil(ctx.measureText('▼').width)
+}
+
+/** Card outer edge → left edge of item name column (px). */
+export function itemNameColumnLeftEdgePx(): number {
+  return ITEM_ROW_LEADING_INSET_PX + measureItemRowArchiveSlotWidthPx() + ITEM_ROW_ARCHIVE_NAME_GAP_PX
+}
+
+/** Card outer edge → right edge of item name column (px). */
+export function itemNameColumnRightEdgePx(itemTextWidth: number): number {
+  return itemNameColumnLeftEdgePx() + itemTextWidth
+}
+
+/** Matches `ml-2.5` before member / item-state columns on item rows (px). */
+export const ITEM_ROW_MEMBER_LEADING_GAP_PX = 10
+
+/** Width guide sits this many px left of the first member column (px). */
+export const ITEM_WIDTH_BOUNDARY_GUIDE_BEFORE_MEMBER_PX = 0
+
+/** Card outer edge → left edge of the first member column (px). */
+export function itemRowFirstMemberLeftEdgePx(itemTextWidth: number): number {
+  return itemNameColumnRightEdgePx(itemTextWidth) + ITEM_ROW_MEMBER_LEADING_GAP_PX
+}
+
+/** Left position (px) for the teal width-boundary guide. */
+export function itemNameWidthBoundaryGuideLeftPx(itemTextWidth: number): number {
+  return itemRowFirstMemberLeftEdgePx(itemTextWidth) - ITEM_WIDTH_BOUNDARY_GUIDE_BEFORE_MEMBER_PX
+}
+
 /**
  * Width (px) for the item name column so the longest label fits (canvas measureText).
  * {@link fontStep} should match the item name font step (0–6); defaults to {@link ITEM_NAME_FONT_DEFAULT}.
@@ -49,8 +92,8 @@ export function measureFitItemTextWidthPx(texts: string[], fontStep: number = IT
 }
 
 /**
- * Width for the small category label chip (`text-[10px]`) next to the kebab, when laid out per-item
- * (no member columns). Clamped so a single long name cannot dominate the row.
+ * Width for the small category label chip (`text-[10px]`) at the trailing edge of the item row,
+ * when laid out per-item (no member columns). Clamped so a single long name cannot dominate the row.
  */
 export function measureCategoryLabelChipWidthPx(text: string): number {
   if (typeof window === 'undefined') return CATEGORY_LABEL_CHIP_WIDTH_MIN

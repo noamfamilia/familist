@@ -557,7 +557,29 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           {isDraggable ? '⋮⋮' : ''}
         </div>
 
-        {/* Item name - click to toggle archive (collapsed) or rename (expanded) */}
+        {/* Archive/Restore — same icons as list cards; header gap after category icon aligns member columns */}
+        <button
+          type="button"
+          disabled={archiveInteractionBlocked}
+          onClick={(e) => {
+            e.stopPropagation()
+            void handleArchive()
+          }}
+          className={`text-xl flex-shrink-0 leading-none text-coral ${archiveInteractionBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
+          title={
+            archiveInteractionBlocked
+              ? undefined
+              : item.archived
+                ? `Restore: ${item.text}`
+                : `Archive: ${item.text}`
+          }
+          aria-label={item.archived ? 'Restore item' : 'Archive item'}
+          data-tour="item-archive"
+        >
+          {item.archived ? '▲' : '▼'}
+        </button>
+
+        {/* Item name — click to expand (collapsed) or rename (expanded) */}
         <div
           className="relative flex-shrink-0 text-left"
           style={{ width: itemTextWidth }}
@@ -572,7 +594,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                 setIsEditing(true)
               }}
               className={`flex items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
-              data-tour="item-archive"
             >
               <span className="truncate">{item.text}</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
@@ -581,14 +602,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </span>
           ) : (
             <span
-              onClick={archiveInteractionBlocked ? undefined : handleArchive}
-              className={`block truncate ${itemNameFontClassName} ${itemNameColorClass} ${archiveInteractionBlocked ? 'cursor-default' : 'cursor-pointer hover:text-teal'} ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
-              title={
-                archiveInteractionBlocked
-                  ? undefined
-                  : `Click to ${item.archived ? 'restore' : 'archive'}: ${item.text}`
-              }
-              data-tour="item-archive"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowMenu(true)
+              }}
+              className={`block truncate ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              title={`Expand: ${item.text}`}
             >
               {item.text}
             </span>
