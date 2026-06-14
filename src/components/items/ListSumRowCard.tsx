@@ -60,7 +60,6 @@ interface ListSumRowCardProps {
   itemTextWidth: number
   itemTextWidthMode?: 'auto' | 'manual'
   compactRowPageMinWidthPx?: number
-  compactRowCardWidthOverridePx?: number
   itemNameFontClassName: string
   itemNameFontStep?: number
   onCycleScope: () => void
@@ -74,7 +73,6 @@ export function ListSumRowCard({
   itemTextWidth,
   itemTextWidthMode = 'auto',
   compactRowPageMinWidthPx = 0,
-  compactRowCardWidthOverridePx,
   itemNameFontClassName,
   itemNameFontStep = ITEM_NAME_FONT_DEFAULT,
   onCycleScope,
@@ -90,8 +88,7 @@ export function ListSumRowCard({
   )
   const nameColumnWidthPx = compactAutoLayout ? titleWidthPx : itemTextWidth
   const compactRowContentWidthPx =
-    compactRowCardWidthOverridePx ??
-    (compactAutoLayout ? itemTextWidth : measureCompactManualSumRowContentWidthPx(itemTextWidth))
+    compactAutoLayout ? itemTextWidth : measureCompactManualSumRowContentWidthPx(itemTextWidth)
   const compactFixedLayout = compactRow
   const compactWidthCss = compactFixedLayout
     ? compactRowCardWidthCss(compactRowContentWidthPx, compactRowPageMinWidthPx)

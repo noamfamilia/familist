@@ -56,7 +56,6 @@ import {
   itemNameWidthBoundaryGuideLeftPx,
   measureCompactManualRowContentWidthPx,
   measureCompactManualSumRowContentWidthPx,
-  measureCompactRowExpandWidthDeltaPx,
   measureListPageContentWidthPx,
 } from '@/lib/itemTextWidthFit'
 import { ShareCardIcon } from '@/components/ui/ShareIcons'
@@ -564,39 +563,20 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const noMemberColumns = filteredMembers.length === 0
   const listPageRef = useRef<HTMLDivElement>(null)
   const [compactRowPageMinWidthPx, setCompactRowPageMinWidthPx] = useState(0)
-  const [expandedCompactItemIds, setExpandedCompactItemIds] = useState<Set<string>>(() => new Set())
-
-  useEffect(() => {
-    setExpandedCompactItemIds(new Set())
-  }, [listId])
-
-  const handleCompactRowExpandedChange = useCallback((itemId: string, expanded: boolean) => {
-    setExpandedCompactItemIds(prev => {
-      const next = new Set(prev)
-      if (expanded) next.add(itemId)
-      else next.delete(itemId)
-      return next
-    })
-  }, [])
 
   const compactRowManualListContentWidthPx = useMemo(() => {
     if (!noMemberColumns || itemTextWidthMode !== 'manual') return undefined
 
-    let maxW = measureCompactManualRowContentWidthPx(
-      itemTextWidth,
-      { categoryTitle: '', hasComment: false },
-      false,
-    )
+    let maxW = measureCompactManualRowContentWidthPx(itemTextWidth, {
+      categoryTitle: '',
+      hasComment: false,
+    })
     for (const item of items) {
       const categoryTitle = categoryNames[String(item.category ?? 1)]?.trim() ?? ''
       const hasComment = Boolean(item.comment?.trim())
       maxW = Math.max(
         maxW,
-        measureCompactManualRowContentWidthPx(
-          itemTextWidth,
-          { categoryTitle, hasComment },
-          false,
-        ),
+        measureCompactManualRowContentWidthPx(itemTextWidth, { categoryTitle, hasComment }),
       )
     }
     if (sumScope !== 'none') {
@@ -604,46 +584,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     }
     return maxW
   }, [noMemberColumns, itemTextWidthMode, itemTextWidth, items, categoryNames, sumScope])
-
-  const compactRowCardWidthOverridePx = useMemo(() => {
-    if (!noMemberColumns || expandedCompactItemIds.size === 0) return undefined
-
-    let maxWidth = itemTextWidthMode === 'auto' ? itemTextWidth : 0
-
-    for (const id of expandedCompactItemIds) {
-      const item = items.find(i => i.id === id)
-      if (!item) continue
-      const categoryTitle = categoryNames[String(item.category ?? 1)]?.trim() ?? ''
-      const hasComment = Boolean(item.comment?.trim())
-      const rowInput = { categoryTitle, hasComment }
-
-      if (itemTextWidthMode === 'auto') {
-        maxWidth = Math.max(
-          maxWidth,
-          itemTextWidth + measureCompactRowExpandWidthDeltaPx(rowInput),
-        )
-      } else {
-        maxWidth = Math.max(
-          maxWidth,
-          measureCompactManualRowContentWidthPx(itemTextWidth, rowInput, true),
-        )
-      }
-    }
-
-    if (itemTextWidthMode === 'auto') {
-      return maxWidth > itemTextWidth ? maxWidth : undefined
-    }
-    const baseManual = compactRowManualListContentWidthPx ?? 0
-    return maxWidth > baseManual ? maxWidth : undefined
-  }, [
-    noMemberColumns,
-    expandedCompactItemIds,
-    items,
-    categoryNames,
-    itemTextWidth,
-    itemTextWidthMode,
-    compactRowManualListContentWidthPx,
-  ])
 
   const compactRowListFixedLayout = noMemberColumns
 
@@ -1161,7 +1101,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               itemTextWidthMode={itemTextWidthMode}
               itemTextWidthMin={itemTextWidthMin}
               compactRowPageMinWidthPx={compactRowPageMinWidthPx}
-              compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
               compactRowManualListContentWidthPx={compactRowManualListContentWidthPx}
               onWidthChange={handleWidthChange}
               onWidthModeToggle={handleWidthModeToggle}
@@ -1216,7 +1155,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                 itemTextWidth={itemTextWidth}
                 itemTextWidthMode={itemTextWidthMode}
                 compactRowPageMinWidthPx={compactRowPageMinWidthPx}
-                compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
                 itemNameFontClassName={itemNameFontClassName}
                 itemNameFontStep={itemNameFontStep}
                 onCycleScope={() => void persistSumScope(nextListUserSumScope(sumScope))}
@@ -1247,8 +1185,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       itemTextWidth={itemTextWidth}
                       itemTextWidthMode={itemTextWidthMode}
                       compactRowPageMinWidthPx={compactRowPageMinWidthPx}
-                      compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
-                      onCompactRowExpandedChange={handleCompactRowExpandedChange}
                       expandSignal={expandSignal}
                       collapseSignal={collapseSignal}
                       categoryNames={categoryNames}
@@ -1286,8 +1222,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                         itemTextWidth={itemTextWidth}
                         itemTextWidthMode={itemTextWidthMode}
                         compactRowPageMinWidthPx={compactRowPageMinWidthPx}
-                        compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
-                        onCompactRowExpandedChange={handleCompactRowExpandedChange}
                         expandSignal={expandSignal}
                         collapseSignal={collapseSignal}
                         categoryNames={categoryNames}
@@ -1350,8 +1284,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                     itemTextWidth={itemTextWidth}
                     itemTextWidthMode={itemTextWidthMode}
                     compactRowPageMinWidthPx={compactRowPageMinWidthPx}
-                    compactRowCardWidthOverridePx={compactRowCardWidthOverridePx}
-                    onCompactRowExpandedChange={handleCompactRowExpandedChange}
                     expandSignal={expandSignal}
                     collapseSignal={collapseSignal}
                     categoryNames={categoryNames}

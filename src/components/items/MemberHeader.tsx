@@ -80,8 +80,6 @@ interface MemberHeaderProps {
   itemTextWidthMin?: number
   /** List page inner width floor for compact auto layout (px). */
   compactRowPageMinWidthPx?: number
-  /** Wider compact list width when a row is expanded (px). */
-  compactRowCardWidthOverridePx?: number
   /** Widest manual compact row content width (px), for header sync. */
   compactRowManualListContentWidthPx?: number
   onWidthChange?: (delta: number) => void
@@ -133,7 +131,6 @@ export function MemberHeader({
   itemTextWidthMode = 'auto',
   itemTextWidthMin = ITEM_TEXT_WIDTH_MANUAL_MIN,
   compactRowPageMinWidthPx = 0,
-  compactRowCardWidthOverridePx,
   compactRowManualListContentWidthPx,
   onWidthChange,
   onWidthModeToggle,
@@ -698,10 +695,9 @@ export function MemberHeader({
   const headerItemNameSlotWidthPx = members.length > 0 ? itemTextWidth : ITEM_TEXT_WIDTH_MIN
   const compactHeaderFixedLayout = members.length === 0
   const compactLayoutWidthPx =
-    compactRowCardWidthOverridePx ??
-    (itemTextWidthMode === 'auto'
+    itemTextWidthMode === 'auto'
       ? itemTextWidth
-      : compactRowManualListContentWidthPx ?? itemTextWidth)
+      : compactRowManualListContentWidthPx ?? itemTextWidth
   const compactHeaderWidthCss = compactHeaderFixedLayout
     ? compactRowCardWidthCss(compactLayoutWidthPx, compactRowPageMinWidthPx)
     : undefined

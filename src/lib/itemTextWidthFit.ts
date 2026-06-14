@@ -137,9 +137,6 @@ export const ITEM_ROW_COMMENT_ICON_WIDTH_PX = 16
 /** Collapsed-row kebab control (px). */
 export const ITEM_ROW_KEBAB_WIDTH_PX = 28
 
-/** Delete control shown when a row is expanded (px). */
-export const ITEM_ROW_DELETE_WIDTH_PX = 34
-
 export type CompactRowItemMeasureInput = {
   name: string
   categoryTitle: string
@@ -194,43 +191,12 @@ export function measureCompactRowTrailingWidthPx(input: {
   return w
 }
 
-/** Trailing cluster when a compact row is expanded (delete + close; comment hidden). */
-export function measureCompactRowExpandedTrailingWidthPx(input: {
-  categoryTitle: string
-}): number {
-  let w = ITEM_ROW_TRAILING_CLUSTER_LEADING_PX
-  w += ITEM_ROW_DELETE_WIDTH_PX
-
-  const categoryTitle = input.categoryTitle.trim()
-  if (categoryTitle) {
-    w += ITEM_ROW_TRAILING_INNER_GAP_PX
-    w += measureCategoryLabelChipWidthPx(categoryTitle)
-  }
-
-  w += ITEM_ROW_TRAILING_INNER_GAP_PX
-  w += ITEM_ROW_KEBAB_WIDTH_PX
-  return w
-}
-
-/** Extra card width (px) when a compact row expands its trailing controls. */
-export function measureCompactRowExpandWidthDeltaPx(input: {
-  categoryTitle: string
-  hasComment: boolean
-}): number {
-  const collapsed = measureCompactRowTrailingWidthPx(input)
-  const expanded = measureCompactRowExpandedTrailingWidthPx(input)
-  return Math.max(0, expanded - collapsed)
-}
-
-/** Full compact row width in manual mode (fixed name column). */
+/** Full compact row width in manual mode (fixed name column, collapsed trailing). */
 export function measureCompactManualRowContentWidthPx(
   nameColumnWidthPx: number,
   input: { categoryTitle: string; hasComment: boolean },
-  expanded: boolean,
 ): number {
-  const trailing = expanded
-    ? measureCompactRowExpandedTrailingWidthPx(input)
-    : measureCompactRowTrailingWidthPx(input)
+  const trailing = measureCompactRowTrailingWidthPx(input)
   return (
     itemNameColumnLeftEdgePx() +
     nameColumnWidthPx +
