@@ -994,11 +994,11 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         </p>
       )}
 
-      {/* With members: scroll horizontally if table exceeds viewport (outer is w-fit max-w-full). Without members: width follows widest item row. */}
+      {/* With members: scroll horizontally if table exceeds viewport. Without members: rows fill the viewport width. */}
       <div className={noMemberColumns ? 'w-full min-w-0' : 'max-w-full overflow-x-auto'}>
         <div
           className={
-            noMemberColumns ? 'relative inline-block w-max min-w-full' : 'relative inline-block min-w-full'
+            noMemberColumns ? 'relative w-full min-w-0' : 'relative inline-block min-w-full'
           }
         >
           {showWidthBoundaryGuide ? (
@@ -1011,7 +1011,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           {/* Members header with hide done toggles — hidden while add-field filters the list */}
           {!searchText ? (
           <div
-            className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block min-w-full w-max' : ''}`}
+            className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${noMemberColumns ? ' block w-full min-w-0' : ''}`}
           >
             <MemberHeader
               members={filteredMembers}
@@ -1064,8 +1064,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           </div>
           ) : null}
 
-          {/* Active items — min-w-full w-max children so widest row sets column width */}
-          <div className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}>
+          {/* Active items — with members, widest row sets column width; without, rows fill viewport */}
+          <div className={noMemberColumns ? 'flex w-full min-w-0 flex-col gap-2' : 'space-y-2'}>
             {!searchText && sumScope !== 'none' && (
               <ListSumRowCard
                 sumScope={sumScope}
@@ -1115,7 +1115,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                 </SortableContext>
                 <DragOverlay dropAnimation={null}>
                   {activeDragItem ? (
-                    <div className={noMemberColumns ? 'block min-w-full w-max' : undefined}>
+                    <div className={noMemberColumns ? 'block w-full min-w-0' : undefined}>
                       <ItemCard
                         item={activeDragItem}
                         members={filteredMembers}
@@ -1161,7 +1161,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
               {/* Archived items list (no drag) */}
               <div
-                className={noMemberColumns ? 'flex w-max min-w-full flex-col gap-2' : 'space-y-2'}
+                className={noMemberColumns ? 'flex w-full min-w-0 flex-col gap-2' : 'space-y-2'}
                 style={
                   searchText && activeItems.length > 0
                     ? { marginTop: filterArchivedGapPx }
