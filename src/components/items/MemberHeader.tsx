@@ -35,6 +35,7 @@ import {
   itemNameColumnLeftEdgePx,
   itemRowArchiveSlotClassName,
   itemRowDragHandleClassName,
+  itemRowFlexGapClassName,
   itemRowHorizontalPaddingClassName,
   itemRowMemberLeadingClassName,
 } from '@/lib/itemTextWidthFit'
@@ -743,7 +744,7 @@ export function MemberHeader({
       >
         {/* Header row — drag → archive → name slot → members (matches item rows) */}
         <div
-          className={`relative flex items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`}
+          className={`relative flex items-center whitespace-nowrap ${itemRowFlexGapClassName} ${itemRowHorizontalPaddingClassName}`}
           style={{ height: headerRowHeightPx }}
         >
           <div className={itemRowDragHandleClassName} aria-hidden />

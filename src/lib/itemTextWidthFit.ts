@@ -24,11 +24,11 @@ const CATEGORY_LABEL_FONT_PX = 10
 const CATEGORY_LABEL_CHIP_WIDTH_MIN = 24
 const CATEGORY_LABEL_CHIP_WIDTH_MAX = 200
 
-/** Card row `pl-2` + drag `w-5` + flex `gap-0.5` from card outer edge to archive / former name start (px). */
-export const ITEM_ROW_LEADING_INSET_PX = 30
+/** Card row `pl-2` + drag `w-5` + flex gap from card outer edge to archive (px). */
+export const ITEM_ROW_LEADING_INSET_PX = 36
 
-/** Flex `gap-0.5` between archive icon and item name column (px). */
-export const ITEM_ROW_ARCHIVE_NAME_GAP_PX = 2
+/** Flex gap between archive icon and item name column (px); matches `gap-2`. */
+export const ITEM_ROW_ARCHIVE_NAME_GAP_PX = 8
 
 /** Width of the ▼/▲ archive control (`text-xl`) on item rows. */
 export function measureItemRowArchiveSlotWidthPx(): number {
@@ -56,6 +56,7 @@ export const ITEM_ROW_MEMBER_LEADING_GAP_PX = 10
 
 /** Shared layout classes — keep header, item, and sum rows aligned. */
 export const itemRowHorizontalPaddingClassName = 'pl-2 pr-1 py-1'
+export const itemRowFlexGapClassName = 'gap-2'
 export const itemRowDragHandleClassName =
   'flex w-5 flex-shrink-0 items-center justify-center text-lg tracking-tighter text-gray-400 select-none touch-none dark:text-gray-500'
 export const itemRowArchiveSlotClassName = 'text-xl flex-shrink-0 leading-none'
@@ -66,7 +67,7 @@ export const ITEM_WIDTH_BOUNDARY_GUIDE_BEFORE_MEMBER_PX = 0
 
 /** Card outer edge → left edge of the first member column (px). */
 export function itemRowFirstMemberLeftEdgePx(itemTextWidth: number): number {
-  return itemNameColumnRightEdgePx(itemTextWidth) + ITEM_ROW_MEMBER_LEADING_GAP_PX
+  return itemNameColumnRightEdgePx(itemTextWidth) + ITEM_ROW_FLEX_GAP_PX + ITEM_ROW_MEMBER_LEADING_GAP_PX
 }
 
 /** Left position (px) for the teal width-boundary guide. */
@@ -122,8 +123,8 @@ export function measureCategoryLabelChipWidthPx(text: string): number {
 /** Row `pr-2` (px). */
 export const ITEM_ROW_TRAILING_PADDING_PX = 8
 
-/** Flex `gap-0.5` between row siblings (px). */
-export const ITEM_ROW_FLEX_GAP_PX = 2
+/** Flex gap between row siblings (px); matches `gap-2`. */
+export const ITEM_ROW_FLEX_GAP_PX = 8
 
 /** Trailing cluster `pl-2` before category / comment / kebab (px). */
 export const ITEM_ROW_TRAILING_CLUSTER_LEADING_PX = 8

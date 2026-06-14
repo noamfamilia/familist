@@ -17,6 +17,7 @@ import {
   measureItemNameNaturalWidthPx,
   itemRowArchiveSlotClassName,
   itemRowDragHandleClassName,
+  itemRowFlexGapClassName,
   itemRowHorizontalPaddingClassName,
   itemRowMemberLeadingClassName,
 } from '@/lib/itemTextWidthFit'
@@ -577,9 +578,9 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           className={
             compactRow
               ? compactFixedLayout
-                ? `box-border flex min-w-full flex-nowrap items-center gap-0.5 overflow-hidden whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
-                : `box-border flex w-max flex-nowrap items-center gap-0.5 overflow-hidden whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
-              : `box-border flex min-h-0 items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}${showMenu ? ' overflow-hidden' : ''}`
+                ? `box-border flex min-w-full flex-nowrap items-center overflow-hidden whitespace-nowrap ${itemRowFlexGapClassName} ${itemRowHorizontalPaddingClassName}`
+                : `box-border flex w-max flex-nowrap items-center overflow-hidden whitespace-nowrap ${itemRowFlexGapClassName} ${itemRowHorizontalPaddingClassName}`
+              : `box-border flex min-h-0 items-center whitespace-nowrap ${itemRowFlexGapClassName} ${itemRowHorizontalPaddingClassName}${showMenu ? ' overflow-hidden' : ''}`
           }
           style={{
             height: itemRowHeightPx,

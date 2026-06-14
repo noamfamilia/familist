@@ -9,6 +9,7 @@ import {
   measureItemNameNaturalWidthPx,
   itemRowArchiveSlotClassName,
   itemRowDragHandleClassName,
+  itemRowFlexGapClassName,
   itemRowHorizontalPaddingClassName,
   itemRowMemberLeadingClassName,
 } from '@/lib/itemTextWidthFit'
@@ -126,9 +127,9 @@ export function ListSumRowCard({
           className={
             compactRow
               ? compactFixedLayout
-                ? `box-border flex min-w-full flex-nowrap items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
-                : `box-border flex w-max flex-nowrap items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
-              : `box-border flex min-h-0 items-center gap-0.5 whitespace-nowrap ${itemRowHorizontalPaddingClassName}`
+                ? `box-border flex min-w-full flex-nowrap items-center whitespace-nowrap ${itemRowFlexGapClassName} ${itemRowHorizontalPaddingClassName}`
+                : `box-border flex w-max flex-nowrap items-center whitespace-nowrap ${itemRowFlexGapClassName} ${itemRowHorizontalPaddingClassName}`
+              : `box-border flex min-h-0 items-center whitespace-nowrap ${itemRowFlexGapClassName} ${itemRowHorizontalPaddingClassName}`
           }
           style={{
             height: itemRowHeightPx,
