@@ -758,18 +758,29 @@ export function MemberHeader({
           <div className={itemRowDragArchiveGroupClassName}>
             <div className={itemRowDragHandleClassName} aria-hidden />
             {onItemNameFontStepChange ? (
-              <TourViewportTarget target="list-font" className="flex-shrink-0">
-                <button
-                  ref={itemNameFontBtnRef}
-                  type="button"
-                  onClick={handleItemNameFontButtonClick}
-                  className={`${itemRowArchiveSlotClassName} flex items-center justify-center p-0 text-teal touch-manipulation hover:opacity-80`}
-                  aria-label="Item display controls"
-                  aria-expanded={itemNameFontOpen}
+              <div className="relative shrink-0">
+                <span
+                  className={`${itemRowArchiveSlotClassName} invisible select-none`}
+                  aria-hidden
                 >
-                  <FontSizeIcon className="h-[1em] w-[1em] [&_*]:stroke-[3]" />
-                </button>
-              </TourViewportTarget>
+                  ▼
+                </span>
+                <TourViewportTarget
+                  target="list-font"
+                  className="absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+                >
+                  <button
+                    ref={itemNameFontBtnRef}
+                    type="button"
+                    onClick={handleItemNameFontButtonClick}
+                    className="flex h-10 w-10 items-center justify-center rounded p-0 text-teal touch-manipulation hover:opacity-80"
+                    aria-label="Item display controls"
+                    aria-expanded={itemNameFontOpen}
+                  >
+                    <FontSizeIcon className="h-7 w-7 [&_*]:stroke-[3]" />
+                  </button>
+                </TourViewportTarget>
+              </div>
             ) : (
               <span
                 className={`${itemRowArchiveSlotClassName} invisible select-none`}
