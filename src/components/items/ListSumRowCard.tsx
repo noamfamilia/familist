@@ -88,14 +88,14 @@ export function ListSumRowCard({
 
   return (
     <div
-      className={compactRow ? 'block w-full min-w-0' : 'min-w-full'}
+      className={compactRow ? 'block min-w-full w-max' : 'min-w-full'}
       onClick={onClearAddItemDraft}
     >
-      <div className={`block rounded-lg ${DEFAULT_ITEM.shell} ${compactRow ? 'w-full min-w-0' : 'min-w-full w-max'}`}>
+      <div className={`block min-w-full w-max rounded-lg ${DEFAULT_ITEM.shell}`}>
         <div
           className={
             compactRow
-              ? 'box-border flex w-full min-w-0 flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              ? 'box-border flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
               : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
           style={{ height: itemRowHeightPx }}
@@ -114,8 +114,8 @@ export function ListSumRowCard({
           ) : null}
 
           <div
-            className={`relative text-left ${compactRow ? 'min-w-0 flex-1' : 'flex-shrink-0'}`}
-            style={compactRow ? undefined : { width: itemTextWidth }}
+            className="relative flex-shrink-0 text-left"
+            style={{ width: itemTextWidth }}
             dir="ltr"
           >
             <button

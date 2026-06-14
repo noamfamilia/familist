@@ -532,18 +532,18 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   return (
     <div
-      className={compactRow ? 'block w-full min-w-0' : 'min-w-full'}
+      className={compactRow ? 'block min-w-full w-max' : 'min-w-full'}
       onClick={onClearAddItemDraft}
     >
-      {/* Main card content — with members, w-max grows with wide rows; without, w-full fits the viewport */}
+      {/* Main card content — min-w-full w-max matches list column: at least shell width, grows with wide rows */}
       <div
-        className={`block rounded-lg ${shellClass} ${item.archived ? 'opacity-60' : ''} ${compactRow ? 'w-full min-w-0' : 'min-w-full w-max'}`}
+        className={`block min-w-full w-max rounded-lg ${shellClass} ${item.archived ? 'opacity-60' : ''}`}
       >
         {/* Card row */}
         <div
           className={
             compactRow
-              ? 'box-border flex w-full min-w-0 flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
+              ? 'box-border flex min-w-full w-max flex-nowrap items-center gap-0.5 px-2 py-1 whitespace-nowrap'
               : 'box-border flex min-h-0 items-center gap-0.5 px-2 py-1 whitespace-nowrap'
           }
           style={{ height: itemRowHeightPx }}
@@ -583,14 +583,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         </TourViewportTarget>
 
         {/* Item name — click to expand (collapsed) or rename (expanded) */}
-        <TourViewportTarget
-          target="item-name"
-          className={compactRow ? 'relative min-w-0 flex-1 text-left' : 'relative flex-shrink-0 text-left'}
-        >
+        <TourViewportTarget target="item-name" className="relative flex-shrink-0 text-left">
         <div
-          style={compactRow ? undefined : { width: itemTextWidth }}
+          style={{ width: itemTextWidth }}
           dir="ltr"
-          className={compactRow ? 'min-w-0' : undefined}
         >
           {showMenu ? (
             <span
