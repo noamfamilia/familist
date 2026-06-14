@@ -11,6 +11,7 @@ import { ITEM_CATEGORIES, normalizeItemCategory } from '@/lib/supabase/types'
 import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import { ITEM_TEXT_WIDTH_MIN, measureCategoryLabelChipWidthPx } from '@/lib/itemTextWidthFit'
 import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
+import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import {
   ITEM_NAME_FONT_DEFAULT,
   itemCardRowHeightWithMembersPx,
@@ -549,42 +550,43 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           data-tour="item-row"
         >
         {/* Drag handle - only shown for draggable (active) items */}
-        <div 
-          className={`w-5 text-gray-400 dark:text-gray-500 select-none text-lg tracking-tighter touch-none flex-shrink-0 ${isDraggable ? 'cursor-grab' : ''}`}
-          {...(isDraggable ? dragHandleProps : {})}
-          data-tour="drag-handle"
+        <TourViewportTarget
+          target="drag-handle"
+          className={`w-5 flex-shrink-0 text-lg tracking-tighter text-gray-400 select-none touch-none dark:text-gray-500 ${isDraggable ? 'cursor-grab' : ''}`}
         >
-          {isDraggable ? '⋮⋮' : ''}
-        </div>
+          <div {...(isDraggable ? dragHandleProps : {})}>
+            {isDraggable ? '⋮⋮' : ''}
+          </div>
+        </TourViewportTarget>
 
         {/* Archive/Restore — same icons as list cards; header gap after category icon aligns member columns */}
-        <button
-          type="button"
-          disabled={archiveInteractionBlocked}
-          onClick={(e) => {
-            e.stopPropagation()
-            void handleArchive()
-          }}
-          className={`text-xl flex-shrink-0 leading-none text-coral ${archiveInteractionBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
-          title={
-            archiveInteractionBlocked
-              ? undefined
-              : item.archived
-                ? `Restore: ${item.text}`
-                : `Archive: ${item.text}`
-          }
-          aria-label={item.archived ? 'Restore item' : 'Archive item'}
-          data-tour="item-archive"
-        >
-          {item.archived ? '▲' : '▼'}
-        </button>
+        <TourViewportTarget target="item-archive" className="flex-shrink-0">
+          <button
+            type="button"
+            disabled={archiveInteractionBlocked}
+            onClick={(e) => {
+              e.stopPropagation()
+              void handleArchive()
+            }}
+            className={`text-xl flex-shrink-0 leading-none text-coral ${archiveInteractionBlocked ? 'cursor-not-allowed opacity-40' : 'hover:opacity-70'}`}
+            title={
+              archiveInteractionBlocked
+                ? undefined
+                : item.archived
+                  ? `Restore: ${item.text}`
+                  : `Archive: ${item.text}`
+            }
+            aria-label={item.archived ? 'Restore item' : 'Archive item'}
+          >
+            {item.archived ? '▲' : '▼'}
+          </button>
+        </TourViewportTarget>
 
         {/* Item name — click to expand (collapsed) or rename (expanded) */}
+        <TourViewportTarget target="item-name" className="relative flex-shrink-0 text-left">
         <div
-          className="relative flex-shrink-0 text-left"
           style={{ width: itemTextWidth }}
           dir="ltr"
-          data-tour="item-name"
         >
           {showMenu ? (
             <span
@@ -653,12 +655,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </div>
           )}
         </div>
+        </TourViewportTarget>
 
         {/* Per-member controls - aligned under header */}
         {members.length > 0 ? (
-        <div 
-          className="flex items-center ml-2.5 flex-shrink-0 gap-2.5"
-          data-tour="item-state"
+        <TourViewportTarget
+          target="item-state"
+          className="ml-2.5 flex flex-shrink-0 items-center gap-2.5"
         >
           {members.map(member => {
             if (member.is_target) {
@@ -850,7 +853,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               </div>
             )
           })}
-        </div>
+        </TourViewportTarget>
         ) : null}
 
         {/* Trailing section — ml-auto pins icons to the right when the row is full width */}
@@ -908,14 +911,15 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           ) : null}
 
           {/* Kebab menu button */}
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-1 text-lg leading-none flex-shrink-0"
-            title="More options"
-            data-tour="item-menu"
-          >
-            {showMenu ? '✕' : '⋮'}
-          </button>
+          <TourViewportTarget target="item-menu" className="flex-shrink-0">
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="px-2 py-1 text-lg leading-none text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 flex-shrink-0"
+              title="More options"
+            >
+              {showMenu ? '✕' : '⋮'}
+            </button>
+          </TourViewportTarget>
         </div>
         </div>
 

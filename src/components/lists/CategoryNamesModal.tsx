@@ -71,7 +71,11 @@ function SortableCategoryCard({
           }}
           className="min-w-0 flex-1 touch-manipulation text-left"
         >
-          <span className="block truncate">{label || '\u00A0'}</span>
+          {label.trim() ? (
+            <span className="block truncate">{label}</span>
+          ) : (
+            <span className="block truncate text-gray-400 dark:text-gray-500">Category name...</span>
+          )}
         </button>
         <div
           className="ml-2 flex-shrink-0 cursor-grab select-none text-lg leading-none tracking-tighter opacity-50 hover:opacity-80 touch-none"

@@ -127,7 +127,7 @@ const GOALS_OPTIONS: { value: 'hide' | 'mine' | 'all'; label: string }[] = [
   { value: 'all', label: 'Show all Tasks' },
 ]
 
-// List tour steps — targets use fixed-size wrappers in MemberHeader for accurate spotlights
+// List tour steps — header targets use fixed-size wrappers in MemberHeader; item steps appear when rows exist.
 const listTourSteps: Step[] = [
   {
     target: '[data-tour="share-settings"]',
@@ -149,6 +149,32 @@ const listTourSteps: Step[] = [
     target: '[data-tour="list-gear"]',
     content: 'Add goals per user and more options',
     spotlightPadding: 4,
+  },
+  {
+    target: '[data-tour="add-item"]',
+    content: 'Add items to your list',
+  },
+  {
+    target: '[data-tour="item-archive"]',
+    content: 'Use ▼/▲ to archive/restore an item.',
+    spotlightPadding: 2,
+  },
+  {
+    target: '[data-tour="item-name"]',
+    content: 'Click the item name to expand it.',
+  },
+  {
+    target: '[data-tour="item-menu"]',
+    content: 'Or use the ⋮ menu for the same options.',
+  },
+  {
+    target: '[data-tour="drag-handle"]',
+    content: 'Drag to re-arrange items.',
+    spotlightPadding: 2,
+  },
+  {
+    target: '[data-tour="item-state"]',
+    content: 'Edit quantity and status.',
   },
 ]
 
@@ -868,7 +894,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             </div>
           </div>
           )}
-        <form ref={addItemFormRef} onSubmit={handleAddItemFormSubmit} className="flex w-full min-w-0 items-start gap-2 sm:gap-3" data-tour="add-item">
+        <TourViewportTarget target="add-item" className="block w-full">
+        <form ref={addItemFormRef} onSubmit={handleAddItemFormSubmit} className="flex w-full min-w-0 items-start gap-2 sm:gap-3">
           <div className="flex-1 relative">
             <textarea
               ref={addItemTextareaRef}
@@ -954,6 +981,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             Add
           </button>
         </form>
+        </TourViewportTarget>
       </div>
 
       {searchText && (
