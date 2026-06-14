@@ -24,10 +24,14 @@ const CATEGORY_LABEL_FONT_PX = 10
 const CATEGORY_LABEL_CHIP_WIDTH_MIN = 24
 const CATEGORY_LABEL_CHIP_WIDTH_MAX = 200
 
-/** Card row `pl-2` + drag `w-5` + flex gap from card outer edge to archive (px). */
-export const ITEM_ROW_LEADING_INSET_PX = 36
+/** Card row `pl-2` + drag `w-5` + tight drag→archive gap (px). */
+export const ITEM_ROW_DRAG_ARCHIVE_GAP_PX = 2
 
-/** Flex gap between archive icon and item name column (px); matches `gap-2`. */
+/** Card row inset from outer edge to archive icon (px). */
+export const ITEM_ROW_LEADING_INSET_PX =
+  8 + 20 + ITEM_ROW_DRAG_ARCHIVE_GAP_PX
+
+/** Flex gap between archive icon and item name column (px); matches outer `gap-2`. */
 export const ITEM_ROW_ARCHIVE_NAME_GAP_PX = 8
 
 /** Width of the ▼/▲ archive control (`text-xl`) on item rows. */
@@ -57,6 +61,7 @@ export const ITEM_ROW_MEMBER_LEADING_GAP_PX = 10
 /** Shared layout classes — keep header, item, and sum rows aligned. */
 export const itemRowHorizontalPaddingClassName = 'pl-2 pr-1 py-1'
 export const itemRowFlexGapClassName = 'gap-2'
+export const itemRowDragArchiveGroupClassName = 'flex shrink-0 items-center gap-0.5'
 export const itemRowDragHandleClassName =
   'flex w-5 flex-shrink-0 items-center justify-center text-lg tracking-tighter text-gray-400 select-none touch-none dark:text-gray-500'
 export const itemRowArchiveSlotClassName = 'text-xl flex-shrink-0 leading-none'

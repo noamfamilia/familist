@@ -8,6 +8,7 @@ import {
   measureCompactManualSumRowContentWidthPx,
   measureItemNameNaturalWidthPx,
   itemRowArchiveSlotClassName,
+  itemRowDragArchiveGroupClassName,
   itemRowDragHandleClassName,
   itemRowFlexGapClassName,
   itemRowHorizontalPaddingClassName,
@@ -136,16 +137,18 @@ export function ListSumRowCard({
             ...(compactWidthCss ? { width: compactWidthCss } : undefined),
           }}
         >
-          <div className={`${itemRowDragHandleClassName} select-none text-transparent`} aria-hidden>
-            ⋮⋮
-          </div>
+          <div className={itemRowDragArchiveGroupClassName}>
+            <div className={`${itemRowDragHandleClassName} select-none text-transparent`} aria-hidden>
+              ⋮⋮
+            </div>
 
-          <span
-            className={`${itemRowArchiveSlotClassName} invisible select-none`}
-            aria-hidden
-          >
-            ▼
-          </span>
+            <span
+              className={`${itemRowArchiveSlotClassName} invisible select-none`}
+              aria-hidden
+            >
+              ▼
+            </span>
+          </div>
 
           <div
             className="relative flex-shrink-0 text-left"

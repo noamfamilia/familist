@@ -34,6 +34,7 @@ import {
   compactRowCardWidthCss,
   itemNameColumnLeftEdgePx,
   itemRowArchiveSlotClassName,
+  itemRowDragArchiveGroupClassName,
   itemRowDragHandleClassName,
   itemRowFlexGapClassName,
   itemRowHorizontalPaddingClassName,
@@ -747,13 +748,15 @@ export function MemberHeader({
           className={`relative flex items-center whitespace-nowrap ${itemRowFlexGapClassName} ${itemRowHorizontalPaddingClassName}`}
           style={{ height: headerRowHeightPx }}
         >
-          <div className={itemRowDragHandleClassName} aria-hidden />
-          <span
-            className={`${itemRowArchiveSlotClassName} invisible select-none`}
-            aria-hidden
-          >
-            ▼
-          </span>
+          <div className={itemRowDragArchiveGroupClassName}>
+            <div className={itemRowDragHandleClassName} aria-hidden />
+            <span
+              className={`${itemRowArchiveSlotClassName} invisible select-none`}
+              aria-hidden
+            >
+              ▼
+            </span>
+          </div>
           <div
             className="flex shrink-0 items-center gap-3 overflow-visible"
             style={

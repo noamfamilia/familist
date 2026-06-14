@@ -16,6 +16,7 @@ import {
   measureCompactManualRowContentWidthPx,
   measureItemNameNaturalWidthPx,
   itemRowArchiveSlotClassName,
+  itemRowDragArchiveGroupClassName,
   itemRowDragHandleClassName,
   itemRowFlexGapClassName,
   itemRowHorizontalPaddingClassName,
@@ -588,6 +589,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           }}
           data-tour="item-row"
         >
+        <div className={itemRowDragArchiveGroupClassName}>
         {/* Drag handle - only shown for draggable (active) items */}
         <TourViewportTarget
           target="drag-handle"
@@ -598,7 +600,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           </div>
         </TourViewportTarget>
 
-        {/* Archive/Restore — same icons as list cards; header gap after category icon aligns member columns */}
+        {/* Archive/Restore — grouped with drag (tight gap); wider gap before name */}
         <TourViewportTarget target="item-archive" className="flex-shrink-0">
           <button
             type="button"
@@ -620,6 +622,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             {item.archived ? '▲' : '▼'}
           </button>
         </TourViewportTarget>
+        </div>
 
         {/* Item name — click to expand (collapsed) or rename (expanded) */}
         <TourViewportTarget
