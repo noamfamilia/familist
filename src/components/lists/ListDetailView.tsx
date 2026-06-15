@@ -51,6 +51,7 @@ import { ItemCard } from '@/components/items/ItemCard'
 import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
 import { formatListItemNamesForClipboard } from '@/lib/data/listItemClipboardText'
+import { itemCardRowHeightWithMembersPx, itemNameFontClassForStep } from '@/lib/itemNameFontStep'
 import {
   itemNameColumnRightEdgePx,
   itemNameWidthBoundaryGuideLeftPx,
