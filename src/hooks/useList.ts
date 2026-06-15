@@ -104,8 +104,6 @@ import { collectPendingMemberIdsForList } from '@/lib/data/pendingQueueMembers'
 import { markListViewedLocally, touchListContentUpdateInDexie } from '@/lib/data/listActivity'
 import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { useListSyncErrorToast } from '@/hooks/useListSyncErrorToast'
-import { logPaintSegment, timePaintSegment } from '@/lib/listPaintSegmentLog'
-
 const supabase = createClient()
 
 // Helper to get cached preferences from localStorage
@@ -2548,38 +2546,17 @@ export function useList(listId: string) {
   // Auto-fit width when mode is 'auto' and items change (include sumScope so cycling all/active/archived recalculates)
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
-    logPaintSegment('width: auto-fit effect start', {
-      itemCount: itemsForUi.length,
-      memberCount: members.length,
-      sumScope,
-    })
-    const t0 = performance.now()
     if (members.length === 0) {
-      const width = timePaintSegment(
-        'width: compactRowAutoViewWidthPx (all items)',
-        () => compactRowAutoViewWidthPx(itemsForUi, categoryNames, sumScope, itemNameFontStep),
-        { itemCount: itemsForUi.length },
-      )
-      setItemTextWidth((prev) => {
-        if (prev === width) {
-          logPaintSegment('width: auto-fit skipped (unchanged width)', { widthPx: width })
-          return prev
-        }
-        return width
-      })
+      const width = compactRowAutoViewWidthPx(itemsForUi, categoryNames, sumScope, itemNameFontStep)
+      setItemTextWidth((prev) => (prev === width ? prev : width))
     } else {
       const texts = [
         ...itemsForUi.map(i => i.text ?? ''),
         ...sumRowTitlesForAutoWidth(sumScope, itemsForUi),
       ]
-      const fitWidth = timePaintSegment(
-        'width: measureFitItemTextWidthPx (member list)',
-        () => measureFitItemTextWidthPx(texts, itemNameFontStep),
-        { textCount: texts.length },
-      )
+      const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
       setItemTextWidth((prev) => (prev === fitWidth ? prev : fitWidth))
     }
-    logPaintSegment('width: auto-fit effect done', { ms: Math.round(performance.now() - t0) })
   }, [compactAutoFitKey, itemTextWidthMode, itemsForUi, members.length, categoryNames, itemNameFontStep, sumScope])
 
   const itemTextWidthMin = ITEM_TEXT_WIDTH_MANUAL_MIN

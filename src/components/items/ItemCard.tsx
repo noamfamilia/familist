@@ -22,7 +22,6 @@ import {
   itemRowHorizontalPaddingClassName,
   itemRowMemberLeadingClassName,
 } from '@/lib/itemTextWidthFit'
-import { recordItemNameMeasure } from '@/lib/listPaintSegmentLog'
 import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
 import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import {
@@ -371,12 +370,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const compactRow = members.length === 0
   const compactAutoLayout = compactRow && itemTextWidthMode === 'auto'
 
-  const naturalNameWidthPx = useMemo(() => {
-    const t0 = performance.now()
-    const w = measureItemNameNaturalWidthPx(item.text, itemNameFontStep)
-    recordItemNameMeasure(performance.now() - t0)
-    return w
-  }, [item.text, itemNameFontStep])
+  const naturalNameWidthPx = useMemo(
+    () => measureItemNameNaturalWidthPx(item.text, itemNameFontStep),
+    [item.text, itemNameFontStep],
+  )
   const nameColumnWidthPx = compactAutoLayout ? naturalNameWidthPx : itemTextWidth
   const compactRowContentWidthPx = compactAutoLayout
     ? itemTextWidth

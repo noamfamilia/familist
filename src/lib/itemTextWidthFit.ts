@@ -1,6 +1,4 @@
 import { ITEM_NAME_FONT_DEFAULT, itemNameFontCanvasPx } from '@/lib/itemNameFontStep'
-import { logPaintSegment } from '@/lib/listPaintSegmentLog'
-
 function canvasFontForItemName(px: number): string {
   return `400 ${px}px Inter, "Inter Fallback", system-ui, sans-serif`
 }
@@ -262,18 +260,11 @@ function maxRowContentWidth(
   fontStep: number,
 ): number {
   if (rows.length === 0) return ITEM_TEXT_WIDTH_MIN
-  const t0 = performance.now()
   let maxPx = ITEM_TEXT_WIDTH_MIN
   for (const row of rows) {
     maxPx = Math.max(maxPx, measureCompactRowRowContentWidthPx(row, fontStep))
   }
-  const result = Math.max(ITEM_TEXT_WIDTH_MIN, maxPx)
-  logPaintSegment('width: maxRowContentWidth (scan all rows)', {
-    rowCount: rows.length,
-    ms: Math.round(performance.now() - t0),
-    resultPx: result,
-  })
-  return result
+  return Math.max(ITEM_TEXT_WIDTH_MIN, maxPx)
 }
 
 /** Name width (px) on the tightest compact row — manual width must not go below this. */
@@ -283,7 +274,6 @@ export function measureCompactRowTightestNameWidthPx(
 ): number {
   if (rows.length === 0) return ITEM_TEXT_WIDTH_MIN
 
-  const t0 = performance.now()
   let tightestNameWidth = ITEM_TEXT_WIDTH_MIN
   let maxRowNeed = -1
   for (const row of rows) {
@@ -293,11 +283,6 @@ export function measureCompactRowTightestNameWidthPx(
       tightestNameWidth = measureItemNameNaturalWidthPx(row.name, fontStep)
     }
   }
-  logPaintSegment('width: measureCompactRowTightestNameWidthPx', {
-    rowCount: rows.length,
-    ms: Math.round(performance.now() - t0),
-    resultPx: tightestNameWidth,
-  })
   return tightestNameWidth
 }
 

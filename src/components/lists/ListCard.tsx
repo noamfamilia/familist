@@ -8,7 +8,6 @@ import { ListSyncStatusIcon } from '@/components/lists/ListSyncStatusIcon'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { prefetchListPageForNavigation } from '@/lib/data/listPageCachePrefetch'
-import { resetListPaintSegments } from '@/lib/listPaintSegmentLog'
 import { useActiveListUiStore } from '@/stores/activeListUiStore'
 import { copyTextToClipboard } from '@/lib/clipboard'
 import { listItemClipboardTextFromDexie } from '@/lib/data/listItemClipboardText'
@@ -288,7 +287,6 @@ function ListCardInner({
       }
 
       navWarmInFlightRef.current = true
-      resetListPaintSegments(list.id)
       try {
         if (navigateUserId) {
           try {

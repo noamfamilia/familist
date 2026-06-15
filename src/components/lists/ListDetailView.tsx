@@ -44,11 +44,6 @@ import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNam
 import { inMemoryItemsHaveExactNormalizedText } from '@/lib/data/localItemTextUniqueness'
 import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
-import {
-  flushItemNameMeasureSummary,
-  logPaintSegment,
-  timePaintSegment,
-} from '@/lib/listPaintSegmentLog'
 import { useListTourItemTargetsEnabled } from '@/lib/tutorialTourItemTargets'
 
 import { Button } from '@/components/ui/Button'
@@ -562,28 +557,22 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const compactRowManualListContentWidthPx = useMemo(() => {
     if (!noMemberColumns || itemTextWidthMode !== 'manual') return undefined
 
-    return timePaintSegment(
-      'width: compactRowManualListContentWidthPx useMemo',
-      () => {
-        let maxW = measureCompactManualRowContentWidthPx(itemTextWidth, {
-          categoryTitle: '',
-          hasComment: false,
-        })
-        for (const item of items) {
-          const categoryTitle = categoryNames[String(item.category ?? 1)]?.trim() ?? ''
-          const hasComment = Boolean(item.comment?.trim())
-          maxW = Math.max(
-            maxW,
-            measureCompactManualRowContentWidthPx(itemTextWidth, { categoryTitle, hasComment }),
-          )
-        }
-        if (sumScope !== 'none') {
-          maxW = Math.max(maxW, measureCompactManualSumRowContentWidthPx(itemTextWidth))
-        }
-        return maxW
-      },
-      { itemCount: items.length },
-    )
+    let maxW = measureCompactManualRowContentWidthPx(itemTextWidth, {
+      categoryTitle: '',
+      hasComment: false,
+    })
+    for (const item of items) {
+      const categoryTitle = categoryNames[String(item.category ?? 1)]?.trim() ?? ''
+      const hasComment = Boolean(item.comment?.trim())
+      maxW = Math.max(
+        maxW,
+        measureCompactManualRowContentWidthPx(itemTextWidth, { categoryTitle, hasComment }),
+      )
+    }
+    if (sumScope !== 'none') {
+      maxW = Math.max(maxW, measureCompactManualSumRowContentWidthPx(itemTextWidth))
+    }
+    return maxW
   }, [noMemberColumns, itemTextWidthMode, itemTextWidth, items, categoryNames, sumScope])
 
   const compactRowListFixedLayout = noMemberColumns
@@ -602,20 +591,13 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     const applyMeasuredWidth = (w: number) => {
       if (w === compactRowPageMinWidthRef.current) return
       compactRowPageMinWidthRef.current = w
-      logPaintSegment('width: measureListPageContentWidthPx (applied)', { resultPx: w })
       setCompactRowPageMinWidthPx(w)
     }
 
     const sync = () => {
       const el = listPageRef.current
       if (!el) return
-      const t0 = performance.now()
-      const w = measureListPageContentWidthPx(el)
-      const ms = Math.round(performance.now() - t0)
-      if (w !== compactRowPageMinWidthRef.current) {
-        logPaintSegment('width: measureListPageContentWidthPx (measured)', { ms, resultPx: w })
-      }
-      applyMeasuredWidth(w)
+      applyMeasuredWidth(measureListPageContentWidthPx(el))
     }
 
     const scheduleSync = () => {
@@ -642,20 +624,12 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const searchText = addItemBulkMode ? '' : newItemText.trim().toLowerCase()
 
-  const activeItems = useMemo(
-    () =>
-      timePaintSegment(
-        'render: activeItems filter+sort',
-        () => {
-          const base = items
-            .filter((item) => !item.archived)
-            .filter((item) => (searchText ? item.text.toLowerCase().includes(searchText) : true))
-          return [...base].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-        },
-        { itemCount: items.length },
-      ),
-    [items, searchText],
-  )
+  const activeItems = useMemo(() => {
+    const base = items
+      .filter((item) => !item.archived)
+      .filter((item) => (searchText ? item.text.toLowerCase().includes(searchText) : true))
+    return [...base].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  }, [items, searchText])
 
   const listTourItemTargetsEnabled = useListTourItemTargetsEnabled()
 
@@ -678,48 +652,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     loading ||
     blockOnListData ||
     blockUntilSessionMirrorReady
-
-  const wasBlockedRef = useRef(true)
-  const paintPassRef = useRef(0)
-  useLayoutEffect(() => {
-    if (blockListShell) {
-      wasBlockedRef.current = true
-      logPaintSegment('render: shell blocked', {
-        hasMounted,
-        mirrorPrimedForPaint,
-        authLoading,
-        loading,
-        blockOnListData,
-        blockUntilSessionMirrorReady,
-        itemCount: items.length,
-      })
-      return
-    }
-    paintPassRef.current += 1
-    const firstUnblock = wasBlockedRef.current
-    wasBlockedRef.current = false
-    flushItemNameMeasureSummary()
-    logPaintSegment(firstUnblock ? 'render: first paint committed' : 'render: list shell pass', {
-      pass: paintPassRef.current,
-      activeItemCount: activeItems.length,
-      itemTextWidth,
-      itemTextWidthMode,
-      noMemberColumns,
-    })
-  }, [
-    blockListShell,
-    hasMounted,
-    mirrorPrimedForPaint,
-    authLoading,
-    loading,
-    blockOnListData,
-    blockUntilSessionMirrorReady,
-    items.length,
-    activeItems.length,
-    itemTextWidth,
-    itemTextWidthMode,
-    noMemberColumns,
-  ])
 
   if (blockListShell) {
     return (
