@@ -466,6 +466,10 @@ export interface Database {
           member_count: number
         }[]
       }
+      get_list_item_names: {
+        Args: { p_list_id: string }
+        Returns: string[]
+      }
       remove_users_from_list: {
         Args: { p_list_id: string; p_user_ids: string[] }
         Returns: void
