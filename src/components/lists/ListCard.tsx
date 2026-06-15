@@ -178,7 +178,6 @@ function ListCardInner({
   const [deleting, setDeleting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [leaving, setLeaving] = useState(false)
-  const [copyingItems, setCopyingItems] = useState(false)
   const [showDuplicateModal, setShowDuplicateModal] = useState(false)
   const [dupName, setDupName] = useState('')
   const [dupLabel, setDupLabel] = useState('')
@@ -204,6 +203,7 @@ function ListCardInner({
   const addLabelPopoverRef = useRef<HTMLDivElement>(null)
   /** Prevents overlapping prefetch+nav from rapid double-clicks on the list link. */
   const navWarmInFlightRef = useRef(false)
+  const copyItemsInFlightRef = useRef(false)
   // Sync comment state when list updates from realtime
   useEffect(() => {
     setComment(list.comment || '')
@@ -601,8 +601,8 @@ function ListCardInner({
 
   const handleCopyItems = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (copyingItems) return
-    setCopyingItems(true)
+    if (copyItemsInFlightRef.current) return
+    copyItemsInFlightRef.current = true
     try {
       const text = await listItemClipboardTextFromDexie(list.id)
       await copyTextToClipboard(text)
@@ -612,7 +612,7 @@ function ListCardInner({
         serverError: err instanceof Error ? err : undefined,
       })
     } finally {
-      setCopyingItems(false)
+      copyItemsInFlightRef.current = false
     }
   }
 
@@ -1001,11 +1001,10 @@ function ListCardInner({
           <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              disabled={copyingItems}
               onClick={(e) => void handleCopyItems(e)}
-              className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal disabled:opacity-50"
+              className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal"
             >
-              {copyingItems ? 'Copying…' : 'Copy'}
+              Copy
             </button>
             {!list.userArchived && (
               <button
