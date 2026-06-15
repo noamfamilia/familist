@@ -995,11 +995,8 @@ function ListCardInner({
               </div>
             )}
           </div>
-          {/* Action buttons — mobile: full width, copy left / delete right; sm+: grouped right */}
-          <div
-            className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end"
-            onClick={(e) => e.stopPropagation()}
-          >
+          {/* Action buttons — copy, duplicate, delete/leave aligned right */}
+          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               disabled={copyingItems}
