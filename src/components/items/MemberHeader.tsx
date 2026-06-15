@@ -21,6 +21,7 @@ import { ShowItemSumIcon } from '@/components/icons/ShowItemSumIcon'
 import { HideItemSumIcon } from '@/components/icons/HideItemSumIcon'
 import { FontSizeIcon } from '@/components/icons/FontSizeIcon'
 import { CategoryEditorIcon } from '@/components/icons/CategoryEditorIcon'
+import { CATEGORY_NAMES_MODAL_WIDTH_PX } from '@/components/lists/CategoryNamesModal'
 import {
   ITEM_NAME_FONT_MAX,
   ITEM_NAME_FONT_MIN,
@@ -32,7 +33,6 @@ import {
   ITEM_TEXT_WIDTH_MANUAL_MIN,
   ITEM_TEXT_WIDTH_MIN,
   compactRowCardWidthCss,
-  itemNameColumnLeftEdgePx,
   itemRowArchiveSlotClassName,
   itemRowDragArchiveGroupClassName,
   itemRowDragHandleClassName,
@@ -196,16 +196,6 @@ export function MemberHeader({
     return { top: btnRect.bottom + 6, left }
   }, [])
 
-  const computeCategoryPopoverPos = useCallback((anchorEl: HTMLElement, popoverWidth: number) => {
-    const btnRect = anchorEl.getBoundingClientRect()
-    // Categories sit in the item-name column — align popover with that column.
-    const itemNameLeftPx = itemNameColumnLeftEdgePx()
-    const cardLeft = headerCardRef.current?.getBoundingClientRect().left ?? btnRect.left
-    const vw = window.innerWidth
-    const left = Math.min(Math.max(8, cardLeft + itemNameLeftPx), vw - popoverWidth - 8)
-    return { top: btnRect.bottom + 6, left }
-  }, [])
-
   const closeCategoryModal = useCallback(() => {
     setShowCategoryModal(false)
     setCategoryModalPos(null)
@@ -221,13 +211,13 @@ export function MemberHeader({
         return
       }
       requestAnimationFrame(() => {
-        const el = categoryBtnRef.current
-        if (!el) return
-        setCategoryModalPos(computeCategoryPopoverPos(el, 230))
+        const anchorEl = itemNameFontBtnRef.current ?? categoryBtnRef.current
+        if (!anchorEl) return
+        setCategoryModalPos(computeDisplayPopoverPos(anchorEl, CATEGORY_NAMES_MODAL_WIDTH_PX))
         setShowCategoryModal(true)
       })
     },
-    [computeCategoryPopoverPos, closeCategoryModal, isOfflineActionsDisabled, showCategoryModal],
+    [computeDisplayPopoverPos, closeCategoryModal, isOfflineActionsDisabled, showCategoryModal],
   )
 
   const handleToggleActions = () => {

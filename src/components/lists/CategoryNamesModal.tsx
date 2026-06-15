@@ -17,6 +17,9 @@ import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { areItemsSortedByCategory } from '@/lib/items/categoryItemReorder'
 import type { ItemCategory, CategoryNames, ItemWithState } from '@/lib/supabase/types'
 
+/** Popover width (px); ~20% narrower than the original 230px panel. */
+export const CATEGORY_NAMES_MODAL_WIDTH_PX = 184
+
 function saveErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
     return (error as { message: string }).message
@@ -253,8 +256,8 @@ export function CategoryNamesModal({
       tabIndex={-1}
       role="dialog"
       aria-label="Categories"
-      className={`fixed z-[10000] w-[230px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${menuAnim.menuClassName}`}
-      style={{ top: pos.top, left: pos.left }}
+      className={`fixed z-[10000] rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${menuAnim.menuClassName}`}
+      style={{ top: pos.top, left: pos.left, width: CATEGORY_NAMES_MODAL_WIDTH_PX }}
       onClick={(e) => e.stopPropagation()}
     >
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void handleDragEnd(e)}>
@@ -269,7 +272,7 @@ export function CategoryNamesModal({
                 />
                 {renamingCatId === c && (
                   <div
-                    className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[216px]"
+                    className="absolute left-0 right-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <input
