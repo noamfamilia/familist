@@ -1001,17 +1001,16 @@ function ListCardInner({
               </div>
             )}
           </div>
-          {/* Label selector + action buttons (copy left, actions right) */}
-          <div className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+          {/* Action buttons — copy, duplicate, delete/leave aligned right */}
+          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               disabled={copyingItems}
               onClick={(e) => void handleCopyItems(e)}
-              className="shrink-0 px-1 py-1.5 text-sm font-medium text-teal hover:opacity-80 disabled:opacity-50"
+              className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-80 bg-teal disabled:opacity-50"
             >
-              {copyingItems ? 'Copying…' : 'Copy items'}
+              {copyingItems ? 'Copying…' : 'Copy'}
             </button>
-            <div className="flex shrink-0 items-center gap-2">
             {!list.userArchived && (
               <button
                 type="button"
@@ -1047,7 +1046,6 @@ function ListCardInner({
                 Leave
               </button>
             )}
-            </div>
           </div>
         </div>
       )}
