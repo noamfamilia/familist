@@ -28,9 +28,11 @@ interface SortableItemCardProps {
   allowItemMutationQueue?: boolean
   /** Hide in-list row while DragOverlay shows the dragged card. */
   useDragOverlay?: boolean
+  /** Mount Joyride viewport mirrors on this row (list tour anchor only). */
+  tourTargetsEnabled?: boolean
 }
 
-export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, itemTextWidthMode, compactRowPageMinWidthPx, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, useDragOverlay = false }: SortableItemCardProps) {
+export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, itemTextWidth, itemTextWidthMode, compactRowPageMinWidthPx, expandSignal, collapseSignal, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName, itemNameFontStep, isOfflineActionsDisabled = false, allowItemMutationQueue = false, useDragOverlay = false, tourTargetsEnabled = false }: SortableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -71,6 +73,7 @@ export function SortableItemCard({ item, members, hideDone, hideNotRelevant, onU
         itemNameFontStep={itemNameFontStep}
         isOfflineActionsDisabled={isOfflineActionsDisabled}
         allowItemMutationQueue={allowItemMutationQueue}
+        tourTargetsEnabled={tourTargetsEnabled}
       />
     </div>
   )

@@ -1,4 +1,5 @@
 import { ITEM_NAME_FONT_DEFAULT, itemNameFontCanvasPx } from '@/lib/itemNameFontStep'
+import { logPaintSegment } from '@/lib/listPaintSegmentLog'
 
 function canvasFontForItemName(px: number): string {
   return `400 ${px}px Inter, "Inter Fallback", system-ui, sans-serif`
@@ -91,11 +92,8 @@ export function measureFitItemTextWidthPx(texts: string[], fontStep: number = IT
   const nonEmpty = texts.map(t => t.trim()).filter(Boolean)
   if (nonEmpty.length === 0) return ITEM_TEXT_WIDTH_MIN
 
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
+  const ctx = getSharedMeasureContext(canvasFontForItemName(itemNameFontCanvasPx(fontStep)))
   if (!ctx) return ITEM_TEXT_WIDTH_MIN
-
-  ctx.font = canvasFontForItemName(itemNameFontCanvasPx(fontStep))
   let maxPx = 0
   for (const text of nonEmpty) {
     const w = ctx.measureText(text).width
@@ -154,22 +152,39 @@ function measureSingleLineTextPx(text: string, font: string): number {
   const trimmed = text.trim()
   if (!trimmed) return 0
 
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
+  const ctx = getSharedMeasureContext(font)
   if (!ctx) return 0
-
-  ctx.font = font
   return ctx.measureText(trimmed).width
 }
+
+let sharedMeasureCtx: CanvasRenderingContext2D | null = null
+
+function getSharedMeasureContext(font: string): CanvasRenderingContext2D | null {
+  if (typeof window === 'undefined') return null
+  if (!sharedMeasureCtx) {
+    const canvas = document.createElement('canvas')
+    sharedMeasureCtx = canvas.getContext('2d')
+  }
+  if (!sharedMeasureCtx) return null
+  sharedMeasureCtx.font = font
+  return sharedMeasureCtx
+}
+
+const naturalNameWidthCache = new Map<string, number>()
 
 /** Natural item-name width for one row (auto mode, no shared column). */
 export function measureItemNameNaturalWidthPx(
   text: string,
   fontStep: number = ITEM_NAME_FONT_DEFAULT,
 ): number {
+  const key = `${fontStep}\0${text}`
+  const cached = naturalNameWidthCache.get(key)
+  if (cached !== undefined) return cached
+
   const w = measureSingleLineTextPx(text, canvasFontForItemName(itemNameFontCanvasPx(fontStep)))
-  if (w <= 0) return ITEM_TEXT_WIDTH_MIN
-  return Math.max(ITEM_TEXT_WIDTH_MIN, Math.ceil(w + 2))
+  const result = w <= 0 ? ITEM_TEXT_WIDTH_MIN : Math.max(ITEM_TEXT_WIDTH_MIN, Math.ceil(w + 2))
+  naturalNameWidthCache.set(key, result)
+  return result
 }
 
 /** Trailing icons/labels after the name on compact (no-member) rows. */
@@ -247,11 +262,18 @@ function maxRowContentWidth(
   fontStep: number,
 ): number {
   if (rows.length === 0) return ITEM_TEXT_WIDTH_MIN
+  const t0 = performance.now()
   let maxPx = ITEM_TEXT_WIDTH_MIN
   for (const row of rows) {
     maxPx = Math.max(maxPx, measureCompactRowRowContentWidthPx(row, fontStep))
   }
-  return Math.max(ITEM_TEXT_WIDTH_MIN, maxPx)
+  const result = Math.max(ITEM_TEXT_WIDTH_MIN, maxPx)
+  logPaintSegment('width: maxRowContentWidth (scan all rows)', {
+    rowCount: rows.length,
+    ms: Math.round(performance.now() - t0),
+    resultPx: result,
+  })
+  return result
 }
 
 /** Name width (px) on the tightest compact row — manual width must not go below this. */
@@ -261,6 +283,7 @@ export function measureCompactRowTightestNameWidthPx(
 ): number {
   if (rows.length === 0) return ITEM_TEXT_WIDTH_MIN
 
+  const t0 = performance.now()
   let tightestNameWidth = ITEM_TEXT_WIDTH_MIN
   let maxRowNeed = -1
   for (const row of rows) {
@@ -270,6 +293,11 @@ export function measureCompactRowTightestNameWidthPx(
       tightestNameWidth = measureItemNameNaturalWidthPx(row.name, fontStep)
     }
   }
+  logPaintSegment('width: measureCompactRowTightestNameWidthPx', {
+    rowCount: rows.length,
+    ms: Math.round(performance.now() - t0),
+    resultPx: tightestNameWidth,
+  })
   return tightestNameWidth
 }
 

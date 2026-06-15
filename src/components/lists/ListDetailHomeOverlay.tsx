@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useHasMounted } from '@/hooks/useHasMounted'
 import { popBodyScrollLock, pushBodyScrollLock } from '@/lib/bodyScrollLock'
 import { syncHomeListHistoryPath } from '@/lib/navigation/backToHome'
+import { logPaintSegment } from '@/lib/listPaintSegmentLog'
 import { ListDetailView } from './ListDetailView'
 
 export type ListDetailHomeOverlayProps = {
@@ -29,6 +30,11 @@ export type ListDetailHomeOverlayProps = {
  */
 export function ListDetailHomeOverlay({ listId, onClose }: ListDetailHomeOverlayProps) {
   const mounted = useHasMounted()
+
+  useEffect(() => {
+    if (!mounted) return
+    logPaintSegment('overlay: portal ready', { listId })
+  }, [mounted, listId])
 
   useEffect(() => {
     pushBodyScrollLock()

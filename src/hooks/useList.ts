@@ -104,6 +104,7 @@ import { collectPendingMemberIdsForList } from '@/lib/data/pendingQueueMembers'
 import { markListViewedLocally, touchListContentUpdateInDexie } from '@/lib/data/listActivity'
 import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { useListSyncErrorToast } from '@/hooks/useListSyncErrorToast'
+import { logPaintSegment, timePaintSegment } from '@/lib/listPaintSegmentLog'
 
 const supabase = createClient()
 
@@ -530,18 +531,8 @@ export function useList(listId: string) {
   }, [connectivityStatus])
 
   useEffect(() => {
-    const lsT0 = performance.now()
-    let approxStorageChars = 0
-    try {
-      if (scopedUserId && listId && typeof localStorage !== 'undefined') {
-        approxStorageChars = localStorage.getItem(`cached_list_${scopedUserId}_${listId}`)?.length ?? 0
-      }
-    } catch {
-      // ignore
-    }
     const cachedData = getCachedList(scopedUserId, listId)
     const cachedPrefs = getCachedPrefs(listId, scopedUserId)
-    const itemCount = (cachedData?.items || []).length
 
     if (scopedUserId && listId) {
       useListDataStore.getState().beginListSession(scopedUserId, listId, cachedData)
@@ -2545,22 +2536,51 @@ export function useList(listId: string) {
 
   const itemsForUi = itemsUntilReconnectReconciled ?? items
 
+  const compactAutoFitKey = useMemo(() => {
+    if (itemTextWidthMode !== 'auto') return ''
+    const categoryKey = JSON.stringify(categoryNames)
+    const rowsKey = itemsForUi
+      .map((i) => `${i.id}|${i.text ?? ''}|${i.category ?? 1}|${i.comment?.trim() ? 1 : 0}`)
+      .join('\n')
+    return `${members.length}|${itemNameFontStep}|${sumScope}|${rowsKey}|${categoryKey}`
+  }, [itemTextWidthMode, itemsForUi, members.length, itemNameFontStep, sumScope, categoryNames])
+
   // Auto-fit width when mode is 'auto' and items change (include sumScope so cycling all/active/archived recalculates)
   useEffect(() => {
     if (itemTextWidthMode !== 'auto') return
+    logPaintSegment('width: auto-fit effect start', {
+      itemCount: itemsForUi.length,
+      memberCount: members.length,
+      sumScope,
+    })
+    const t0 = performance.now()
     if (members.length === 0) {
-      setItemTextWidth(
-        compactRowAutoViewWidthPx(itemsForUi, categoryNames, sumScope, itemNameFontStep),
+      const width = timePaintSegment(
+        'width: compactRowAutoViewWidthPx (all items)',
+        () => compactRowAutoViewWidthPx(itemsForUi, categoryNames, sumScope, itemNameFontStep),
+        { itemCount: itemsForUi.length },
       )
-      return
+      setItemTextWidth((prev) => {
+        if (prev === width) {
+          logPaintSegment('width: auto-fit skipped (unchanged width)', { widthPx: width })
+          return prev
+        }
+        return width
+      })
+    } else {
+      const texts = [
+        ...itemsForUi.map(i => i.text ?? ''),
+        ...sumRowTitlesForAutoWidth(sumScope, itemsForUi),
+      ]
+      const fitWidth = timePaintSegment(
+        'width: measureFitItemTextWidthPx (member list)',
+        () => measureFitItemTextWidthPx(texts, itemNameFontStep),
+        { textCount: texts.length },
+      )
+      setItemTextWidth((prev) => (prev === fitWidth ? prev : fitWidth))
     }
-    const texts = [
-      ...itemsForUi.map(i => i.text ?? ''),
-      ...sumRowTitlesForAutoWidth(sumScope, itemsForUi),
-    ]
-    const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
-    setItemTextWidth(fitWidth)
-  }, [itemTextWidthMode, itemNameFontStep, sumScope, itemsForUi, members.length, categoryNames])
+    logPaintSegment('width: auto-fit effect done', { ms: Math.round(performance.now() - t0) })
+  }, [compactAutoFitKey, itemTextWidthMode, itemsForUi, members.length, categoryNames, itemNameFontStep, sumScope])
 
   const itemTextWidthMin = ITEM_TEXT_WIDTH_MANUAL_MIN
 

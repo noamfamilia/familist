@@ -44,6 +44,12 @@ import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNam
 import { inMemoryItemsHaveExactNormalizedText } from '@/lib/data/localItemTextUniqueness'
 import { setListMirrorPriorityListId } from '@/lib/data/listMirror'
 import { isPwaDebugEnabled } from '@/lib/pwaDebug'
+import {
+  flushItemNameMeasureSummary,
+  logPaintSegment,
+  timePaintSegment,
+} from '@/lib/listPaintSegmentLog'
+import { useListTourItemTargetsEnabled } from '@/lib/tutorialTourItemTargets'
 
 import { Button } from '@/components/ui/Button'
 import { SortableItemCard } from '@/components/items/SortableItemCard'
@@ -257,7 +263,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const router = useRouter()
   const { user, loading: authLoading, activeActorId, bootstrapUserId, profile, profileFetchPhase, isGuest } =
     useAuth()
-
 
   useEffect(() => {
     void setListMirrorPriorityListId(listId)
@@ -551,56 +556,108 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   )
   const noMemberColumns = filteredMembers.length === 0
   const listPageRef = useRef<HTMLDivElement>(null)
+  const compactRowPageMinWidthRef = useRef(0)
   const [compactRowPageMinWidthPx, setCompactRowPageMinWidthPx] = useState(0)
 
   const compactRowManualListContentWidthPx = useMemo(() => {
     if (!noMemberColumns || itemTextWidthMode !== 'manual') return undefined
 
-    let maxW = measureCompactManualRowContentWidthPx(itemTextWidth, {
-      categoryTitle: '',
-      hasComment: false,
-    })
-    for (const item of items) {
-      const categoryTitle = categoryNames[String(item.category ?? 1)]?.trim() ?? ''
-      const hasComment = Boolean(item.comment?.trim())
-      maxW = Math.max(
-        maxW,
-        measureCompactManualRowContentWidthPx(itemTextWidth, { categoryTitle, hasComment }),
-      )
-    }
-    if (sumScope !== 'none') {
-      maxW = Math.max(maxW, measureCompactManualSumRowContentWidthPx(itemTextWidth))
-    }
-    return maxW
+    return timePaintSegment(
+      'width: compactRowManualListContentWidthPx useMemo',
+      () => {
+        let maxW = measureCompactManualRowContentWidthPx(itemTextWidth, {
+          categoryTitle: '',
+          hasComment: false,
+        })
+        for (const item of items) {
+          const categoryTitle = categoryNames[String(item.category ?? 1)]?.trim() ?? ''
+          const hasComment = Boolean(item.comment?.trim())
+          maxW = Math.max(
+            maxW,
+            measureCompactManualRowContentWidthPx(itemTextWidth, { categoryTitle, hasComment }),
+          )
+        }
+        if (sumScope !== 'none') {
+          maxW = Math.max(maxW, measureCompactManualSumRowContentWidthPx(itemTextWidth))
+        }
+        return maxW
+      },
+      { itemCount: items.length },
+    )
   }, [noMemberColumns, itemTextWidthMode, itemTextWidth, items, categoryNames, sumScope])
 
   const compactRowListFixedLayout = noMemberColumns
 
   useLayoutEffect(() => {
     if (!noMemberColumns) {
-      setCompactRowPageMinWidthPx(0)
+      if (compactRowPageMinWidthRef.current !== 0) {
+        compactRowPageMinWidthRef.current = 0
+        setCompactRowPageMinWidthPx(0)
+      }
       return
+    }
+
+    let rafId: number | null = null
+
+    const applyMeasuredWidth = (w: number) => {
+      if (w === compactRowPageMinWidthRef.current) return
+      compactRowPageMinWidthRef.current = w
+      logPaintSegment('width: measureListPageContentWidthPx (applied)', { resultPx: w })
+      setCompactRowPageMinWidthPx(w)
     }
 
     const sync = () => {
       const el = listPageRef.current
       if (!el) return
-      setCompactRowPageMinWidthPx(measureListPageContentWidthPx(el))
+      const t0 = performance.now()
+      const w = measureListPageContentWidthPx(el)
+      const ms = Math.round(performance.now() - t0)
+      if (w !== compactRowPageMinWidthRef.current) {
+        logPaintSegment('width: measureListPageContentWidthPx (measured)', { ms, resultPx: w })
+      }
+      applyMeasuredWidth(w)
+    }
+
+    const scheduleSync = () => {
+      if (rafId != null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        sync()
+      })
     }
 
     sync()
     const el = listPageRef.current
     if (!el) return
 
-    const ro = new ResizeObserver(sync)
+    const ro = new ResizeObserver(scheduleSync)
     ro.observe(el)
-    if (el.parentElement) ro.observe(el.parentElement)
-    window.addEventListener('resize', sync)
+    window.addEventListener('resize', scheduleSync)
     return () => {
+      if (rafId != null) cancelAnimationFrame(rafId)
       ro.disconnect()
-      window.removeEventListener('resize', sync)
+      window.removeEventListener('resize', scheduleSync)
     }
-  }, [noMemberColumns, listId, itemTextWidth, itemTextWidthMode, items.length])
+  }, [noMemberColumns, listId])
+
+  const searchText = addItemBulkMode ? '' : newItemText.trim().toLowerCase()
+
+  const activeItems = useMemo(
+    () =>
+      timePaintSegment(
+        'render: activeItems filter+sort',
+        () => {
+          const base = items
+            .filter((item) => !item.archived)
+            .filter((item) => (searchText ? item.text.toLowerCase().includes(searchText) : true))
+          return [...base].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+        },
+        { itemCount: items.length },
+      ),
+    [items, searchText],
+  )
+
+  const listTourItemTargetsEnabled = useListTourItemTargetsEnabled()
 
   const blockOnListData =
     listDataStatus !== 'ready' && !list && !error
@@ -621,6 +678,48 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     loading ||
     blockOnListData ||
     blockUntilSessionMirrorReady
+
+  const wasBlockedRef = useRef(true)
+  const paintPassRef = useRef(0)
+  useLayoutEffect(() => {
+    if (blockListShell) {
+      wasBlockedRef.current = true
+      logPaintSegment('render: shell blocked', {
+        hasMounted,
+        mirrorPrimedForPaint,
+        authLoading,
+        loading,
+        blockOnListData,
+        blockUntilSessionMirrorReady,
+        itemCount: items.length,
+      })
+      return
+    }
+    paintPassRef.current += 1
+    const firstUnblock = wasBlockedRef.current
+    wasBlockedRef.current = false
+    flushItemNameMeasureSummary()
+    logPaintSegment(firstUnblock ? 'render: first paint committed' : 'render: list shell pass', {
+      pass: paintPassRef.current,
+      activeItemCount: activeItems.length,
+      itemTextWidth,
+      itemTextWidthMode,
+      noMemberColumns,
+    })
+  }, [
+    blockListShell,
+    hasMounted,
+    mirrorPrimedForPaint,
+    authLoading,
+    loading,
+    blockOnListData,
+    blockUntilSessionMirrorReady,
+    items.length,
+    activeItems.length,
+    itemTextWidth,
+    itemTextWidthMode,
+    noMemberColumns,
+  ])
 
   if (blockListShell) {
     return (
@@ -751,14 +850,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       void handleAddItem()
     }
   }
-
-  const searchText = addItemBulkMode ? '' : newItemText.trim().toLowerCase()
-
-  const activeItemsBase = items
-    .filter(item => !item.archived)
-    .filter(item => searchText ? item.text.toLowerCase().includes(searchText) : true)
-
-  const activeItems = [...activeItemsBase].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
 
   const archivedItemsBase = items
     .filter(item => item.archived)
@@ -1160,7 +1251,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                 onDragEnd={(e) => void handleDragEnd(e)}
               >
                 <SortableContext items={activeItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                  {activeItems.map(item => (
+                  {activeItems.map((item, index) => (
                     <SortableItemCard
                       key={item.id}
                       item={item}
@@ -1184,6 +1275,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
                       isOfflineActionsDisabled={isOfflineActionsDisabled}
                       allowItemMutationQueue={allowItemMutationQueue}
                       useDragOverlay={Boolean(activeDragItemId)}
+                      tourTargetsEnabled={listTourItemTargetsEnabled && index === 0}
                     />
                   ))}
                 </SortableContext>

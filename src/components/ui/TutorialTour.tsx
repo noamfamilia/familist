@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import { useState, useEffect, useRef, useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import Joyride, { ACTIONS, CallBackProps, EVENTS, STATUS, Step } from 'react-joyride'
 import { useHasMounted } from '@/hooks/useHasMounted'
+import { syncListTourItemTargetsEnabled } from '@/lib/tutorialTourItemTargets'
 
 interface TutorialTourProps {
   tourId: string
@@ -128,6 +129,13 @@ export function TutorialTour({
   const runRef = useRef(run)
   runRef.current = run
 
+  const syncListItemTargets = useCallback(() => {
+    if (tourId !== 'list') return
+    const isFullyComplete =
+      typeof window !== 'undefined' && localStorage.getItem(`tutorial_${tourId}`) === 'true'
+    syncListTourItemTargetsEnabled(shouldRunRef.current && !isFullyComplete)
+  }, [tourId])
+
   const clearWaitTimer = () => {
     if (waitTimerRef.current) {
       clearTimeout(waitTimerRef.current)
@@ -164,12 +172,20 @@ export function TutorialTour({
       acknowledgeTutorialRunRequest(tourId)
       shouldRunRef.current = true
     }
-  }, [tourId, runProp, restartNonce])
+    syncListItemTargets()
+  }, [tourId, runProp, restartNonce, syncListItemTargets])
+
+  useEffect(() => {
+    if (tourId !== 'list') return
+    syncListItemTargets()
+    return () => syncListTourItemTargetsEnabled(false)
+  }, [tourId, run, runProp, restartNonce, filteredSteps.length, stepIndex, syncListItemTargets])
 
   useEffect(() => {
     const isFullyComplete = localStorage.getItem(`tutorial_${tourId}`) === 'true'
 
     if (isFullyComplete || !shouldRunRef.current) {
+      if (tourId === 'list') syncListTourItemTargetsEnabled(false)
       return
     }
 
@@ -319,6 +335,7 @@ export function TutorialTour({
       prevStepsKey.current = ''
       shouldRunRef.current = false
       clearTutorialRunRequest(tourId)
+      syncListTourItemTargetsEnabled(false)
       onComplete?.()
     }
 

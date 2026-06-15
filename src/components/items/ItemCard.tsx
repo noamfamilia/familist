@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
@@ -22,6 +22,7 @@ import {
   itemRowHorizontalPaddingClassName,
   itemRowMemberLeadingClassName,
 } from '@/lib/itemTextWidthFit'
+import { recordItemNameMeasure } from '@/lib/listPaintSegmentLog'
 import { QtyProgressBarIconVertical } from '@/components/items/QtyProgressBarIconVertical'
 import { TourViewportTarget } from '@/components/ui/TourViewportTarget'
 import {
@@ -64,6 +65,30 @@ interface ItemCardProps {
   isOfflineActionsDisabled?: boolean
   /** When true with offline, archive/restore on the item name still runs (queued until online). */
   allowItemMutationQueue?: boolean
+  /** Mount Joyride viewport mirrors on this row (list tour anchor only). */
+  tourTargetsEnabled?: boolean
+}
+
+function TourTargetSlot({
+  target,
+  className,
+  enabled,
+  children,
+}: {
+  target: string
+  className?: string
+  enabled: boolean
+  children: ReactNode
+}) {
+  if (!enabled) {
+    return className ? <div className={className}>{children}</div> : <>{children}</>
+  }
+
+  return (
+    <TourViewportTarget target={target} className={className}>
+      {children}
+    </TourViewportTarget>
+  )
 }
 
 /** Stroke check; short leg shortened (option 1) to reduce bleed when stacked */
@@ -196,7 +221,7 @@ function QtyTargetDoneChecks({ doneRatio, checkSizePx = QTY_CHECK_SIZE }: { done
   )
 }
 
-export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = ITEM_TEXT_WIDTH_MIN, itemTextWidthMode = 'auto', compactRowPageMinWidthPx = 0, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false }: ItemCardProps) {
+export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = ITEM_TEXT_WIDTH_MIN, itemTextWidthMode = 'auto', compactRowPageMinWidthPx = 0, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false, tourTargetsEnabled = false }: ItemCardProps) {
   const { user } = useAuth()
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -346,10 +371,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const compactRow = members.length === 0
   const compactAutoLayout = compactRow && itemTextWidthMode === 'auto'
 
-  const naturalNameWidthPx = useMemo(
-    () => measureItemNameNaturalWidthPx(item.text, itemNameFontStep),
-    [item.text, itemNameFontStep],
-  )
+  const naturalNameWidthPx = useMemo(() => {
+    const t0 = performance.now()
+    const w = measureItemNameNaturalWidthPx(item.text, itemNameFontStep)
+    recordItemNameMeasure(performance.now() - t0)
+    return w
+  }, [item.text, itemNameFontStep])
   const nameColumnWidthPx = compactAutoLayout ? naturalNameWidthPx : itemTextWidth
   const compactRowContentWidthPx = compactAutoLayout
     ? itemTextWidth
@@ -587,21 +614,21 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             height: itemRowHeightPx,
             ...(compactWidthCss ? { width: compactWidthCss } : undefined),
           }}
-          data-tour="item-row"
         >
         <div className={itemRowDragArchiveGroupClassName}>
         {/* Drag handle - only shown for draggable (active) items */}
-        <TourViewportTarget
+        <TourTargetSlot
           target="drag-handle"
+          enabled={tourTargetsEnabled}
           className={`${itemRowDragHandleClassName} ${isDraggable ? 'cursor-grab' : ''}`}
         >
           <div {...(isDraggable ? dragHandleProps : {})}>
             {isDraggable ? '⋮⋮' : ''}
           </div>
-        </TourViewportTarget>
+        </TourTargetSlot>
 
         {/* Archive/Restore — grouped with drag (tight gap); wider gap before name */}
-        <TourViewportTarget target="item-archive" className="flex-shrink-0">
+        <TourTargetSlot target="item-archive" enabled={tourTargetsEnabled} className="flex-shrink-0">
           <button
             type="button"
             disabled={archiveInteractionBlocked}
@@ -621,12 +648,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           >
             {item.archived ? '▲' : '▼'}
           </button>
-        </TourViewportTarget>
+        </TourTargetSlot>
         </div>
 
         {/* Item name — click to expand (collapsed) or rename (expanded) */}
-        <TourViewportTarget
+        <TourTargetSlot
           target="item-name"
+          enabled={tourTargetsEnabled}
           className={`relative text-left ${nameFlexesWhenExpanded ? 'min-w-0 flex-1 overflow-hidden' : 'flex-shrink-0'}`}
         >
         <div
@@ -704,14 +732,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </div>
           )}
         </div>
-        </TourViewportTarget>
+        </TourTargetSlot>
 
         {/* Per-member controls - aligned under header */}
         {members.length > 0 ? (
-        <TourViewportTarget
-          target="item-state"
-          className={itemRowMemberLeadingClassName}
-        >
+        <TourTargetSlot target="item-state" enabled={tourTargetsEnabled} className={itemRowMemberLeadingClassName}>
           {members.map(member => {
             if (member.is_target) {
               const targetQty = item.memberStates[member.id]?.quantity || 1
@@ -902,7 +927,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               </div>
             )
           })}
-        </TourViewportTarget>
+        </TourTargetSlot>
         ) : null}
 
         {/* Trailing section — ml-auto pins icons to the right when the row is full width */}
@@ -964,7 +989,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           ) : null}
 
           {/* Kebab menu button */}
-          <TourViewportTarget target="item-menu" className="flex-shrink-0">
+          <TourTargetSlot target="item-menu" enabled={tourTargetsEnabled} className="flex-shrink-0">
             <button
               onClick={() => setShowMenu(!showMenu)}
               className="px-2 py-1 text-lg leading-none text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 flex-shrink-0"
@@ -972,7 +997,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             >
               {showMenu ? '✕' : '⋮'}
             </button>
-          </TourViewportTarget>
+          </TourTargetSlot>
         </div>
         </div>
 
