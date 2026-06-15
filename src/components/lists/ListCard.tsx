@@ -10,7 +10,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { prefetchListPageForNavigation } from '@/lib/data/listPageCachePrefetch'
 import { useActiveListUiStore } from '@/stores/activeListUiStore'
 import { copyTextToClipboard } from '@/lib/clipboard'
-import { createClient } from '@/lib/supabase/client'
+import { listItemClipboardTextFromDexie } from '@/lib/data/listItemClipboardText'
 import type { ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { listCardModelEqual, sameStringList } from './listCardEquality'
 import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNameUniqueness'
@@ -602,13 +602,7 @@ function ListCardInner({
     if (copyingItems) return
     setCopyingItems(true)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.rpc('get_list_item_names', { p_list_id: list.id })
-      if (error) throw error
-      const text = (data ?? [])
-        .map(name => name.trim())
-        .filter(name => name.length > 0)
-        .join('\n')
+      const text = await listItemClipboardTextFromDexie(list.id)
       await copyTextToClipboard(text)
       showSuccess('Copied to clipboard')
     } catch (err) {
@@ -1001,8 +995,11 @@ function ListCardInner({
               </div>
             )}
           </div>
-          {/* Action buttons — copy, duplicate, delete/leave aligned right */}
-          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+          {/* Action buttons — mobile: full width, copy left / delete right; sm+: grouped right */}
+          <div
+            className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
               disabled={copyingItems}

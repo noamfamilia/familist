@@ -50,7 +50,7 @@ import { SortableItemCard } from '@/components/items/SortableItemCard'
 import { ItemCard } from '@/components/items/ItemCard'
 import { ListSumRowCard } from '@/components/items/ListSumRowCard'
 import { MemberHeader } from '@/components/items/MemberHeader'
-import { itemCardRowHeightWithMembersPx, itemNameFontClassForStep } from '@/lib/itemNameFontStep'
+import { formatListItemNamesForClipboard } from '@/lib/data/listItemClipboardText'
 import {
   itemNameColumnRightEdgePx,
   itemNameWidthBoundaryGuideLeftPx,
@@ -320,22 +320,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     allowItemMutationQueue,
   } = useList(listId)
 
-  const listItemsClipboardText = useMemo(() => {
-    const active = [...items]
-      .filter(i => !i.archived)
-      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-    const archived = [...items]
-      .filter(i => i.archived)
-      .sort((a, b) => {
-        const aTime = a.archived_at ? new Date(a.archived_at).getTime() : 0
-        const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
-        return bTime - aTime
-      })
-    return [...active, ...archived]
-      .map(i => i.text.trim())
-      .filter(t => t.length > 0)
-      .join('\n')
-  }, [items])
+  const listItemsClipboardText = useMemo(
+    () => formatListItemNamesForClipboard(items),
+    [items],
+  )
 
   const wasOfflineRef = useRef(isOfflineActionsDisabled)
   useEffect(() => {
