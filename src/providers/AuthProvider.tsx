@@ -65,6 +65,8 @@ interface AuthContextType {
   isGuest: boolean
   /** True while auth bootstrap is resolving (not guest). */
   sessionRestoring: boolean
+  /** True after authoritative boot auth failure; UI is restricted to sign-in/out entry points. */
+  authFailureLocked: boolean
   /** Shown once after sign-out when returning to guest mode. */
   signedOutToGuest: boolean
   clearSignedOutToGuest: () => void
@@ -205,6 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
   const [bootstrapUserId, setBootstrapUserId] = useState<string | null>(initialShell.bootstrapUserId)
   const [signedOutToGuest, setSignedOutToGuest] = useState(false)
+  const [authFailureLocked, setAuthFailureLocked] = useState(false)
   const [profileFetchPhase, setProfileFetchPhase] = useState<ProfileFetchPhase>('idle')
   const supabase = createClient()
   const { setTheme } = useTheme()
@@ -631,6 +634,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       enterGuestMode,
       applyOptimisticLocalAccount,
       hardRecoverInvalidRefreshToken,
+      setAuthFailureLocked,
     },
   )
 
@@ -811,6 +815,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         sessionMode,
         isGuest,
         sessionRestoring,
+        authFailureLocked,
         signedOutToGuest,
         clearSignedOutToGuest: () => setSignedOutToGuest(false),
         displayName,

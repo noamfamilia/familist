@@ -80,6 +80,7 @@ function HomeContent() {
     guestId,
     isGuest,
     sessionRestoring,
+    authFailureLocked,
     profileFetchPhase,
     updateProfile,
     updateActorProfile,
@@ -398,9 +399,10 @@ function HomeContent() {
   const effectiveUserId = activeActorId
   const showListsShell = !!effectiveUserId
   const profileMenuNeedsSession = sessionRestoring
-  const avatarClickDisabled = profileMenuNeedsSession
-  const guestSignInDisabled = isOffline || profileMenuNeedsSession
+  const avatarClickDisabled = profileMenuNeedsSession && !authFailureLocked
+  const guestSignInDisabled = (isOffline || profileMenuNeedsSession) && !authFailureLocked
   const avatarDimmed = isOffline
+  const hardAuthLock = authFailureLocked
 
   if (!hasMounted || authPhase === 'resolving') {
     return (
@@ -468,6 +470,7 @@ function HomeContent() {
                   profile={profile}
                   isGuest={isGuest}
                   profileMenuNeedsSession={profileMenuNeedsSession}
+                  authFailureLocked={hardAuthLock}
                   isOffline={isOffline}
                   menuClassName={profileMenuAnim.menuClassName}
                   themeToggleLabel={
@@ -521,10 +524,16 @@ function HomeContent() {
             <div className="relative">
               <button
                 type="button"
-                onClick={() => { setLabelDropdownOpen(o => !o); setAddingLabel(false); setNewLabelText('') }}
+                onClick={() => {
+                  if (hardAuthLock) return
+                  setLabelDropdownOpen(o => !o)
+                  setAddingLabel(false)
+                  setNewLabelText('')
+                }}
+                disabled={hardAuthLock}
                 className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm font-medium bg-white dark:bg-neutral-900 ${
                   isCreating ? 'text-red-500 border border-red-500' : 'text-teal border border-teal'
-                }`}
+                } ${hardAuthLock ? 'cursor-not-allowed opacity-50' : ''}`}
               >
                 <svg className="h-8 w-8 flex-shrink-0 -my-1.5" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
                   <path d="M746.5 575.9L579.2 743.6l-173-173.5-53.3-112.4 108.3-108.6 112.2 53.4z" fill="#FBBA22" />
@@ -657,7 +666,7 @@ function HomeContent() {
 
       {/* Main content */}
       {showListsShell ? (
-        <>
+        <div className={hardAuthLock ? 'pointer-events-none opacity-60' : ''}>
           <ListsView 
             viewMode="all" 
             homeTourSteps={homeTourSteps}
@@ -677,7 +686,7 @@ function HomeContent() {
             onCloseLabelManager={() => setLabelManagerOpen(false)}
             onOfflineActionsDisabledChange={handleOfflineActionsDisabledChange}
           />
-        </>
+        </div>
       ) : (
         <div className="text-center py-12 text-gray-500 dark:text-gray-400">
           <p>{inviteToken ? 'Sign in to join the shared list' : 'Sign in to view and manage your lists'}</p>

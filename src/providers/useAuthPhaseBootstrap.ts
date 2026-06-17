@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import type { User } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { notifyBootSessionVerifyFailed } from '@/lib/authBootToastBridge'
+import { reportConnectivityFailure } from '@/lib/connectivityFailureBridge'
 import { isBrowserOnline, resolveLocalBootActor } from '@/lib/authLocalBoot'
 import { isLikelyConnectivityError } from '@/lib/connectivityErrors'
 import {
@@ -50,6 +51,7 @@ export type AuthPhaseBootstrapActions = {
   }) => Promise<void>
   applyOptimisticLocalAccount: (userId: string) => void
   hardRecoverInvalidRefreshToken: (source: string) => Promise<void>
+  setAuthFailureLocked: (locked: boolean) => void
 }
 
 export function useAuthPhaseBootstrap(
@@ -85,6 +87,7 @@ export function useAuthPhaseBootstrap(
 
     const phaseBefore = r.authPhaseRef.current
     const nextId = nextUser.id
+    a.setAuthFailureLocked(false)
 
     if (
       r.authenticatedEstablishedRef.current &&
@@ -193,6 +196,7 @@ export function useAuthPhaseBootstrap(
     }
 
     if (code) notifyBootSessionVerifyFailed(code)
+    actionsRef.current.setAuthFailureLocked(true)
 
     if (refs.authPhaseRef.current === 'authenticated' && !refs.userRef.current) {
       const source = `boot-verify-failed-${code ?? 'no-session'}`
@@ -340,9 +344,7 @@ export function useAuthPhaseBootstrap(
           // Surface the toast only when we were online, so the user knows something is off.
           refs.loadingRef.current = false
           actionsRef.current.setLoading(false)
-          if (browserOnline) {
-            notifyBootSessionVerifyFailed('453')
-          }
+          reportConnectivityFailure('auth-bootstrap-timeout')
           return
         }
         if (refs.authPhaseRef.current === 'resolving' && browserOnline) {

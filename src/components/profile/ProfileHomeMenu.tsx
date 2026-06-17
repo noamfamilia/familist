@@ -15,6 +15,7 @@ type ProfileHomeMenuProps = {
   profile: Profile | null
   isGuest: boolean
   profileMenuNeedsSession: boolean
+  authFailureLocked?: boolean
   isOffline?: boolean
   menuClassName: string
   themeToggleLabel: string
@@ -36,6 +37,7 @@ export function ProfileHomeMenu({
   profile,
   isGuest,
   profileMenuNeedsSession,
+  authFailureLocked = false,
   isOffline = false,
   menuClassName,
   themeToggleLabel,
@@ -51,7 +53,7 @@ export function ProfileHomeMenu({
   signOut,
   showError,
 }: ProfileHomeMenuProps) {
-  const nicknameDisabled = profileMenuNeedsSession || isOffline
+  const nicknameDisabled = authFailureLocked || profileMenuNeedsSession || isOffline
   const signOutDisabledByOffline = isOffline
   const displayNickname = isGuest
     ? profile?.nickname?.trim() || 'Guest'
@@ -279,6 +281,7 @@ export function ProfileHomeMenu({
           </button>
         )}
 
+        {!authFailureLocked ? (
         <button
           type="button"
           className={menuRowClass}
@@ -290,8 +293,9 @@ export function ProfileHomeMenu({
         >
           {themeToggleLabel}
         </button>
+        ) : null}
 
-        {!isGuest && onRequestImport ? (
+        {!authFailureLocked && !isGuest && onRequestImport ? (
           <button
             type="button"
             disabled={importDisabled || profileMenuNeedsSession}
@@ -314,6 +318,7 @@ export function ProfileHomeMenu({
           </button>
         ) : null}
 
+        {!authFailureLocked ? (
         <button
           type="button"
           className={menuRowClass}
@@ -325,8 +330,9 @@ export function ProfileHomeMenu({
         >
           Show tutorial
         </button>
+        ) : null}
 
-        {onRequestAbout ? (
+        {!authFailureLocked && onRequestAbout ? (
           <button
             type="button"
             className={menuRowClass}
