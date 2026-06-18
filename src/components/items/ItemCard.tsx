@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type MouseEvent, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
@@ -526,6 +526,21 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     }
   }
 
+  const handleItemNameClick = (e: MouseEvent) => {
+    e.stopPropagation()
+    if (item.archived) {
+      void handleArchive()
+      return
+    }
+    if (showMenu) {
+      setEditText(item.text)
+      setIsEditing(true)
+    }
+  }
+
+  const itemNameClickable = item.archived ? !archiveInteractionBlocked : showMenu
+  const itemNameInteractiveClass = itemNameClickable ? 'cursor-pointer hover:text-teal' : ''
+
   const handleStartEditComment = () => {
     setDraftComment(comment)
     setEditingComment(true)
@@ -648,7 +663,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         </TourTargetSlot>
         </div>
 
-        {/* Item name — click to expand (collapsed) or rename (expanded) */}
+        {/* Item name — archived: click restores; active expanded: click renames; active collapsed: no action */}
         <TourTargetSlot
           target="item-name"
           enabled={tourTargetsEnabled}
@@ -662,14 +677,10 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           }
           dir="ltr"
         >
-          {showMenu ? (
+          {showMenu && !item.archived ? (
             <span
-              onClick={(e) => {
-                e.stopPropagation()
-                setEditText(item.text)
-                setIsEditing(true)
-              }}
-              className={`flex min-w-0 items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              onClick={handleItemNameClick}
+              className={`flex min-w-0 items-center gap-1 ${itemNameFontClassName} ${itemNameColorClass} ${itemNameInteractiveClass}`}
             >
               <span className="min-w-0 truncate" title={item.text}>{item.text}</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
@@ -678,12 +689,13 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             </span>
           ) : (
             <span
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowMenu(true)
-              }}
-              className={`block ${compactAutoLayout ? 'whitespace-nowrap' : 'truncate'} ${itemNameFontClassName} ${itemNameColorClass} cursor-pointer hover:text-teal ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
-              title={`Expand: ${item.text}`}
+              onClick={itemNameClickable ? handleItemNameClick : undefined}
+              className={`block ${compactAutoLayout ? 'whitespace-nowrap' : 'truncate'} ${itemNameFontClassName} ${itemNameColorClass} ${itemNameInteractiveClass} ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              title={
+                item.archived && !archiveInteractionBlocked
+                  ? `Restore: ${item.text}`
+                  : item.text
+              }
             >
               {item.text}
             </span>
