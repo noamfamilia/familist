@@ -517,12 +517,16 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
 
   const handleArchive = async () => {
     if (archiveInteractionBlocked) return
-    const { error } = item.archived
+    const restoring = item.archived
+    if (restoring) {
+      onClearAddItemDraft?.()
+    }
+    const { error } = restoring
       ? await onUpdateItem(item.id, { archived: false, archived_at: null })
       : await onUpdateItem(item.id, { archived: true, archived_at: new Date().toISOString() })
 
     if (error && shouldShowConnectivityRelatedMutationToast(error.message)) {
-      showError(error.message || `Failed to ${item.archived ? 'restore' : 'archive'} item`, { serverError: error })
+      showError(error.message || `Failed to ${restoring ? 'restore' : 'archive'} item`, { serverError: error })
     }
   }
 
