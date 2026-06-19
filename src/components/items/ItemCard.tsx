@@ -705,7 +705,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
             >
               {item.text}
             </span>
-          )}
+          ) : null}
           {isEditing && (
             <div
               ref={renamePopoverRef}
