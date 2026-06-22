@@ -116,6 +116,25 @@ body {
   .animate-button-nudge {
     animation: button-nudge 5s 5s infinite;
   }
+
+  /* List table: one horizontal pan for header + rows; clip Y so vertical scroll/sticky stay on the page */
+  .list-table-pan-x {
+    overflow-x: auto;
+    overflow-y: clip;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @media (max-width: 639px) {
+    .list-table-pan-x {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .list-table-pan-x::-webkit-scrollbar {
+      display: none;
+    }
+  }
 }
 
 @keyframes button-nudge {

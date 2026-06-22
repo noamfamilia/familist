@@ -880,11 +880,18 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     open()
   }
 
+  const listPageMinHeightClass =
+    surface === 'home_modal' ? 'max-sm:min-h-0 sm:min-h-0' : 'min-h-screen sm:min-h-0'
+  const listTablePanClass = noMemberColumns
+    ? 'w-full min-w-0 max-sm:list-table-pan-x sm:overflow-visible'
+    : 'w-full min-w-0 max-sm:list-table-pan-x sm:max-w-full sm:overflow-x-auto'
+
   return (
     <div
       ref={listPageRef}
-      className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-fit max-w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8"
+      className={`bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full max-w-full min-w-0 sm:w-fit sm:min-w-[450px] ${listPageMinHeightClass} px-4 pb-4 pt-6 sm:p-8`}
     >
+      <div className="w-full shrink-0 overflow-x-hidden">
       {/* Top bar with back button and member filter */}
       <div className="flex w-full min-w-0 items-center justify-between mb-4">
         <div className="flex min-w-0 items-center gap-1.5">
@@ -1068,9 +1075,14 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               : 'Filtering...'}
         </p>
       )}
+      </div>
 
-      {/* With members: scroll horizontally if table exceeds viewport (outer is w-fit max-w-full). Without members: width follows widest item row. */}
-      <div className={noMemberColumns ? 'w-full min-w-0' : 'max-w-full overflow-x-auto'}>
+      {/*
+        Mobile: one horizontal pan for header card + all rows (no bar between header and items).
+        overflow-y-clip keeps vertical scroll on the page so the header card can stick. Top chrome
+        stays outside this zone. Desktop: unchanged single overflow-x-auto when members exist.
+      */}
+      <div className={listTablePanClass}>
         <div
           className={
             noMemberColumns ? 'relative inline-block w-max min-w-full' : 'relative inline-block min-w-full'
@@ -1091,7 +1103,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
           {/* Members header with hide done toggles — hidden while add-field filters the list */}
           {!searchText ? (
           <div
-            className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${
+            className={`sticky top-0 z-40 bg-white dark:bg-neutral-800${
               compactRowListFixedLayout ? ' block min-w-full w-max' : noMemberColumns ? ' block w-max' : ''
             }`}
           >
