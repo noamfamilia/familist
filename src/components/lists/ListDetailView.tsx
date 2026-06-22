@@ -521,6 +521,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
     () => Math.round(itemCardRowHeightWithMembersPx(itemNameFontStep) / 2),
     [itemNameFontStep],
   )
+  const listBottomSpacerPx = useMemo(
+    () => itemCardRowHeightWithMembersPx(itemNameFontStep),
+    [itemNameFontStep],
+  )
 
   const [newItemCategory, setNewItemCategory] = useState<ItemCategory>(1)
 
@@ -1323,6 +1327,14 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               </div>
             </>
           )}
+
+          {activeItems.length > 0 || archivedItems.length > 0 ? (
+            <div
+              className="w-full shrink-0 pointer-events-none"
+              style={{ height: listBottomSpacerPx }}
+              aria-hidden
+            />
+          ) : null}
         </div>
       </div>
       
