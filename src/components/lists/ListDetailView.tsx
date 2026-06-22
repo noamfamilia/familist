@@ -551,9 +551,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   )
   const noMemberColumns = filteredMembers.length === 0
   const listPageRef = useRef<HTMLDivElement>(null)
-  const listHeaderHScrollRef = useRef<HTMLDivElement>(null)
-  const listBodyHScrollRef = useRef<HTMLDivElement>(null)
-  const listHScrollSyncSourceRef = useRef<'header' | 'body' | null>(null)
   const compactRowPageMinWidthRef = useRef(0)
   const [compactRowPageMinWidthPx, setCompactRowPageMinWidthPx] = useState(0)
 
@@ -624,39 +621,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       window.removeEventListener('resize', scheduleSync)
     }
   }, [noMemberColumns, listId])
-
-  const syncListHorizontalScroll = useCallback((source: 'header' | 'body', scrollLeft: number) => {
-    if (listHScrollSyncSourceRef.current === source) {
-      listHScrollSyncSourceRef.current = null
-      return
-    }
-    const target = source === 'header' ? listBodyHScrollRef.current : listHeaderHScrollRef.current
-    if (!target || Math.abs(target.scrollLeft - scrollLeft) < 1) return
-    listHScrollSyncSourceRef.current = source === 'header' ? 'body' : 'header'
-    target.scrollLeft = scrollLeft
-  }, [])
-
-  const handleListHeaderHScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      if (window.matchMedia('(min-width: 640px)').matches) return
-      syncListHorizontalScroll('header', e.currentTarget.scrollLeft)
-    },
-    [syncListHorizontalScroll],
-  )
-
-  const handleListBodyHScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      if (window.matchMedia('(min-width: 640px)').matches) return
-      syncListHorizontalScroll('body', e.currentTarget.scrollLeft)
-    },
-    [syncListHorizontalScroll],
-  )
-
-  const listHeaderStickyWidthClass =
-    compactRowListFixedLayout ? 'block min-w-full w-max' : noMemberColumns ? 'block w-max' : ''
-  const listTableInnerWidthClass = noMemberColumns
-    ? 'relative inline-block w-max min-w-full'
-    : 'relative inline-block min-w-full'
 
   const searchText = addItemBulkMode ? '' : newItemText.trim().toLowerCase()
 
@@ -919,9 +883,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   return (
     <div
       ref={listPageRef}
-      className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-full max-w-full min-w-0 sm:w-fit sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8"
+      className="bg-white dark:bg-neutral-800 rounded-none sm:rounded-xl shadow-none sm:shadow-lg dark:shadow-black/40 w-fit max-w-full min-w-0 sm:min-w-[450px] min-h-screen sm:min-h-0 px-4 pb-4 pt-6 sm:p-8"
     >
-      <div className="w-full shrink-0 overflow-x-hidden">
       {/* Top bar with back button and member filter */}
       <div className="flex w-full min-w-0 items-center justify-between mb-4">
         <div className="flex min-w-0 items-center gap-1.5">
@@ -1105,21 +1068,14 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               : 'Filtering...'}
         </p>
       )}
-      </div>
 
-      {/*
-        Mobile: viewport-bound shell; header card is sticky on vertical scroll and has its own
-        horizontal scroll (synced with item rows). Top chrome (back, title, add form) stays
-        outside horizontal pan. Desktop: single overflow-x-auto wrapper (unchanged behavior).
-      */}
-      <div
-        className={
-          noMemberColumns
-            ? 'w-full min-w-0 max-sm:overflow-x-hidden sm:overflow-visible'
-            : 'w-full min-w-0 max-sm:overflow-x-hidden sm:max-w-full sm:overflow-x-auto'
-        }
-      >
-        <div className={listTableInnerWidthClass}>
+      {/* With members: scroll horizontally if table exceeds viewport (outer is w-fit max-w-full). Without members: width follows widest item row. */}
+      <div className={noMemberColumns ? 'w-full min-w-0' : 'max-w-full overflow-x-auto'}>
+        <div
+          className={
+            noMemberColumns ? 'relative inline-block w-max min-w-full' : 'relative inline-block min-w-full'
+          }
+        >
           {showWidthBoundaryGuide &&
           (!noMemberColumns || itemTextWidthMode === 'manual') ? (
             <div
@@ -1132,72 +1088,67 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               aria-hidden
             />
           ) : null}
-          {/* Members header — sticky on vertical scroll; mobile horizontal pan synced with rows */}
+          {/* Members header with hide done toggles — hidden while add-field filters the list */}
           {!searchText ? (
-            <div
-              ref={listHeaderHScrollRef}
-              onScroll={handleListHeaderHScroll}
-              className={`sticky top-0 z-40 bg-white dark:bg-neutral-800 max-sm:overflow-x-auto max-sm:overscroll-x-contain max-sm:touch-pan-x ${listHeaderStickyWidthClass}`}
-            >
-              <MemberHeader
-                members={filteredMembers}
-                allMembers={members}
-                hideDone={hideDone}
-                hideNotRelevant={hideNotRelevant}
-                onToggleHideDone={toggleHideDone}
-                onToggleHideNotRelevant={toggleHideNotRelevant}
-                onAddMember={addMember}
-                onUpdateMember={updateMember}
-                onDeleteMember={deleteMember}
-                onOwnMember={ownMember}
-                listId={listId}
-                isOfflineActionsDisabled={isOfflineActionsDisabled}
-                showAddMember={memberFilter !== 'hide'}
-                itemTextWidth={itemTextWidth}
-                itemTextWidthMode={itemTextWidthMode}
-                itemTextWidthMin={itemTextWidthMin}
-                compactRowPageMinWidthPx={compactRowPageMinWidthPx}
-                compactRowManualListContentWidthPx={compactRowManualListContentWidthPx}
-                onWidthChange={handleWidthChange}
-                onWidthModeToggle={handleWidthModeToggle}
-                itemNameFontStep={itemNameFontStep}
-                onItemNameFontStepChange={previewItemNameFontStep}
-                showActionsMenu
-                categoryEditorSortDisabled={bulkLoading || itemsAlreadySortedByCategory}
-                hasArchivedItems={archivedItems.length > 0}
-                onExpandAll={handleExpandAll}
-                onCollapseAll={handleCollapseAll}
-                onDeleteAllArchived={() => openMutatingModal(() => setConfirmDeleteArchived(true))}
-                onRestoreAllArchived={() => openMutatingModal(() => setConfirmRestoreArchived(true))}
-                isOwner={list?.owner_id === user?.id}
-                hasTargetMember={hasTargetMember}
-                onCreateTargets={createTargets}
-                categoryNames={categoryNames}
-                categoryOrder={categoryOrder}
-                itemsForCategorySort={activeItems}
-                onRenameCategory={renameCategory}
-                onReorderCategories={reorderCategories}
-                onSortItemsByCategory={sortItemsByCategory}
-                sumScope={sumScope}
-                onEnableSumItems={() => void persistSumScope('all')}
-                onDisableSumItems={() => void persistSumScope('none')}
-                onDisplayControlsOpenChange={(open) => {
-                  if (open) {
-                    beginDisplayPrefsSession()
-                  } else {
-                    hideWidthBoundaryGuide()
-                    void commitDisplayPrefs()
-                  }
-                }}
-              />
-            </div>
+          <div
+            className={`sticky top-0 z-40 bg-white dark:bg-neutral-900${
+              compactRowListFixedLayout ? ' block min-w-full w-max' : noMemberColumns ? ' block w-max' : ''
+            }`}
+          >
+            <MemberHeader
+              members={filteredMembers}
+              allMembers={members}
+              hideDone={hideDone}
+              hideNotRelevant={hideNotRelevant}
+              onToggleHideDone={toggleHideDone}
+              onToggleHideNotRelevant={toggleHideNotRelevant}
+              onAddMember={addMember}
+              onUpdateMember={updateMember}
+              onDeleteMember={deleteMember}
+              onOwnMember={ownMember}
+              listId={listId}
+              isOfflineActionsDisabled={isOfflineActionsDisabled}
+              showAddMember={memberFilter !== 'hide'}
+              itemTextWidth={itemTextWidth}
+              itemTextWidthMode={itemTextWidthMode}
+              itemTextWidthMin={itemTextWidthMin}
+              compactRowPageMinWidthPx={compactRowPageMinWidthPx}
+              compactRowManualListContentWidthPx={compactRowManualListContentWidthPx}
+              onWidthChange={handleWidthChange}
+              onWidthModeToggle={handleWidthModeToggle}
+              itemNameFontStep={itemNameFontStep}
+              onItemNameFontStepChange={previewItemNameFontStep}
+              showActionsMenu
+              categoryEditorSortDisabled={bulkLoading || itemsAlreadySortedByCategory}
+              hasArchivedItems={archivedItems.length > 0}
+              onExpandAll={handleExpandAll}
+              onCollapseAll={handleCollapseAll}
+              onDeleteAllArchived={() => openMutatingModal(() => setConfirmDeleteArchived(true))}
+              onRestoreAllArchived={() => openMutatingModal(() => setConfirmRestoreArchived(true))}
+              isOwner={list?.owner_id === user?.id}
+              hasTargetMember={hasTargetMember}
+              onCreateTargets={createTargets}
+              categoryNames={categoryNames}
+              categoryOrder={categoryOrder}
+              itemsForCategorySort={activeItems}
+              onRenameCategory={renameCategory}
+              onReorderCategories={reorderCategories}
+              onSortItemsByCategory={sortItemsByCategory}
+              sumScope={sumScope}
+              onEnableSumItems={() => void persistSumScope('all')}
+              onDisableSumItems={() => void persistSumScope('none')}
+              onDisplayControlsOpenChange={(open) => {
+                if (open) {
+                  beginDisplayPrefsSession()
+                } else {
+                  hideWidthBoundaryGuide()
+                  void commitDisplayPrefs()
+                }
+              }}
+            />
+          </div>
           ) : null}
 
-          <div
-            ref={listBodyHScrollRef}
-            onScroll={handleListBodyHScroll}
-            className="w-full min-w-0 max-sm:overflow-x-auto max-sm:overscroll-x-contain max-sm:touch-pan-x"
-          >
           {/* Active items — min-w-full w-max children so widest row sets column width */}
           <div
             className={
@@ -1360,7 +1311,6 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
               </div>
             </>
           )}
-          </div>
         </div>
       </div>
       
