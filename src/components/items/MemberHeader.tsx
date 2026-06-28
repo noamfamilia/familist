@@ -493,7 +493,7 @@ export function MemberHeader({
     onDisplayControlsOpenChange?.(itemNameFontOpen)
   }, [itemNameFontOpen, onDisplayControlsOpenChange])
 
-  const MENU_WIDTH = 224 // w-56
+  const MENU_WIDTH = 256 // w-64
   const RENAME_WIDTH = 160
 
   const computeMenuPos = useCallback((chipEl: HTMLDivElement) => {
@@ -502,23 +502,12 @@ export function MemberHeader({
     const top = chipRect.bottom + 4
     const vw = window.innerWidth
 
-    // Prefer left-aligned with chip
-    if (chipRect.left + MENU_WIDTH + EDGE_GUARD <= vw && chipRect.left >= EDGE_GUARD) {
-      setMemberMenuPos({ top, left: chipRect.left })
-    // Then try centering under chip
-    } else {
-      const centerLeft = chipRect.left + chipRect.width / 2 - MENU_WIDTH / 2
-      if (centerLeft >= EDGE_GUARD && centerLeft + MENU_WIDTH + EDGE_GUARD <= vw) {
-        setMemberMenuPos({ top, left: centerLeft })
-      // Then right-aligned with chip
-      } else if (chipRect.right - MENU_WIDTH >= EDGE_GUARD) {
-        setMemberMenuPos({ top, right: vw - chipRect.right })
-      // Fallback: clamp to screen edges
-      } else {
-        const clampedLeft = Math.max(EDGE_GUARD, Math.min(chipRect.left, vw - MENU_WIDTH - EDGE_GUARD))
-        setMemberMenuPos({ top, left: clampedLeft })
-      }
+    let left = chipRect.left
+    if (left + MENU_WIDTH + EDGE_GUARD > vw) {
+      left = chipRect.right - MENU_WIDTH
     }
+    left = Math.max(EDGE_GUARD, Math.min(left, vw - MENU_WIDTH - EDGE_GUARD))
+    setMemberMenuPos({ top, left })
   }, [])
 
   const handleChipClick = useCallback((memberId: string) => {
@@ -1131,12 +1120,12 @@ export function MemberHeader({
         memberMenuDisplayMember && (
         <div
           ref={memberMenuRef}
+          dir="ltr"
           className={`fixed z-50 flex w-64 flex-col rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${memberFloatingMenuAnim.menuClassName}`}
           role="menu"
           style={{
             top: (memberMenuPos ?? memberMenuPosStableRef.current)!.top,
             left: (memberMenuPos ?? memberMenuPosStableRef.current)!.left,
-            right: (memberMenuPos ?? memberMenuPosStableRef.current)!.right,
           }}
         >
           {memberMenuDisplayMember.created_by === user?.id ? (
@@ -1144,7 +1133,7 @@ export function MemberHeader({
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center gap-2"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center gap-2"
                 onClick={() => handleStartEdit(memberMenuDisplayMember)}
               >
                 Task: {memberMenuDisplayMember.name}
@@ -1156,7 +1145,7 @@ export function MemberHeader({
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                 onClick={() => void handleTogglePublic(memberMenuDisplayMember)}
               >
                 Owner: {memberMenuDisplayMember.creator?.nickname || 'Unknown'}
@@ -1171,7 +1160,7 @@ export function MemberHeader({
                   <button
                     type="button"
                     role="menuitem"
-                    className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                     onClick={() => {
                       closeMemberMenu()
                       const isShowingAll = !hideDone[memberMenuDisplayMember.id] || !hideNotRelevant[memberMenuDisplayMember.id]
@@ -1194,7 +1183,7 @@ export function MemberHeader({
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-start px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-neutral-800"
                 onClick={() => handleDeleteClick(memberMenuDisplayMember)}
               >
                 Delete
@@ -1210,7 +1199,7 @@ export function MemberHeader({
                 <button
                   type="button"
                   role="menuitem"
-                  className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   onClick={() => handleOwnClick(memberMenuDisplayMember)}
                 >
                   Owner: {memberMenuDisplayMember.creator?.nickname || 'Unknown'}
@@ -1228,7 +1217,7 @@ export function MemberHeader({
                   <button
                     type="button"
                     role="menuitem"
-                    className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                     onClick={() => {
                       closeMemberMenu()
                       const isShowingAll = !hideDone[memberMenuDisplayMember.id] || !hideNotRelevant[memberMenuDisplayMember.id]
