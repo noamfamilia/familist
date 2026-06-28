@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useSyncExternalStore, memo, useMemo } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useSyncExternalStore, memo, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { LinkEnabledCardIcon } from '@/components/ui/ShareIcons'
@@ -14,6 +15,7 @@ import { listItemClipboardTextFromDexie } from '@/lib/data/listItemClipboardText
 import type { ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { listCardModelEqual, sameStringList } from './listCardEquality'
 import { useTextDirection } from '@/hooks/useTextDirection'
+import { clampFloatingPopoverLeft } from '@/lib/floatingPopoverPosition'
 import { isLocalDexieNameUniquenessFailure } from '@/lib/data/localListMemberNameUniqueness'
 
 function listCardShowsSumRowMetadata(list: ListWithRole): boolean {
@@ -197,6 +199,8 @@ function ListCardInner({
   const commentRef = useRef<HTMLTextAreaElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const renamePopoverRef = useRef<HTMLDivElement>(null)
+  const renameAnchorRef = useRef<HTMLDivElement>(null)
+  const [renamePopoverPos, setRenamePopoverPos] = useState<{ top: number; left: number } | null>(null)
   const commentPopoverRef = useRef<HTMLDivElement>(null)
   const [labelDropdownOpen, setLabelDropdownOpen] = useState(false)
   const [addingLabel, setAddingLabel] = useState(false)
@@ -451,16 +455,31 @@ function ListCardInner({
   useEffect(() => {
     if (!isRenaming) return
     const handleMouseDown = (e: MouseEvent) => {
-      if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
-        e.preventDefault()
-        e.stopPropagation()
-        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        handleCancelRename()
-      }
+      const target = e.target as Node
+      if (renamePopoverRef.current?.contains(target)) return
+      if (renameAnchorRef.current?.contains(target)) return
+      e.preventDefault()
+      e.stopPropagation()
+      document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
+      handleCancelRename()
     }
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
+
+  useLayoutEffect(() => {
+    if (!isRenaming) {
+      setRenamePopoverPos(null)
+      return
+    }
+    const el = renameAnchorRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setRenamePopoverPos({
+      top: rect.bottom + 4,
+      left: clampFloatingPopoverLeft(rect),
+    })
+  }, [isRenaming])
 
   // Outside-click: cancel comment
   useEffect(() => {
@@ -763,7 +782,7 @@ function ListCardInner({
       </button>
 
       {/* List name */}
-      <div className={`flex-1 min-w-0 relative ${listNameAlignClass}`} dir={textDirection}>
+      <div ref={renameAnchorRef} className={`flex-1 min-w-0 relative ${listNameAlignClass}`} dir={textDirection}>
         {list.userArchived ? (
           <span
             className="flex min-w-0 w-full items-center gap-1 font-medium text-lg text-gray-400 dark:text-gray-500"
@@ -860,45 +879,6 @@ function ListCardInner({
               )}
             </span>
           </a>
-        )}
-        {isRenaming && (
-          <div
-            ref={renamePopoverRef}
-            className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <input
-              ref={inputRef}
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleRename()
-                if (e.key === 'Escape') handleCancelRename()
-              }}
-              className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
-              aria-label="List name"
-              autoFocus
-            />
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => handleCancelRename()}
-                className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => void handleRename()}
-                className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
-              >
-                Done
-              </button>
-            </div>
-          </div>
         )}
       </div>
 
@@ -1049,6 +1029,51 @@ function ListCardInner({
         </div>
       )}
     </div>
+
+    {isRenaming &&
+      renamePopoverPos &&
+      typeof document !== 'undefined' &&
+      createPortal(
+        <div
+          ref={renamePopoverRef}
+          className="fixed z-[10000] bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
+          style={{ top: renamePopoverPos.top, left: renamePopoverPos.left }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleRename()
+              if (e.key === 'Escape') handleCancelRename()
+            }}
+            className="w-full text-center text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
+            aria-label="List name"
+            autoFocus
+          />
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleCancelRename()}
+              className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void handleRename()}
+              className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+            >
+              Done
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
 
     <ConfirmModal
       isOpen={showDeleteConfirm}

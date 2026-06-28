@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type MouseEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { useToast } from '@/components/ui/Toast'
 import { shouldShowConnectivityRelatedMutationToast } from '@/lib/mutationToastPolicy'
@@ -31,6 +32,7 @@ import {
   itemQtyProgressBarTrackHeightPx,
 } from '@/lib/itemNameFontStep'
 import { useTextDirection } from '@/hooks/useTextDirection'
+import { clampFloatingPopoverLeft } from '@/lib/floatingPopoverPosition'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -234,6 +236,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   const commentRef = useRef<HTMLTextAreaElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const renamePopoverRef = useRef<HTMLDivElement>(null)
+  const renameAnchorRef = useRef<HTMLDivElement>(null)
+  const [renamePopoverPos, setRenamePopoverPos] = useState<{ top: number; left: number } | null>(null)
   const commentPopoverRef = useRef<HTMLDivElement>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -299,16 +303,31 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
   useEffect(() => {
     if (!isEditing) return
     const handleMouseDown = (e: MouseEvent) => {
-      if (renamePopoverRef.current && !renamePopoverRef.current.contains(e.target as Node)) {
-        e.preventDefault()
-        e.stopPropagation()
-        document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
-        handleCancelEditText()
-      }
+      const target = e.target as Node
+      if (renamePopoverRef.current?.contains(target)) return
+      if (renameAnchorRef.current?.contains(target)) return
+      e.preventDefault()
+      e.stopPropagation()
+      document.addEventListener('click', (ce) => { ce.preventDefault(); ce.stopPropagation() }, { capture: true, once: true })
+      handleCancelEditText()
     }
     document.addEventListener('mousedown', handleMouseDown, true)
     return () => document.removeEventListener('mousedown', handleMouseDown, true)
   })
+
+  useLayoutEffect(() => {
+    if (!isEditing) {
+      setRenamePopoverPos(null)
+      return
+    }
+    const el = renameAnchorRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setRenamePopoverPos({
+      top: rect.top,
+      left: clampFloatingPopoverLeft(rect),
+    })
+  }, [isEditing])
 
   // Outside-click: cancel comment
   useEffect(() => {
@@ -677,6 +696,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           className={`relative ${itemNameAlignClass} ${nameFlexesWhenExpanded ? `min-w-0 flex-1${isEditing ? ' overflow-visible z-50' : ' overflow-hidden'}` : 'flex-shrink-0'}`}
         >
         <div
+          ref={renameAnchorRef}
           style={
             nameFlexesWhenExpanded
               ? { minWidth: 0, maxWidth: nameColumnWidthPx }
@@ -707,46 +727,6 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               {item.text}
             </span>
           ) : null}
-          {isEditing && (
-            <div
-              ref={renamePopoverRef}
-              className="absolute left-0 top-0 z-50 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <input
-                ref={nameInputRef}
-                type="text"
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleSaveText()
-                  if (e.key === 'Escape') handleCancelEditText()
-                }}
-                className={`w-full ${itemNameAlignClass} text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20`}
-                dir={textDirection}
-                aria-label="Item name"
-                autoFocus
-              />
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => handleCancelEditText()}
-                  className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => void handleSaveText()}
-                  className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          )}
         </div>
         </TourTargetSlot>
 
@@ -1118,6 +1098,52 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           </div>
         )}
       </div>
+
+      {isEditing &&
+        renamePopoverPos &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={renamePopoverRef}
+            className="fixed z-[10000] bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg dark:shadow-black/40 p-2 w-[200px]"
+            style={{ top: renamePopoverPos.top, left: renamePopoverPos.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleSaveText()
+                if (e.key === 'Escape') handleCancelEditText()
+              }}
+              className={`w-full ${itemNameAlignClass} text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20`}
+              dir={textDirection}
+              aria-label="Item name"
+              autoFocus
+            />
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleCancelEditText()}
+                className="flex-1 px-1 py-1 text-xs text-white rounded bg-gray-400 hover:bg-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void handleSaveText()}
+                className="flex-1 px-1 py-1 text-xs text-white rounded bg-teal hover:opacity-80"
+              >
+                Done
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       <ConfirmModal
         isOpen={showDeleteConfirm}
