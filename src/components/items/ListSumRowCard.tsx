@@ -20,6 +20,7 @@ import {
   itemCardRowHeightWithMembersPx,
   itemMemberCellHeightPx,
 } from '@/lib/itemNameFontStep'
+import { useTextDirection } from '@/hooks/useTextDirection'
 
 const DEFAULT_ITEM = ITEM_CATEGORY_STYLES[1]
 
@@ -81,6 +82,8 @@ export function ListSumRowCard({
   onCycleScope,
   onClearAddItemDraft,
 }: ListSumRowCardProps) {
+  const textDirection = useTextDirection()
+  const sumTitleAlignClass = textDirection === 'ltr' ? 'text-left' : 'text-start'
   const compactRow = members.length === 0
   const compactAutoLayout = compactRow && itemTextWidthMode === 'auto'
   const scoped = useMemo(() => itemsInScope(sumScope, items), [sumScope, items])
@@ -151,7 +154,8 @@ export function ListSumRowCard({
               </span>
               <button
                 type="button"
-                className={`absolute left-0 top-1/2 -translate-y-1/2 text-left ${itemNameFontClassName} text-teal dark:text-teal-300 cursor-pointer hover:opacity-80 ${compactAutoLayout ? 'whitespace-nowrap' : 'truncate'}`}
+                dir={textDirection}
+                className={`absolute start-0 top-1/2 -translate-y-1/2 ${sumTitleAlignClass} ${itemNameFontClassName} text-teal dark:text-teal-300 cursor-pointer hover:opacity-80 ${compactAutoLayout ? 'whitespace-nowrap' : 'truncate'}`}
                 style={sumTitleMaxWidthPx != null ? { maxWidth: sumTitleMaxWidthPx } : undefined}
                 onClick={e => {
                   e.stopPropagation()

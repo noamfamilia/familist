@@ -56,6 +56,7 @@ export async function initialOutboundProgressMessage(row: DbSyncQueueRow): Promi
   if (row.kind === 'patch' && row.entity === 'profile') {
     if (pl.label_filter !== undefined) return 'Sending label filter preference to the server…'
     if (pl.theme !== undefined) return 'Sending theme preference to the server…'
+    if (pl.text_direction !== undefined) return 'Sending text direction preference to the server…'
     if (pl.nickname !== undefined) return 'Sending profile nickname to the server…'
     return 'Sending profile settings to the server…'
   }

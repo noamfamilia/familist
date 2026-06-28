@@ -706,7 +706,7 @@ export function MemberHeader({
 
   const headerNameSlotClassName =
     onRenameCategory && onReorderCategories && onSortItemsByCategory && onItemNameFontStepChange
-      ? 'pl-6'
+      ? 'ps-6'
       : ''
 
   const showSetSelfGoalsItem = showAddMember
@@ -899,7 +899,7 @@ export function MemberHeader({
           ) : null}
 
           {/* Gear menu — goals + list actions */}
-          <div className="flex-shrink-0 flex items-center ml-auto pl-2.5">
+          <div className="flex-shrink-0 flex items-center ms-auto ps-2.5">
           {showActionsMenu && (
             <div className="relative">
               <TourViewportTarget
@@ -932,7 +932,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-start text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onEnableSumItems?.()
@@ -946,7 +946,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-start text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onDisableSumItems?.()
@@ -964,7 +964,7 @@ export function MemberHeader({
                       type="button"
                       role="menuitem"
                       disabled={isOfflineActionsDisabled}
-                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm ${
+                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-start text-sm ${
                         isOfflineActionsDisabled
                           ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
                           : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800'
@@ -983,7 +983,7 @@ export function MemberHeader({
                       type="button"
                       role="menuitem"
                       disabled={isOfflineActionsDisabled}
-                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm ${
+                      className={`flex w-full items-center gap-2 px-4 py-2.5 text-start text-sm ${
                         isOfflineActionsDisabled
                           ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
                           : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-neutral-800'
@@ -1005,7 +1005,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-start text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onExpandAll()
@@ -1019,7 +1019,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-start text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onCollapseAll()
@@ -1036,7 +1036,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-start text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onRestoreAllArchived()
@@ -1050,7 +1050,7 @@ export function MemberHeader({
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-start text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                       onClick={() => {
                         closeActions()
                         onDeleteAllArchived()
@@ -1129,7 +1129,7 @@ export function MemberHeader({
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center gap-2"
+                className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center gap-2"
                 onClick={() => handleStartEdit(memberMenuDisplayMember)}
               >
                 Task: {memberMenuDisplayMember.name}
@@ -1141,7 +1141,7 @@ export function MemberHeader({
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                 onClick={() => void handleTogglePublic(memberMenuDisplayMember)}
               >
                 Owner: {memberMenuDisplayMember.creator?.nickname || 'Unknown'}
@@ -1156,7 +1156,7 @@ export function MemberHeader({
                   <button
                     type="button"
                     role="menuitem"
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                    className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                     onClick={() => {
                       closeMemberMenu()
                       const isShowingAll = !hideDone[memberMenuDisplayMember.id] || !hideNotRelevant[memberMenuDisplayMember.id]
@@ -1179,7 +1179,7 @@ export function MemberHeader({
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                className="w-full text-start px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-neutral-800"
                 onClick={() => handleDeleteClick(memberMenuDisplayMember)}
               >
                 Delete
@@ -1195,7 +1195,7 @@ export function MemberHeader({
                 <button
                   type="button"
                   role="menuitem"
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                  className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   onClick={() => handleOwnClick(memberMenuDisplayMember)}
                 >
                   Owner: {memberMenuDisplayMember.creator?.nickname || 'Unknown'}
@@ -1213,7 +1213,7 @@ export function MemberHeader({
                   <button
                     type="button"
                     role="menuitem"
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
+                    className="w-full text-start px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800"
                     onClick={() => {
                       closeMemberMenu()
                       const isShowingAll = !hideDone[memberMenuDisplayMember.id] || !hideNotRelevant[memberMenuDisplayMember.id]

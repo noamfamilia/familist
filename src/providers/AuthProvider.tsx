@@ -126,6 +126,7 @@ async function clearAuthAndAppStorage(): Promise<void> {
         k.startsWith('recent_lists_') ||
         k.startsWith('list_') ||
         k.startsWith('label_filter_') ||
+        k.startsWith('text_direction_') ||
         k.startsWith('tutorial_') ||
         k === 'active_cache_user' ||
         k === 'last_auth_user_id' ||
@@ -469,10 +470,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
       if (!data) return
-      const row = data as Profile & { theme?: string }
+      const row = data as Profile & { theme?: string; text_direction?: string }
       const normalized: Profile = {
         ...row,
         theme: row.theme === 'dark' ? 'dark' : 'light',
+        text_direction: row.text_direction === 'rtl' ? 'rtl' : 'ltr',
       }
       void upsertProfileFromServer(normalized)
       setProfile(normalized)

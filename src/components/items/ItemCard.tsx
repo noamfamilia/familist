@@ -30,6 +30,7 @@ import {
   itemMemberCellHeightPx,
   itemQtyProgressBarTrackHeightPx,
 } from '@/lib/itemNameFontStep'
+import { useTextDirection } from '@/hooks/useTextDirection'
 
 const ConfirmModal = dynamic(() => import('@/components/ui/ConfirmModal').then(mod => mod.ConfirmModal), {
   ssr: false,
@@ -222,6 +223,8 @@ function QtyTargetDoneChecks({ doneRatio, checkSizePx = QTY_CHECK_SIZE }: { done
 
 export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateItem, onDeleteItem, onChangeQuantity, onUpdateMemberState, dragHandleProps, isDraggable = true, itemTextWidth = ITEM_TEXT_WIDTH_MIN, itemTextWidthMode = 'auto', compactRowPageMinWidthPx = 0, expandSignal = 0, collapseSignal = 0, categoryNames, categoryOrder, onClearAddItemDraft, itemNameFontClassName = 'text-lg leading-snug', itemNameFontStep = ITEM_NAME_FONT_DEFAULT, isOfflineActionsDisabled = false, allowItemMutationQueue = false, tourTargetsEnabled = false }: ItemCardProps) {
   const { user } = useAuth()
+  const textDirection = useTextDirection()
+  const itemNameAlignClass = textDirection === 'ltr' ? 'text-left' : 'text-start'
   const { error: showError } = useToast()
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(item.text)
@@ -673,7 +676,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         <TourTargetSlot
           target="item-name"
           enabled={tourTargetsEnabled}
-          className={`relative text-left ${nameFlexesWhenExpanded ? `min-w-0 flex-1${isEditing ? ' overflow-visible z-50' : ' overflow-hidden'}` : 'flex-shrink-0'}`}
+          className={`relative ${itemNameAlignClass} ${nameFlexesWhenExpanded ? `min-w-0 flex-1${isEditing ? ' overflow-visible z-50' : ' overflow-hidden'}` : 'flex-shrink-0'}`}
         >
         <div
           style={
@@ -681,7 +684,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
               ? { minWidth: 0, maxWidth: nameColumnWidthPx }
               : { width: nameColumnWidthPx }
           }
-          dir="ltr"
+          dir={textDirection}
         >
           {showMenu && !item.archived && !isEditing ? (
             <span
@@ -721,8 +724,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
                   if (e.key === 'Enter') void handleSaveText()
                   if (e.key === 'Escape') handleCancelEditText()
                 }}
-                className="w-full text-left text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20"
-                dir="ltr"
+                className={`w-full ${itemNameAlignClass} text-lg border border-teal rounded-lg px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-teal/20`}
+                dir={textDirection}
                 aria-label="Item name"
                 autoFocus
               />
@@ -945,12 +948,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         </TourTargetSlot>
         ) : null}
 
-        {/* Trailing section — ml-auto pins icons to the right when the row is full width */}
+        {/* Trailing section — ms-auto pins icons to the inline end when the row is full width */}
         <div
           className={
             compactRow
-              ? 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 pl-2'
-              : 'ml-auto flex flex-shrink-0 items-center justify-end gap-1 pl-4'
+              ? 'ms-auto flex flex-shrink-0 items-center justify-end gap-1 ps-2'
+              : 'ms-auto flex flex-shrink-0 items-center justify-end gap-1 ps-4'
           }
         >
           {/* Comment indicator - hidden when expanded */}

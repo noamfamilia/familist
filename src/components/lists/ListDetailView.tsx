@@ -30,6 +30,7 @@ import { useList, nextListUserSumScope } from '@/hooks/useList'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useToast } from '@/components/ui/Toast'
 import { useHasMounted } from '@/hooks/useHasMounted'
+import { useTextDirection } from '@/hooks/useTextDirection'
 import {
   OFFLINE_ACTIONS_DISABLED_MSG,
   RECOVERING_MUTATIONS_DISABLED_MSG,
@@ -268,6 +269,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
 
   const { error: showError } = useToast()
   const hasMounted = useHasMounted()
+  const textDirection = useTextDirection()
   const { offlineAssetsReady, swControlled, online } =
     useConnectivity()
   const {
@@ -1088,8 +1090,9 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       */}
       <div className={listTablePanClass}>
         <div
+          dir={textDirection}
           className={
-            noMemberColumns ? 'relative inline-block w-max min-w-full' : 'relative inline-block min-w-full'
+            noMemberColumns ? 'relative inline-block w-max min-w-full rtl:ms-auto' : 'relative inline-block min-w-full'
           }
         >
           {showWidthBoundaryGuide &&
@@ -1097,7 +1100,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             <div
               className="pointer-events-none absolute inset-y-0 z-30 w-px bg-teal/70 shadow-[0_0_4px_rgba(13,148,136,0.55)]"
               style={{
-                left: noMemberColumns
+                insetInlineStart: noMemberColumns
                   ? itemNameColumnRightEdgePx(itemTextWidth)
                   : itemNameWidthBoundaryGuideLeftPx(itemTextWidth),
               }}
@@ -1170,8 +1173,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             className={
               noMemberColumns
                 ? compactRowListFixedLayout
-                  ? 'flex w-max min-w-full flex-col gap-2'
-                  : 'flex w-max flex-col gap-2'
+                  ? 'flex w-max min-w-full flex-col gap-2 rtl:ms-auto'
+                  : 'flex w-max flex-col gap-2 rtl:ms-auto'
                 : 'space-y-2'
             }
           >

@@ -44,6 +44,7 @@ export interface Database {
           nickname: string | null
           label_filter: string
           theme: 'light' | 'dark'
+          text_direction: 'ltr' | 'rtl'
         } & DbSyncableFields
         Insert: {
           id: string
@@ -51,6 +52,7 @@ export interface Database {
           nickname?: string | null
           label_filter?: string
           theme?: 'light' | 'dark'
+          text_direction?: 'ltr' | 'rtl'
         } & DbSyncableFieldsPartial
         Update: {
           id?: string
@@ -58,6 +60,7 @@ export interface Database {
           nickname?: string | null
           label_filter?: string
           theme?: 'light' | 'dark'
+          text_direction?: 'ltr' | 'rtl'
         } & DbSyncableFieldsPartial
         Relationships: []
       }

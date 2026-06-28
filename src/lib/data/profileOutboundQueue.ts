@@ -3,9 +3,9 @@ import type { DbSyncQueueRow } from '@/lib/db'
 import { enqueueSyncQueueRecord, userQueueParent } from '@/lib/data/syncQueue'
 import { isOutboundRowPending } from '@/lib/data/syncQueueListScope'
 
-export type QueueableProfilePatch = Pick<Profile, 'label_filter' | 'theme' | 'nickname'>
+export type QueueableProfilePatch = Pick<Profile, 'label_filter' | 'theme' | 'text_direction' | 'nickname'>
 
-const QUEUEABLE_KEYS = ['label_filter', 'theme', 'nickname'] as const satisfies readonly (keyof QueueableProfilePatch)[]
+const QUEUEABLE_KEYS = ['label_filter', 'theme', 'text_direction', 'nickname'] as const satisfies readonly (keyof QueueableProfilePatch)[]
 
 export function pickQueueableProfilePatch(updates: Partial<Profile>): QueueableProfilePatch {
   const out: Partial<QueueableProfilePatch> = {}

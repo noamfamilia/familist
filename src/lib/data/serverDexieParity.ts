@@ -506,6 +506,7 @@ async function upsertOwnerProfileNicknameFromCatalog(
       nickname: trimmed,
       label_filter: existing?.label_filter ?? 'Any',
       theme: existing?.theme ?? 'light',
+      text_direction: existing?.text_direction === 'rtl' ? 'rtl' : 'ltr',
       client_created_at: existing?.client_created_at ?? isoNow(),
       server_created_at: existing?.server_created_at ?? null,
       deleted_at: existing?.deleted_at ?? null,

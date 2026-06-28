@@ -18,9 +18,11 @@ type ProfileHomeMenuProps = {
   authFailureLocked?: boolean
   isOffline?: boolean
   menuClassName: string
+  textDirectionToggleLabel: string
   themeToggleLabel: string
   onCloseMenu: () => void
   onRequestSignIn: () => void
+  onToggleTextDirection: () => void
   onToggleTheme: () => void
   onShowTutorial: () => void
   onRequestImport?: () => void
@@ -40,9 +42,11 @@ export function ProfileHomeMenu({
   authFailureLocked = false,
   isOffline = false,
   menuClassName,
+  textDirectionToggleLabel,
   themeToggleLabel,
   onCloseMenu,
   onRequestSignIn,
+  onToggleTextDirection,
   onToggleTheme,
   onShowTutorial,
   onRequestImport,
@@ -280,6 +284,20 @@ export function ProfileHomeMenu({
             {signingOut ? 'Signing out…' : 'Sign out'}
           </button>
         )}
+
+        {!authFailureLocked ? (
+        <button
+          type="button"
+          className={menuRowClass}
+          role="menuitem"
+          onClick={() => {
+            onCloseMenu()
+            onToggleTextDirection()
+          }}
+        >
+          {textDirectionToggleLabel}
+        </button>
+        ) : null}
 
         {!authFailureLocked ? (
         <button

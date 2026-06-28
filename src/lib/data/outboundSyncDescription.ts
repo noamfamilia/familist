@@ -65,6 +65,7 @@ export async function describeOutboundSyncRow(row: DbSyncQueueRow): Promise<stri
   if (row.kind === 'patch' && row.entity === 'profile') {
     if (pl.label_filter !== undefined) return 'Update home label filter'
     if (pl.theme !== undefined) return 'Update theme preference'
+    if (pl.text_direction !== undefined) return 'Update text direction preference'
     if (pl.nickname !== undefined) return 'Update profile nickname'
     return 'Update profile settings'
   }

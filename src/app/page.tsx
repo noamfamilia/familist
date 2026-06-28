@@ -26,7 +26,7 @@ import type { Step } from 'react-joyride'
 import { clearPendingInviteToken, setPendingInviteToken } from '@/lib/invite'
 import { requestShowTutorial } from '@/components/ui/TutorialTour'
 import { useToast } from '@/components/ui/Toast'
-import { getCachedLabelFilter, setCachedLabelFilter } from '@/lib/cache'
+import { getCachedLabelFilter, setCachedLabelFilter, getCachedTextDirection, setCachedTextDirection } from '@/lib/cache'
 import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useMenuOpenAnimation } from '@/hooks/useMenuOpenAnimation'
 import { useHasMounted } from '@/hooks/useHasMounted'
@@ -187,6 +187,14 @@ function HomeContent() {
     setCachedLabelFilter(effective, activeActorId)
     if (user && effective !== serverLabel) {
       void updateProfile({ label_filter: effective })
+    }
+
+    const serverDir = profile.text_direction === 'rtl' ? 'rtl' : 'ltr'
+    const cachedDirRaw = getCachedTextDirection(activeActorId)
+    const effectiveDir = cachedDirRaw ?? serverDir
+    setCachedTextDirection(effectiveDir, activeActorId)
+    if (user && effectiveDir !== serverDir) {
+      void updateProfile({ text_direction: effectiveDir })
     }
   }, [
     activeActorId,
@@ -473,11 +481,34 @@ function HomeContent() {
                   authFailureLocked={hardAuthLock}
                   isOffline={isOffline}
                   menuClassName={profileMenuAnim.menuClassName}
+                  textDirectionToggleLabel={
+                    (profile?.text_direction ?? getCachedTextDirection(activeActorId ?? undefined) ?? 'ltr') === 'rtl'
+                      ? 'Left-to-right'
+                      : 'Right-to-left'
+                  }
                   themeToggleLabel={
                     themeMounted && resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'
                   }
                   onCloseMenu={() => setProfileMenuOpen(false)}
                   onRequestSignIn={() => openAuthModal('signIn')}
+                  onToggleTextDirection={() => {
+                    const prev: 'ltr' | 'rtl' =
+                      profile?.text_direction ??
+                      getCachedTextDirection(activeActorId ?? undefined) ??
+                      'ltr'
+                    const next: 'ltr' | 'rtl' = prev === 'rtl' ? 'ltr' : 'rtl'
+                    if (activeActorId) {
+                      setCachedTextDirection(next, activeActorId)
+                    }
+                    void updateActorProfile({ text_direction: next }).then(({ error: dirErr }) => {
+                      if (dirErr) {
+                        if (activeActorId) {
+                          setCachedTextDirection(prev, activeActorId)
+                        }
+                        showError(dirErr.message || 'Could not save text direction')
+                      }
+                    })
+                  }}
                   onToggleTheme={() => {
                     const prev: 'light' | 'dark' =
                       themeMounted && resolvedTheme === 'dark' ? 'dark' : 'light'

@@ -8,6 +8,7 @@ export function profileFromDexieRow(row: DbProfileRow): Profile {
   return {
     ...row,
     theme: row.theme === 'dark' ? 'dark' : 'light',
+    text_direction: row.text_direction === 'rtl' ? 'rtl' : 'ltr',
   }
 }
 
@@ -24,6 +25,7 @@ function defaultLocalProfile(userId: string): Profile {
     nickname: null,
     label_filter: 'Any',
     theme: 'light',
+    text_direction: 'ltr',
     ...syncFieldsForLocalInsert(),
   }
 }

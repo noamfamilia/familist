@@ -54,17 +54,17 @@ export function itemNameColumnRightEdgePx(itemTextWidth: number): number {
   return itemNameColumnLeftEdgePx() + itemTextWidth
 }
 
-/** Matches `ml-2.5` before member / item-state columns on item rows (px). */
+/** Matches `ms-2.5` before member / item-state columns on item rows (px). */
 export const ITEM_ROW_MEMBER_LEADING_GAP_PX = 10
 
 /** Shared layout classes — keep header, item, and sum rows aligned. */
-export const itemRowHorizontalPaddingClassName = 'pl-2 pr-1 py-1'
+export const itemRowHorizontalPaddingClassName = 'ps-2 pe-1 py-1'
 export const itemRowFlexGapClassName = 'gap-2'
 export const itemRowDragArchiveGroupClassName = 'flex shrink-0 items-center gap-0.5'
 export const itemRowDragHandleClassName =
   'flex w-5 flex-shrink-0 items-center justify-center text-lg tracking-tighter text-gray-400 select-none touch-none dark:text-gray-500'
 export const itemRowArchiveSlotClassName = 'text-xl flex-shrink-0 leading-none'
-export const itemRowMemberLeadingClassName = 'ml-2.5 flex flex-shrink-0 items-center gap-2.5'
+export const itemRowMemberLeadingClassName = 'ms-2.5 flex flex-shrink-0 items-center gap-2.5'
 
 /** Width guide sits this many px left of the first member column (px). */
 export const ITEM_WIDTH_BOUNDARY_GUIDE_BEFORE_MEMBER_PX = 0

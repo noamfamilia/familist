@@ -426,6 +426,35 @@ export function setCachedLabelFilter(label: string, userId?: string) {
   }
 }
 
+const CACHE_KEY_TEXT_DIRECTION = 'text_direction'
+
+function getTextDirectionKey(userId: string) {
+  return `${CACHE_KEY_TEXT_DIRECTION}_${userId}`
+}
+
+export function getCachedTextDirection(userId?: string): 'ltr' | 'rtl' | null {
+  const scopedUserId = resolveUserId(userId)
+  if (!scopedUserId) return null
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(getTextDirectionKey(scopedUserId))
+    return raw === 'rtl' ? 'rtl' : raw === 'ltr' ? 'ltr' : null
+  } catch {
+    return null
+  }
+}
+
+export function setCachedTextDirection(direction: 'ltr' | 'rtl', userId?: string) {
+  const scopedUserId = resolveUserId(userId)
+  if (!scopedUserId) return
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(getTextDirectionKey(scopedUserId), direction)
+  } catch {
+    // Ignore errors
+  }
+}
+
 function getRecentLists(userId: string): string[] {
   try {
     const cached = localStorage.getItem(getRecentKey(userId))

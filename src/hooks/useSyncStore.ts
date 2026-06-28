@@ -805,7 +805,7 @@ export function useSyncStore(): SyncStoreState {
         const userId = String(fresh.entity_id ?? '')
         if (!userId) throw new Error('patch profile missing user id')
         const patch = pickQueueableProfilePatch(
-          fresh.payload as Partial<{ label_filter?: string; theme?: 'light' | 'dark'; nickname?: string | null }>,
+          fresh.payload as Partial<{ label_filter?: string; theme?: 'light' | 'dark'; text_direction?: 'ltr' | 'rtl'; nickname?: string | null }>,
         )
         if (Object.keys(patch).length === 0) throw new Error('patch profile empty')
         const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
