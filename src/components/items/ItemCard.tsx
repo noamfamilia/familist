@@ -539,13 +539,11 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
       void handleArchive()
       return
     }
-    if (showMenu) {
-      setEditText(item.text)
-      setIsEditing(true)
-    }
+    setEditText(item.text)
+    setIsEditing(true)
   }
 
-  const itemNameClickable = item.archived ? !archiveInteractionBlocked : showMenu
+  const itemNameClickable = item.archived ? !archiveInteractionBlocked : true
   const itemNameInteractiveClass = itemNameClickable ? 'cursor-pointer hover:text-teal' : ''
 
   const handleStartEditComment = () => {
@@ -672,7 +670,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         </TourTargetSlot>
         </div>
 
-        {/* Item name — archived: click restores; active expanded: click renames; active collapsed: no action */}
+        {/* Item name — archived: click restores; active: click opens rename popover */}
         <TourTargetSlot
           target="item-name"
           enabled={tourTargetsEnabled}
