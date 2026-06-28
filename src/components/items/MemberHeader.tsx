@@ -29,6 +29,7 @@ import {
   itemCardRowHeightWithMembersPx,
   itemMemberCellHeightPx,
 } from '@/lib/itemNameFontStep'
+import { useTextDirection } from '@/hooks/useTextDirection'
 import {
   ITEM_TEXT_WIDTH_MANUAL_MIN,
   ITEM_TEXT_WIDTH_MIN,
@@ -161,6 +162,7 @@ export function MemberHeader({
   onDisplayControlsOpenChange,
 }: MemberHeaderProps) {
   const { user, profile } = useAuth()
+  const textDirection = useTextDirection()
   const { error: showError } = useToast()
 
   const suggestedName = useMemo(() => {
@@ -175,7 +177,7 @@ export function MemberHeader({
 
   const [isAdding, setIsAdding] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
-  const [actionsMenuPos, setActionsMenuPos] = useState<{ top: number; right: number } | null>(null)
+  const [actionsMenuPos, setActionsMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [categoryModalPos, setCategoryModalPos] = useState<{ top: number; left: number } | null>(null)
   const headerCardRef = useRef<HTMLDivElement>(null)
@@ -192,9 +194,12 @@ export function MemberHeader({
   const computeDisplayPopoverPos = useCallback((anchorEl: HTMLElement, popoverWidth: number) => {
     const btnRect = anchorEl.getBoundingClientRect()
     const vw = window.innerWidth
-    const left = Math.min(Math.max(8, btnRect.left), vw - popoverWidth - 8)
-    return { top: btnRect.bottom + 6, left }
-  }, [])
+    const top = btnRect.bottom + 6
+    const rawLeft =
+      textDirection === 'rtl' ? btnRect.right - popoverWidth : btnRect.left
+    const left = Math.min(Math.max(8, rawLeft), vw - popoverWidth - 8)
+    return { top, left }
+  }, [textDirection])
 
   const closeCategoryModal = useCallback(() => {
     setShowCategoryModal(false)
@@ -232,10 +237,17 @@ export function MemberHeader({
       }
       if (actionsButtonRef.current) {
         const rect = actionsButtonRef.current.getBoundingClientRect()
-        setActionsMenuPos({
-          top: rect.bottom + 4,
-          right: window.innerWidth - rect.right,
-        })
+        if (textDirection === 'rtl') {
+          setActionsMenuPos({
+            top: rect.bottom + 4,
+            left: rect.left,
+          })
+        } else {
+          setActionsMenuPos({
+            top: rect.bottom + 4,
+            right: window.innerWidth - rect.right,
+          })
+        }
       }
       setActionsOpen(true)
     }
@@ -921,11 +933,14 @@ export function MemberHeader({
               {actionsMenuAnim.mounted && (actionsMenuPos ?? actionsMenuPosStableRef.current) && (
                 <div
                   ref={actionsMenuRef}
+                  dir="ltr"
                   className={`fixed z-50 flex w-48 flex-col rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-black/40 ${actionsMenuAnim.menuClassName}`}
                   role="menu"
                   style={{
                     top: (actionsMenuPos ?? actionsMenuPosStableRef.current)!.top,
-                    right: (actionsMenuPos ?? actionsMenuPosStableRef.current)!.right,
+                    ...((actionsMenuPos ?? actionsMenuPosStableRef.current)!.left != null
+                      ? { left: (actionsMenuPos ?? actionsMenuPosStableRef.current)!.left }
+                      : { right: (actionsMenuPos ?? actionsMenuPosStableRef.current)!.right }),
                   }}
                 >
                   {showShowItemSum && (
@@ -1303,7 +1318,7 @@ export function MemberHeader({
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    onWidthChange?.(-20)
+                    onWidthChange?.(textDirection === 'rtl' ? 20 : -20)
                   }}
                   disabled={itemTextWidthMode === 'manual' && itemTextWidth <= itemTextWidthMin}
                   className={`flex h-8 items-center text-xl font-semibold touch-manipulation disabled:opacity-30 ${
@@ -1331,7 +1346,7 @@ export function MemberHeader({
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    onWidthChange?.(20)
+                    onWidthChange?.(textDirection === 'rtl' ? -20 : 20)
                   }}
                   className={`flex h-8 items-center text-xl font-semibold touch-manipulation disabled:opacity-30 ${
                     itemTextWidthMode === 'manual' ? 'text-teal' : 'text-gray-400 dark:text-gray-500 hover:text-teal'
