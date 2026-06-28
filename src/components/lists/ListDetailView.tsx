@@ -557,6 +557,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   )
   const noMemberColumns = filteredMembers.length === 0
   const listPageRef = useRef<HTMLDivElement>(null)
+  const listTablePanRef = useRef<HTMLDivElement>(null)
   const compactRowPageMinWidthRef = useRef(0)
   const [compactRowPageMinWidthPx, setCompactRowPageMinWidthPx] = useState(0)
 
@@ -582,6 +583,12 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   }, [noMemberColumns, itemTextWidthMode, itemTextWidth, items, categoryNames, sumScope])
 
   const compactRowListFixedLayout = noMemberColumns
+
+  useLayoutEffect(() => {
+    const pan = listTablePanRef.current
+    if (!pan) return
+    pan.scrollLeft = 0
+  }, [textDirection])
 
   useLayoutEffect(() => {
     if (!noMemberColumns) {
@@ -889,7 +896,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
   const listPageMinHeightClass =
     surface === 'home_modal' ? 'max-sm:min-h-0 sm:min-h-0' : 'min-h-screen sm:min-h-0'
   const listTablePanClass = noMemberColumns
-    ? 'w-full min-w-0 max-sm:list-table-pan-x sm:overflow-visible'
+    ? `w-full min-w-0 max-sm:list-table-pan-x ${textDirection === 'rtl' ? 'sm:overflow-x-auto' : 'sm:overflow-visible'}`
     : 'w-full min-w-0 max-sm:list-table-pan-x sm:max-w-full sm:overflow-x-auto'
 
   return (
@@ -1088,11 +1095,10 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
         overflow-y-clip keeps vertical scroll on the page so the header card can stick. Top chrome
         stays outside this zone. Desktop: unchanged single overflow-x-auto when members exist.
       */}
-      <div className={listTablePanClass}>
+      <div ref={listTablePanRef} className={listTablePanClass} dir={textDirection}>
         <div
-          dir={textDirection}
           className={
-            noMemberColumns ? 'relative inline-block w-max min-w-full rtl:ms-auto' : 'relative inline-block min-w-full'
+            noMemberColumns ? 'relative inline-block w-max min-w-full' : 'relative inline-block min-w-full'
           }
         >
           {showWidthBoundaryGuide &&
@@ -1173,8 +1179,8 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
             className={
               noMemberColumns
                 ? compactRowListFixedLayout
-                  ? 'flex w-max min-w-full flex-col gap-2 rtl:ms-auto'
-                  : 'flex w-max flex-col gap-2 rtl:ms-auto'
+                  ? 'flex w-max min-w-full flex-col gap-2'
+                  : 'flex w-max flex-col gap-2'
                 : 'space-y-2'
             }
           >
