@@ -17,8 +17,14 @@ export function formatListItemNamesForClipboard(items: ListItemLike[]): string {
       const bTime = b.archived_at ? new Date(b.archived_at).getTime() : 0
       return bTime - aTime
     })
+  const hasArchived = archived.length > 0
   return [...active, ...archived]
-    .map(i => i.text.trim())
+    .map(i => {
+      const text = i.text.trim()
+      if (!text) return ''
+      if (!hasArchived) return text
+      return `${i.archived ? '[-]' : '[+]'} ${text}`
+    })
     .filter(t => t.length > 0)
     .join('\n')
 }
