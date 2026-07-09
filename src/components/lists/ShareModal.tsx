@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { Modal } from '@/components/ui/Modal'
 import { RegenerateIcon, ShareActionIcon } from '@/components/ui/ShareIcons'
 import { useToast } from '@/components/ui/Toast'
-import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
+import { canUseNativeShare, copyTextToClipboard, isMobileDevice, shareOrCopyText } from '@/lib/clipboard'
 import { buildInviteUrl } from '@/lib/invite'
 import { resolveCatalogMutationUserId } from '@/lib/catalogMutationUserId'
 import { createClient, forceNewClient } from '@/lib/supabase/client'
@@ -173,10 +173,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, visibility, list.id])
 
-  const canUseNativeShare =
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    isMobileDevice()
+  const nativeShareAvailable = canUseNativeShare()
 
   const copyInviteLink = async (inviteLink: string) => {
     await copyTextToClipboard(inviteLink)
@@ -187,8 +184,14 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
 
   const handleCopyListAsText = async () => {
     try {
-      await copyTextToClipboard(listItemsAsText)
-      success('Copied list to clipboard')
+      await shareOrCopyText(
+        listItemsAsText,
+        {
+          onCopied: () => success('Copied list to clipboard'),
+          onError: () => showError('Could not copy'),
+        },
+        { title: list.name },
+      )
     } catch {
       showError('Could not copy')
     }
@@ -227,7 +230,7 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
   }
 
   const shareInviteLink = async (inviteLink: string) => {
-    if (!canUseNativeShare) {
+    if (!nativeShareAvailable) {
       await copyInviteLink(inviteLink)
       return
     }
@@ -543,9 +546,9 @@ export function ShareModal({ isOpen, onClose, list, onUpdate, listItemsAsText }:
               type="button"
               onClick={() => void handleShareInvite()}
               disabled={loading}
-              title={canUseNativeShare ? 'Share invite link' : 'Copy invite link to clipboard'}
+              title={nativeShareAvailable ? 'Share invite link' : 'Copy invite link to clipboard'}
               className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-red-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-              aria-label={canUseNativeShare ? 'Share invite link' : 'Copy invite link'}
+              aria-label={nativeShareAvailable ? 'Share invite link' : 'Copy invite link'}
             >
               <ShareActionIcon className="h-5 w-5 shrink-0" />
               Share list

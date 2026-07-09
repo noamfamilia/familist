@@ -10,7 +10,7 @@ import { useConnectivity } from '@/providers/ConnectivityProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { prefetchListPageForNavigation } from '@/lib/data/listPageCachePrefetch'
 import { useActiveListUiStore } from '@/stores/activeListUiStore'
-import { copyTextToClipboard } from '@/lib/clipboard'
+import { shareOrCopyText } from '@/lib/clipboard'
 import { listItemClipboardTextFromDexie } from '@/lib/data/listItemClipboardText'
 import type { ListWithRole, ListUserSumScope } from '@/lib/supabase/types'
 import { listCardModelEqual, sameStringList } from './listCardEquality'
@@ -627,8 +627,17 @@ function ListCardInner({
     copyItemsInFlightRef.current = true
     try {
       const text = await listItemClipboardTextFromDexie(list.id)
-      await copyTextToClipboard(text)
-      showSuccess('Copied to clipboard')
+      await shareOrCopyText(
+        text,
+        {
+          onCopied: () => showSuccess('Copied to clipboard'),
+          onError: (err) =>
+            showError('Could not copy items', {
+              serverError: err instanceof Error ? err : undefined,
+            }),
+        },
+        { title: list.name },
+      )
     } catch (err) {
       showError('Could not copy items', {
         serverError: err instanceof Error ? err : undefined,

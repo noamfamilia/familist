@@ -10,9 +10,7 @@ import { enqueueSyncQueueRecord, userQueueParent } from '@/lib/data/syncQueue'
 import { isoNow, syncFieldsForLocalInsert } from '@/lib/data/base_sync_fields'
 import { normalizeServerSyncableFields } from '@/lib/data/serverDexieParity'
 import type { Profile } from '@/lib/supabase/types'
-import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
-
-const APP_SHARE_URL = 'https://myfamilist.com/'
+import { shareMyFamilistApp } from '@/lib/shareFamilistApp'
 
 interface AboutModalProps {
   isOpen: boolean
@@ -43,19 +41,6 @@ export function AboutModal({
   const handleClose = () => {
     setFeedbackText('')
     onClose()
-  }
-
-  const handleCopyShareLink = async () => {
-    try {
-      await copyTextToClipboard(APP_SHARE_URL)
-      if (!isMobileDevice()) {
-        success('Link copied to clipboard')
-      } else {
-        success('Copied')
-      }
-    } catch {
-      showError('Failed to copy link')
-    }
   }
 
   const handleSubmitFeedback = async () => {
@@ -115,9 +100,9 @@ export function AboutModal({
       <div className="flex flex-col gap-5 text-left">
         <button
           type="button"
-          onClick={() => void handleCopyShareLink()}
+          onClick={() => void shareMyFamilistApp({ success, error: showError })}
           className="self-start text-left text-sm font-normal text-blue-600 hover:underline focus:underline focus:outline-none dark:text-blue-400"
-          aria-label="Copy app link to clipboard"
+          aria-label="Share the app"
         >
           Click to share the app
         </button>

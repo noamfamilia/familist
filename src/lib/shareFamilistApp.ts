@@ -1,4 +1,4 @@
-import { copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
+import { canUseNativeShare, copyTextToClipboard, isMobileDevice } from '@/lib/clipboard'
 
 export type ShareFamilistHandlers = {
   success: (message: string) => void
@@ -15,18 +15,17 @@ export async function shareMyFamilistApp({ success, error: showError }: ShareFam
     }
   }
 
-  const canUseNativeShare =
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    isMobileDevice()
-
-  if (!canUseNativeShare) {
+  if (!canUseNativeShare()) {
     await copyOnly()
     return
   }
 
   try {
-    await navigator.share({ url })
+    await navigator.share({
+      title: 'MyFamiList',
+      text: 'Shared list app for family and friends',
+      url,
+    })
   } catch (err) {
     const shareError = err as Error & { name?: string }
     if (shareError.name === 'AbortError') return
