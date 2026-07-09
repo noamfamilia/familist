@@ -19,9 +19,9 @@ function shortenForMessage(s: string, max = 72): string {
 export type SingleAddTextClassification =
   | { kind: 'create' }
   | { kind: 'unarchive'; itemId: string }
-  | { kind: 'duplicate_active'; message: string }
+  | { kind: 'duplicate_active'; itemId: string }
 
-/** Single add: archived exact match → unarchive; active exact match → duplicate; else create. */
+/** Single add: archived exact match → unarchive; active exact match → ignore; else create. */
 export async function classifySingleAddText(
   listId: string,
   displayText: string,
@@ -40,14 +40,60 @@ export async function classifySingleAddText(
       if (!archivedMatchId) archivedMatchId = row.id
       continue
     }
-    return {
-      kind: 'duplicate_active',
-      message: `An item named “${shortenForMessage(trimmed)}” already exists in this list.`,
-    }
+    return { kind: 'duplicate_active', itemId: row.id }
   }
 
   if (archivedMatchId) return { kind: 'unarchive', itemId: archivedMatchId }
   return { kind: 'create' }
+}
+
+export type BulkAddLinePlan = {
+  /** Unique new lines to create (first occurrence order). */
+  toCreate: string[]
+  /** Archived items to restore (first match per unique line). */
+  toUnarchiveIds: string[]
+}
+
+/**
+ * Bulk add plan: per unique line (first occurrence), create / unarchive / ignore active.
+ * Duplicate lines within the batch are collapsed to the first occurrence.
+ */
+export async function classifyBulkAddLines(
+  listId: string,
+  trimmedNonemptyLines: string[],
+): Promise<BulkAddLinePlan> {
+  const rows = await db.items.where('list_id').equals(listId).toArray()
+  const activeByNorm = new Map<string, string>()
+  const archivedByNorm = new Map<string, string>()
+  for (const row of rows) {
+    if (isTombstoned(row.deleted_at)) continue
+    const n = normalizeItemTextForUniqueness(String(row.text ?? ''))
+    if (!n) continue
+    if (row.archived) {
+      if (!archivedByNorm.has(n)) archivedByNorm.set(n, row.id)
+    } else if (!activeByNorm.has(n)) {
+      activeByNorm.set(n, row.id)
+    }
+  }
+
+  const seen = new Set<string>()
+  const toCreate: string[] = []
+  const toUnarchiveIds: string[] = []
+
+  for (const line of trimmedNonemptyLines) {
+    const n = normalizeItemTextForUniqueness(line)
+    if (!n || seen.has(n)) continue
+    seen.add(n)
+    if (activeByNorm.has(n)) continue
+    const archivedId = archivedByNorm.get(n)
+    if (archivedId) {
+      toUnarchiveIds.push(archivedId)
+      continue
+    }
+    toCreate.push(line.trim())
+  }
+
+  return { toCreate, toUnarchiveIds }
 }
 
 /** UI: exact normalized name match against in-memory list rows (active or archived). */
@@ -96,54 +142,6 @@ export async function validateSingleNewItemTextUniqueness(
   return { ok: true }
 }
 
-/**
- * All-or-nothing: duplicate lines within the batch, or overlap with any active (non–soft-deleted)
- * item in Dexie for this list, fails validation.
- */
-export async function validateBulkItemLinesUniqueness(
-  listId: string,
-  trimmedNonemptyLines: string[],
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  const seen = new Set<string>()
-  for (const line of trimmedNonemptyLines) {
-    const n = normalizeItemTextForUniqueness(line)
-    if (!n) continue
-    if (seen.has(n)) {
-      return {
-        ok: false,
-        message: `Duplicate line in this batch (“${shortenForMessage(line)}”). Remove duplicates and try again.`,
-      }
-    }
-    seen.add(n)
-  }
-
-  let existing: { text?: string | null; deleted_at?: string | null }[]
-  try {
-    existing = await db.items.where('list_id').equals(listId).toArray()
-  } catch {
-    return { ok: false, message: 'Could not verify items locally. Try again.' }
-  }
-
-  const existingNorms = new Set<string>()
-  for (const row of existing) {
-    if (isTombstoned(row.deleted_at)) continue
-    existingNorms.add(normalizeItemTextForUniqueness(String(row.text ?? '')))
-  }
-
-  for (const line of trimmedNonemptyLines) {
-    const n = normalizeItemTextForUniqueness(line)
-    if (!n) continue
-    if (existingNorms.has(n)) {
-      return {
-        ok: false,
-        message: `An item named “${shortenForMessage(line)}” already exists in this list.`,
-      }
-    }
-  }
-
-  return { ok: true }
-}
-
 /** Google Sheet import: duplicate non-empty item texts in the same import fail entirely. */
 export function validateImportSheetRowTextsUnique(rows: unknown): { ok: true } | { ok: false; message: string } {
   if (rows == null) return { ok: true }
@@ -173,7 +171,6 @@ export function isLocalItemTextUniquenessFailure(message: string | undefined): b
   if (!message) return false
   return (
     message.startsWith('An item named') ||
-    message.startsWith('Duplicate line in this batch') ||
     message.startsWith('This import contains duplicate')
   )
 }

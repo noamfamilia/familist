@@ -59,8 +59,8 @@ import {
   withLastSyncedNow,
 } from '@/lib/data/base_sync_fields'
 import {
+  classifyBulkAddLines,
   classifySingleAddText,
-  validateBulkItemLinesUniqueness,
   validateSingleNewItemTextUniqueness,
 } from '@/lib/data/localItemTextUniqueness'
 import { validateMemberNameForList } from '@/lib/data/localListMemberNameUniqueness'
@@ -1235,7 +1235,8 @@ export function useList(listId: string) {
     const trimmed = text.trim()
     const classified = await classifySingleAddText(listId, trimmed)
     if (classified.kind === 'duplicate_active') {
-      return { data: null, error: { message: classified.message } }
+      // Already active — treat as success so the form clears with no error toast.
+      return { data: { id: classified.itemId } as Item, error: null }
     }
     if (classified.kind === 'unarchive') {
       const { error } = await updateItemRef.current(classified.itemId, {
@@ -1310,13 +1311,26 @@ export function useList(listId: string) {
         inserted: 0,
       }
     }
-    const bulkDup = await validateBulkItemLinesUniqueness(listId, trimmed)
-    if (!bulkDup.ok) {
-      return { error: { message: bulkDup.message }, inserted: 0 }
-    }
     if (!mutationUserId) {
       return { error: { message: 'Not authenticated' }, inserted: 0 }
     }
+
+    const plan = await classifyBulkAddLines(listId, trimmed)
+    // Active duplicates are ignored; restore archived matches first.
+    for (const itemId of plan.toUnarchiveIds) {
+      const { error } = await updateItemRef.current(itemId, {
+        archived: false,
+        archived_at: null,
+      })
+      if (error) {
+        return { error, inserted: 0 }
+      }
+    }
+
+    if (plan.toCreate.length === 0) {
+      return { error: null, inserted: 0 }
+    }
+
     if (!tryBeginItemQueueableMutation()) {
       return { error: { message: blockedMutationMessage() }, inserted: 0 }
     }
@@ -1325,8 +1339,8 @@ export function useList(listId: string) {
       skipRealtimeUntilRef.current = Math.max(skipRealtimeUntilRef.current, Date.now() + 2000)
       const cat = normalizeItemCategory(category)
       const t = isoNow()
-      const sortOrders = nextItemSortOrdersAfterExisting(useListDataStore.getState().items, trimmed.length)
-      const rows: DbItemRow[] = trimmed.map((text, i) => {
+      const sortOrders = nextItemSortOrdersAfterExisting(useListDataStore.getState().items, plan.toCreate.length)
+      const rows: DbItemRow[] = plan.toCreate.map((text, i) => {
         const base = {
           id: crypto.randomUUID(),
           list_id: listId,
@@ -1360,7 +1374,7 @@ export function useList(listId: string) {
               method: 'bulkAddListItems',
               list_id: listId,
               category: cat,
-              lines: trimmed,
+              lines: plan.toCreate,
               items: rows.map((r) => ({ ...r })),
             },
             ...listQueueParent(listId),
@@ -1369,7 +1383,7 @@ export function useList(listId: string) {
         })
         await markCurrentListViewed(t)
         persistListSnapshotToDetailCache(mutationUserId, listId)
-        return { error: null, inserted: trimmed.length }
+        return { error: null, inserted: plan.toCreate.length }
       } catch (error) {
         useListDataStore.getState().setItems((prev) => prev.filter((i) => !rollbackIds.has(i.id)))
         return { error: { message: rpcFailureMessage(error) }, inserted: 0 }

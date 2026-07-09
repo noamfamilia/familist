@@ -33,7 +33,7 @@ export async function addItemMutation(input: {
   const sortOrder = input.sort_order ?? 0
   const classified = await classifySingleAddText(input.list_id, input.text)
   if (classified.kind === 'duplicate_active') {
-    throw new Error(classified.message)
+    throw new Error('Item already exists; use ignore instead of create')
   }
   if (classified.kind === 'unarchive') {
     throw new Error('Item already exists (archived); use unarchive instead of create')
