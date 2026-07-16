@@ -477,7 +477,7 @@ export function useSyncStore(): SyncStoreState {
         if (row.entity === 'item') {
           const id = String(row.payload.id ?? '')
           if (id) {
-            const { error } = await supabase.from('items').delete().eq('id', id)
+            const { error } = await supabase.rpc('delete_item_sync', { p_item_id: id })
             if (error) throw error
             const listHint = row.parent1_type === 'list' ? row.parent1_id : null
             await cleanupDexieAfterItemServerDeleted(id, listHint)
@@ -706,24 +706,12 @@ export function useSyncStore(): SyncStoreState {
         const itemId = String(payload.item_id ?? '')
         const memberId = String(payload.member_id ?? '')
         if (!itemId || !memberId) throw new Error('item_member_state missing item_id/member_id')
-        const u = isoNow()
-        const baseIms = {
-          item_id: itemId,
-          member_id: memberId,
-          quantity: payload.quantity ?? 1,
-          done: payload.done ?? false,
-          assigned: payload.assigned ?? false,
-          client_created_at: u,
-          server_created_at: u,
-          deleted_at: null,
-          version: 1,
-          last_synced_at: null,
-          updated_at: u,
-        }
-        const imsSync = normalizeServerSyncableFields(baseIms as Record<string, unknown>)
-        const { error } = await supabase.from('item_member_state').upsert({
-          ...baseIms,
-          ...imsSync,
+        const { error } = await supabase.rpc('upsert_item_member_state_sync', {
+          p_item_id: itemId,
+          p_member_id: memberId,
+          p_quantity: payload.quantity ?? 1,
+          p_done: payload.done ?? false,
+          p_assigned: payload.assigned ?? false,
         })
         if (error) throw error
       } else if (row.kind === 'patch' && row.entity === 'item') {

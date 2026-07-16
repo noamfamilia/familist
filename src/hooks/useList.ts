@@ -494,7 +494,8 @@ export function useList(listId: string) {
   const markCurrentListViewed = useCallback(
     async (nowIso?: string) => {
       try {
-        await markListViewedLocally(mutationUserId, listId, { nowIso })
+        // Local only: content-mutating RPCs advance server last_viewed in the same round-trip.
+        await markListViewedLocally(mutationUserId, listId, { nowIso, queueRemote: false })
       } catch {
         // Best effort only; read-cursor failures should not block item mutations.
       }

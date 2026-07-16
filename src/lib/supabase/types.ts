@@ -453,6 +453,20 @@ export interface Database {
         Args: { p_member_id: string }
         Returns: void
       }
+      delete_item_sync: {
+        Args: { p_item_id: string }
+        Returns: undefined
+      }
+      upsert_item_member_state_sync: {
+        Args: {
+          p_item_id: string
+          p_member_id: string
+          p_quantity?: number
+          p_done?: boolean
+          p_assigned?: boolean
+        }
+        Returns: undefined
+      }
       generate_share_token: {
         Args: { p_list_id: string; p_force_regenerate?: boolean }
         Returns: string
