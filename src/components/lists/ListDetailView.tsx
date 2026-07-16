@@ -569,6 +569,7 @@ export function ListDetailView({ listId, surface, onRequestClose }: ListDetailVi
       hasComment: false,
     })
     for (const item of items) {
+      if (item.archived) continue
       const categoryTitle = categoryNames[String(item.category ?? 1)]?.trim() ?? ''
       const hasComment = Boolean(item.comment?.trim())
       maxW = Math.max(

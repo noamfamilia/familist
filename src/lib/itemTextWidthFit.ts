@@ -286,6 +286,20 @@ export function measureCompactRowTightestNameWidthPx(
   return tightestNameWidth
 }
 
+/** Max name-column width (px) so a compact-auto row fits inside a fixed card content width. */
+export function compactAutoNameColumnMaxWidthPx(
+  cardContentWidthPx: number,
+  input: { categoryTitle: string; hasComment: boolean },
+): number {
+  const trailing = measureCompactRowTrailingWidthPx(input)
+  const used =
+    itemNameColumnLeftEdgePx() +
+    ITEM_ROW_FLEX_GAP_PX +
+    trailing +
+    ITEM_ROW_TRAILING_PADDING_PX
+  return Math.max(ITEM_TEXT_WIDTH_MIN, Math.floor(cardContentWidthPx - used))
+}
+
 /** Shared card width for auto mode on no-member lists (px). */
 export function measureCompactRowAutoViewWidthPx(
   rows: CompactRowItemMeasureInput[],

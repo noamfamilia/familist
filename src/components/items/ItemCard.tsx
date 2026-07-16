@@ -13,6 +13,7 @@ import { ITEM_CATEGORY_STYLES } from '@/lib/categoryStyles'
 import {
   ITEM_TEXT_WIDTH_MIN,
   compactRowCardWidthCss,
+  compactAutoNameColumnMaxWidthPx,
   measureCategoryLabelChipWidthPx,
   measureCompactManualRowContentWidthPx,
   measureItemNameNaturalWidthPx,
@@ -396,7 +397,12 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     () => measureItemNameNaturalWidthPx(item.text, itemNameFontStep),
     [item.text, itemNameFontStep],
   )
-  const nameColumnWidthPx = compactAutoLayout ? naturalNameWidthPx : itemTextWidth
+  const nameColumnWidthPx = compactAutoLayout
+    ? Math.min(
+        naturalNameWidthPx,
+        compactAutoNameColumnMaxWidthPx(itemTextWidth, { categoryTitle, hasComment }),
+      )
+    : itemTextWidth
   const compactRowContentWidthPx = compactAutoLayout
     ? itemTextWidth
     : measureCompactManualRowContentWidthPx(itemTextWidth, { categoryTitle, hasComment })
@@ -405,6 +411,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
     ? compactRowCardWidthCss(compactRowContentWidthPx, compactRowPageMinWidthPx)
     : undefined
   const nameFlexesWhenExpanded = showMenu
+  const nameUsesTruncate = !compactAutoLayout || naturalNameWidthPx > nameColumnWidthPx
 
   const itemRowHeightPx = useMemo(() => itemCardRowHeightWithMembersPx(itemNameFontStep), [itemNameFontStep])
   const memberCellPx = useMemo(() => itemMemberCellHeightPx(itemNameFontStep), [itemNameFontStep])
@@ -717,7 +724,7 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
           ) : !isEditing ? (
             <span
               onClick={itemNameClickable ? handleItemNameClick : undefined}
-              className={`block ${compactAutoLayout ? 'whitespace-nowrap' : 'truncate'} ${itemNameFontClassName} ${itemNameColorClass} ${itemNameInteractiveClass} ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
+              className={`block ${nameUsesTruncate ? 'truncate' : 'whitespace-nowrap'} ${itemNameFontClassName} ${itemNameColorClass} ${itemNameInteractiveClass} ${item.archived ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}
               title={
                 item.archived && !archiveInteractionBlocked
                   ? `Restore: ${item.text}`

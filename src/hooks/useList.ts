@@ -195,11 +195,15 @@ function sumRowTitlesForAutoWidth(sumScope: ListUserSumScope, items: ItemWithSta
   return [`${nArchived} archived item`]
 }
 
+function itemsForWidthFit(items: ItemWithState[]): ItemWithState[] {
+  return items.filter((i) => !i.archived)
+}
+
 function compactRowMeasureInputsForItems(
   items: ItemWithState[],
   categoryNames: CategoryNames,
 ): CompactRowItemMeasureInput[] {
-  return items.map((item) => {
+  return itemsForWidthFit(items).map((item) => {
     const category = normalizeItemCategory(item.category)
     const categoryTitle = categoryNames[String(category)]?.trim() ?? ''
     const hasComment = Boolean(item.comment?.trim())
@@ -219,6 +223,13 @@ function compactRowAutoViewWidthPx(
     width = Math.max(width, measureCompactSumRowContentWidthPx(title, fontStep))
   }
   return width
+}
+
+function itemNameTextsForWidthFit(items: ItemWithState[], sumScope: ListUserSumScope): string[] {
+  return [
+    ...itemsForWidthFit(items).map((i) => i.text ?? ''),
+    ...sumRowTitlesForAutoWidth(sumScope, items),
+  ]
 }
 
 function getCachedPrefs(listId: string, userId?: string | null) {
@@ -2114,18 +2125,12 @@ export function useList(listId: string) {
             itemNameFontStepRef.current,
           )
         } else {
-          const texts = [
-            ...items.map((i) => i.text ?? ''),
-            ...sumRowTitlesForAutoWidth(sumScope, items),
-          ]
+          const texts = itemNameTextsForWidthFit(items, sumScope)
           widthForValue = measureFitItemTextWidthPx(texts, itemNameFontStepRef.current)
         }
         setItemTextWidth(widthForValue)
       } else if (members.length === 0) {
-        const texts = [
-          ...items.map((i) => i.text ?? ''),
-          ...sumRowTitlesForAutoWidth(sumScope, items),
-        ]
+        const texts = itemNameTextsForWidthFit(items, sumScope)
         widthForValue = measureFitItemTextWidthPx(texts, itemNameFontStepRef.current)
         setItemTextWidth(widthForValue)
       }
@@ -2551,8 +2556,9 @@ export function useList(listId: string) {
   const compactAutoFitKey = useMemo(() => {
     if (itemTextWidthMode !== 'auto') return ''
     const categoryKey = JSON.stringify(categoryNames)
+    // Include archived flag so archive/restore recomputes width (archived text is ignored for fit).
     const rowsKey = itemsForUi
-      .map((i) => `${i.id}|${i.text ?? ''}|${i.category ?? 1}|${i.comment?.trim() ? 1 : 0}`)
+      .map((i) => `${i.id}|${i.archived ? 1 : 0}|${i.text ?? ''}|${i.category ?? 1}|${i.comment?.trim() ? 1 : 0}`)
       .join('\n')
     return `${members.length}|${itemNameFontStep}|${sumScope}|${rowsKey}|${categoryKey}`
   }, [itemTextWidthMode, itemsForUi, members.length, itemNameFontStep, sumScope, categoryNames])
@@ -2564,10 +2570,7 @@ export function useList(listId: string) {
       const width = compactRowAutoViewWidthPx(itemsForUi, categoryNames, sumScope, itemNameFontStep)
       setItemTextWidth((prev) => (prev === width ? prev : width))
     } else {
-      const texts = [
-        ...itemsForUi.map(i => i.text ?? ''),
-        ...sumRowTitlesForAutoWidth(sumScope, itemsForUi),
-      ]
+      const texts = itemNameTextsForWidthFit(itemsForUi, sumScope)
       const fitWidth = measureFitItemTextWidthPx(texts, itemNameFontStep)
       setItemTextWidth((prev) => (prev === fitWidth ? prev : fitWidth))
     }
@@ -2578,10 +2581,7 @@ export function useList(listId: string) {
   const adjustItemTextWidth = useCallback(
     (delta: number) => {
       if (itemTextWidthMode === 'auto') {
-        const texts = [
-          ...items.map((i) => i.text ?? ''),
-          ...sumRowTitlesForAutoWidth(sumScope, items),
-        ]
+        const texts = itemNameTextsForWidthFit(items, sumScope)
         const start = measureFitItemTextWidthPx(texts, itemNameFontStepRef.current)
         previewItemTextWidth(start + delta)
         return
