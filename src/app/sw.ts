@@ -1,6 +1,12 @@
 /// <reference lib="webworker" />
 
-import { NetworkOnly, Serwist, type PrecacheEntry, type SerwistGlobalConfig } from 'serwist'
+import {
+  disableNavigationPreload,
+  NetworkOnly,
+  Serwist,
+  type PrecacheEntry,
+  type SerwistGlobalConfig,
+} from 'serwist'
 import { defaultCache } from '@serwist/next/worker'
 
 declare global {
@@ -42,7 +48,12 @@ const serwist = new Serwist({
   },
   skipWaiting: true,
   clientsClaim: true,
-  navigationPreload: true,
+  /**
+   * Keep navigation preload OFF: navigations are answered from the precached shell (`/`),
+   * and PrecacheStrategy awaits `event.preloadResponse` (the network) before checking the
+   * cache — with no timeout. On slow-but-online connections that stalled first paint.
+   */
+  navigationPreload: false,
   runtimeCaching: [
     {
       matcher: ({ url, sameOrigin, request }) =>
@@ -55,6 +66,12 @@ const serwist = new Serwist({
     ...defaultCache,
   ],
 })
+
+/**
+ * Navigation preload enablement persists on the SW registration across updates, so existing
+ * installs (enabled by older SW versions) must be explicitly disabled on activate.
+ */
+disableNavigationPreload()
 
 serwist.addEventListeners()
 
