@@ -10,7 +10,11 @@ type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 export type ToastAction = { label: string; onClick: () => void }
 
-export type ToastOptions = { durationMs?: number; action?: ToastAction }
+/**
+ * `durationMs: 0` makes the toast persistent (stays until dismissed or its action runs).
+ * `tapToAction` makes the whole toast a tap target for `action` (the label chip stays visible).
+ */
+export type ToastOptions = { durationMs?: number; action?: ToastAction; tapToAction?: boolean }
 
 /** Optional structured server error (e.g. PostgREST `AuthApiError` / RPC error) appended to the summary. */
 export type ToastErrorOptions = { serverError?: unknown }
@@ -42,6 +46,7 @@ interface Toast {
   type: ToastType
   durationMs?: number
   action?: ToastAction
+  tapToAction?: boolean
 }
 
 interface ToastContextType {
@@ -82,15 +87,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       type,
       durationMs,
       action: options?.action,
+      tapToAction: options?.tapToAction,
     }
     setToasts(prev => {
       const next = [...prev, entry]
       return next.length > 2 ? next.slice(-2) : next
     })
 
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id))
-    }, durationMs)
+    if (durationMs > 0) {
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id))
+      }, durationMs)
+    }
     return id
   }, [])
 
@@ -156,13 +164,17 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     offline: 'border-l-neutral-500 text-neutral-600',
   }
 
+  const tapAction = toast.tapToAction ? toast.action : undefined
+
   return (
     <div
+      onClick={tapAction ? () => tapAction.onClick() : undefined}
       className={`
         pointer-events-auto flex items-center gap-3 px-4 py-3 bg-white dark:bg-neutral-900 rounded-lg shadow-lg dark:shadow-black/40
         border-l-4 ${colors[toast.type]} ${
           toast.type === 'error' ? 'max-w-[min(92vw,28rem)]' : 'max-w-[350px]'
         }
+        ${tapAction ? 'cursor-pointer' : ''}
         transition-transform duration-300 ease-out
         ${isVisible ? 'translate-x-0' : 'translate-x-[120%]'}
       `}
@@ -178,7 +190,8 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       {toast.action ? (
         <button
           type="button"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
             toast.action?.onClick()
           }}
           className="flex-shrink-0 rounded-md bg-teal px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
@@ -187,7 +200,10 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         </button>
       ) : null}
       <button
-        onClick={onDismiss}
+        onClick={(e) => {
+          e.stopPropagation()
+          onDismiss()
+        }}
         className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-lg opacity-60 hover:opacity-100"
       >
         ×

@@ -9,6 +9,7 @@ import { ConnectivityProvider } from '@/providers/ConnectivityProvider'
 import { ListsCatalogRealtimeProvider } from '@/providers/ListsCatalogRealtimeProvider'
 import { SyncStoreBridge } from '@/components/sync/SyncStoreBridge'
 import { GlobalAuthModal } from '@/components/auth/GlobalAuthModal'
+import { ServiceWorkerUpdateToast } from '@/components/pwa/ServiceWorkerUpdateToast'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -74,6 +75,7 @@ export default function RootLayout({
                 <ListsCatalogRealtimeProvider>
                   <SyncStoreBridge />
                   <GlobalAuthModal />
+                  <ServiceWorkerUpdateToast />
                   <main className="min-h-screen flex items-start justify-start sm:items-start sm:justify-center p-0 sm:p-5">
                     {children}
                   </main>
