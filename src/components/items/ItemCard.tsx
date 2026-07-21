@@ -1007,7 +1007,8 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
           <div
-            className={`space-y-2 rounded-b-lg bg-transparent px-3 py-2${compactRow ? ' min-w-full' : ''}`}
+            // w-0 + min-w-full: menu stretches to the card width set by the item row without its own content (long comments) widening the w-max card
+            className="w-0 min-w-full space-y-2 rounded-b-lg bg-transparent px-3 py-2"
           >
             {/* Comment display / editor */}
             <div className="relative min-w-0" onClick={(e) => e.stopPropagation()}>
