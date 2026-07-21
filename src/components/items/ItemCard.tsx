@@ -1007,18 +1007,18 @@ export function ItemCard({ item, members, hideDone, hideNotRelevant, onUpdateIte
         {/* Expanded menu with comment field and action buttons */}
         {showMenu && (
           <div
-            className={`space-y-2 overflow-hidden rounded-b-lg bg-transparent px-3 py-2${compactRow ? ' min-w-full' : ''}`}
+            className={`space-y-2 rounded-b-lg bg-transparent px-3 py-2${compactRow ? ' min-w-full' : ''}`}
           >
             {/* Comment display / editor */}
             <div className="relative min-w-0" onClick={(e) => e.stopPropagation()}>
               {comment ? (
                 <p
-                  className="flex min-w-0 cursor-pointer items-center gap-1 truncate text-sm text-gray-600 hover:text-teal dark:text-gray-400"
+                  className="min-w-0 cursor-pointer whitespace-pre-wrap break-words text-sm text-gray-600 hover:text-teal dark:text-gray-400"
                   title={comment}
                   onClick={() => handleStartEditComment()}
                 >
-                  <span className="truncate">{comment}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-40" aria-hidden>
+                  {comment}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="inline-block ml-1 opacity-40 align-text-bottom" aria-hidden>
                     <path fillRule="evenodd" clipRule="evenodd" d="M8.56078 20.2501L20.5608 8.25011L15.7501 3.43945L3.75012 15.4395V20.2501H8.56078ZM15.7501 5.56077L18.4395 8.25011L16.5001 10.1895L13.8108 7.50013L15.7501 5.56077ZM12.7501 8.56079L15.4395 11.2501L7.93946 18.7501H5.25012L5.25012 16.0608L12.7501 8.56079Z"/>
                   </svg>
                 </p>
